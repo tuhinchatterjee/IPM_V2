@@ -158,17 +158,40 @@ def scored_months(analytics_dir: str | Path | None = None) -> list[str]:
     return every[-MONTHS_KEPT:] if len(every) >= MONTHS_KEPT else every
 
 
+_CACHE: dict[str, Any] = {}
+_BOOK_CACHE: dict[str, Any] = {}
+
+
 def _read_book(month: str, analytics_dir: str | Path | None = None) -> Any:
+    """One month of the canonical book, held the way the panel is held.
+
+    This was the only uncached reader of the four, and it costs 1.20 seconds
+    for 59,449 rows over 546 columns. A single workbook download read it three
+    times — once inside the scenario run, once for the facility detail, once
+    for the customer roll-up — so three and a half seconds of a fifteen-second
+    download were the same parquet files being parsed again.
+
+    Returned as the SAME frame rather than a copy, exactly as `read` does: the
+    callers narrow and filter, which produces new frames, and none of them
+    mutates what they are given.
+    """
     import pandas as pd
 
+    key = f"{month}|{analytics_dir or ''}"
+    held = _BOOK_CACHE.get(key)
+    if held is not None:
+        return held
     parts = sorted(glob.glob(str(
         _root(analytics_dir) / BOOK / f"reporting_month={month}" / "*.parquet")))
     if not parts:
         raise FileNotFoundError(f"the retail book has no {month}")
-    return pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
-
-
-_CACHE: dict[str, Any] = {}
+    frame = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
+    # The book is wider than the panel — 546 columns against 498 — so fewer
+    # months are held before the cache is cleared.
+    if len(_BOOK_CACHE) > 8:
+        _BOOK_CACHE.clear()
+    _BOOK_CACHE[key] = frame
+    return frame
 
 
 def read(month: str, analytics_dir: str | Path | None = None) -> Any:
@@ -206,6 +229,7 @@ def forget() -> None:
     worse than no cache at all.
     """
     _CACHE.clear()
+    _BOOK_CACHE.clear()
     try:
         from backend.retail import ews_views
     except ImportError:  # pragma: no cover - scoring can run without serving

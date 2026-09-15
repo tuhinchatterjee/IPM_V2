@@ -76,24 +76,48 @@ the Delta page's worked example.
 
 ## Phase 5 — Results and professional exports
 
-Status: **done** at `032ad88` (workbook) and this commit (reports).
+Status: **done and fully accepted**.
 
-§12: `workbook_style.py`, `workbook_sheet.py`, `whatif_workbook.py` rewritten.
-22 sheets, gridlines off on every one, 0 numeric cells left as General,
-0.034823 renders as 3.48%, 3 charts, 21 internal links. 19/19 tests.
+§12 — the workbook. `workbook_style.py`, `workbook_sheet.py`,
+`whatif_workbook.py`. 22 sheets, gridlines off on every one, 0 numeric cells
+unformatted, 0.034823 renders as 3.48%, 36 formula cells, 3 charts, 21
+internal links, 4,660 customers and 5,001 facilities of detail.
 
-§11: the engine records the propagation as it computes it — `mechanism`,
-`score_migration`, `stage_movement` — and a channel the scenario does not
-reach is named as untouched rather than given a movement.
+§11 — the engine records the propagation as it computes it (`mechanism`,
+`score_migration`, `stage_movement`); an untouched channel is named as
+untouched. Each waterfall step reports how many facilities' ECL actually
+moved, and a migration additionally reports how many it selected.
 
-§13: `report_service.py` — one document builder, two families so far
-(investigation, trait attribution) with cover, document control, TOC, page
-number fields, repeating table headers, captions and a single disclosure.
-`POST /retail/reports/{family}.docx` returns the right content type and
-filename, and refuses as a status code rather than as a file. 23/23 tests.
+§13 — `report_service.py`, all three families: investigation, trait
+attribution, scorecard validation. `POST /retail/reports/{family}.docx`
+returns the right content type and filename and refuses as a status code
+rather than as a file.
 
-Still open in this phase: the validation report family (§15) belongs to
-Phase 6; charts inside the Word reports are not yet drawn.
+### Performance (§27)
+
+| Stage | Before | After |
+|---|---:|---:|
+| `_read_book` per call | 1.20s, uncached | 0.00s after the first |
+| `cohort.run` | 5.76s | 1.93s |
+| customer roll-up | 2.84s | 0.14s |
+| facility detail | 0.46s | 0.18s |
+| workbook build | 1.98s | 2.02s |
+| **browser download, end to end** | **15.4s** | **8.1–9.0s** |
+
+Nothing was removed to get there: the same 22 sheets, the same customer and
+facility detail, the same formatting and the same auditability.
+
+### Acceptance
+
+`scripts/retail_uat/phase5_acceptance.py` — **39 of 39**, both files
+downloaded by clicking in a real browser and then opened and inspected. Zero
+page errors.
+
+`scripts/retail_uat/check_workbook_formulas.py` recomputes every formula
+against the other cells' cached values, independently of the code that wrote
+them.
+
+Tests: 125 across phases 2–5, 0 failures.
 
 ## Phase 6 — Scorecard Validation
 

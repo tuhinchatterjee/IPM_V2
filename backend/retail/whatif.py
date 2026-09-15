@@ -280,6 +280,46 @@ def _early_warning_facilities(frame: pd.DataFrame,
     return set(panel["facility_id"].astype(str))
 
 
+#: Facility ids as plain strings, per frame, so the conversion happens once.
+#:
+#: `facility_id` is an Arrow-backed string column, and `.astype(str).isin(...)`
+#: on 59,449 of them costs 74 ms — which would be tolerable if a single
+#: workbook download did it once instead of fourteen times. A profile put one
+#: second of a four-second scenario run inside `string_arrow.isin`.
+#:
+#: Keyed on the frame's identity and length: a different frame, or the same
+#: frame rebuilt, gets a fresh array. It is a memo for one request, not a
+#: cache with a lifetime.
+_IDS: dict[tuple[int, int], np.ndarray] = {}
+
+
+def facility_ids(frame: pd.DataFrame) -> np.ndarray:
+    """The frame's facility ids as a numpy array of str, computed once."""
+    key = (id(frame), len(frame))
+    held = _IDS.get(key)
+    if held is not None and len(held) == len(frame):
+        return held
+    got = frame["facility_id"].to_numpy(dtype=object).astype(str)
+    if len(_IDS) > 32:
+        _IDS.clear()
+    _IDS[key] = got
+    return got
+
+
+def facility_mask(frame: pd.DataFrame, wanted: Any) -> np.ndarray:
+    """A boolean mask over `frame` for the facility ids in `wanted`.
+
+    A Python set lookup over a numpy object array, which is several times
+    faster than Arrow's `isin` on this column and does not depend on the
+    dtype the parquet reader happened to choose.
+    """
+    held = wanted if isinstance(wanted, (set, frozenset)) else set(
+        str(one) for one in wanted)
+    ids = facility_ids(frame)
+    return np.fromiter((one in held for one in ids), dtype=bool,
+                       count=len(ids))
+
+
 def select(frame: pd.DataFrame, filters: dict[str, Any]) -> pd.DataFrame:
     """The scenario population. An empty result is an honest empty result."""
     out = frame
@@ -295,7 +335,7 @@ def select(frame: pd.DataFrame, filters: dict[str, Any]) -> pd.DataFrame:
                 + ", ".join(f"'{one}'" for one in sorted(derived))
                 + ": these are Early Warning dimensions and the Early Warning "
                   "Score domain for this month could not be read")
-        out = out.loc[out["facility_id"].astype(str).isin(held)]
+        out = out.loc[facility_mask(out, held)]
 
     for column, wanted in asked.items():
         if column not in out.columns:
@@ -333,11 +373,23 @@ def waterfall(frame: pd.DataFrame, scenario: Scenario,
 
     steps: list[dict[str, Any]] = []
     previous = start
+    previous_ecl = np.asarray(running["ecl_final"], dtype="float64")
     for at in range(1, len(active) + 1):
         prefix = {one: scenario.shocks[one] for one in active[:at]}
         here = _recompute(frame, replace(scenario, shocks=prefix), weights)
         now = float(here["ecl_final"].sum())
         key = active[at - 1]
+        # How many facilities this step actually moved.
+        #
+        # Only the MIGRATION shocks record a mask, so a parameter shock —
+        # income, PD, LGD — reported None and the workbook printed an empty
+        # column under a heading promising a number. Measured instead: the
+        # facilities whose allowance is different after this step from before
+        # it. That is true of every shock, and it is a measurement rather than
+        # an inference from what the shock was supposed to reach.
+        here_ecl = np.asarray(here["ecl_final"], dtype="float64")
+        moved_here = int(np.count_nonzero(
+            ~np.isclose(here_ecl, previous_ecl, rtol=0.0, atol=0.005)))
         mask = (here.get("moved") or {}).get(key)
         steps.append({
             "key": key,
@@ -347,9 +399,16 @@ def waterfall(frame: pd.DataFrame, scenario: Scenario,
             "to_sar": round(now, 2),
             "change_sar": round(now - previous, 2),
             "change_pct": _pct_change(now, previous),
-            "facilities_moved": int(mask.sum()) if mask is not None else None,
+            "facilities_moved": moved_here,
+            # Where the shock names its own population — a migration says
+            # which facilities it selected — that count is reported beside
+            # the measured one. They differ when a migrated facility's
+            # allowance happens not to move.
+            "facilities_selected": (int(mask.sum()) if mask is not None
+                                    else None),
         })
         previous = now
+        previous_ecl = here_ecl
 
     final = _recompute(frame, scenario, weights)
     end = float(final["ecl_final"].sum())

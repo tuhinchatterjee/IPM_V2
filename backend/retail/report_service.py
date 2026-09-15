@@ -825,7 +825,8 @@ def write_traits(bundle: Bundle) -> bytes:
 
 def render(family: str, bundle: Bundle) -> tuple[bytes, str]:
     """Build one report. Raises rather than returning an apology as a file."""
-    writers = {INVESTIGATION: write_investigation, TRAITS: write_traits}
+    writers = {INVESTIGATION: write_investigation, TRAITS: write_traits,
+               VALIDATION: write_validation}
     writer = writers.get(family)
     if writer is None:
         raise ReportUnavailable(f"{family!r} is not a report this service "
@@ -835,3 +836,315 @@ def render(family: str, bundle: Bundle) -> tuple[bytes, str]:
     label = "".join(one if one.isalnum() else "_"
                     for one in (bundle.scope.get("label") or "Retail"))[:40]
     return payload, f"{family}_{label}_{stamp}.docx"
+
+
+# ================================== family 3: the validation report
+
+#: Test id prefix -> the category it belongs to and how it is titled.
+#:
+#: The engine returns 48 flat results. §15 wants them grouped into the report's
+#: sections, and §14.1 is explicit that a Champion vs Challenger result must
+#: never appear under Data & Representativeness, so the mapping is written
+#: down here rather than inferred from whatever order the results arrive in.
+VALIDATION_SECTIONS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("conceptual", "Conceptual soundness and design",
+     ("CONC-",)),
+    ("data", "Data quality and representativeness",
+     ("DATA-", "REP-")),
+    ("univariate", "Univariate and bivariate evidence",
+     ("VAR-", "BIN-")),
+    ("drift", "Population and score drift",
+     ("STAB-PSI", "STAB-CSI", "STAB-BAND", "PSI", "CSI", "DRIFT-")),
+    ("discrimination", "Discrimination, rank order and gains",
+     ("DISC-", "AUC", "KS-", "GINI")),
+    ("calibration", "Calibration and comparable default rates",
+     ("CAL-",)),
+    ("stability", "Stability, robustness and implementation verification",
+     ("STAB-", "ROB-", "IMPL-", "IMP-")),
+    ("segmentation", "Product, classification and sub-product performance",
+     ("SEG-",)),
+    ("usage", "Usage, overrides and challenger comparison",
+     ("USE-", "OVR-", "CHAL-", "CC-")),
+)
+
+#: Every state the engine can return, and what it means for a reader. §14.2:
+#: a Not Run or an insufficient-evidence result must never be reported as a
+#: pass, and the report must show them all rather than only the successes.
+STATE_MEANING: dict[str, str] = {
+    "PASS": "Measured, and inside its configured limit.",
+    "WARNING": "Measured, and close enough to its limit to watch.",
+    "FAIL": "Measured, and outside its configured limit.",
+    "NO_LIMIT": "Measured. No limit is configured, so this is evidence "
+                "rather than a verdict.",
+    "UNAVAILABLE": "Could not be measured: the data this needs is not "
+                   "present.",
+    "NOT_MATURED": "Not measured: the outcome window has not closed.",
+    "INSUFFICIENT_SAMPLE": "Not measured: too few observations to say "
+                           "anything.",
+    "NOT_APPLICABLE": "Does not apply to this model.",
+    "CALCULATION_ERROR": "The calculation failed. This is an error, not a "
+                         "result.",
+    "NOT_AUTHORISED": "Not run: this caller may not read what it needs.",
+}
+
+
+def _section_of(test_id: str) -> str:
+    name = str(test_id or "").upper()
+    for key, _, prefixes in VALIDATION_SECTIONS:
+        if any(name.startswith(one) or one in name for one in prefixes):
+            return key
+    return "other"
+
+
+def _model_of(run: dict[str, Any]) -> dict[str, Any]:
+    """The model, from either shape the validation layer produces.
+
+    A LIVE run nests it under `model`; a STORED run flattens it into
+    `model_id`, `model_name`, `model_version`, `model_kind`. Reading only the
+    nested shape gave a downloaded report the title "Scorecard — validation
+    report" with an empty scope — the document was right about everything
+    except which model it was about.
+    """
+    nested = dict(run.get("model") or {})
+    if nested.get("name") or nested.get("model_id"):
+        return nested
+    return {
+        "model_id": run.get("model_id", ""),
+        "name": run.get("model_name", ""),
+        "version": run.get("model_version", ""),
+        "scorecard_type": run.get("model_kind", ""),
+        "domain": run.get("domain", ""),
+    }
+
+
+def validation_bundle(run: dict[str, Any], *, prepared_by: str = "",
+                      comments: list[dict[str, Any]] | None = None,
+                      actions: list[dict[str, Any]] | None = None,
+                      conclusion: str = "") -> Bundle:
+    model = _model_of(run)
+    results = list(run.get("results") or [])
+    period = next((one.get("period") for one in results if one.get("period")),
+                  "")
+    return Bundle(
+        family=VALIDATION,
+        title=f"{model.get('name', 'Scorecard')} — validation report",
+        subtitle=f"Version {model.get('version', '')} · observation window "
+                 f"{period}",
+        result={**run, "conclusion": conclusion},
+        scope={"label": model.get("name", ""),
+               "month": period,
+               "customers": None, "facilities": None},
+        findings=list(run.get("findings") or []),
+        comments=list(comments or []),
+        actions=list(actions or []),
+        limitations=sorted({one for result in results
+                            for one in (result.get("limitations") or [])}),
+        versions={
+            "model_id": model.get("model_id"),
+            "model_version": model.get("version"),
+            "scorecard_type": model.get("scorecard_type"),
+            "domain": model.get("domain"),
+            "run_key": run.get("run_key"),
+            "calculation_version": run.get("calculation_version"),
+        },
+        prepared_by=prepared_by,
+        as_of=period)
+
+
+def write_validation(bundle: Bundle) -> bytes:
+    """§15's fifteen sections, including every test that did NOT run."""
+    run = bundle.result
+    results = list(run.get("results") or [])
+    if not results:
+        raise ReportUnavailable(
+            "This validation run produced no test results, so there is "
+            "nothing to report on.")
+
+    report = Report(bundle)
+    report.cover()
+    report.document_control()
+    report.contents()
+
+    model = _model_of(run)
+    tally = dict(run.get("tally") or {})
+
+    report.section("Executive opinion")
+    summary = dict(run.get("findings_summary") or {})
+    severities = dict(summary.get("by_severity") or {})
+    report.para(
+        f"{len(results)} tests were executed against "
+        f"{model.get('name', 'this model')} version "
+        f"{model.get('version', '')}. "
+        f"{tally.get('FAIL', 0)} failed, {tally.get('WARNING', 0)} are on "
+        f"watch, {tally.get('PASS', 0)} passed, and "
+        f"{sum(v for k, v in tally.items() if k not in ('PASS', 'FAIL', 'WARNING'))} "
+        f"produced no verdict — either because no limit is configured for "
+        f"them or because they do not apply. Every one of them is listed in "
+        f"this report.")
+    report.table(
+        ["State", "Tests", "What it means"],
+        [[state, count, STATE_MEANING.get(state, "")]
+         for state, count in tally.items()],
+        caption="Every result state the run produced. A test without a "
+                "verdict is not a pass.",
+        widths=[1.4, 0.7, 4.2])
+    if bundle.findings:
+        report.subsection("Material findings")
+        report.table(
+            ["Finding", "Severity", "Category", "What", "Why it matters"],
+            [[one.get("title"), one.get("severity"), one.get("category"),
+              one.get("what"), one.get("why_it_matters")]
+             for one in bundle.findings],
+            caption=f"{summary.get('total', len(bundle.findings))} findings: "
+                    + ", ".join(f"{k} {v}" for k, v in severities.items() if v),
+            widths=[1.4, 0.8, 1.0, 1.8, 1.4])
+
+    report.section("Model purpose, version and provenance")
+    report.key_values([
+        ("Model", model.get("name")),
+        ("Model ID", model.get("model_id")),
+        ("Version", model.get("version")),
+        ("Type", model.get("scorecard_type")),
+        ("Governed domain", model.get("domain")),
+        ("Run key", run.get("run_key")),
+        ("Calculation version", run.get("calculation_version")),
+        ("Score direction", next((one.get("score_direction")
+                                  for one in results
+                                  if one.get("score_direction")), "—")),
+    ])
+
+    report.section("Validation sample, outcome definition and maturity")
+    sample = next((one for one in results if one.get("observations")), {})
+    report.key_values([
+        ("Dataset", sample.get("dataset")),
+        ("Observation window", sample.get("period")),
+        ("Reference period", sample.get("reference_period") or "—"),
+        ("Observations", f"{int(sample.get('observations') or 0):,}"),
+        ("Matured observations",
+         f"{int(sample.get('matured_observations') or 0):,}"),
+        ("Events", f"{int(sample.get('events') or 0):,}"),
+    ])
+    report.para(
+        "A twelve-month outcome can only be observed for an observation made "
+        "at least twelve months before the latest month in the book. Tests "
+        "whose window has not closed are reported as not matured rather than "
+        "being measured on a partial outcome, which would understate the "
+        "default rate for reasons that have nothing to do with the model.")
+
+    # --- §15 sections 5 to 12, one per category, every test listed --------
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for one in results:
+        grouped.setdefault(_section_of(one.get("test_id")), []).append(one)
+
+    for key, title, _ in VALIDATION_SECTIONS:
+        rows = grouped.get(key) or []
+        report.section(title)
+        if not rows:
+            report.para("No test in this run belongs to this category. It is "
+                        "reported as empty rather than omitted, so a reader "
+                        "can see that it was not silently skipped.")
+            continue
+        report.table(
+            ["Test", "State", "Measured", "Limit", "Limit source", "Detail"],
+            [[one.get("test_id"), one.get("state_label") or one.get("state"),
+              _measured(one), _limit(one), one.get("limit_source") or "—",
+              one.get("detail") or STATE_MEANING.get(one.get("state"), "")]
+             for one in rows],
+            caption=f"{len(rows)} test(s). States: "
+                    + ", ".join(sorted({str(one.get('state')) for one in rows})),
+            widths=[1.1, 0.8, 0.9, 0.7, 0.9, 2.6])
+        for one in rows:
+            table = one.get("table")
+            if isinstance(table, list) and table and isinstance(table[0], dict):
+                report.unnumbered(f"{one.get('test_id')} — evidence", level=3)
+                columns = list(table[0])[:8]
+                report.table(
+                    [str(c).replace("_", " ").capitalize() for c in columns],
+                    [[row.get(c) for c in columns] for row in table[:30]],
+                    caption=f"Evidence behind {one.get('test_id')}.")
+
+    # A test that falls outside every named category is a mapping gap, not a
+    # category. It is reported as one so the gap is visible rather than
+    # quietly becoming a section of its own.
+    if grouped.get("other"):
+        report.section("Tests not mapped to a category")
+        report.para(
+            "These tests ran and are reported, but this report has no section "
+            "mapped to them. That is a gap in the mapping rather than a "
+            "finding about the model.")
+        report.table(
+            ["Test", "State", "Detail"],
+            [[one.get("test_id"), one.get("state"), one.get("detail")]
+             for one in grouped["other"]],
+            caption="Tests this report does not map to a named category.",
+            widths=[1.2, 1.0, 4.0])
+
+    report.section("Linked findings across categories")
+    if bundle.findings:
+        report.para(
+            "A finding is one record referenced from every category it "
+            "touches, so the same metric, threshold and sample date appear "
+            "identically wherever it is cited.")
+        report.table(
+            ["Finding", "Category", "Severity", "Remediation"],
+            [[one.get("finding_id"), one.get("category"),
+              one.get("severity"), one.get("remediation")]
+             for one in bundle.findings],
+            caption="Findings and their proposed remediation.",
+            widths=[1.0, 1.1, 0.9, 3.4])
+    else:
+        report.para("This run produced no findings.")
+
+    report.comments_section()
+    report.actions_section()
+
+    report.section("Conclusion, limitations and method")
+    if run.get("conclusion"):
+        report.para(str(run["conclusion"]))
+    else:
+        report.para(
+            "No overall conclusion has been recorded by an analyst. This "
+            "report states what was measured; the opinion on whether the "
+            "model remains fit for its use is a human judgement and is not "
+            "generated here.")
+    report.subsection("Limitations")
+    for one in bundle.limitations:
+        report.bullet(str(one))
+    report.bullet(PROVENANCE)
+    report.subsection("Thresholds")
+    report.para(
+        "Every limit in this report is a demo policy with an owner, not a "
+        "regulatory constant. The limit source column names which policy set "
+        "a test was judged against; a test showing NO LIMIT was measured and "
+        "not judged.")
+    report.subsection("Trace")
+    report.table(
+        ["Test", "Dataset", "Period", "Observations", "Events",
+         "Calculation version"],
+        [[one.get("test_id"), one.get("dataset"), one.get("period"),
+          f"{int(one.get('observations') or 0):,}",
+          f"{int(one.get('events') or 0):,}",
+          one.get("calculation_version")] for one in results],
+        caption="Every test, and the exact data it read.",
+        widths=[1.1, 1.4, 1.2, 0.9, 0.7, 1.0])
+    return report.render()
+
+
+def _measured(one: dict[str, Any]) -> str:
+    if not one.get("measured"):
+        return "not measured"
+    value = one.get("value")
+    try:
+        return f"{float(value):,.4f}"
+    except (TypeError, ValueError):
+        return "—" if value is None else str(value)
+
+
+def _limit(one: dict[str, Any]) -> str:
+    value = one.get("limit")
+    if value is None:
+        return "none"
+    try:
+        return f"{float(value):,.4f}"
+    except (TypeError, ValueError):
+        return str(value)

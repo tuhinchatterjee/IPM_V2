@@ -444,7 +444,7 @@ def narrow(selection: sel.Selection,
     if panel is None or not len(panel):
         return held, ""
 
-    inside = panel[panel["facility_id"].astype(str).isin(set(held))]
+    inside = panel[wif.facility_mask(panel, held)]
     for column, value in within.items():
         if column not in inside.columns:
             continue
@@ -543,7 +543,7 @@ def run(selection_id: str, *, shocks: dict[str, Any],
 
     levels = []
     for level in _levels(selection):
-        rows = book[book["facility_id"].astype(str).isin(level["facility_ids"])]
+        rows = book[wif.facility_mask(book, level["facility_ids"])]
         if not len(rows):
             continue
         # The scenario is applied ONLY to the selected facilities, at every
@@ -570,10 +570,22 @@ def run(selection_id: str, *, shocks: dict[str, Any],
         # The engine reports the shocked population; everything outside it is
         # unchanged, so the level's after-figure is the level's before-figure
         # with the shocked part swapped in.
-        touched = rows[rows["facility_id"].astype(str).isin(
-            set(stressed))]
+        touched = rows[wif.facility_mask(rows, stressed)]
         untouched_ecl = (float(rows["ecl_weighted_sar"].sum())
                          - float(touched["ecl_weighted_sar"].sum()))
+        # The movement itself, computed ONCE from the shocked population and
+        # not from the difference of two rounded level totals.
+        #
+        # Deriving it from `after - before` at each level rounded both sides
+        # at that level's magnitude — SAR 7.7m for a sub-product, SAR 6.4bn
+        # for total Retail — and the same movement came out as 451,024.35 at
+        # one level and 451,024.36 at another. The workbook's own sheet says
+        # the absolute movement is identical at every level, which is true of
+        # the arithmetic and was not true of the number printed beside it.
+        moved_ecl = round(float(shocked.get("ecl_weighted_sar") or 0.0)
+                          - float(touched["ecl_weighted_sar"].sum()), 2)
+        moved_base = round(float(shocked.get("ecl_base_sar") or 0.0)
+                           - float(touched["ecl_base_sar"].sum()), 2)
         after = dict(before)
         after["ecl_weighted_sar"] = round(
             untouched_ecl + float(shocked.get("ecl_weighted_sar") or 0.0), 2)
@@ -590,12 +602,24 @@ def run(selection_id: str, *, shocks: dict[str, Any],
                 if moved is not None:
                     after[key] = moved
 
+        delta = _delta(before, after)
+        # The level-independent movement wins over the subtraction of two
+        # rounded totals, and the percentage is recomputed from it so the two
+        # columns still agree with each other.
+        delta["ecl_weighted_sar"] = moved_ecl
+        delta["ecl_base_sar"] = moved_base
+        if before.get("ecl_weighted_sar"):
+            delta["ecl_weighted_sar_pct"] = round(
+                moved_ecl / float(before["ecl_weighted_sar"]) * 100, 4)
+        if before.get("ecl_base_sar"):
+            delta["ecl_base_sar_pct"] = round(
+                moved_base / float(before["ecl_base_sar"]) * 100, 4)
         levels.append({
             "level": level["level"],
             "label": level["label"],
             "before": before,
             "after": after,
-            "delta": _delta(before, after),
+            "delta": delta,
             "engine": result if level["level"] == "selection" else None,
         })
 
@@ -639,8 +663,7 @@ def run(selection_id: str, *, shocks: dict[str, Any],
     }
 
     if which in (CHALLENGER, "both"):
-        touched = book[book["facility_id"].astype(str).isin(
-            set(stressed))]
+        touched = book[wif.facility_mask(book, stressed)]
         out["challenger"] = _challenger(
             book, touched, dict(shocks), cohort.get("engine") or {})
     out["interpretation"] = _interpretation(

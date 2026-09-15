@@ -104,9 +104,20 @@ class Sheet:
         self.page.set_row(self.at + 1, 22)
         self.at += 3
 
-    def pairs(self, rows: list[tuple[str, Any]], *, width: int = 34) -> None:
-        """A label/value block — document control, scope, assumptions."""
+    def pairs(self, rows: list[tuple[str, Any]], *,
+              width: int = 34) -> dict[str, str]:
+        """A label/value block, returning where each value landed.
+
+        The reference matters: a caller that wanted "Scenario minus baseline"
+        counted rows by hand and wrote `=B9-B8` when the two values were on
+        rows 9 and 10. The cached result was right — it is passed in — so the
+        file LOOKED correct and would have recalculated to the baseline minus
+        an empty cell the moment anybody pressed F9. Formulas are built from
+        these references now, never from arithmetic on `self.at`.
+        """
+        where: dict[str, str] = {}
         for label, value in rows:
+            where[str(label)] = f"B{self.at + 1}"
             self.page.write(self.at, 0, str(label), self.styles["text"])
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 self.page.write_number(self.at, 1, float(value),
@@ -119,11 +130,22 @@ class Sheet:
         self.page.set_column(0, 0, width)
         self.page.set_column(1, 1, 52)
         self.at += 1
+        return where
+
+    @staticmethod
+    def column_letter(index: int) -> str:
+        """A1-style column letter for a zero-based index."""
+        letters = ""
+        index += 1
+        while index:
+            index, part = divmod(index - 1, 26)
+            letters = chr(65 + part) + letters
+        return letters
 
     def table(self, columns: list[ST.Col], rows: list[dict[str, Any]], *,
               empty: str = "Nothing to show for this scenario.",
               total: dict[str, Any] | None = None,
-              autofilter: bool = True) -> None:
+              autofilter: bool = True, formula_totals: bool = True) -> None:
         """One table, headed, banded, frozen, filtered and sized."""
         if not rows:
             self.page.merge_range(self.at, 0, self.at, 5, empty,
@@ -163,6 +185,7 @@ class Sheet:
 
         if total:
             last += 1
+            first_data, last_data = head_at + 2, head_at + 1 + len(rows)
             for index, column in enumerate(columns):
                 value = total.get(column.key)
                 if index == 0 and value is None:
@@ -177,9 +200,23 @@ class Sheet:
                 else:
                     style = ("total_count" if column.kind == ST.COUNT
                              else "total_money")
-                    self.page.write_number(
-                        last, index, float(ST.cell_value(column, value)),
-                        self.styles[style])
+                    number = float(ST.cell_value(column, value))
+                    # §12.1: a total is a FORMULA over the rows above it, so
+                    # a reader can click the cell and see where it came from,
+                    # and so filtering the table narrows the total with it.
+                    # SUBTOTAL(109) is SUM that ignores filtered-out rows;
+                    # writing the value as well means the number is right
+                    # before Word or Excel has recalculated anything.
+                    if formula_totals:
+                        letter = self.column_letter(index)
+                        self.page.write_formula(
+                            last, index,
+                            f"=SUBTOTAL(109,{letter}{first_data}:"
+                            f"{letter}{last_data})",
+                            self.styles[style], number)
+                    else:
+                        self.page.write_number(last, index, number,
+                                               self.styles[style])
 
         if autofilter and len(rows) > 2:
             self.page.autofilter(head_at, 0, head_at + len(rows),
@@ -190,6 +227,25 @@ class Sheet:
         self.page.print_area(0, 0, last, len(columns) - 1)
         self.page.repeat_rows(head_at, head_at)
         self.at = last + 2
+
+    def check(self, label: str, formula: str, value: Any,
+              *, kind: str = ST.MONEY) -> str:
+        """A reconciliation line the reader can audit in the cell.
+
+        §12.1 asks for formulas on totals, changes and CHECKS. A residual
+        written as a number is a claim; written as the subtraction it came
+        from, it is something a reader can disagree with.
+        """
+        self.page.write(self.at, 0, label, self.styles["text"])
+        self.page.write_formula(
+            self.at, 1, formula,
+            self.styles[kind if kind in self.styles else "money"],
+            float(value) if isinstance(value, (int, float)) else 0.0)
+        self.page.set_column(0, 0, 34)
+        self.page.set_column(1, 1, 24)
+        at = f"B{self.at + 1}"
+        self.at += 1
+        return at
 
     def chart(self, book: Any, spec: dict[str, Any], *, at: str = "",
               width: int = 760, height: int = 300) -> None:

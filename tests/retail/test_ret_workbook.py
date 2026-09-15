@@ -238,3 +238,96 @@ def test_xl_19_blankish_catches_what_or_does_not() -> None:
         if one == "":
             continue
         assert not blankish(one), one
+
+
+# ================= §12: formulas, and a hollow column is a defect ==========
+
+def test_xl_20_totals_are_formulas_not_typed_numbers(book) -> None:
+    """§12.1 asks for formulas on totals, changes and checks."""
+    found = [(sheet.title, cell.coordinate, cell.value)
+             for sheet in book.worksheets
+             for row in sheet.iter_rows() for cell in row
+             if isinstance(cell.value, str) and cell.value.startswith("=")]
+    assert len(found) >= 10, f"only {len(found)} formula cells"
+    kinds = " ".join(one[2] for one in found)
+    assert "SUBTOTAL(109" in kinds, "no filter-aware total anywhere"
+
+
+def test_xl_21_every_formula_recomputes_to_the_value_shown(built) -> None:
+    """xlsxwriter writes a formula AND a cached result. A wrong formula with
+    the right cached value is invisible until somebody presses F9 — which is
+    how `=B9-B8` shipped when the two values sat on rows 9 and 10."""
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from retail_uat.check_workbook_formulas import _evaluate
+
+    formulas = openpyxl.load_workbook(io.BytesIO(built[0]))
+    values = openpyxl.load_workbook(io.BytesIO(built[0]), data_only=True)
+    checked, wrong = 0, []
+    for sheet in formulas.worksheets:
+        cached = values[sheet.title]
+        for row in sheet.iter_rows():
+            for cell in row:
+                if not (isinstance(cell.value, str)
+                        and cell.value.startswith("=")):
+                    continue
+                got = _evaluate(cell.value, cached)
+                shown = cached[cell.coordinate].value
+                if got is None or not isinstance(shown, (int, float)):
+                    continue
+                checked += 1
+                if abs(got - float(shown)) > 0.01:
+                    wrong.append(f"{sheet.title}!{cell.coordinate} "
+                                 f"{cell.value}: {got} vs {shown}")
+    assert checked >= 8, f"only {checked} formulas were evaluable"
+    assert not wrong, wrong[:4]
+
+
+def test_xl_22_no_declared_column_is_blank_in_every_row(book) -> None:
+    """A heading over a column of blanks promises a number the sheet does not
+    have. `Facilities` on Impact by Level was empty because the engine calls
+    it `accounts`, and no format check could see it."""
+    hollow = []
+    for name in ("Impact by Level", "Cohort", "Waterfall", "Summary"):
+        sheet = book[name]
+        head = None
+        for r in range(1, min(sheet.max_row, 14) + 1):
+            filled = sum(
+                1 for c in range(1, sheet.max_column + 1)
+                if isinstance(sheet.cell(row=r, column=c).value, str)
+                and sheet.cell(row=r, column=c).value.strip())
+            if filled >= 4:
+                head = r
+                break
+        if head is None:
+            continue
+        for c in range(1, sheet.max_column + 1):
+            heading = sheet.cell(row=head, column=c).value
+            if not isinstance(heading, str) or not heading.strip():
+                continue
+            body = [sheet.cell(row=r, column=c).value
+                    for r in range(head + 1,
+                                   min(sheet.max_row, head + 30) + 1)]
+            if body and all(one is None for one in body):
+                hollow.append(f"{name}!{heading}")
+    assert not hollow, hollow
+
+
+def test_xl_23_the_movement_is_identical_at_every_level(built) -> None:
+    """The Impact by Level sheet SAYS the absolute movement is the same at
+    every level. Derived from two rounded totals it came out as 451,024.35 at
+    one level and 451,024.36 at another."""
+    result = built[2]
+    seen = {round(float((one.get("delta") or {}).get("ecl_weighted_sar") or 0.0), 2)
+            for one in result.get("levels") or []}
+    assert len(seen) == 1, f"the movement differs by level: {sorted(seen)}"
+
+
+def test_xl_24_a_step_reports_how_many_facilities_it_moved(built) -> None:
+    steps = (built[2].get("waterfall") or {}).get("steps") or []
+    if not steps:
+        pytest.skip("single-step scenario")
+    for one in steps:
+        assert one.get("facilities_moved") is not None, one.get("label")
+        assert one["facilities_moved"] >= 0

@@ -1218,49 +1218,69 @@ def _cohort_customer_detail(selection: Any,
     try:
         frame = pd.DataFrame(facilities)
         book = scored.read(selection.source_month)
-        keep = [c for c in ("facility_id", "customer_id", "customer_name",
+        keep = [c for c in ("facility_id", "customer_name",
                             "sub_product_code", "classification",
                             "dpd_bucket", "behavioural_score",
                             "behavioural_score_band")
                 if c in book.columns]
-        context = book[keep].copy()
-        context["facility_id"] = context["facility_id"].astype(str)
+        # Eight columns of a 498-column panel, and narrowed BEFORE the rows
+        # are copied. Taking the slice after the copy made this the second
+        # most expensive step in a workbook download, for context that fits
+        # in a handful of columns.
         frame["facility_id"] = frame["facility_id"].astype(str)
-        joined = frame.merge(context.drop(columns=["customer_id"],
-                                          errors="ignore"),
-                             on="facility_id", how="left")
-        rolled = []
-        for customer, part in joined.groupby(joined["customer_id"].astype(str)):
-            worst = part.sort_values("ecl_change_sar", ascending=False).iloc[0]
-            change = float(part["ecl_change_sar"].sum())
-            rolled.append({
-                "customer_id": customer,
-                "customer_name": _maybe_text(worst.get("customer_name"))
-                                 or scored.display_name(customer),
-                "product_code": _maybe_text(worst.get("product_code")),
-                "sub_product_code": _maybe_text(worst.get("sub_product_code")),
-                "classification": _maybe_text(worst.get("classification")),
-                "facilities": int(len(part)),
-                "exposure_sar": round(float(part["exposure_sar"].sum()), 2),
-                "dpd": _maybe_int(worst.get("dpd_after")),
-                "dpd_bucket": _maybe_text(worst.get("dpd_bucket")),
-                "ifrs9_stage": _maybe_int(worst.get("stage_after")),
-                "behavioural_score": _maybe_float(
-                    worst.get("behavioural_score")),
-                "behavioural_score_band": _maybe_text(
-                    worst.get("behavioural_score_band")),
-                "pd_pit_12m_before": _maybe_float(worst.get("pd_pit_12m_before")),
-                "pd_pit_12m_after": _maybe_float(worst.get("pd_pit_12m_after")),
-                "lgd_before": _maybe_float(worst.get("lgd_before")),
-                "lgd_after": _maybe_float(worst.get("lgd_after")),
-                "ecl_before_sar": round(
-                    float(part["ecl_weighted_sar_before"].sum()), 2),
-                "ecl_after_sar": round(
-                    float(part["ecl_weighted_sar_after"].sum()), 2),
-                "ecl_change_sar": round(change, 2),
-                "changed": "Yes" if abs(change) >= 0.005 else "No",
-                "reason": _maybe_text(selection.source_label),
-            })
+        wanted = set(frame["facility_id"])
+        context = book.loc[book["facility_id"].astype(str).isin(wanted), keep]
+        context = context.copy()
+        context["facility_id"] = context["facility_id"].astype(str)
+        joined = frame.merge(context, on="facility_id", how="left")
+        # Sorted once, so each group's first row IS its worst facility and the
+        # per-group sort inside the loop disappears. On 4,630 customers that
+        # was 4,630 sorts of a two-row frame.
+        # Sorted once so each customer's first row IS their worst facility,
+        # then aggregated by pandas rather than by a Python loop. The loop
+        # built 4,630 dictionaries and sorted a two-row frame inside each one.
+        joined = joined.sort_values("ecl_change_sar", ascending=False)
+        joined["customer_id"] = joined["customer_id"].astype(str)
+        grouped = joined.groupby("customer_id", sort=False)
+        summed = grouped[["exposure_sar", "ecl_weighted_sar_before",
+                          "ecl_weighted_sar_after", "ecl_change_sar"]].sum()
+        counted = grouped.size().rename("facilities")
+        worst = grouped.head(1).set_index("customer_id")
+        out = summed.join(counted).join(
+            worst[[c for c in ("customer_name", "product_code",
+                               "sub_product_code", "classification",
+                               "dpd_after", "dpd_bucket", "stage_after",
+                               "behavioural_score", "behavioural_score_band",
+                               "pd_pit_12m_before", "pd_pit_12m_after",
+                               "lgd_before", "lgd_after")
+                   if c in worst.columns]])
+        out = out.reset_index()
+        label = _maybe_text(selection.source_label)
+        rolled = [{
+            "customer_id": row["customer_id"],
+            "customer_name": (_maybe_text(row.get("customer_name"))
+                              or scored.display_name(row["customer_id"])),
+            "product_code": _maybe_text(row.get("product_code")),
+            "sub_product_code": _maybe_text(row.get("sub_product_code")),
+            "classification": _maybe_text(row.get("classification")),
+            "facilities": int(row["facilities"]),
+            "exposure_sar": round(float(row["exposure_sar"]), 2),
+            "dpd": _maybe_int(row.get("dpd_after")),
+            "dpd_bucket": _maybe_text(row.get("dpd_bucket")),
+            "ifrs9_stage": _maybe_int(row.get("stage_after")),
+            "behavioural_score": _maybe_float(row.get("behavioural_score")),
+            "behavioural_score_band": _maybe_text(
+                row.get("behavioural_score_band")),
+            "pd_pit_12m_before": _maybe_float(row.get("pd_pit_12m_before")),
+            "pd_pit_12m_after": _maybe_float(row.get("pd_pit_12m_after")),
+            "lgd_before": _maybe_float(row.get("lgd_before")),
+            "lgd_after": _maybe_float(row.get("lgd_after")),
+            "ecl_before_sar": round(float(row["ecl_weighted_sar_before"]), 2),
+            "ecl_after_sar": round(float(row["ecl_weighted_sar_after"]), 2),
+            "ecl_change_sar": round(float(row["ecl_change_sar"]), 2),
+            "changed": "Yes" if abs(row["ecl_change_sar"]) >= 0.005 else "No",
+            "reason": label,
+        } for row in out.to_dict("records")]
         rolled.sort(key=lambda one: -abs(one["ecl_change_sar"]))
         return rolled[:5000]
     except Exception:  # noqa: BLE001 - the workbook still ships without it
@@ -2309,6 +2329,34 @@ class ReportIn(BaseModel):
     mode: str = "quarter"
     comments: list[dict[str, Any]] = Field(default_factory=list)
     actions: list[dict[str, Any]] = Field(default_factory=list)
+    #: Validation reports only: which scorecard, and an analyst's conclusion.
+    model_id: str = ""
+    run_key: str = ""
+    conclusion: str = ""
+
+
+def _validation_run(payload: "ReportIn") -> dict[str, Any] | None:
+    """The stored validation run this report describes.
+
+    By run key when one is given, otherwise the newest recorded run for the
+    model. Never a fresh execution: a full validation is minutes of work, and
+    re-running it here would produce a document that disagrees with the
+    screen it was downloaded from.
+    """
+    from backend.db.engine import get_session
+    from backend.scorecard.validation import store as run_store
+
+    with get_session() as session:
+        stored = None
+        if payload.run_key:
+            stored = run_store.get(session, payload.run_key)
+        elif payload.model_id:
+            held = run_store.history(session, model_id=payload.model_id,
+                                     limit=1)
+            stored = held[0] if held else None
+        if stored is None:
+            return None
+        return run_store.run_body(stored)
 
 
 @router.post("/reports/{family}.docx", summary="A Word report from an analysis")
@@ -2324,7 +2372,8 @@ def retail_report(family: str, payload: ReportIn,
     """
     from backend.retail import report_service as reports
 
-    if family not in (reports.INVESTIGATION, reports.TRAITS):
+    if family not in (reports.INVESTIGATION, reports.TRAITS,
+                      reports.VALIDATION):
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             f"{family!r} is not a report this service writes.")
     try:
@@ -2339,6 +2388,22 @@ def retail_report(family: str, payload: ReportIn,
             bundle = reports.investigation_bundle(
                 out, prepared_by=str(principal.user_id or ""),
                 comments=payload.comments, actions=payload.actions)
+        elif family == reports.VALIDATION:
+            # Read from a STORED run, never from a fresh one. A full
+            # validation is minutes of work, and re-running it here would
+            # produce a report that disagrees with the screen it was
+            # downloaded from.
+            held = _validation_run(payload)
+            if held is None:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "No validation run is stored for that model. Run the "
+                    "validation first; this report is written from its "
+                    "result, not from a new run.")
+            bundle = reports.validation_bundle(
+                held, prepared_by=str(principal.user_id or ""),
+                comments=payload.comments, actions=payload.actions,
+                conclusion=payload.conclusion)
         else:
             from backend.retail import analysis_traits as analysis
 

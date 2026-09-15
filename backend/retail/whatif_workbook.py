@@ -223,7 +223,7 @@ def _summary(book: Any, styles: dict[str, Any], result: dict[str, Any],
         ("Scenario ECL (SAR)", _money(after.get("ecl_weighted_sar")), ""),
         ("Change (SAR)", _money(delta.get("ecl_weighted_sar")), ""),
         ("Customers", before.get("customers"), ""),
-        ("Facilities", before.get("facilities"), ""),
+        ("Facilities", before.get("accounts"), ""),
     ])
     sheet.section("What was asked")
     sheet.pairs([
@@ -256,7 +256,25 @@ def _summary(book: Any, styles: dict[str, Any], result: dict[str, Any],
                      "change": change,
                      "change_pct": (change / one if change is not None
                                     and one else None)})
+    head_at = sheet.at
     sheet.table(columns, rows, autofilter=False)
+    # The change columns, rewritten as the subtraction and the division they
+    # are. The values stay exactly as the engine reported them — they are
+    # passed as the cached result — so nothing here can move a figure; what
+    # changes is that a reader can see the arithmetic.
+    for offset in range(len(rows)):
+        at = head_at + 1 + offset
+        row = rows[offset]
+        if row["change"] is not None:
+            sheet.page.write_formula(
+                at, 3, f"=C{at + 1}-B{at + 1}",
+                ST.cell_style(columns[3], row["change"], styles),
+                float(row["change"]))
+        if row["change_pct"] is not None:
+            sheet.page.write_formula(
+                at, 4, f"=IF(B{at + 1}=0,\"\",D{at + 1}/B{at + 1})",
+                ST.cell_style(columns[4], row["change_pct"], styles),
+                float(row["change_pct"]))
 
     steps = (result.get("waterfall") or {}).get("steps") or []
     if steps:
@@ -341,9 +359,10 @@ def _waterfall(book: Any, styles: dict[str, Any],
                   if (one.get("change_sar") is not None and total_change)
                   else None),
         "facilities_moved": one.get("facilities_moved"),
+        "facilities_selected": one.get("facilities_selected"),
     } for index, one in enumerate(rows)]
     stepped = sum(float(one["change_sar"] or 0.0) for one in table)
-    sheet.table([
+    columns = [
         ST.Col("order", "#", ST.COUNT, width=5),
         ST.Col("label", "Step", ST.TEXT, width=32),
         ST.Col("shock", "Shock applied", ST.WRAP, width=28),
@@ -351,20 +370,53 @@ def _waterfall(book: Any, styles: dict[str, Any],
         ST.Col("to_sar", "ECL after this step (SAR)", ST.MONEY),
         ST.Col("change_sar", "This step moved (SAR)", ST.MONEY, signed=True),
         ST.Col("share", "Share of the total", ST.RATE),
-        ST.Col("facilities_moved", "Facilities moved", ST.COUNT),
-    ], table, total={"label": "Total", "change_sar": stepped},
-        autofilter=False)
+        ST.Col("facilities_moved", "Facilities whose ECL moved", ST.COUNT),
+    ]
+    # Only a migration names its own population. Printing the column for a
+    # parameter shock puts a heading promising a number over a column of
+    # blanks, which reads as a broken export rather than as "not applicable".
+    if any(one.get("facilities_selected") is not None for one in table):
+        columns.append(ST.Col("facilities_selected",
+                              "Facilities the shock selected", ST.COUNT))
+    sheet.table(columns, table,
+                total={"label": "Total", "change_sar": stepped},
+                autofilter=False)
+    if not any(one.get("facilities_selected") is not None for one in table):
+        sheet.line("These shocks move a parameter on every eligible facility "
+                   "rather than selecting a set, so there is no separate "
+                   "selected population to report. A migration names the "
+                   "facilities it moved and that column appears beside this "
+                   "one.")
+
+    # Where the step rows and their total landed, so the checks below can
+    # point at them rather than restate their numbers.
+    total_row = sheet.at - 2
+    step_column = sheet.column_letter(5)
 
     sheet.section("Reconciliation")
     residual = (total_change - stepped) if total_change is not None else None
+    baseline = _money(steps.get("baseline_sar"))
+    final = _money(steps.get("final_sar"))
+    where = sheet.pairs([
+        ("Baseline ECL (SAR)", baseline),
+        ("Scenario ECL (SAR)", final),
+    ])
+    # Written as the arithmetic rather than as the answer: a residual stated
+    # as a number is a claim, and stated as the subtraction it came from is
+    # something a reader can disagree with in the cell. Every reference comes
+    # from `where`, so no cell address here is counted by hand.
+    change_at = sheet.check(
+        "Total change (SAR)",
+        f"={where['Scenario ECL (SAR)']}-{where['Baseline ECL (SAR)']}",
+        total_change or 0.0)
+    stepped_at = sheet.check("Sum of the steps (SAR)",
+                             f"={step_column}{total_row + 1}",
+                             round(stepped, 2))
+    sheet.check("Residual (SAR)", f"={change_at}-{stepped_at}",
+                round(residual or 0.0, 2))
+    sheet.at += 1
     sheet.pairs([
-        ("Baseline ECL (SAR)", _money(steps.get("baseline_sar"))),
-        ("Scenario ECL (SAR)", _money(steps.get("final_sar"))),
-        ("Total change (SAR)", total_change),
-        ("Sum of the steps (SAR)", round(stepped, 2)),
-        ("Residual (SAR)", None if residual is None else round(residual, 2)),
-        ("Order applied", ", ".join(
-            one.get("label", "") for one in rows)),
+        ("Order applied", ", ".join(one.get("label", "") for one in rows)),
         ("Full published order", ", ".join(steps.get("order") or [])),
         ("Basis", steps.get("basis") or "sequential recomputation"),
     ])
@@ -444,14 +496,18 @@ def _levels(book: Any, styles: dict[str, Any], result: dict[str, Any]) -> int:
         rows.append({
             "label": level.get("label"),
             "customers": before.get("customers"),
-            "facilities": before.get("facilities"),
+            # The engine calls this `accounts`. Reading `facilities` printed
+            # a blank column under a heading that promised a number — visible
+            # the moment the sheet was opened and read, and invisible to
+            # every check that only asked whether cells were formatted.
+            "facilities": before.get("accounts"),
             "exposure_sar": _money(before.get("exposure_sar")),
             "before": base, "after": _money(after.get("ecl_weighted_sar")),
             "change": change,
             "change_pct": (change / base) if (change is not None and base)
                           else None,
         })
-    sheet.table([
+    columns = [
         ST.Col("label", "Population", ST.TEXT, width=34),
         ST.Col("customers", "Customers", ST.COUNT),
         ST.Col("facilities", "Facilities", ST.COUNT),
@@ -461,7 +517,24 @@ def _levels(book: Any, styles: dict[str, Any], result: dict[str, Any]) -> int:
         ST.Col("change", "Change (SAR)", ST.MONEY, signed=True),
         ST.Col("change_pct", "Change against that level", ST.RATE,
                signed=True),
-    ], rows, autofilter=False)
+    ]
+    head_at = sheet.at
+    sheet.table(columns, rows, autofilter=False)
+    for offset, row in enumerate(rows):
+        at = head_at + 1 + offset
+        if row["change"] is not None:
+            sheet.page.write_formula(
+                at, 6, f"=F{at + 1}-E{at + 1}",
+                ST.cell_style(columns[6], row["change"], styles),
+                float(row["change"]))
+        if row["change_pct"] is not None:
+            sheet.page.write_formula(
+                at, 7, f"=IF(E{at + 1}=0,\"\",G{at + 1}/E{at + 1})",
+                ST.cell_style(columns[7], row["change_pct"], styles),
+                float(row["change_pct"]))
+    sheet.line("The change column is written as the subtraction it is, and "
+               "the percentage as the division. Click either and the formula "
+               "bar shows which two cells produced it.")
     return len(rows)
 
 
@@ -516,7 +589,21 @@ def _affected(book: Any, styles: dict[str, Any],
         ("Changed by the scenario", changed),
         ("Unchanged", len(rows) - changed),
     ])
-    sheet.table(AFFECTED, rows)
+    sheet.table(AFFECTED, rows, total={
+        "facilities": sum(int(one.get("facilities") or 0) for one in rows),
+        "exposure_sar": sum(float(one.get("exposure_sar") or 0.0)
+                            for one in rows),
+        "ecl_before_sar": sum(float(one.get("ecl_before_sar") or 0.0)
+                              for one in rows),
+        "ecl_after_sar": sum(float(one.get("ecl_after_sar") or 0.0)
+                             for one in rows),
+        "ecl_change_sar": sum(float(one.get("ecl_change_sar") or 0.0)
+                              for one in rows),
+    })
+    sheet.line("The total row is SUBTOTAL(109, …), so filtering the table "
+               "above narrows the totals with it — a filtered view whose "
+               "total still described the whole population would be worse "
+               "than no total at all.")
     return len(rows)
 
 
@@ -578,7 +665,12 @@ def _prepost(book: Any, styles: dict[str, Any], rows: list[dict[str, Any]],
                 else CUSTOMER_PREPOST)
     held = set(rows[0])
     columns = [one for one in declared if one.key in held]
-    sheet.table(columns, rows)
+    totals: dict[str, Any] = {}
+    for column in columns:
+        if column.kind in (ST.MONEY, ST.MONEY0, ST.COUNT):
+            totals[column.key] = sum(float(one.get(column.key) or 0.0)
+                                     for one in rows)
+    sheet.table(columns, rows, total=totals or None)
     # Descriptive fields — product, sub-product, band, bucket — live on the
     # Affected Customers sheet. This one is the numeric comparison, and
     # appending undeclared columns to it wrote numbers with no format at all,
