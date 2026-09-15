@@ -89,6 +89,54 @@ class TestTheBookSupportsTheStory:
                  != both.origination_score_band_b.fillna("")).sum()
         assert moved == 0, f"{moved} accounts changed origination band"
 
+    def test_the_whole_thing_is_opt_in(self, tmp_path_factory):
+        """A configuration without the block generates the book as it was.
+
+        The card programmes and the episode are an ADDITION to the generator,
+        not a fork of it, and that claim is worth more than a comment saying
+        so. Everything is read from `cfg.card_programmes`; with nothing there,
+        every card carries the single subsegment the book published before, no
+        account gets a campaign statement cycle, and none of the drawing,
+        repayment or arrears behaviour is touched.
+
+        It builds a small book rather than asserting against the shipped one,
+        because the shipped one is built WITH the block and could not answer
+        this question at all.
+        """
+        import dataclasses
+
+        import pandas as pd
+
+        from backend.retail.config import load_config
+        from backend.retail.generate import build
+
+        cfg = load_config()
+        portfolio = dict(cfg.portfolio)
+        portfolio["target_active_facilities_latest_month"] = 700
+        plain = dataclasses.replace(cfg, card_programmes={}, portfolio=portfolio)
+
+        out = tmp_path_factory.mktemp("anb_opt_in")
+        build(plain, out, log_progress=False)
+        months_built = sorted(
+            p.name.split("=", 1)[1]
+            for p in (out / "retail_facility_month").glob("reporting_month=*"))
+        frame = pd.read_parquet(
+            out / "retail_facility_month" / f"reporting_month={months_built[-1]}"
+            / "data.parquet",
+            columns=["product_code", "product_subsegment", "dpd"])
+        cards = frame[frame.product_code == "CREDIT_CARD"]
+
+        assert set(cards.product_subsegment.unique()) == {"CARD"}, (
+            "a configuration with no card programmes produced card programmes")
+        early = cards.dpd.between(1, 29).mean() * 100
+        focus = cards.dpd.between(20, 29).mean() * 100
+        assert early < 15.0, (
+            f"1-29 DPD is {early:.1f}% with the episode switched off")
+        assert focus < early * 0.6, (
+            f"20-29 DPD is {focus / early:.0%} of the early bucket with no "
+            "campaign statement cycle in the book. Without one it should be "
+            "roughly a third, because a missed cycle lands anywhere in 1-29.")
+
     def test_the_baseline_months_are_quiet(self, book):
         """Four or five boring periods, then a break. Not a slow ramp."""
         trend = anb.bucket_trend()
