@@ -17,6 +17,11 @@ Each row names one **primary** test — the one that reproduces the original
 failure in its original shape. Most classes carry more than that; the
 companion tests are named beneath the table.
 
+Rows are addressed in two notations because two suites hold this matrix:
+`file.py::Class::test` for pytest, and `file.ts::the test's name` for
+`node --test`, which has no classes. The checker resolves both against the
+source.
+
 | # | Failure class | Layer | Regression test | Expected behaviour | Status |
 |---|---|---|---|---|---|
 | 1 | Title duplicated as a normal section | canonical document | `tests/playbook/test_title_is_not_a_section.py::TestTheTitleIsRepresentedOnce::test_the_title_is_not_also_a_section` | A leading heading that is the document's title becomes `doc.title`, not a first empty section; the validator never reports the title as a missing section | PASS |
@@ -80,7 +85,36 @@ was reported.
 
 ## Evidence
 
-Last full run of `tests/playbook` on this branch: **949 passed, 8 skipped, 0
-failed**. The 8 skips are the live provider checks, which skip without a
-credential; a skip is never counted as a pass, here or anywhere else in this
-work.
+Last full run of `tests/playbook` on this branch: **1036 passed, 8 skipped, 0
+failed**, and of the frontend suite **516 passed, 0 failed**. The 8 skips are
+the live provider checks, which skip without a credential; a skip is never
+counted as a pass, here or anywhere else in this work.
+
+Running the rows' own named tests directly: 50 Python tests (parametrised
+cases expand) and the frontend test named by row 28, 0 failed.
+
+---
+
+## The classes found after the first nineteen
+
+§33 extends the matrix with every defect the later work uncovered. These are
+held to the same standard: each names a test that runs in `tests/playbook`,
+and `test_save_gate_matrix.py` fails if one is deleted, renamed or
+quarantined.
+
+| # | Failure class | Layer | Regression test | Expected behaviour | Status |
+|---|---|---|---|---|---|
+| 20 | Metric suggestions used as governed values | metric binding | `tests/playbook/test_context_bridge.py::TestAMetricBecomesAQuestion::test_an_unconfirmed_suggestion_never_reaches_the_ledger` | A suggestion nobody confirmed contributes no evidence, triggers no refresh and satisfies no required metric — it produces a caveat, not a fact | PASS |
+| 21 | Then/Now across different populations | comparison | `tests/playbook/test_adversarial.py::TestTwoThingsThatLookLikeOneThing::test_a_snapshot_will_not_compare_across_populations` | Not comparable, with the differing dimension named, and no delta shown at all | PASS |
+| 22 | Then/Now unit mismatch | comparison | `tests/playbook/test_adversarial.py::TestUnitsAreNotInterchangeable::test_a_unit_change_stops_the_comparison` | A percentage against basis points is refused rather than subtracted; a difference between two percentages is percentage POINTS | PASS |
+| 23 | Section retitle loses its state | section identity | `tests/playbook/test_document_intelligence_service.py::TestSectionIdentitySurvivesARetitle::test_a_retitled_section_keeps_its_row_and_its_reviewer` | A retitle keeps the row, its status, its reviewer and everything attached to it | PASS |
+| 24 | First-open readiness key divergence | dashboard payload | `tests/playbook/test_readiness.py::TestReadyMeansThereIsNothingLeftToDo::test_a_document_below_the_green_bar_is_pending_not_ready` | One payload shape from one function: the first open of a workspace answers with the same keys as every read after it | PASS |
+| 25 | Duplicate idempotency key across workspaces | job queue | `tests/playbook/test_api.py::TestRestoringAndStoppingOverHTTP::test_a_key_resolves_only_inside_its_own_workspace` | A key identifies one send in one conversation; it never resolves to a job in another | PASS |
+| 26 | A 29%-complete document marked ready | readiness | `tests/playbook/test_readiness.py::TestReadyMeansThereIsNothingLeftToDo::test_a_document_below_the_green_bar_is_pending_not_ready` | "Ready" means nothing is left to do: below the green bar the status is pending and says so with the number | PASS |
+| 27 | A machine moving a section into review | governance boundary | `tests/playbook/test_sections_and_since_last_time.py::TestStatusTransitionsAreDeterministic::test_a_machine_may_not_move_a_section_into_review` | Section review states go through the same `require_person` guard as every other governed act; "claude" and "system" are refused, not just an empty string | PASS |
+| 28 | A dashboard pane taking the page down | dashboard rendering | `frontend/src/lib/__tests__/intelligence.test.ts::a history entry without an act is still rendered` | A pane that fails says so and the rest of the dashboard keeps working; the browser suite walks every tab and asserts none reports a failure | PASS |
+| 29 | Seeded state that silently matches nothing | demonstration | `tests/playbook/test_seed.py::TestTheSeededDashboardIsReal::test_every_seeded_metric_lands_in_a_real_section` | A seed naming a section the document does not have fails loudly rather than being skipped, so the demonstration cannot ship with metrics attached to nothing | PASS |
+
+Classes 27, 28 and 29 were found by the browser suite and the soak harness
+respectively, which is the argument for having both: none of them was
+reachable from a unit test of the component that was wrong.

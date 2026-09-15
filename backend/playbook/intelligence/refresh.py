@@ -25,6 +25,7 @@ did.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from backend.models.playbook import (
     PlaybookDecision,
@@ -320,3 +321,62 @@ def _readings(chunk) -> list[tuple[str, str, str, str]]:
         cell = str(cell_row[1]) if len(cell_row) > 1 else ""
         out.append((label, shown, raw, cell))
     return out
+
+
+def apply_uploaded(session, workspace_id: int, source_id: int, *,
+                   binding_ids: list[int], actor: str) -> dict:
+    """Take the uploaded readings a person has confirmed, and only those.
+
+    This is the act that makes an uploaded number a governed current value,
+    and it is a person's: the uploaded column resembled a tracked metric, and
+    a resemblance is not an identity. `require_person` refuses anything else.
+
+    Each confirmed reading replaces the binding's current value and records
+    where it came from. The frozen snapshots are untouched — THEN is what the
+    document relied on and is never rewritten, which is what makes the next
+    Since Last Time comparison mean something.
+    """
+    who = gov.require_person(actor, "Updating a metric from an uploaded file")
+    proposed = {row["binding_id"]: row
+                for row in proposals_from_source(session, workspace_id,
+                                                 source_id)["rows"]}
+    wanted = [i for i in binding_ids if i in proposed]
+
+    updated = []
+    for binding_id in wanted:
+        row = session.get(PlaybookMetricBinding, binding_id)
+        if row is None or row.workspace_id != workspace_id:
+            continue
+        reading = proposed[binding_id]
+        row.value_in_document = reading["uploaded_raw_value"] \
+            or reading["uploaded_value"]
+        row.raw_value = reading["uploaded_raw_value"]
+        row.display_value = reading["uploaded_value"]
+        row.source_locator = reading["source_locator"]
+        row.source_id = source_id
+        row.confirmed_by_user = True
+        row.confirmed_by = who
+        row.confirmed_at = datetime.now(UTC)
+        # It is current because somebody just said so, from a file they
+        # uploaded. Leaving it stale here would ask them again immediately.
+        row.freshness = bind.CURRENT
+        updated.append({"binding_id": row.id, "metric_id": row.metric_id,
+                        "label": row.label, "value": row.display_value,
+                        "source_locator": row.source_locator})
+    session.flush()
+
+    ignored = [i for i in proposed if i not in set(wanted)]
+    return {
+        "updated": updated,
+        "ignored": ignored,
+        "message": _applied_message(len(updated), len(ignored)),
+    }
+
+
+def _applied_message(updated: int, ignored: int) -> str:
+    if not updated:
+        return "Nothing was changed."
+    parts = [f"{updated} metric{'s' if updated != 1 else ''} updated"]
+    if ignored:
+        parts.append(f"{ignored} left as {'it was' if ignored == 1 else 'they were'}")
+    return "; ".join(parts) + "."

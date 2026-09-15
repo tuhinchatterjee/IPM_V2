@@ -4,6 +4,7 @@ import { test } from "node:test";
 import type {
   PbAction,
   PbComparison,
+  PbHistoryEntry,
   PbDashboard,
   PbFinding,
   PbGovernedDecision,
@@ -13,6 +14,7 @@ import type {
 import {
   actionStatus,
   actorLabel,
+  describeHistoryEntry,
   approvalBadge,
   compactRows,
   componentViews,
@@ -574,4 +576,47 @@ test("an actor is shown as recorded, never as an invented full name", () => {
   assert.equal(actorLabel("user:7"), "User 7");
   assert.equal(actorLabel("demo:head-of-credit-risk"), "Head Of Credit Risk");
   assert.equal(actorLabel(""), "");
+});
+
+
+// --------------------------------------------------------------------------
+// History entries
+// --------------------------------------------------------------------------
+
+test("a section entry is described by the move it records", () => {
+  assert.equal(
+    describeHistoryEntry({
+      at: "2026-09-14T10:00:00Z", from: "generated", to: "ready_for_review",
+      actor: "user:7", reason: "sent for review",
+    }),
+    "Generated → Ready for review",
+  );
+});
+
+test("a history entry without an act is still rendered", () => {
+  // The exact shape that threw and blanked the dashboard: a section entry
+  // carries no `act`, and the pane read `act.replace(...)` off it.
+  const entry = { at: "2026-09-14T10:00:00Z", from: "generated",
+    to: "approved", actor: "user:7", reason: "" } as PbHistoryEntry;
+  assert.doesNotThrow(() => describeHistoryEntry(entry));
+  assert.ok(describeHistoryEntry(entry).length > 0);
+});
+
+test("a governed entry falls back to its act name", () => {
+  assert.equal(
+    describeHistoryEntry({ at: "", act: "evidence_attached",
+      field: "evidence", actor: "user:7" }),
+    "evidence attached",
+  );
+});
+
+test("an entry carrying neither still says something", () => {
+  assert.equal(describeHistoryEntry({ at: "" }), "changed");
+});
+
+test("an unknown status in a move is shown rather than swallowed", () => {
+  assert.equal(
+    describeHistoryEntry({ at: "", from: "generated", to: "something_new" }),
+    "Generated → Something new",
+  );
 });

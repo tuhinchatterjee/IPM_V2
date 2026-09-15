@@ -14,6 +14,7 @@ import {
 
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
 import { DocumentStatusPanel } from "@/components/playbook/status/status-panel";
+import { UploadedMetricUpdates } from "@/components/playbook/status/uploaded-updates";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
 import { SourceCard } from "@/components/playbook/source-card";
 import { useGeneration } from "@/components/playbook/use-generation";
@@ -103,6 +104,10 @@ export default function PlaybookThreadPage({
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [chosen, setChosen] = React.useState<PbAnalysisCard[]>([]);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
+  // Files uploaded in this visit. §24: a workbook may carry newer readings
+  // for metrics this document already tracks, and the moment to say so is
+  // when it arrives — not silently, and not by applying them.
+  const [justUploaded, setJustUploaded] = React.useState<number[]>([]);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -214,6 +219,7 @@ export default function PlaybookThreadPage({
         const source = await api.uploadPlaybookSource(data.id, file);
         sourceIds.push(source.id);
       }
+      if (sourceIds.length) setJustUploaded((ids) => [...ids, ...sourceIds]);
       const report = data.artifacts.find((a) => a.kind === "report");
       const started = await api.sendPlaybookMessage(data.id, {
         text: shownPrompt.trim(),
@@ -382,6 +388,15 @@ export default function PlaybookThreadPage({
               }}
             />
           )}
+
+          {justUploaded.map((sourceId) => (
+            <UploadedMetricUpdates
+              key={sourceId}
+              workspaceId={workspaceId}
+              sourceId={sourceId}
+              onApplied={() => setRefresh((n) => n + 1)}
+            />
+          ))}
 
           {/* What the dashboard handed over. Shown rather than silently
               pre-filling the box, so the user can see what "this" refers to

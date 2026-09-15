@@ -2029,3 +2029,40 @@ def uploaded_metric_updates(workspace_id: int, source_id: int,
         raise _not_found(exc) from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc
+
+
+class ApplyUploadedIn(BaseModel):
+    """Which of the uploaded readings a person is standing behind."""
+
+    binding_ids: list[int] = Field(default_factory=list)
+
+
+@router.post("/workspaces/{workspace_id}/sources/{source_id}/metric-updates")
+def apply_uploaded_metric_updates(workspace_id: int, source_id: int,
+                                  body: ApplyUploadedIn,
+                                  principal: Principal = RequireAnalyst
+                                  ) -> dict:
+    """Make confirmed uploaded readings the governed current values. §24.
+
+    Only the ones named. A resemblance between a column header and a tracked
+    metric is not an identity, so nothing here happens without a person
+    choosing it, and the act records who.
+    """
+    from backend.playbook.intelligence import governance as gov
+    from backend.playbook.intelligence import refresh
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            result = refresh.apply_uploaded(
+                session, workspace_id, source_id,
+                binding_ids=body.binding_ids, actor=_actor(principal))
+            session.commit()
+            return result
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except gov.NotPermitted as exc:
+        raise _refused(exc, code="not_permitted") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc

@@ -452,3 +452,93 @@ class TestAnUploadProposesRatherThanUpdates:
         [live] = (db.query(PlaybookMetricBinding)
                   .filter(PlaybookMetricBinding.id == binding.id).all())
         assert live.display_value == "5.86%"
+
+
+@pytest.mark.usefixtures("db")
+class TestApplyingAnUploadedReading:
+    """§24's last step. Only confirmed mappings become governed values."""
+
+    @staticmethod
+    def _workbook() -> bytes:
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        sheet = wb.active
+        sheet.title = "Performance"
+        sheet.append(["Metric", "Value"])
+        sheet.append(["Coverage ratio", 0.0647])
+        for row in sheet.iter_rows(min_row=2, min_col=2, max_col=2):
+            for cell in row:
+                cell.number_format = "0.000"
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    def _ready(self, db, scope, workspace):
+        binding = _governed(db, workspace, metric_id="ifrs9.coverage_ratio",
+                            label="Coverage ratio", value="0.0586",
+                            display="5.86%")
+        source = service.add_source(db, scope, workspace.id,
+                                    filename="monitoring.xlsx",
+                                    content=self._workbook(),
+                                    source_role="results")
+        db.flush()
+        return binding, source
+
+    def test_a_confirmed_reading_becomes_the_current_value(self, db, scope,
+                                                           workspace):
+        binding, source = self._ready(db, scope, workspace)
+        result = refresh.apply_uploaded(db, workspace.id, source.id,
+                                        binding_ids=[binding.id],
+                                        actor=ACTOR)
+        assert result["updated"][0]["value"] == "0.065"
+        assert binding.display_value == "0.065"
+        assert binding.raw_value == "0.0647"
+        assert binding.confirmed_by == ACTOR
+        assert binding.source_locator.endswith("!B2")
+        assert binding.freshness == bind.CURRENT
+
+    def test_a_reading_nobody_confirmed_is_left_alone(self, db, scope,
+                                                      workspace):
+        binding, source = self._ready(db, scope, workspace)
+        result = refresh.apply_uploaded(db, workspace.id, source.id,
+                                        binding_ids=[], actor=ACTOR)
+        assert result["updated"] == []
+        assert binding.display_value == "5.86%"
+        assert result["message"] == "Nothing was changed."
+
+    def test_a_machine_may_not_apply_one(self, db, scope, workspace):
+        binding, source = self._ready(db, scope, workspace)
+        with pytest.raises(gov.NotPermitted):
+            refresh.apply_uploaded(db, workspace.id, source.id,
+                                   binding_ids=[binding.id], actor="claude")
+        assert binding.display_value == "5.86%"
+
+    def test_the_frozen_snapshot_is_never_rewritten(self, db, scope,
+                                                    workspace):
+        """THEN is what the document relied on. If applying a new reading
+        moved it, the next comparison would show no change at all."""
+        from backend.models.playbook import PlaybookMetricSnapshot
+
+        binding, source = self._ready(db, scope, workspace)
+        artifact, version = _versioned(db, workspace, _doc("1. Summary"))
+        db.flush()
+        [snapshot] = (db.query(PlaybookMetricSnapshot)
+                      .filter(PlaybookMetricSnapshot.version_id == version.id)
+                      .all())
+        before = snapshot.display_value
+
+        refresh.apply_uploaded(db, workspace.id, source.id,
+                               binding_ids=[binding.id], actor=ACTOR)
+        assert snapshot.display_value == before == "5.86%"
+
+    def test_an_id_that_was_never_proposed_is_ignored(self, db, scope,
+                                                      workspace):
+        """A client cannot update an arbitrary binding by naming it here."""
+        binding, source = self._ready(db, scope, workspace)
+        other = _governed(db, workspace, metric_id="ifrs9.weighted_ecl",
+                          label="Weighted ECL", value="22.77",
+                          display="22.77")
+        refresh.apply_uploaded(db, workspace.id, source.id,
+                               binding_ids=[other.id], actor=ACTOR)
+        assert other.display_value == "22.77"

@@ -324,6 +324,17 @@ async def answer_a_finding(page, workspace_id: int) -> None:
               "no open finding in the seeded document")
         return
 
+    answered_id = await page.evaluate(
+        """async (id) => {
+            const r = await fetch(
+                `/api/v1/playbook/workspaces/${id}/intelligence`);
+            const body = await r.json();
+            const open = body.findings.items.filter((f) => f.status === "open");
+            return open.length ? open[0].id : 0;
+        }""",
+        workspace_id,
+    )
+
     await cards.first.get_by_test_id("playbook-finding-answer").click()
     dialog = page.get_by_test_id("playbook-govern-dialog")
     check("answering opens a form", await dialog.count() == 1)
@@ -350,6 +361,30 @@ async def answer_a_finding(page, workspace_id: int) -> None:
         # §13: an answer is not a disposal. The finding is still counted.
         check("an answered finding is still not resolved",
               "Answered" in text)
+
+    # Put it back. The suite has to be able to run twice and mean the same
+    # thing both times, and there is no product path from answered to open
+    # that does not record a person reopening it — so the harness undoes its
+    # own change as the harness.
+    _reopen(answered_id)
+
+
+def _reopen(finding_id: int) -> None:
+    if not finding_id:
+        return
+    from backend.db.engine import get_session
+    from backend.models.playbook import PlaybookFinding
+
+    with get_session() as session:
+        row = session.get(PlaybookFinding, finding_id)
+        if row is not None:
+            row.status = "open"
+            row.answer = ""
+            row.answered_by = ""
+            row.answered_at = None
+            row.history = [h for h in (row.history or [])
+                           if h.get("act") != "answered"]
+            session.commit()
 
 
 async def decisions_tab(page, workspace_id: int, *, shoot: bool) -> None:

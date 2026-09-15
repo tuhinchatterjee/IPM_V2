@@ -17,7 +17,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.4,
+      "seconds": 2.3,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -37,7 +37,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 1.6,
+      "seconds": 1.4,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -67,7 +67,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.3,
+      "seconds": 2.4,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -77,7 +77,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 0.5,
+      "seconds": 0.4,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -100,9 +100,119 @@
       "seconds": 1.4,
       "same_state_every_cycle": true,
       "failures": []
+    },
+    {
+      "journey": "K",
+      "label": "dashboard open",
+      "cycles": 10,
+      "passed": 51,
+      "failed": 0,
+      "seconds": 1.9,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "L",
+      "label": "readiness recalculation",
+      "cycles": 10,
+      "passed": 41,
+      "failed": 0,
+      "seconds": 1.7,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "M",
+      "label": "section status cycle",
+      "cycles": 10,
+      "passed": 61,
+      "failed": 0,
+      "seconds": 1.5,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "N",
+      "label": "metric binding cycle",
+      "cycles": 10,
+      "passed": 51,
+      "failed": 0,
+      "seconds": 0.2,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "O",
+      "label": "then and now",
+      "cycles": 10,
+      "passed": 41,
+      "failed": 0,
+      "seconds": 1.5,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "P",
+      "label": "finding lifecycle",
+      "cycles": 10,
+      "passed": 61,
+      "failed": 0,
+      "seconds": 0.2,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "Q",
+      "label": "decision lifecycle",
+      "cycles": 10,
+      "passed": 51,
+      "failed": 0,
+      "seconds": 0.2,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "R",
+      "label": "action lifecycle",
+      "cycles": 10,
+      "passed": 51,
+      "failed": 0,
+      "seconds": 0.1,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "S",
+      "label": "check for updates",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 1.6,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "T",
+      "label": "history feed",
+      "cycles": 10,
+      "passed": 41,
+      "failed": 0,
+      "seconds": 1.6,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "U",
+      "label": "the governance boundary",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 1.7,
+      "same_state_every_cycle": true,
+      "failures": []
     }
   ],
-  "checks_passed": 380,
+  "checks_passed": 891,
   "checks_failed": 0,
   "provider": "deterministic stand-in; no paid call"
 }

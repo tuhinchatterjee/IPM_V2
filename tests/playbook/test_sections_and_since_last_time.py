@@ -94,7 +94,24 @@ class TestStatusTransitionsAreDeterministic:
         sect.transition(db, row, to=sect.READY_FOR_REVIEW, actor=ACTOR)
         with pytest.raises(sect.TransitionRefused) as raised:
             sect.transition(db, row, to=sect.APPROVED, actor="")
-        assert "records who did it" in str(raised.value)
+        assert "records who made it" in str(raised.value)
+
+    @pytest.mark.parametrize("name",
+                             ["system", "claude", "assistant", "ai", "  "])
+    def test_a_machine_may_not_move_a_section_into_review(self, db, row,
+                                                          name):
+        """The hole this closed: checking only for a non-empty actor let
+        "claude" mark a section ready for review, which is §28's "mark a human
+        review complete" done by the one party forbidden to do it."""
+        with pytest.raises(sect.TransitionRefused):
+            sect.transition(db, row, to=sect.READY_FOR_REVIEW, actor=name)
+        assert row.status != sect.READY_FOR_REVIEW
+
+    @pytest.mark.parametrize("name", ["", "system", "claude"])
+    def test_a_machine_may_not_assign_a_reviewer(self, db, row, name):
+        with pytest.raises(sect.TransitionRefused):
+            sect.assign_reviewer(db, row, reviewer="a.person", actor=name)
+        assert row.reviewer == ""
 
     def test_the_system_may_never_approve(self, db, row):
         sect.transition(db, row, to=sect.READY_FOR_REVIEW, actor=ACTOR)

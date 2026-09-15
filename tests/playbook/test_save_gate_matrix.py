@@ -48,6 +48,17 @@ CLASSES = (
     "Duplicate generation on refresh",
     "Incomplete stream being saved",
     "Partial failed artifact replacing the last valid one",
+    # Found after the first nineteen, by the work that followed. §33.
+    "Metric suggestions used as governed values",
+    "Then/Now across different populations",
+    "Then/Now unit mismatch",
+    "Section retitle loses its state",
+    "First-open readiness key divergence",
+    "Duplicate idempotency key across workspaces",
+    "A 29%-complete document marked ready",
+    "A machine moving a section into review",
+    "A dashboard pane taking the page down",
+    "Seeded state that silently matches nothing",
 )
 
 _ROW = re.compile(
@@ -67,8 +78,8 @@ def test_every_failure_class_has_exactly_one_row(rows):
     assert [r[1].strip() for r in rows] == list(CLASSES)
 
 
-def test_the_rows_are_numbered_one_to_nineteen(rows):
-    assert [r[0] for r in rows] == [str(n) for n in range(1, 20)]
+def test_the_rows_are_numbered_in_order(rows):
+    assert [r[0] for r in rows] == [str(n) for n in range(1, len(CLASSES) + 1)]
 
 
 def test_every_row_names_a_layer(rows):
@@ -91,14 +102,33 @@ def test_every_row_passes(rows):
 # --------------------------------------------------------------------------
 
 
-def _resolve(node_id: str) -> ast.FunctionDef:
-    """Find the function a `file::Class::test` node id names, in the source."""
-    parts = node_id.split("::")
-    assert len(parts) == 3, f"{node_id!r} is not file::Class::test"
-    path, class_name, func_name = parts
+def _resolve(node_id: str) -> ast.FunctionDef | str:
+    """Find the test a row names, in the source.
 
+    Two suites are addressed here, because two suites hold the line. A Python
+    row is `file.py::Class::test` and is resolved through the AST. A frontend
+    row is `file.ts::the test's name` and is resolved by finding the
+    `test("…")` call — `node --test` has no classes, so there is nothing else
+    to key on.
+
+    Either way the point is the same: a row cannot name a test that is not
+    there.
+    """
+    if "::" not in node_id:
+        raise AssertionError(f"{node_id!r} names no test")
+    path, _, rest = node_id.partition("::")
     source = ROOT / path
     assert source.exists(), f"{path} does not exist"
+
+    if path.endswith(".ts"):
+        name = rest
+        text = source.read_text()
+        assert f'test("{name}"' in text, f"{path} has no test named {name!r}"
+        return name
+
+    parts = rest.split("::")
+    assert len(parts) == 2, f"{node_id!r} is not file::Class::test"
+    class_name, func_name = parts
     tree = ast.parse(source.read_text(), filename=str(source))
 
     classes = [n for n in tree.body
@@ -130,21 +160,33 @@ def test_no_row_is_held_up_by_a_quarantined_test(rows):
     """A skipped or expected-to-fail test is not a regression guard. A row
     whose test was quarantined must stop reading PASS."""
     for number, name, _, node_id, _, _ in rows:
-        marks = _decorator_names(_resolve(node_id))
+        found = _resolve(node_id)
+        if isinstance(found, str):
+            # A `node --test` test has no decorators to quarantine it; the
+            # only way to disable one is to delete it, which `_resolve`
+            # already catches.
+            continue
+        marks = _decorator_names(found)
         assert not marks & {"skip", "skipif", "xfail"}, (
             f"row {number} ({name}) is guarded by a quarantined test")
 
 
 def test_the_named_tests_are_spread_across_the_layers(rows):
-    """Nineteen rows pointing at one file would mean the matrix describes one
-    test's neighbourhood rather than the save gate."""
+    """Rows pointing at one file would mean the matrix describes one test's
+    neighbourhood rather than the save gate."""
     files = {r[3].split("::")[0] for r in rows}
-    assert len(files) >= 7
+    assert len(files) >= 9, sorted(files)
 
 
-def test_every_named_test_lives_in_the_playbook_suite(rows):
-    """So that one `pytest tests/playbook` run exercises all nineteen."""
-    assert all(r[3].startswith("tests/playbook/") for r in rows)
+def test_every_named_test_lives_in_a_suite_that_is_actually_run(rows):
+    """Two suites hold this matrix, and both run on every verification pass:
+    `pytest tests/playbook` and `npm test` in the frontend. A row naming a
+    test in neither would be a row nobody checks."""
+    for number, name, _, node_id, _, _ in rows:
+        path = node_id.split("::")[0]
+        assert (path.startswith("tests/playbook/")
+                or path.startswith("frontend/src/")), (
+            f"row {number} ({name}) names {path}, which neither suite runs")
 
 
 def test_the_evidence_section_records_a_real_run(rows):

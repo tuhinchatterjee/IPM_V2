@@ -52,6 +52,9 @@ sys.path.insert(0, str(REPO))
 
 EVIDENCE = REPO / "docs" / "playbook" / "soak_results.json"
 
+ACTOR = "user:7"
+OTHER = "user:9"
+
 REPORT_MD = """# {title}
 
 ## 1. Executive summary
@@ -613,6 +616,328 @@ def journey_j(cycle: Cycle) -> None:
                 "a good file still generates after the refusals")
 
 
+# ========================================================================
+# Document Intelligence. §34
+# ========================================================================
+
+
+def _document(cycle: Cycle, *, title="Soak"):
+    """A workspace with a document, a governed metric and a section."""
+    from backend.exports import playbook_contract as contract
+    from backend.playbook.intelligence import binding as bind
+
+    cycle.new_workspace(title)
+    cycle.upload("results.xlsx", workbook())
+    # BEFORE the version is written. Adoption freezes the readings a version
+    # relied on, so a binding created afterwards is frozen against nothing and
+    # Since Last Time has no THEN — which is exactly what this got wrong the
+    # first time it was written.
+    bind.apply(cycle.session, cycle.workspace.id, bind.from_export(
+        [contract.Metric(metric_id="ecl.weighted", label="Weighted ECL",
+                         value="20.90", display_value="20.90",
+                         unit="currency")]))
+    cycle.session.flush()
+    return cycle.generate(REPORT_MD.format(title="IFRS 9 Committee Report"))
+
+
+def journey_k(cycle: Cycle) -> None:
+    """K. Open the dashboard. Reading it must not change it."""
+    from backend.playbook.intelligence import service as intel
+
+    _document(cycle)
+    reads = [intel.dashboard(cycle.session, cycle.workspace.id).as_dict()
+             for _ in range(5)]
+    cycle.check(all(r == reads[0] for r in reads),
+                "five dashboard reads agree")
+    cycle.check(reads[0]["available"] is True, "the dashboard is available")
+    cycle.check(bool(reads[0]["sections"]), "it knows its sections")
+    cycle.check(reads[0]["readiness"]["computed"] is True,
+                "and its readiness is computed")
+    # The payload has to have ONE shape. A first open that answered with
+    # different keys from every read after it is a defect this journey found.
+    cycle.check(set(reads[0]["readiness"]) == set(reads[-1]["readiness"]),
+                "the readiness payload has one shape",
+                str(set(reads[0]["readiness"]) ^ set(reads[-1]["readiness"])))
+
+
+def journey_l(cycle: Cycle) -> None:
+    """L. Recompute readiness. The same facts must give the same score."""
+    from backend.playbook.intelligence import readiness as score
+
+    _document(cycle)
+    scores = [score.compute(cycle.session, cycle.workspace.id)
+              for _ in range(5)]
+    cycle.check(len({s.readiness_pct for s in scores}) == 1,
+                "readiness is the same every time",
+                str({s.readiness_pct for s in scores}))
+    cycle.check(len({s.completion_pct for s in scores}) == 1,
+                "and so is completion")
+    cycle.check(all(s.approval_status == scores[0].approval_status
+                    for s in scores), "and so is the approval status")
+    cycle.check(all(c["explanation"] for c in scores[0].components
+                    if c["applicable"]),
+                "every applicable component explains itself")
+
+
+def journey_m(cycle: Cycle) -> None:
+    """M. Move a section through review and back."""
+    from backend.playbook.intelligence import sections as sect
+
+    outcome = _document(cycle)
+    [row, *_] = sect.rows_for(cycle.session, outcome.artifact_id)
+    start = row.status
+
+    sect.assign_reviewer(cycle.session, row, reviewer="a.reviewer",
+                         actor=ACTOR)
+    sect.transition(cycle.session, row, to=sect.APPROVED, actor="a.reviewer",
+                    reason="agreed")
+    cycle.check(row.status == sect.APPROVED, "a section can be approved")
+    cycle.check(row.reviewed_at is not None, "and records when")
+
+    sect.transition(cycle.session, row, to=sect.NEEDS_REVIEW, actor=ACTOR,
+                    reason="reopened")
+    cycle.check(row.status == sect.NEEDS_REVIEW, "and reopened")
+    cycle.check(row.reviewed_at is None,
+                "which drops the sign-off rather than keeping a stale one")
+    cycle.check(row.status != start or start == sect.NEEDS_REVIEW,
+                "the cycle actually moved it")
+    cycle.check(len(row.history) >= 3, "every move is in its history",
+                str(len(row.history)))
+
+
+def journey_n(cycle: Cycle) -> None:
+    """N. Confirm and ignore metric bindings."""
+    from backend.playbook.intelligence import binding as bind
+
+    cycle.new_workspace("Bindings")
+    [row] = bind.apply(cycle.session, cycle.workspace.id, bind.from_labels(
+        [("Gini", "0.415", "0.4152", "B2")], locator="xlsx://P!A1"))
+    cycle.check(not bind.is_governed(row),
+                "a suggestion is not governed on arrival")
+
+    bind.confirm(cycle.session, row, actor=ACTOR)
+    cycle.check(bind.is_governed(row), "confirming makes it governed")
+    cycle.check(row.confirmed_by == ACTOR, "and records who")
+
+    bind.ignore(cycle.session, row)
+    cycle.check(not bind.is_governed(row), "ignoring stops it being a link")
+    cycle.check(row.display_value == "0.415",
+                "and keeps the figure rather than deleting it")
+
+
+def journey_o(cycle: Cycle) -> None:
+    """O. Then and now, across a data move."""
+    from backend.models.playbook import PlaybookMetricBinding
+    from backend.playbook.intelligence import binding as bind
+    from backend.playbook.intelligence import compare
+
+    _document(cycle)
+    [binding] = (cycle.session.query(PlaybookMetricBinding)
+                 .filter(PlaybookMetricBinding.workspace_id ==
+                         cycle.workspace.id).all())
+    binding.value_in_document = "22.77"
+    binding.raw_value = "22.77"
+    binding.display_value = "22.77"
+    binding.freshness = bind.NEW_AVAILABLE
+    cycle.session.flush()
+
+    first = compare.since_last_time(cycle.session, cycle.workspace.id)
+    second = compare.since_last_time(cycle.session, cycle.workspace.id)
+    cycle.check(first == second, "the comparison is the same when read twice")
+    row = {r["metric_id"]: r for r in first["rows"]}.get("ecl.weighted", {})
+    cycle.check(row.get("then", {}).get("display") == "20.90",
+                "THEN is what the version relied on", str(row.get("then")))
+    cycle.check(row.get("now", {}).get("display") == "22.77",
+                "NOW is the current reading")
+    cycle.check(row.get("comparable") is True, "and they are comparable",
+                str(row.get("reason", "")))
+
+
+def journey_p(cycle: Cycle) -> None:
+    """P. A finding, through its whole life."""
+    from backend.playbook.intelligence import governance as gov
+
+    cycle.new_workspace("Findings")
+    finding = gov.raise_finding(cycle.session, cycle.workspace.id,
+                                origin=gov.FROM_RULE, severity=gov.HIGH,
+                                title="Coverage fell", blocking=True)
+    cycle.check(finding.reference == "F-01", "it is numbered",
+                finding.reference)
+    cycle.check(finding.blocking, "a rule may raise a blocking finding")
+
+    gov.move_finding(cycle.session, finding, to=gov.ANSWERED, actor=ACTOR,
+                     answer="Covered by the overlay.")
+    cycle.check(gov.unresolved([finding]) == [finding],
+                "an answered finding is still unresolved")
+
+    gov.move_finding(cycle.session, finding, to=gov.ACCEPTED, actor=OTHER,
+                     reason="agreed at the committee")
+    cycle.check(gov.unresolved([finding]) == [],
+                "accepting disposes of it")
+    cycle.check(finding.resolved_by == OTHER, "and records who")
+    cycle.check([h["act"] for h in finding.history]
+                == ["raised", gov.ANSWERED, gov.ACCEPTED],
+                "the trail is in order",
+                str([h["act"] for h in finding.history]))
+
+
+def journey_q(cycle: Cycle) -> None:
+    """Q. A decision, and the actions that follow it."""
+    from backend.playbook.intelligence import governance as gov
+
+    cycle.new_workspace("Decisions")
+    decision = gov.propose_decision(cycle.session, cycle.workspace.id,
+                                    question="Hold the overlay?",
+                                    recommendation="Hold.")
+    cycle.check(decision.reference == "D-01", "it is numbered",
+                decision.reference)
+
+    try:
+        gov.actions_from_decision(cycle.session, decision, actor=ACTOR,
+                                  actions=[{"title": "Too early"}])
+        cycle.check(False, "actions cannot precede the decision")
+    except gov.TransitionRefused:
+        cycle.check(True, "actions cannot precede the decision")
+
+    gov.move_decision(cycle.session, decision, to=gov.READY_FOR_DECISION,
+                      actor=ACTOR)
+    try:
+        gov.record(cycle.session, decision, outcome=gov.APPROVE,
+                   actor="claude")
+        cycle.check(False, "a model may not record a decision")
+    except gov.NotPermitted:
+        cycle.check(True, "a model may not record a decision")
+
+    gov.record(cycle.session, decision, outcome=gov.APPROVE, actor=ACTOR,
+               rationale="agreed")
+    cycle.check(decision.decided_by == ACTOR, "a person records it")
+    [action] = gov.actions_from_decision(
+        cycle.session, decision, actor=ACTOR,
+        actions=[{"title": "Re-run the model"}])
+    cycle.check(action.reference == "A-01", "the action is numbered",
+                action.reference)
+
+
+def journey_r(cycle: Cycle) -> None:
+    """R. An action, through its whole life."""
+    from backend.playbook.intelligence import governance as gov
+
+    cycle.new_workspace("Actions")
+    action = gov.create_action(cycle.session, cycle.workspace.id,
+                               title="Refresh the workbook", actor=ACTOR)
+    gov.move_action(cycle.session, action, to=gov.IN_PROGRESS, actor=ACTOR,
+                    note="started")
+    gov.update_action(cycle.session, action, note="waiting on the extract",
+                      actor=ACTOR)
+    cycle.check(action.status == gov.IN_PROGRESS,
+                "an update does not move an action")
+    cycle.check(action.last_update == "waiting on the extract",
+                "but it is recorded")
+
+    try:
+        gov.move_action(cycle.session, action, to=gov.COMPLETED,
+                        actor="system")
+        cycle.check(False, "a machine may not complete an action")
+    except gov.NotPermitted:
+        cycle.check(True, "a machine may not complete an action")
+
+    gov.move_action(cycle.session, action, to=gov.COMPLETED, actor=OTHER,
+                    note="done")
+    cycle.check(action.completed_by == OTHER, "a person completes it")
+    cycle.check(action.completed_at is not None, "and it records when")
+
+
+def journey_s(cycle: Cycle) -> None:
+    """S. Check for updates, over and over, changing nothing."""
+    from backend.models.playbook import PlaybookMetricBinding
+    from backend.playbook import repository as repo
+    from backend.playbook.intelligence import binding as bind
+    from backend.playbook.intelligence import refresh
+
+    outcome = _document(cycle)
+    [binding] = (cycle.session.query(PlaybookMetricBinding)
+                 .filter(PlaybookMetricBinding.workspace_id ==
+                         cycle.workspace.id).all())
+    binding.freshness = bind.NEW_AVAILABLE
+    cycle.session.flush()
+
+    before = (len(repo.versions(cycle.session, outcome.artifact_id)),
+              binding.display_value, binding.freshness)
+    first = refresh.check(cycle.session, cycle.workspace.id).as_dict()
+    second = refresh.check(cycle.session, cycle.workspace.id).as_dict()
+    after = (len(repo.versions(cycle.session, outcome.artifact_id)),
+             binding.display_value, binding.freshness)
+
+    cycle.check(first == second, "the proposal is the same when read twice")
+    cycle.check(before == after, "checking changed nothing at all")
+    cycle.check(first["anything"] is True, "and it found the newer reading")
+
+
+def journey_t(cycle: Cycle) -> None:
+    """T. The history feed, assembled from the rows."""
+    from backend.playbook.intelligence import governance as gov
+    from backend.playbook.intelligence import history
+
+    _document(cycle)
+    finding = gov.raise_finding(cycle.session, cycle.workspace.id,
+                                origin=gov.FROM_RULE, title="Coverage fell")
+    gov.move_finding(cycle.session, finding, to=gov.ACCEPTED, actor=ACTOR,
+                     reason="agreed")
+    cycle.session.flush()
+
+    first = history.feed(cycle.session, cycle.workspace.id)
+    second = history.feed(cycle.session, cycle.workspace.id)
+    cycle.check(first == second, "the feed is the same when read twice")
+    cycle.check(first["total"] >= 4, "it carries what happened",
+                str(first["total"]))
+    stamps = [e["at"] for e in first["events"]]
+    cycle.check(stamps == sorted(stamps, key=lambda x: (x != "", x),
+                                 reverse=True),
+                "newest first")
+    kinds = {e["kind"] for e in first["events"]}
+    cycle.check({"version", "source", "parse", "finding"} <= kinds,
+                "from every trail", str(sorted(kinds)))
+
+
+def journey_u(cycle: Cycle) -> None:
+    """U. A governed act refuses a caller with no name, every time."""
+    from backend.playbook.intelligence import governance as gov
+    from backend.playbook.intelligence import sections as sect
+
+    outcome = _document(cycle)
+    finding = gov.raise_finding(cycle.session, cycle.workspace.id,
+                                origin=gov.FROM_RULE, title="X")
+    decision = gov.propose_decision(cycle.session, cycle.workspace.id,
+                                    question="Y?")
+    gov.move_decision(cycle.session, decision, to=gov.READY_FOR_DECISION,
+                      actor=ACTOR)
+    [row, *_] = sect.rows_for(cycle.session, outcome.artifact_id)
+
+    def close_a_finding(name: str) -> None:
+        gov.move_finding(cycle.session, finding, to=gov.CLOSED, actor=name,
+                         reason="r")
+
+    def record_a_decision(name: str) -> None:
+        gov.record(cycle.session, decision, outcome=gov.APPROVE, actor=name)
+
+    def move_a_section(name: str) -> None:
+        sect.transition(cycle.session, row, to=sect.READY_FOR_REVIEW,
+                        actor=name)
+
+    refused = 0
+    for name in ("", "system", "claude", "assistant", "  "):
+        for act in (close_a_finding, record_a_decision, move_a_section):
+            try:
+                act(name)
+            except (gov.NotPermitted, sect.TransitionRefused):
+                refused += 1
+    cycle.check(refused == 15, "every unnamed governed act is refused",
+                f"{refused} of 15")
+    cycle.check(finding.status == gov.OPEN, "and nothing moved")
+    cycle.check(decision.status == gov.READY_FOR_DECISION,
+                "including the decision")
+
+
 JOURNEYS = {
     "A": ("create a report", journey_a),
     "B": ("scoped edit", journey_b),
@@ -624,6 +949,17 @@ JOURNEYS = {
     "H": ("duplicate send", journey_h),
     "I": ("version restore", journey_i),
     "J": ("malformed source", journey_j),
+    "K": ("dashboard open", journey_k),
+    "L": ("readiness recalculation", journey_l),
+    "M": ("section status cycle", journey_m),
+    "N": ("metric binding cycle", journey_n),
+    "O": ("then and now", journey_o),
+    "P": ("finding lifecycle", journey_p),
+    "Q": ("decision lifecycle", journey_q),
+    "R": ("action lifecycle", journey_r),
+    "S": ("check for updates", journey_s),
+    "T": ("history feed", journey_t),
+    "U": ("the governance boundary", journey_u),
 }
 
 

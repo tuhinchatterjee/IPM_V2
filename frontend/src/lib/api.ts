@@ -5286,6 +5286,20 @@ export const api = {
     request<PbUploadedMetricUpdates>(
       `/playbook/workspaces/${workspaceId}/sources/${sourceId}/metric-updates`,
     ),
+  playbookApplyUploadedMetrics: (
+    workspaceId: number,
+    sourceId: number,
+    body: { binding_ids: number[] },
+  ) =>
+    request<{
+      updated: { binding_id: number; metric_id: string; label: string;
+        value: string; source_locator: string }[];
+      ignored: number[];
+      message: string;
+    }>(
+      `/playbook/workspaces/${workspaceId}/sources/${sourceId}/metric-updates`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
   cancelPlaybookJob: (jobId: number) =>
     request<PbJob & { message: string }>(
       `/playbook/jobs/${jobId}/cancel`,

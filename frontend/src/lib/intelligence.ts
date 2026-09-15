@@ -20,6 +20,7 @@ import type {
   PbDashboard,
   PbFinding,
   PbGovernedDecision,
+  PbHistoryEntry,
   PbMetric,
   PbReadinessComponent,
   PbSectionRow,
@@ -668,6 +669,32 @@ export function statistics(dashboard: PbDashboard): StatRow[] {
       : "none rendered" },
   ];
   return rows;
+}
+
+// ---------------------------------------------------------------------------
+// History entries
+// ---------------------------------------------------------------------------
+
+/**
+ * How one entry in a row's trail reads.
+ *
+ * Two shapes share `PbHistoryEntry` and assuming the wrong one took the whole
+ * application down once. A governed object — finding, decision, action —
+ * records `act` and `field`. A SECTION records only the move: `from`, `to`,
+ * who and why. The section pane read `entry.act.replace(...)`, which is
+ * `undefined.replace` on every section entry; it threw, React unmounted the
+ * tree, and the dashboard went blank with only the navigation left.
+ *
+ * So: describe the move where there is one, fall back to the act name where
+ * there is one, and assume neither.
+ */
+export function describeHistoryEntry(entry: PbHistoryEntry): string {
+  if (entry.from && entry.to) {
+    return `${sectionStatus(entry.from).label} → ${
+      sectionStatus(entry.to).label}`;
+  }
+  if (entry.act) return entry.act.replace(/_/g, " ");
+  return "changed";
 }
 
 // ---------------------------------------------------------------------------

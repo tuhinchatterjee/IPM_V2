@@ -287,3 +287,105 @@ class TestNothingIsAttributedToAModelThatDidNotWriteIt:
         for spec in threads.threads():
             for wanted in spec.export_titles:
                 assert wanted in titles, wanted
+
+
+@pytest.mark.usefixtures("db")
+class TestTheSeededDashboardIsReal:
+    """§29 — the demonstration must not open on an empty dashboard, and the
+    state it shows must be attached to things that exist.
+
+    The failure this guards is specific and was shipped once: the seed named
+    sections by wording the document did not use, so every metric attached to
+    nothing, every reviewer reviewed nothing, and the Pack tab showed a
+    document with no figures in it — silently, because a section that matched
+    nothing was skipped rather than refused.
+    """
+
+    def test_every_seeded_metric_lands_in_a_real_section(self, seeded, db,
+                                                         scope):
+        from backend.models.playbook import (
+            PlaybookMetricBinding,
+            PlaybookWorkspace,
+        )
+        from backend.playbook.intelligence import sections as sect
+        from backend.playbook.intelligence.service import _current_artifact
+
+        for title in seeded["workspaces_present"]:
+            ws = (db.query(PlaybookWorkspace)
+                  .filter(PlaybookWorkspace.tenant == scope.tenant,
+                          PlaybookWorkspace.title == title).one())
+            artifact = _current_artifact(db, ws.id)
+            keys = {r.section_key for r in sect.rows_for(db, artifact.id)}
+            bindings = (db.query(PlaybookMetricBinding)
+                        .filter(PlaybookMetricBinding.workspace_id == ws.id)
+                        .all())
+            assert bindings, f"{title} has no metrics at all"
+            for binding in bindings:
+                assert not binding.section_key or binding.section_key in keys, (
+                    f"{title}: {binding.label} points at "
+                    f"{binding.section_key!r}, which is not a section of it")
+
+    def test_a_spec_naming_a_section_that_does_not_exist_fails_loudly(
+            self, db, workspace):
+        """Skipping is what let the demonstration ship wrong: reviewers who
+        reviewed nothing, and nobody told."""
+        from backend.playbook import document as D
+        from backend.playbook import seed_intelligence as si
+        from backend.playbook.intelligence import adopt
+
+        doc = D.parse("## 1. Executive summary\n\n" + "words " * 40,
+                      title="Report")
+        artifact = repo.create_artifact(db, workspace.id, kind="report",
+                                        title="Report")
+        db.flush()
+        version = repo.new_version(db, artifact, content=doc.as_dict(),
+                                   source_manifest={},
+                                   content_hash=doc.content_hash(),
+                                   validation={})
+        db.flush()
+        adopt.adopt(db, workspace.id, artifact.id, version_id=version.id,
+                    version=1, doc=doc)
+
+        spec = si.IntelligenceSpec(
+            document_type="ifrs9_report",
+            approved_sections=[("A section nobody wrote", "demo:chair")])
+        with pytest.raises(RuntimeError, match="not a section"):
+            si._sections(db, artifact.id, spec, si._section_keys(doc))
+
+    def test_the_committee_workspace_has_something_in_every_tab(self, seeded,
+                                                                db, scope):
+        """What §29 actually asks for, checked as one statement."""
+        from backend.models.playbook import PlaybookWorkspace
+        from backend.playbook.intelligence import service as intel
+
+        ws = (db.query(PlaybookWorkspace)
+              .filter(PlaybookWorkspace.tenant == scope.tenant,
+                      PlaybookWorkspace.title.like("IFRS 9%")).one())
+        state = intel.dashboard(db, ws.id).as_dict()
+
+        assert state["available"] is True
+        assert state["committee_report"] is True
+        assert state["reporting_period"]
+        assert state["meeting_date"]
+        assert state["sections"]
+        assert state["metrics"]["detected"] >= 4
+        assert state["metrics"]["suggested"] >= 1, (
+            "one link is left unconfirmed on purpose, so the review path is "
+            "visible in the demonstration")
+        assert state["findings"]["total"] >= 3
+        assert state["findings"]["blocking"] >= 1
+        assert state["decisions"]["total"] >= 2
+        assert state["decisions"]["decided"] >= 1
+        assert state["actions"]["total"] >= 1
+        assert state["actions"]["overdue"] >= 1
+        assert state["reviews"]["total"] >= 1
+        assert state["since_last_time"]["available"] is True
+        assert state["since_last_time"]["rows"]
+        assert state["sources"]["sources"] >= 2
+        assert 0 < state["readiness"]["readiness_pct"] < 100, (
+            "a demonstration that opens at 100% demonstrates nothing")
+        assert state["readiness"]["blockers"]
+        assert state["statistics"]["pages"], (
+            "the page count is measured from the rendered file, which the "
+            "seed renders and validates"
+        )

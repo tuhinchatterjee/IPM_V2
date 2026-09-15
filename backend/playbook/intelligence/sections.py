@@ -337,10 +337,17 @@ def transition(session, row, *, to: str, actor: str = "", reason: str = "",
             raise TransitionRefused(
                 f"Moving a section to {to!r} is a person's decision. "
                 "Nothing was changed.")
-        if not (actor or "").strip():
-            raise TransitionRefused(
-                f"Moving a section to {to!r} records who did it. "
-                "Nothing was changed.")
+        # Through the SAME guard every other governed act goes through, which
+        # is the point of having one. Checking only for a non-empty string let
+        # "system", "claude" and "assistant" mark a section ready for review
+        # or approved — §28's "mark a human review complete", done by the one
+        # party forbidden to do it.
+        from backend.playbook.intelligence import governance as gov
+
+        try:
+            gov.require_person(actor, f"Moving a section to {to!r}")
+        except gov.NotPermitted as exc:
+            raise TransitionRefused(str(exc)) from exc
 
     row.history = list(row.history or []) + [{
         "at": datetime.now(UTC).isoformat(),
@@ -368,9 +375,12 @@ def assign_reviewer(session, row, *, reviewer: str, actor: str):
     and the section moves to READY_FOR_REVIEW, but only that reviewer's own
     completion can approve it.
     """
-    if not (actor or "").strip():
-        raise TransitionRefused(
-            "Assigning a reviewer records who assigned them. Nothing changed.")
+    from backend.playbook.intelligence import governance as gov
+
+    try:
+        gov.require_person(actor, "Assigning a reviewer")
+    except gov.NotPermitted as exc:
+        raise TransitionRefused(str(exc)) from exc
     if not (reviewer or "").strip():
         raise TransitionRefused(
             "A section is reviewed by a named person. Nothing changed.")

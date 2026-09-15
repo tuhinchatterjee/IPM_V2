@@ -9,6 +9,7 @@ import { MarkdownView } from "@/components/playbook/markdown-view";
 import type { PbDashboard, PbSectionDetail } from "@/lib/api";
 import {
   actorLabel,
+  describeHistoryEntry,
   orderSections,
   sectionStatus,
   severity,
@@ -292,14 +293,10 @@ function SectionIntelligence({
             {[...detail.history].reverse().map((entry, i) => (
               <li key={i} className="text-[11px] leading-relaxed">
                 {/* A section entry records the MOVE, not an act name. Reading
-                    `act` off it is how this pane once took the page down. */}
+                    `act` off it is how this pane once took the page down, so
+                    the rule lives in a tested function rather than here. */}
                 <span className="text-text-primary">
-                  {entry.from && entry.to
-                    ? `${sectionStatus(entry.from).label} → ${
-                        sectionStatus(entry.to).label}`
-                    : entry.act
-                      ? entry.act.replace(/_/g, " ")
-                      : "changed"}
+                  {describeHistoryEntry(entry)}
                 </span>
                 {entry.actor && (
                   <span className="text-text-muted">
