@@ -80,3 +80,6 @@ var/retail/
 
 # The retail installation environment. Real values, never committed.
 .env.retail
+# The ANB build's environment. Its own database, lake, uploads, logs and
+# ports. Local, like every other .env here, and never committed.
+.env.anb
