@@ -2232,6 +2232,240 @@ await test("switching back shows the first book's numbers, not a cached other",
   },
 );
 
+/**
+ * What the SERVER says each book's calendar is.
+ *
+ * Read from `/domains`, not decided here: the point of these tests is that
+ * the page takes its calendar from the release, so a test that carried its
+ * own table of frequencies would pass a page that carried one too.
+ */
+async function publishedCalendars() {
+  const body = await (
+    await fetch(`${API}/api/v1/cockpit-v4/domains`)
+  ).json();
+  const out = {};
+  for (const entry of body.domains ?? []) {
+    const frequency = entry.reporting_frequency ?? "";
+    const noun =
+      entry.period_noun ?? (frequency === "quarterly" ? "quarter" : "month");
+    out[entry.domain_id] = {
+      frequency,
+      noun,
+      foreign: noun === "quarter" ? "month" : "quarter",
+      country: entry.country ?? "",
+      money: `${entry.reporting_currency ?? ""} ${entry.amount_scale ?? ""}`
+        .trim(),
+    };
+  }
+  return out;
+}
+
+/** Home's cover line and its chips, as a reader sees them right now. */
+async function homeCalendar(page) {
+  const meta = (
+    await page.textContent('[data-testid="cockpit-v4-domain-meta"]')
+  ) ?? "";
+  const chips = await Promise.all(
+    (await page.$$('[data-testid="cockpit-v4-prompt"]')).map(
+      async (chip) => ((await chip.textContent()) ?? "").trim()),
+  );
+  return { meta: meta.trim(), chips };
+}
+
+/**
+ * THE LIVE DEFECT, as a test.
+ *
+ * Corporate Home read `Saudi Arabia · SAR million · monthly` under a book
+ * that reports quarters, and offered "Which sectors deteriorated most this
+ * month?" -- while the attention section on the same screen read
+ * `Reporting quarter Q2 2026`. This fails on that build.
+ */
+await test("Home states each book's own frequency, from the release",
+  async () => {
+    const published = await publishedCalendars();
+    const { context, page } = await openCockpit(browser);
+    try {
+      for (const domain of ["corporate", "retail"]) {
+        const book = published[domain];
+        assert.ok(book?.frequency, `/domains published no frequency for ${domain}`);
+        await switchTo(page, domain);
+        await page.waitForFunction(
+          (want) =>
+            (document
+              .querySelector('[data-testid="cockpit-v4-domain-meta"]')
+              ?.textContent ?? "").includes(want),
+          book.frequency,
+          { timeout: 30_000 },
+        );
+        const { meta } = await homeCalendar(page);
+        assert.ok(
+          meta.includes(book.frequency),
+          `${domain} Home says "${meta}", not ${book.frequency}`,
+        );
+        assert.ok(
+          !meta.includes(domain === "retail" ? "quarterly" : "monthly"),
+          `${domain} Home carries the other book's frequency: ${meta}`,
+        );
+        if (book.country) assert.ok(meta.includes(book.country), meta);
+        if (book.money) assert.ok(meta.includes(book.money), meta);
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("prompt chips are asked in the selected book's own period",
+  async () => {
+    const published = await publishedCalendars();
+    const { context, page } = await openCockpit(browser);
+    try {
+      for (const domain of ["corporate", "retail"]) {
+        const book = published[domain];
+        await switchTo(page, domain);
+        await page.waitForFunction(
+          (want) =>
+            Array.from(
+              document.querySelectorAll('[data-testid="cockpit-v4-prompt"]'),
+            ).some((chip) => (chip.textContent ?? "").includes(want)),
+          book.noun,
+          { timeout: 30_000 },
+        );
+        const { chips } = await homeCalendar(page);
+        assert.ok(chips.length >= 3, `${domain} offered ${chips.length} chips`);
+        assert.ok(
+          chips.some((chip) => chip.includes(`latest ${book.noun}`)),
+          `${domain} offers no "latest ${book.noun}" chip: ` +
+            JSON.stringify(chips),
+        );
+        assert.ok(
+          chips.some((chip) => chip.includes(`this ${book.noun}`)),
+          `${domain} offers no "this ${book.noun}" chip: ` +
+            JSON.stringify(chips),
+        );
+        for (const chip of chips) {
+          assert.ok(
+            !new RegExp(`\\b${book.foreign}`, "i").test(chip),
+            `${domain} chip names the other calendar: ${chip}`,
+          );
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("Home and the dashboard under it agree on the calendar",
+  async () => {
+    // The screenshot had both on one screen: `monthly` in the cover line and
+    // `Reporting quarter Q2 2026` eight inches below it.
+    const { context, page } = await openCockpit(browser);
+    try {
+      for (const domain of ["corporate", "retail"]) {
+        const { noun } = calendarOf(domain);
+        await switchTo(page, domain);
+        await page.waitForFunction(
+          (want) =>
+            (document
+              .querySelector('[data-testid="cockpit-v4-domain-meta"]')
+              ?.textContent ?? "").includes(want),
+          noun === "quarter" ? "quarterly" : "monthly",
+          { timeout: 30_000 },
+        );
+        const heading = (
+          await page.textContent('[data-testid="attention-reporting-period"]')
+        ) ?? "";
+        const { meta, chips } = await homeCalendar(page);
+        assert.match(heading.toLowerCase(), new RegExp(`reporting ${noun}`));
+        assert.ok(meta.includes(noun === "quarter" ? "quarterly" : "monthly"),
+          `cover line ${meta} disagrees with heading ${heading}`);
+        for (const chip of chips) {
+          assert.ok(
+            !new RegExp(`\\b${noun === "quarter" ? "month" : "quarter"}`, "i")
+              .test(chip),
+            `chip ${chip} disagrees with heading ${heading}`,
+          );
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("five switch cycles leave no calendar behind", async () => {
+  // Requirement 7: the frequency comes from the book's metadata, not from
+  // whatever was on screen a moment ago. Five round trips, asserted on every
+  // leg, because a stale-state defect that survives one switch usually shows
+  // up on the second.
+  const published = await publishedCalendars();
+  const { context, page } = await openCockpit(browser);
+  try {
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      for (const domain of ["corporate", "retail"]) {
+        const book = published[domain];
+        await switchTo(page, domain);
+        await page.waitForFunction(
+          (want) =>
+            (document
+              .querySelector('[data-testid="cockpit-v4-domain-meta"]')
+              ?.getAttribute("data-frequency") ?? "") === want,
+          book.frequency,
+          { timeout: 30_000 },
+        );
+        const { meta, chips } = await homeCalendar(page);
+        assert.ok(meta.includes(book.frequency),
+          `cycle ${cycle}: ${domain} cover line reads ${meta}`);
+        for (const chip of chips) {
+          assert.ok(
+            !new RegExp(`\\b${book.foreign}`, "i").test(chip),
+            `cycle ${cycle}: ${domain} chip ${chip}`,
+          );
+        }
+        const heading = (
+          await page.textContent('[data-testid="attention-reporting-period"]')
+        ) ?? "";
+        assert.match(heading.toLowerCase(),
+          new RegExp(`reporting ${book.noun}`),
+          `cycle ${cycle}: ${domain} heading reads ${heading}`);
+      }
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+await test("the drawer's seed note names the card's own period", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    for (const domain of ["corporate", "retail"]) {
+      const { noun } = calendarOf(domain);
+      await switchTo(page, domain);
+      await openDrawer(page);
+      const note = (
+        await page.textContent('[data-testid="attention-investigate-note"]')
+      ) ?? "";
+      assert.ok(note.includes(noun), `${domain} seed note reads ${note}`);
+      assert.ok(
+        !note.includes(noun === "quarter" ? "month" : "quarter"),
+        `${domain} seed note names the other calendar: ${note}`,
+      );
+      const review = (
+        await page.textContent('[data-testid="attention-drawer"]')
+      ) ?? "";
+      assert.ok(
+        !new RegExp(`same ${noun === "quarter" ? "month" : "quarter"}`, "i")
+          .test(review),
+        `${domain} drawer reviews the other calendar`,
+      );
+      await page.keyboard.press("Escape");
+    }
+  } finally {
+    await context.close();
+  }
+});
+
 await test("a question asked in a book opens a thread badged with that book",
   async () => {
     for (const domain of ["corporate", "retail"]) {

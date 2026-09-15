@@ -17,7 +17,9 @@
 import * as React from "react";
 
 import { investigate, type AttentionItem } from "./client";
-import { comparisonPeriod, periodLabel, reportingPeriod } from "./period";
+import {
+  comparisonPeriod, periodLabel, periodNoun, reportingPeriod,
+} from "./period";
 
 export function AttentionDrawer({
   item,
@@ -228,9 +230,13 @@ export function AttentionDrawer({
         >
           {busy ? "Opening…" : "Investigate further"}
         </button>
-        <p className="mt-1.5 text-[11px] text-slate-400">
-          Opens a Cockpit conversation already holding this segment, quarter and
-          movement. You will not need to restate them.
+        <p className="mt-1.5 text-[11px] text-slate-400"
+           data-testid="attention-investigate-note">
+          {/* The card's own period noun. This said "quarter" to a Retail
+              reader looking at 2026-08, under a button that seeds a thread
+              pinned to a month. */}
+          Opens a Cockpit conversation already holding this segment,{" "}
+          {periodNoun(item)} and movement. You will not need to restate them.
         </p>
       </footer>
     </aside>

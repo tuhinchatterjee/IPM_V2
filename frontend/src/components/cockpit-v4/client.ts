@@ -771,9 +771,15 @@ export type DomainStatus = {
   reason?: string;
   latest_period?: string;
   periods?: string[];
+  /** Where the book reports from, as the release published it. */
+  country?: string;
   reporting_currency?: string;
   amount_scale?: string;
   reporting_frequency?: string;
+  /** What one period IS in this book: "quarter" or "month". Stated by the
+   *  release, so no reader has to infer it from the period's shape. */
+  period_noun?: string;
+  period_column?: string;
   relation_count?: number;
   field_count?: number;
   row_counts?: Record<string, number>;

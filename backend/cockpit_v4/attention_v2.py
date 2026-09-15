@@ -536,11 +536,16 @@ def _dec(value: float):
 #: What a credit officer checks next, by what moved. Deterministic, and
 #: written as a REVIEW step rather than a conclusion: the card says what
 #: changed, and these say where to look, never what it means.
+#:
+#: `{period}` is the book's OWN period noun, filled by `_review_next`. These
+#: said "the same month" in both books, so a corporate drawer -- opened from
+#: a card headed `Reporting quarter Q2 2026` -- told the reader to go and
+#: check a month that book does not report.
 REVIEW_NEXT: dict[str, tuple[str, ...]] = {
     "stage2_share": (
         "Which exposures crossed into Stage 2, and on which trigger.",
         "Whether the migration is concentrated in a few names or broad.",
-        "What the same segment's coverage did over the same month."),
+        "What the same segment's coverage did over the same {period}."),
     "ecl": (
         "Whether the increase is new exposure, migration or higher loss "
         "rates.",
@@ -565,13 +570,19 @@ REVIEW_NEXT: dict[str, tuple[str, ...]] = {
 }
 
 DEFAULT_REVIEW = (
-    "What moved underneath this measure over the same month.",
+    "What moved underneath this measure over the same {period}.",
     "Whether the movement is concentrated or broad.",
     "Whether other measures on this segment moved with it.")
 
 
-def _drivers(candidate: Candidate,
-             everything: list[Candidate]) -> list[dict[str, Any]]:
+def _review_next(measure: str, noun: str) -> list[str]:
+    """The review steps for this measure, written in this book's calendar."""
+    return [step.format(period=noun)
+            for step in REVIEW_NEXT.get(measure, DEFAULT_REVIEW)]
+
+
+def _drivers(candidate: Candidate, everything: list[Candidate], *,
+             noun: str = "period") -> list[dict[str, Any]]:
     """Other measures that moved on the SAME segment, as associations.
 
     Association, never cause: these are recorded alongside the movement, and
@@ -591,7 +602,7 @@ def _drivers(candidate: Candidate,
         out.append({
             "relationship": "recorded alongside",
             "statement": (f"{other.family.measure_label} on the same segment "
-                          f"also rose over this month."),
+                          f"also rose over this {noun}."),
             "metric": other.family.measure,
             "delta": round(other.movement, 6),
             "strength": round(min(1.0, abs(other.movement) * 10), 4),
@@ -677,9 +688,10 @@ def _item(candidate: Candidate, *, scope: dom.DomainScope,
         # the component and the error boundary took the whole Cockpit home
         # page with it. A dashboard whose cards cannot be opened is not a
         # dashboard.
-        "possible_drivers": _drivers(candidate, everything or []),
-        "what_to_review_next": list(
-            REVIEW_NEXT.get(family.measure, DEFAULT_REVIEW)),
+        "possible_drivers": _drivers(candidate, everything or [],
+                                     noun=scope.period_noun),
+        "what_to_review_next": _review_next(family.measure,
+                                            scope.period_noun),
         "drilldown": _drilldown(candidate, scope, month),
         "severity": ("high" if candidate.score > 0.02
                      else "medium" if candidate.score > 0.005 else "low"),
@@ -967,7 +979,7 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
                          "measure": "ecl_sar_mn"},
             "evidence_url": "",
             "possible_drivers": [],
-            "what_to_review_next": list(REVIEW_NEXT["ecl"]),
+            "what_to_review_next": _review_next("ecl", scope.period_noun),
             "drilldown": {
                 "note": ("This is a book-level figure, so there is no "
                          "segment below it to open."),
@@ -1068,7 +1080,8 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
              f"Up {disp.format_value(_dec(increase), money)} against "
              f"{comparison}.",
              disp.format_value(_dec(increase), money),
-             segment=str(moved["segment"]), measure="ECL added this month",
+             segment=str(moved["segment"]),
+             measure=f"ECL added this {scope.period_noun}",
              before=disp.format_value(
                  _dec(prior.get(moved["segment"], 0.0)), money)),
         # Named for its book. Both dashboards carried a card headlined

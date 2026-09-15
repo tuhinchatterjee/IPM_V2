@@ -22,7 +22,10 @@ export const FALLBACK_FOLLOW_UPS: Record<string, string[]> = {
   corporate: [
     "Break this down by sector.",
     "Which borrowers drove this?",
-    "How has this moved over the last twelve months?",
+    // In the book's own periods. A corporate reader asked for twelve months
+    // of a book that publishes quarters, and got four points under a chip
+    // that promised twelve.
+    "How has this moved over the last eight quarters?",
     "Show the same figure by facility type.",
   ],
   retail: [

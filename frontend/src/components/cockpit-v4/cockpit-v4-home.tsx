@@ -30,6 +30,7 @@ import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
 import { EclPanel } from "./ecl-panel";
 import { DomainSwitch, recallDomain, rememberDomain } from "./domain-switch";
+import { domainEntry, domainFrequency, domainHeadline } from "./domain-meta";
 import {
   rememberInvestigation,
   type AttentionItem,
@@ -224,8 +225,19 @@ export function CockpitV4Home() {
             value={domain}
             onChange={chooseDomain}
           />
-          <span className="text-xs text-slate-500">
-            Saudi Arabia · SAR million · monthly
+          {/*
+            The book's own cover line: where it reports from, what it counts
+            in, and how often. Read from the `/domains` payload, never
+            written here -- this span held the literal
+            `Saudi Arabia · SAR million · monthly` while the attention
+            section below it read `Reporting quarter Q2 2026` off the same
+            server, because a component that spells out a calendar spells
+            out whichever one was true the day it was written.
+          */}
+          <span className="text-xs text-slate-500"
+                data-testid="cockpit-v4-domain-meta"
+                data-frequency={domainFrequency(domainEntry(domains, domain))}>
+            {domainHeadline(domains, domain)}
           </span>
         </div>
         <AskBox
@@ -238,6 +250,7 @@ export function CockpitV4Home() {
           showPrompts={showPrompts}
           onDismissPrompts={() => setShowPrompts(false)}
           domain={domain}
+          domains={domains}
         />
         {/*
           §2A: the landing page says what an answer will carry, before one

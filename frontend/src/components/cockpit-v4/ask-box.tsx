@@ -15,37 +15,18 @@
 
 import * as React from "react";
 
-import type { DomainId, RunMode } from "./client";
+import type { DomainAvailability, DomainId, RunMode } from "./client";
+import { promptsFor } from "./domain-meta";
 
 /**
- * What each book is worth asking.
+ * The suggested questions, on the calendar of the book they are offered in.
  *
- * Per domain, because a retail book has no sectors and a corporate one has
- * no behaviour score bands -- a chip offering either to the wrong book is a
- * question that cannot be answered, and a reader who clicks one learns that
- * the suggestions are decoration.
- *
- * Deterministic. Rendering these costs no model call.
+ * The wording lives in `domain-meta`, which fills the period noun from the
+ * `/domains` payload. It used to live here as two literal lists, and the
+ * corporate one said "this month" about a book that reports quarters --
+ * which is a chip that sends a question the book cannot answer.
  */
-export const DOMAIN_PROMPTS: Record<DomainId, readonly string[]> = {
-  corporate: [
-    "What is driving Stage 2 and ECL growth?",
-    "Which sectors deteriorated most this month?",
-    "Show EAD by sector for the latest month.",
-    "Which borrowers were downgraded this month?",
-    "Why is risk building across the corporate book?",
-  ],
-  retail: [
-    "Which products saw the largest Stage 2 increase?",
-    "What is driving retail ECL growth?",
-    "Which behavioural score bands deteriorated most?",
-    "Where is delinquency building?",
-    "Show retail EAD by product for the latest month.",
-  ],
-};
-
-/** The corporate set, kept as the default for callers naming no book. */
-export const PROMPTS: readonly string[] = DOMAIN_PROMPTS.corporate;
+export { PROMPT_TEMPLATES } from "./domain-meta";
 
 const MODES: { id: RunMode; label: string; hint: string }[] = [
   {
@@ -70,8 +51,12 @@ export function AskBox({
   showPrompts,
   onDismissPrompts,
   domain,
+  domains,
 }: {
   domain?: DomainId;
+  /** The books this runtime published, with each one's own calendar. The
+   *  chips are written from it; without it they name no period at all. */
+  domains?: DomainAvailability | null;
   question: string;
   onQuestionChange: (value: string) => void;
   mode: RunMode;
@@ -123,7 +108,7 @@ export function AskBox({
           data-testid="cockpit-v4-prompts"
           className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3"
         >
-          {(DOMAIN_PROMPTS[domain ?? "corporate"] ?? PROMPTS).map((prompt) => (
+          {promptsFor(domains, domain).map((prompt) => (
             <button
               key={prompt}
               type="button"

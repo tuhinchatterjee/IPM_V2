@@ -1227,22 +1227,36 @@ async def read_thread(thread_id: str,
 #: Deterministic openers for a thread that was not seeded from a card, and
 #: for one whose seed carried nothing. No model call: a suggestion that costs
 #: a generation is a suggestion that arrives after the reader has given up
-#: waiting for it. `{period}` is filled from the book's own latest month.
+#: waiting for it.
+#:
+#: `{period}` is filled from the book's own latest period and `{window}`
+#: from its own calendar -- eight quarters in the Corporate book, twelve
+#: months in the Retail one. Both books said "twelve months", which in a
+#: book that publishes quarters is four data points under a chip that reads
+#: like twelve.
 _GENERIC_OPENERS: dict[str, tuple[str, ...]] = {
     "corporate": (
         "What is total exposure at default by sector in {period}?",
         "Which sectors carry the most ECL in {period}?",
         "Which borrowers moved to Stage 2 in {period}?",
-        "How has ECL coverage moved over the last twelve months?",
+        "How has ECL coverage moved over the last {window}?",
         "Which covenants are in breach in {period}?",
     ),
     "retail": (
         "What is total exposure at default by product in {period}?",
         "Which products carry the most ECL in {period}?",
-        "How has delinquency moved over the last twelve months?",
+        "How has delinquency moved over the last {window}?",
         "Which regions deteriorated most in {period}?",
         "What is ECL coverage by score band in {period}?",
     ),
+}
+
+#: How far back a trend question reaches, IN THIS BOOK'S OWN PERIODS. Two
+#: years of a quarterly book and one of a monthly one: both are a span a
+#: credit officer reads without converting it.
+_TREND_WINDOWS: dict[str, str] = {
+    "quarter": "eight quarters",
+    "month": "twelve months",
 }
 
 
@@ -1265,16 +1279,26 @@ def _opening_questions(context: dict[str, Any] | None,
               for q in offered if isinstance(q, dict) and q.get("question")]
     if shaped:
         return shaped[:5]
-    period = str(seeded.get("reporting_month") or "")
+    # The seed's own period, whichever calendar it was written on. Reading
+    # `reporting_month` alone left every corporate opener asking about "the
+    # latest month" of a book that reports quarters.
+    period = str(seeded.get("reporting_period")
+                 or seeded.get("reporting_quarter")
+                 or seeded.get("reporting_month") or "")
     if not period:
-        period = _latest_month(domain_id)
-    return [{"question": text.format(period=period or "the latest month"),
+        period = _latest_period(domain_id)
+    from backend.cockpit_v4 import schema as schema_mod
+
+    noun = schema_mod.period_noun(domain_id)
+    window = _TREND_WINDOWS.get(noun, "twelve months")
+    return [{"question": text.format(period=period or f"the latest {noun}",
+                                     window=window),
              "kind": "opening"}
             for text in _GENERIC_OPENERS.get(domain_id, ())][:5]
 
 
-def _latest_month(domain_id: str) -> str:
-    """The latest populated month of this book, or nothing. Never a guess."""
+def _latest_period(domain_id: str) -> str:
+    """The latest populated period of this book, or nothing. Never a guess."""
     try:
         from backend.cockpit_v4 import analytical_runtime as arun_mod
         from backend.cockpit_v4 import semantics as sem_mod
