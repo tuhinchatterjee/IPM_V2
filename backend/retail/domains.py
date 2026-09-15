@@ -408,6 +408,30 @@ def build(*, analytics_dir: str | Path | None = None,
             "the book was rebuilt since these views were, so every period is "
             "rewritten rather than skipped")
 
+    # A view with NO stamp is the harder case: `stale()` cannot answer, so the
+    # question is settled by reading the data rather than by assuming. An
+    # installation built before stamping existed is either still the book that
+    # is published — in which case it reconciles and may be stamped — or it is
+    # not, in which case skipping it is exactly the silent staleness the stamp
+    # was added to stop.
+    unstamped = [view.dataset for view in DERIVED
+                 if not _stamp_of(root, view.dataset)]
+    if unstamped and not replace:
+        problems = reconcile(analytics_dir=root)
+        against = [one for one in problems
+                   if any(one.startswith(name) for name in unstamped)]
+        if against:
+            replace = True
+            out.notes.append(
+                "these views carry no record of which book they were built "
+                "from and do not reconcile against the one published now, so "
+                "they are rebuilt: " + "; ".join(against[:4]))
+        else:
+            out.notes.append(
+                "views without a source stamp reconciled against the "
+                "published book and have been stamped with it: "
+                + ", ".join(unstamped))
+
     # The column list is checked once, against the first month, so a view that
     # names a column the book has stopped holding says so rather than failing
     # twenty-five times.
@@ -435,10 +459,45 @@ def build(*, analytics_dir: str | Path | None = None,
             written += 1
         if written:
             out.written[view.dataset] = written
-            source_stamp.record(root, view.dataset)
         else:
             out.skipped.append(view.dataset)
+        # Stamped on COMPLETION, not on writing. Recording only after a write
+        # left every view that was already complete permanently unstamped, and
+        # `stale()` answers False when either side is unknown — so a view built
+        # before stamping existed could never be found stale, which is the one
+        # thing the stamp is for. After this loop the view holds every month of
+        # the current book (a stale one was forced to `replace` above), so the
+        # book it was built from is the book that is published now.
+        if _complete(target, months):
+            source_stamp.record(root, view.dataset)
+        else:
+            out.notes.append(
+                f"{view.dataset}: not stamped — it holds "
+                f"{len(_present(target))} of the book's {len(months)} months, "
+                f"so which book it came from is not established")
     return out
+
+
+def _stamp_of(root: Path, dataset: str) -> str:
+    """The book hash a derived view records, or "" when it records none."""
+    import json
+
+    path = Path(root) / dataset / "_built_from.json"
+    try:
+        return str(json.loads(path.read_text()).get("manifest_hash") or "")
+    except Exception:  # noqa: BLE001 - an unstamped view is the case handled
+        return ""
+
+
+def _present(target: Path) -> list[str]:
+    if not target.exists():
+        return []
+    return sorted(p.name for p in target.iterdir()
+                  if p.is_dir() and (p / "part-0.parquet").exists())
+
+
+def _complete(target: Path, months: list[str]) -> bool:
+    return set(_present(target)) >= set(months)
 
 
 def _read_one(directory: Path) -> Any:
