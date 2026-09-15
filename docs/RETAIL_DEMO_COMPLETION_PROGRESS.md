@@ -52,15 +52,27 @@ See `docs/RETAIL_DEMO_COMPLETION_ACCEPTANCE.md` for the delta table and the
 
 ## Phase 2 — Data and semantic foundations
 
-Status: not started.
+Status: **done** at `d6e624c`. `periods.py` (Q2 2026 vs Q1 2026 from the data,
+maturity cutoff 2025-08), `metric_registry.py` (12 pinned definitions, PSI/CSI),
+`domains.build` stamping on completion. 17/17 tests.
 
 ## Phase 3 — Analytical story engines
 
-Status: not started.
+Status: **done** at `4c19270`. `decomposition.py`, `analysis_delinquency.py`,
+`analysis_traits.py`, `story_router.py`, wired into `/ask`. 32/32 tests.
+
+Credit Card 30+ DPD 6.9077% -> 7.5082%, +0.6006 pp; five flows explain the
+numerator change to SAR 0.00; three mix bridges each reconcile to 0.6006 pp.
+123 scorecard inputs reviewed, 55 correctly classified historical.
 
 ## Phase 4 — Shared What-If and model pages
 
-Status: not started.
+Status: **done** at `9aabb56`. `lgd_absolute_pp`, `ccf_absolute_pp`,
+`whatif_thread.py`, `WhatIfThread` component, `/what-if/threads/{id}`.
+29/29 tests, 14/14 browser checks.
+
+Still open in this phase: §10's six XGBoost tabs and a persisted artifact;
+the Delta page's worked example.
 
 ## Phase 5 — Results and professional exports
 
