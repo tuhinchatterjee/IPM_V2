@@ -76,6 +76,13 @@ class MetricSpec:
     #: True for the one mapping left for the user to confirm.
     suggested: bool = False
     fresh: str = bind.CURRENT
+    #: The population the PREVIOUS pack measured, and the one the current
+    #: reading covers. Where they differ, Since Last Time must refuse to
+    #: subtract the two and say which dimension disagrees — §15's rule, which
+    #: the demonstration can only show if a demonstrated metric actually has a
+    #: dimension that moved.
+    then_population: str = ""
+    now_population: str = ""
 
 
 @dataclass
@@ -181,7 +188,16 @@ def _ifrs9() -> IntelligenceSpec:
                 now_value="113.00", now_display="SAR 113.00m",
                 unit="currency", currency="SAR",
                 section="3. Staging and significant increase in credit risk",
-                locator="xlsx://Staging!C3", fresh=bind.NEW_AVAILABLE),
+                locator="xlsx://Staging!C3", fresh=bind.NEW_AVAILABLE,
+                # The instructive one. Both readings are labelled "Stage 2
+                # exposure" and comparing them by label reports a 57% jump
+                # onto a committee agenda. It is not a jump: the previous pack
+                # measured the corporate book and the current reading covers
+                # corporate and SME together. Since Last Time therefore refuses
+                # to subtract them and names the dimension that moved, which is
+                # the single behaviour §15 exists to produce.
+                then_population="Corporate portfolio",
+                now_population="Corporate and SME portfolios"),
             MetricSpec(
                 metric_id="ifrs9.exposure.total", label="Total exposure",
                 then_value="1000.00", then_display="SAR 1,000.00m",
@@ -501,6 +517,7 @@ def _metrics(session, workspace_id: int, spec: IntelligenceSpec,
     for row, metric in zip(rows, governed, strict=True):
         row.section_key = _key_for(metric.section, keys)
         row.source_locator = metric.locator
+        row.population = metric.then_population
         row.confirmed_by_user = True
         row.confirmed_by = CHAIR
         row.confirmed_at = datetime.now(UTC)
@@ -530,6 +547,8 @@ def _advance(session, rows: list, spec: IntelligenceSpec) -> None:
         row.raw_value = metric.now_value
         row.display_value = metric.now_display
         row.freshness = metric.fresh
+        if metric.now_population:
+            row.population = metric.now_population
     session.flush()
 
 

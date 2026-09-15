@@ -389,3 +389,41 @@ class TestTheSeededDashboardIsReal:
             "the page count is measured from the rendered file, which the "
             "seed renders and validates"
         )
+
+    def test_the_demonstration_shows_a_refusal_to_compare(self, seeded, db,
+                                                          scope):
+        """§15 — the behaviour a demonstration exists to make visible.
+
+        A dashboard that only ever shows comparable movements teaches the
+        reader that every same-named pair can be subtracted, which is the
+        exact habit the rule is there to break. So the seeded pack carries one
+        metric whose population moved under an unchanged label: comparing the
+        two by name would put a 57% jump on a committee agenda that is not a
+        jump at all.
+        """
+        from backend.models.playbook import PlaybookWorkspace
+        from backend.playbook.intelligence import service as intel
+
+        ws = (db.query(PlaybookWorkspace)
+              .filter(PlaybookWorkspace.tenant == scope.tenant,
+                      PlaybookWorkspace.title.like("IFRS 9%")).one())
+        since = intel.dashboard(db, ws.id).as_dict()["since_last_time"]
+
+        assert since["compared"] >= 3, (
+            "the demonstration still has to show ordinary movements too")
+        refused = [r for r in since["rows"] if not r["comparable"]]
+        assert len(refused) == 1, [r["label"] for r in refused]
+        row = refused[0]
+
+        assert "population" in row["reason"], row["reason"]
+        assert "corporate portfolio" in row["reason"]
+        assert "corporate and sme portfolios" in row["reason"]
+        assert not row["change"], (
+            "a refusal that still prints a delta has refused nothing")
+        assert not row["direction"]
+
+        # Both readings survive the refusal. What is withheld is the
+        # subtraction, not the evidence — and a reader has to be able to tell
+        # this apart from having no current value at all.
+        assert row["then"]["display"] == "SAR 72.00m"
+        assert row["now"]["display"] == "SAR 113.00m"

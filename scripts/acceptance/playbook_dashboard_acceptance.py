@@ -460,6 +460,33 @@ async def since_tab(page, workspace_id: int, *, shoot: bool) -> None:
         check("a row opens to show where each side came from",
               says(opened, "what the document relied on"))
 
+    # §15's refusal, on screen rather than in the payload. The seeded pack
+    # carries one metric whose population moved under an unchanged label; a
+    # label comparison would report a 57% jump that is not one.
+    check("a pair that is not the same series is refused, not subtracted",
+          says(body, "not comparable"))
+    check("and the dimension that disagrees is named",
+          says(body, "population differs"), body[:0])
+    refused = await page.evaluate(
+        """() => {
+            for (const tr of document.querySelectorAll(
+                    '[data-testid=playbook-since-row]')) {
+                const cells = [...tr.querySelectorAll('td')]
+                    .map((td) => (td.innerText || '').trim());
+                if (!/Not comparable/i.test(cells.join(' '))) continue;
+                return {then: cells[1], now: cells[2], change: cells[3]};
+            }
+            return null;
+        }""")
+    check("both readings are still shown",
+          bool(refused) and "72.00" in (refused or {}).get("then", "")
+          and "113.00" in (refused or {}).get("now", ""),
+          str(refused))
+    check("but the change column shows no delta",
+          bool(refused) and (refused or {}).get("change", "").strip() in
+          {"\u2014", "-", ""},
+          str((refused or {}).get("change")))
+
     if shoot:
         await _shoot(page, "dashboard-since-last-time")
 

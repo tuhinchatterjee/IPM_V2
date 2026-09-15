@@ -160,7 +160,13 @@ function Row({
           ) : null}
         </td>
         <td className="px-3 py-2 text-right tabular-nums text-text-primary">
-          {row.comparable ? row.now.display || row.now.value || "—" : "—"}
+          {/* Shown even when the two are not comparable. The current reading
+              is a real governed value; what is illegitimate is subtracting it
+              from THEN, and that is what the change column refuses. Blanking
+              it here would make "not the same series" look identical to "no
+              current governed value at all", which is a different state with a
+              different remedy. */}
+          {row.now.display || row.now.value || "—"}
         </td>
         <td className="px-3 py-2 text-right tabular-nums">
           {row.comparable ? (
