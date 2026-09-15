@@ -115,6 +115,25 @@ def latest_month() -> str:
     return found[-1] if found else ""
 
 
+def resolve(month: str = "") -> str:
+    """A published month, or "" if the one asked for is not one.
+
+    Every entry point below starts here. A caller can name any month — a
+    thread's settled period, a URL, a question with a date in it — and the
+    honest answer for a month the book does not hold is that there isn't one.
+    Falling back to the latest month would answer a different question than the
+    one asked, under the heading of the question asked, which is the failure
+    this whole module is arranged to avoid.
+    """
+    found = months()
+    if not found:
+        return ""
+    at = str(month or "").strip()
+    if not at:
+        return found[-1]
+    return at if at in found else ""
+
+
 def previous_month(month: str = "") -> str:
     found = months()
     at = month or latest_month()
@@ -139,8 +158,8 @@ def baseline_month(month: str = "") -> str:
     quarter-on-quarter reading is the honest one here.
     """
     found = months()
-    at = month or latest_month()
-    if at not in found:
+    at = resolve(month)
+    if not at:
         return ""
     back = 3
     try:
@@ -151,7 +170,11 @@ def baseline_month(month: str = "") -> str:
     except Exception:  # noqa: BLE001 - a missing config is the default window
         logger.debug("no card-programme window configured; using %d months", back)
     i = found.index(at) - back
-    return found[i] if i >= 0 else found[0]
+    # "" rather than the first published month when the window reaches past the
+    # start of the book. A comparison against `at` itself is not a comparison,
+    # and reporting its zero movement as a finding would be the worst of the
+    # available answers.
+    return found[i] if i >= 0 else ""
 
 
 def trend_months(month: str = "", count: int = TREND_MONTHS) -> list[str]:
@@ -257,7 +280,10 @@ def bucket_trend(month: str = "", count: int = TREND_MONTHS) -> dict[str, Any]:
     are of the card accounts open at each month-end, so a month in which the
     book grew does not read as a month in which arrears fell.
     """
-    at = month or latest_month()
+    at = resolve(month)
+    if not at:
+        return {"rows": [], "counts": {}, "months": [], "latest": month,
+                "previous": "", "series": [label for label, _, _ in BUCKETS]}
     window = trend_months(at, count)
     rows: list[dict[str, Any]] = []
     counts: dict[str, dict[str, int]] = {}
@@ -294,7 +320,9 @@ def early_delinquency(month: str = "") -> dict[str, Any]:
     not matched by a fall in 0 DPD is a book that grew, not a book that moved,
     and the difference is the whole claim.
     """
-    at = month or latest_month()
+    at = resolve(month)
+    if not at:
+        return {"available": False, "period": month}
     trend = bucket_trend(at)
     rows, counts = trend["rows"], trend["counts"]
     if not rows:
@@ -317,6 +345,7 @@ def early_delinquency(month: str = "") -> dict[str, Any]:
     focus_baseline = (round(sum(focus_history) / len(focus_history), 2)
                       if focus_history else 0.0)
 
+    prior_frame = cards(prior, ["dpd", "gross_carrying_amount_sar"])
     now_frame = cards(at, ["dpd", "gross_carrying_amount_sar"])
     focus_now = _pct(int(_in(now_frame["dpd"], FOCUS_LO, FOCUS_HI).sum()),
                      len(now_frame)) if len(now_frame) else 0.0
@@ -325,6 +354,39 @@ def early_delinquency(month: str = "") -> dict[str, Any]:
     # nothing about that on its own.
     behind = now_frame[_in(now_frame["dpd"], 1, 29)]
     exposure = round(float(behind["gross_carrying_amount_sar"].fillna(0).sum()) / 1e6, 2)
+
+    # THE SAME BUCKET, WEIGHTED TWO WAYS, AND THEY DO NOT AGREE.
+    #
+    # Everything above counts ACCOUNTS: what share of card customers is in each
+    # bucket. The portfolio review's deterioration rule weights the same ladder
+    # by BALANCE, and on this book the two now say different things about the
+    # later buckets — the 30+ population is flat while the 30+ share of balance
+    # climbs, because the cohort that is drawing down its limits is inflating
+    # the denominator and its own numerator at the same time.
+    #
+    # Both are true and neither is a mistake. What would be a mistake is a case
+    # claiming later delinquency is flat beside another case saying it has
+    # risen three months running, with nothing on either to say they are
+    # measuring different quantities. So this one carries both, and says which
+    # it means.
+    def _weighted(frame: Any, lo: int) -> float:
+        total = float(frame["gross_carrying_amount_sar"].fillna(0).sum())
+        if not total:
+            return 0.0
+        held = frame[frame["dpd"] >= lo]["gross_carrying_amount_sar"].fillna(0).sum()
+        return round(float(held) / total * 100, 2)
+
+    later_by_balance = Movement(
+        label="30+ DPD share of card balances", unit="% of balances",
+        now=_weighted(now_frame, 30), before=_weighted(prior_frame, 30),
+        now_count=len(now_frame), before_count=len(prior_frame),
+        now_period=at, before_period=prior)
+    balances = Movement(
+        label="Card balances", unit="SAR mn",
+        now=round(float(now_frame["gross_carrying_amount_sar"].fillna(0).sum()) / 1e6, 2),
+        before=round(float(prior_frame["gross_carrying_amount_sar"].fillna(0).sum()) / 1e6, 2),
+        now_count=len(now_frame), before_count=len(prior_frame),
+        now_period=at, before_period=prior)
 
     early = Movement(
         label="1-29 DPD", unit="% of card accounts",
@@ -362,6 +424,8 @@ def early_delinquency(month: str = "") -> dict[str, Any]:
                                     if focus_baseline else 0.0),
         "focus_share_of_early": _pct(focus_now, early.now),
         "exposure_sar_mn": exposure,
+        "later_by_balance": later_by_balance,
+        "balances": balances,
         "later_worst": max((m.change for m in later), default=0.0),
         "trend": trend,
     }
@@ -371,7 +435,9 @@ def early_delinquency(month: str = "") -> dict[str, Any]:
 
 def sub_bucket_trend(month: str = "", count: int = TREND_MONTHS) -> dict[str, Any]:
     """1-29 DPD split into 1-9, 10-19 and 20-29, month by month."""
-    at = month or latest_month()
+    at = resolve(month)
+    if not at:
+        return {"available": False, "period": month}
     window = trend_months(at, count)
     rows: list[dict[str, Any]] = []
     counts: dict[str, dict[str, int]] = {}
@@ -419,8 +485,8 @@ def sub_bucket_trend(month: str = "", count: int = TREND_MONTHS) -> dict[str, An
 
 def cohort(month: str = "", *, columns: Sequence[str] = ()) -> Any:
     """The card accounts at 20-29 DPD at a month-end. The thread's population."""
-    at = month or latest_month()
-    frame = cards(at, ["dpd", *columns])
+    at = resolve(month)
+    frame = cards(at, ["dpd", *columns]) if at else cards("", ["dpd", *columns])
     if frame.empty:
         return frame
     return frame[_in(frame["dpd"], FOCUS_LO, FOCUS_HI)]
@@ -443,8 +509,16 @@ def behaviour_distribution(month: str = "", against: str = "") -> dict[str, Any]
     deterioration began — not the immediately preceding one, which is already
     inside it. `against` overrides that where a caller has a reason to.
     """
-    at = month or latest_month()
-    base = against or baseline_month(at)
+    at = resolve(month)
+    if not at:
+        return {"available": False, "period": month}
+    # `resolve("")` means "the latest month", which is right for the month being
+    # asked about and wrong for the month to compare it with: an omitted
+    # comparison means the baseline, not today.
+    base = (resolve(against) if against else "") or baseline_month(at)
+    if not base or base == at:
+        # Nothing to compare against: the book does not reach back far enough.
+        return {"available": False, "period": month}
     want = ["facility_id", "behavioural_score", "behavioural_score_band"]
     now = cohort(at, columns=want)
     if now.empty:
@@ -534,8 +608,16 @@ def score_decomposition(month: str = "", against: str = "") -> dict[str, Any]:
     cohort missed anything, which is the part of the answer that settles the
     challenge rather than arguing with it.
     """
-    at = month or latest_month()
-    base = against or baseline_month(at)
+    at = resolve(month)
+    if not at:
+        return {"available": False, "period": month}
+    # `resolve("")` means "the latest month", which is right for the month being
+    # asked about and wrong for the month to compare it with: an omitted
+    # comparison means the baseline, not today.
+    base = (resolve(against) if against else "") or baseline_month(at)
+    if not base or base == at:
+        # Nothing to compare against: the book does not reach back far enough.
+        return {"available": False, "period": month}
     features = _feature_columns()
     want = ["facility_id", "behavioural_score",
             "beh_score_base_points", *[c for _, c, _ in features]]
@@ -662,8 +744,15 @@ def behaviour_metrics(month: str = "", against: str = "") -> list[Movement]:
     "what moved the score" and the wrong one for "is this cohort in trouble".
     These are the same movement in percentages and ratios.
     """
-    at = month or latest_month()
-    base = against or baseline_month(at)
+    at = resolve(month)
+    if not at:
+        return []
+    # `resolve("")` means "the latest month", which is right for the month being
+    # asked about and wrong for the month to compare it with: an omitted
+    # comparison means the baseline, not today.
+    base = (resolve(against) if against else "") or baseline_month(at)
+    if not base or base == at:
+        return []
     want = ["facility_id", "utilisation_ratio", "payment_to_due_ratio_3m",
             "minimum_payment_only_months_3m", "missed_payment_count_3m",
             "cash_advance_share_3m", "overlimit_days_3m",
@@ -733,7 +822,9 @@ def concentration(month: str = "") -> dict[str, Any]:
     from backend.retail import taxonomy as tax
     from backend.retail.policy import CARD_PROGRAMME_POLICY as policy
 
-    at = month or latest_month()
+    at = resolve(month)
+    if not at:
+        return {"available": False, "period": month}
     want = ["facility_id", "dpd", "previous_month_dpd", "product_subsegment",
             "origination_score_band", "application_score_at_origination",
             "utilisation_ratio", "payment_to_due_ratio_3m",
@@ -866,7 +957,9 @@ def actions(month: str = "") -> dict[str, Any]:
     customer. A starting limit on an account not yet written is a policy
     parameter, and that is where a reduction belongs.
     """
-    at = month or latest_month()
+    at = resolve(month)
+    if not at:
+        return {"available": False, "period": month}
     found = concentration(at)
     if not found.get("available"):
         return {"available": False, "period": at}

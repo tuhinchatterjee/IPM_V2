@@ -146,6 +146,37 @@ class TestTheFinding:
                 f"{move.label} moved {move.change:+.2f} points. The finding is "
                 "that later delinquency has NOT moved with the early bucket.")
 
+    def test_the_case_says_which_way_it_weighted_the_ladder(self, book):
+        """Two cards about one product must not read as contradicting each other.
+
+        The portfolio review also raises a deterioration case on the card book,
+        and that one weights the delinquency ladder by BALANCE. On a book whose
+        balances are growing — which this one's are, because the cohort is
+        drawing down its limits — the two measures diverge: the 30+ population
+        is flat while the 30+ share of balance climbs.
+
+        Both are right. Side by side on a Cockpit with nothing to distinguish
+        them, one of them reads as wrong. So this case states which quantity it
+        counted and why the other one moved.
+        """
+        from backend.retail import review
+
+        found = anb.early_delinquency()
+        weighted = found["later_by_balance"]
+        balances = found["balances"]
+        if weighted.change <= 0.2 or balances.now <= balances.before:
+            pytest.skip("the two measures agree on this book; nothing to explain")
+
+        draft = review._early_delinquency(anb.latest_month())
+        text = draft.conclusion.lower()
+        assert "balance" in text, (
+            "the case claims later delinquency is flat and does not mention "
+            "that the balance-weighted measure moved. The deterioration case "
+            "beside it says exactly that, and the reader has to decide which "
+            "of the two is lying.")
+        assert "customer" in text or "account" in text, (
+            "the case does not say which quantity its own figures count")
+
     def test_the_drawer_chart_travels_on_the_case(self, book):
         from backend.retail import review
 

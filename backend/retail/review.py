@@ -379,6 +379,20 @@ def _early_delinquency(period: str) -> rc.Draft | None:
     accounts = found["accounts"]
     moved = early.now_count - early.before_count
     later = ", ".join(f"{m.label} {m.now:.2f}%" for m in found["later"])
+    weighted, balances = found["later_by_balance"], found["balances"]
+    # The same ladder weighted by balance rather than by account. On a book
+    # whose balances are growing, the two disagree — and the disagreement is
+    # itself information, so the case carries it rather than picking the
+    # reading that suits its own headline.
+    divergence = ""
+    if weighted.change > 0.2 and balances.now > balances.before:
+        divergence = (
+            f" Measured by BALANCE rather than by account the 30+ share did "
+            f"move, from {weighted.before:.2f}% to {weighted.now:.2f}%, but "
+            f"that is the same event seen from the other side: card balances "
+            f"rose {(balances.now / balances.before - 1) * 100:.0f}% in the "
+            f"month, so the accounts already past due are carrying more. The "
+            f"figures above count CUSTOMERS, which is the question here.")
 
     return rc.Draft(
         level=rc.SEGMENT,
@@ -399,7 +413,8 @@ def _early_delinquency(period: str) -> rc.Draft | None:
             f"over the same month, so these are accounts that have moved out of "
             f"0 DPD rather than accounts the book has added. Later delinquency "
             f"has not moved with them ({later}), so nothing has been lost yet — "
-            f"what has changed is how many customers are one cycle behind."),
+            f"what has changed is how many customers are one cycle behind."
+            + divergence),
         why=(
             "Raised because three things hold together at this month-end, and "
             "no one of them would have raised it alone: the 1-29 population is "
@@ -434,6 +449,10 @@ def _early_delinquency(period: str) -> rc.Draft | None:
             {"label": "Balance carried by accounts 1-29 DPD",
              "value": found["exposure_sar_mn"], "unit": "SAR mn",
              "period": at},
+            {"label": "30+ DPD share of card balances",
+             "value": weighted.now, "unit": "%", "period": at},
+            {"label": "Card balances", "value": balances.now,
+             "unit": "SAR mn", "period": at},
         ],
         signals=[
             f"1-29 DPD at {multiple:.1f} times its {len(found['baseline_months'])}"
@@ -443,6 +462,9 @@ def _early_delinquency(period: str) -> rc.Draft | None:
             f"{found['later_worst']:+.2f} points",
             f"{found['focus_now']:.1f}% of card accounts are 20-29 days past "
             f"due, {found['focus_share_of_early']:.0f}% of the 1-29 population",
+            f"card balances up {(balances.now / balances.before - 1) * 100:.0f}% "
+            f"in the month, which moves every balance-weighted rate on this "
+            f"product without any more customers falling behind",
         ],
         evidence={
             "dataset": anb.BOOK,
