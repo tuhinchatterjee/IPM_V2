@@ -140,18 +140,25 @@ def test_the_request_fits_the_model(key, payload, runtime):
     assert estimate + sent["max_tokens"] < runtime.capability.context_tokens
 
 
-def test_a_broad_product_question_is_offered_four_tools(payload):
+def test_a_broad_product_question_is_offered_only_what_it_can_use(payload):
+    """A product question cannot execute anything, so nothing that executes
+    is on its request. The synopsis already covers it, so the retrieval tool
+    is not there either: one generation, and the two tools it could use."""
     sent = payload(QUESTIONS["who_are_you"])
     names = [tool["name"] for tool in sent["tools"]]
     assert c.TOOL_PRODUCT not in names
-    assert len(names) == len(c.TOOL_NAMES) - 1
+    assert names == [c.TOOL_FINALIZE]
 
 
-def test_a_named_deep_topic_is_offered_all_five(payload):
+def test_a_named_deep_topic_is_offered_the_retrieval_tool(payload):
+    """It names detail the synopsis does not carry, so it may go and read
+    it. It still cannot execute a query, and is not offered the tools for
+    one."""
     sent = payload(QUESTIONS["explain_tac"])
     names = [tool["name"] for tool in sent["tools"]]
     assert c.TOOL_PRODUCT in names
-    assert len(names) == len(c.TOOL_NAMES)
+    assert set(names) == {c.TOOL_PRODUCT, c.TOOL_FINALIZE}
+    assert c.TOOL_EXECUTE not in names and c.TOOL_INSPECT not in names
 
 
 def test_the_sanitized_payload_is_written_as_evidence(payload, tmp_path):

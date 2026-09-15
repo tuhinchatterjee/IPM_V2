@@ -310,18 +310,35 @@ def test_an_unrecognised_question_is_not_told_to_skip_discovery(store_db):
 
 # ---- §14. bounded is the point ----------------------------------------
 
-def test_two_bad_actions_still_stop_at_the_bound(drive_domain, store_db):
-    """No infinite retry. The second failure ends the run, and says so."""
-    outcome, _, _ = drive_domain(dom.CORPORATE, STAGE2, [
-        truncated_action(), truncated_action()])
+def test_bad_actions_stop_once_there_is_nothing_left_to_change(
+        drive_domain, store_db):
+    """No infinite retry, and no retry that repeats the same question.
+
+    A re-ask is granted while the REQUEST can still change: the surface
+    narrows to the state's one legal tool, and a truncation raises the
+    output allowance once because a truncation is evidence that the
+    allowance was the binding constraint. When neither can change again,
+    the run stops -- and names what it actually spent.
+    """
+    outcome, provider, _ = drive_domain(dom.CORPORATE, STAGE2, [
+        truncated_action(), truncated_action(), truncated_action()])
 
     assert outcome.state == st.FAILED
-    assert outcome.error_code == st.CALL_LIMIT
+    # NOT a call limit. See `states.ACTION_FORMAT_EXHAUSTED`: generations,
+    # provider attempts, time and money were all left. What ran out was the
+    # re-ask for a complete action.
+    assert outcome.error_code == st.ACTION_FORMAT_EXHAUSTED
     actions = [c for c in outcome.call_report["calls"]
                if c["phase"] == "action"]
-    assert len(actions) == 2, (
-        f"two action attempts, not {len(actions)}: a run that keeps asking "
-        f"is a worse failure than the one being fixed")
+    assert len(actions) == 3, (
+        f"{len(actions)} action attempts: a run that keeps asking is a "
+        f"worse failure than the one being fixed")
+    # Each attempt asked something the last one did not.
+    allowances = [c["output_allowance"]["granted"] for c in actions]
+    assert allowances[1] > allowances[0], (
+        "the re-ask after a truncation must change the one thing the "
+        "evidence points at")
+    assert allowances[2] == allowances[1], "and then stop changing it"
 
 
 def test_the_reader_is_told_the_action_was_cut_off_not_that_it_failed(

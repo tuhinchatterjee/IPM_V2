@@ -1306,7 +1306,9 @@ def _action_finalize(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def provider_tools(*, withhold: tuple[str, ...] = (),
-                   catalog: Any = None, stage: str = "") -> list[dict[str, Any]]:
+                   catalog: Any = None, stage: str = "",
+                   only: tuple[str, ...] | None = None
+                   ) -> list[dict[str, Any]]:
     """The tool definitions, in the provider's wire shape.
 
     `catalog` supplies the PERIOD VOCABULARY. Every schema description that
@@ -1334,11 +1336,30 @@ def provider_tools(*, withhold: tuple[str, ...] = (),
     contract instead of the full one -- see `_ACTION_FINALIZE_FIELDS`. It is
     a narrowing, never a widening, and the full contract comes back for the
     turn that writes the answer.
+
+    `only` names the EXACT surface for one turn, in contract order, and is
+    how `action_state` publishes a state's legal tools. It overrides
+    `withhold` -- naming what may be used is a stronger statement than
+    naming what may not -- and an unknown name in it is a programming error
+    rather than something to route around. It may legitimately produce a
+    single-tool request: a run whose governed metadata is fully resolved has
+    exactly one legal transition, and offering it five tools to choose
+    between is what ran the live run out of output before it had decided
+    anything.
     """
-    blocked = {name for name in withhold if name != TOOL_FINALIZE}
-    if blocked - set(TOOL_NAMES):
-        raise ValueError(f"unknown tool(s) in withhold: "
-                         f"{sorted(blocked - set(TOOL_NAMES))}")
+    if only is not None:
+        wanted = tuple(only)
+        unknown = [name for name in wanted if name not in TOOL_NAMES]
+        if unknown:
+            raise ValueError(f"unknown tool(s) in only: {sorted(unknown)}")
+        if not wanted:
+            raise ValueError("a request with no tools cannot take an action")
+        blocked = {name for name in TOOL_NAMES if name not in wanted}
+    else:
+        blocked = {name for name in withhold if name != TOOL_FINALIZE}
+        if blocked - set(TOOL_NAMES):
+            raise ValueError(f"unknown tool(s) in withhold: "
+                             f"{sorted(blocked - set(TOOL_NAMES))}")
     defs = _defs()
     files = {TOOL_INSPECT: "inspect_catalog.schema.json",
              TOOL_PRODUCT: "inspect_product_knowledge.schema.json",

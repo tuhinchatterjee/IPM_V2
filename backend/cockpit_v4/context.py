@@ -381,6 +381,10 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
         system_blocks=system_blocks,
         first_user_message="\n\n".join(parts),
         payload={"pinned_scope": pinned, "budgets": budget,
+                 # The action state machine reads this. It is the same
+                 # object the analyst is shown, so the state a run is put
+                 # into is the state it was told it is in.
+                 "analysis_readiness": _readiness,
                  "value_resolution": _value_resolution(resolved, asked),
                  "recent_turns": history,
                  "investigation": investigation or {},

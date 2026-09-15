@@ -39,10 +39,16 @@ def test_prose_without_a_tool_call_is_not_promoted_to_an_answer(drive):
         [ScriptedResult(tool_calls=[], text="I am the Cockpit assistant.",
                         stop_reason="end_turn"),
          ScriptedResult(tool_calls=[], text="Still prose.",
+                        stop_reason="end_turn"),
+         ScriptedResult(tool_calls=[], text="And again.",
                         stop_reason="end_turn")])
     assert outcome.state == st.FAILED
-    assert outcome.error_code == st.CALL_LIMIT
-    assert len(provider.sent) == 2, "exactly one format recovery is available"
+    # The re-ask is what ran out, and that is what it is called. Generations
+    # and provider attempts were both still available.
+    assert outcome.error_code == st.ACTION_FORMAT_EXHAUSTED
+    assert len(provider.sent) == 3, (
+        "the re-ask is granted while the request can still change, and no "
+        "longer: two recoveries, then the run stops")
 
 
 def test_a_truncated_response_executes_nothing(drive, release_id):

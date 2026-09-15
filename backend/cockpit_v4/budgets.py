@@ -23,7 +23,9 @@ from typing import Any
 
 from backend.cockpit_v4.capability import Capability
 from backend.cockpit_v4.config import Limits
-from backend.cockpit_v4.states import (CALL_LIMIT, COST_LIMIT,
+from backend.cockpit_v4.states import (ACTION_FORMAT_EXHAUSTED,
+                                       ANSWER_FORMAT_EXHAUSTED,
+                                       CALL_LIMIT, COST_LIMIT,
                                        DEADLINE_EXPIRED, EXECUTION_LIMIT,
                                        NO_PROGRESS, ROUND_LIMIT)
 
@@ -331,16 +333,22 @@ class Ledger:
         if phase == "answer":
             used = self.counters.answer_format_recoveries
             allowed = self.limits.answer_format_regenerations
+            code = ANSWER_FORMAT_EXHAUSTED
             what = ("the one structure-regeneration attempt for the FINAL "
                     "ANSWER was already used. The analysis itself succeeded "
                     "and its result is preserved.")
         else:
             used = self.counters.action_format_recoveries
             allowed = self.limits.format_regenerations
-            what = ("the one structure-regeneration attempt for choosing an "
-                    "action was already used.")
+            # NOT a call limit. See `states.ACTION_FORMAT_EXHAUSTED`: the
+            # run that produced this had generations, provider attempts,
+            # time and money all left. What ran out was the re-ask.
+            code = ACTION_FORMAT_EXHAUSTED
+            what = ("the one re-ask for a complete action was already used. "
+                    "Both attempts came back without a usable action, so "
+                    "nothing was run.")
         if used >= allowed:
-            raise BudgetExceeded(CALL_LIMIT, what)
+            raise BudgetExceeded(code, what)
         if phase == "answer":
             self.counters.answer_format_recoveries += 1
         else:

@@ -152,8 +152,9 @@ def test_who_are_you_is_offered_four_tools_and_costs_one_generation(
     assert len(provider.sent) == 1, "one generation, no retrieval round trip"
     offered = [t["name"] for t in provider.sent[0]["tools"]]
     assert TOOL_PRODUCT not in offered
-    assert TOOL_FINALIZE in offered
-    assert len(offered) == len(TOOL_NAMES) - 1
+    assert offered == [TOOL_FINALIZE], (
+        "a product question cannot execute or inspect anything, so the "
+        "tools that do those things are not on its request")
 
     run = store_db.get_run(record.run_id)
     assert run.budget["generation_attempts"][0] == 1
@@ -206,8 +207,13 @@ def test_a_withheld_tool_comes_back_for_the_second_action(drive):
     first_offer = [t["name"] for t in provider.sent[0]["tools"]]
     second_offer = [t["name"] for t in provider.sent[1]["tools"]]
     assert TOOL_PRODUCT not in first_offer
-    assert TOOL_PRODUCT in second_offer
-    assert set(second_offer) == set(TOOL_NAMES)
+    assert TOOL_PRODUCT in second_offer, (
+        "the economy is first-action only; it may never strand a run that "
+        "turns out to need the deeper pack")
+    # It comes back on the SECOND ACTION. It does not come back on a
+    # recovery: a re-ask after a malformed action is never a broader
+    # question than the one that failed.
+    assert set(second_offer) == {TOOL_PRODUCT, TOOL_FINALIZE}
 
 
 def test_the_context_tells_the_model_which_policy_applies(drive):

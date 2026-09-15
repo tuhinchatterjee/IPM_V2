@@ -309,8 +309,14 @@ class Worker:
                     stage="analytical_action" if analytical else "")
                 if withhold else None),
             # The full contract, restored for the turn that writes the
-            # answer. See `Orchestrator._finalization_tools`.
+            # answer. See `Orchestrator._action_surface`.
             answer_tools=full_tools,
+            # What the ACTION STATE MACHINE reads: whether this question's
+            # governed metadata is already resolved, and whether the request
+            # is analytical at all. Both are settled by the server before
+            # the first provider call.
+            readiness=dict(packet.payload.get("analysis_readiness") or {}),
+            analytical=analytical,
             investigation=(seeded or {}).get("body") if seeded else None,
             value_resolution=packet.payload.get("value_resolution") or {},
             # §24-§27. The run's intent is SETTLED before the first provider

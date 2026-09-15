@@ -46,24 +46,32 @@ from test_orchestration_recovery import _ead_call, _good_answer
 def test_the_action_turn_requires_a_tool_call(drive, release_id):
     """The parameter that was accepted and dropped.
 
-    `tool_choice: {"type": "any"}` is the difference between a turn that MAY
-    answer in prose and one that must choose an action. Claude Opus 5
-    accepts it; the models that do not are handled below.
+    A tool choice is the difference between a turn that MAY answer in prose
+    and one that must take an action. Where the run's state leaves exactly
+    one legal transition the choice NAMES that tool; where more than one is
+    legal it is `any`. Claude Opus 5 accepts both; the models that do not
+    are handled below.
     """
     outcome, provider, _ = drive("Who are you?", [ScriptedResult(
         tool_calls=[tool_call("finalize_response", final(
             intent=intent("PRODUCT_HELP", "COCKPIT"),
             narrative="CreditProbe is a credit-investigation layer."))])])
     assert outcome.state == st.COMPLETED, outcome.message
-    assert provider.sent[0]["tool_choice"] == {"type": "any"}
+    choice = provider.sent[0]["tool_choice"]
+    assert choice["type"] in ("any", "tool")
+    assert choice.get("disable_parallel_tool_use") is True, (
+        "one action per turn: a batch against a single-transition state is "
+        "a batch the state machine would have to reject anyway")
 
 
-def test_the_answer_turn_is_not_forced_to_call_a_tool(drive, release_id):
-    """An answer turn may be prose: writing prose is what it is for.
+def test_the_answer_turn_is_required_to_publish(drive, release_id):
+    """Once a result exists, the only legal transition is to publish it.
 
-    It still publishes THROUGH a tool -- every V4 terminal does -- but the
-    request does not compel one, because a turn that has already executed
-    its analysis and is being asked to write it up is not choosing anything.
+    This used to be the one turn with no tool choice at all, on the reading
+    that writing prose is what an answer is for. The prose still goes in the
+    narrative; what the turn may not do is wander back into the analysis it
+    has already paid for, so the required tool is `finalize_response` and
+    nothing else is on the request.
     """
     quarter = oracles.latest_quarter(release_id)
     outcome, provider, _ = drive(
@@ -71,8 +79,10 @@ def test_the_answer_turn_is_not_forced_to_call_a_tool(drive, release_id):
         _ead_then_answer(quarter))
     assert outcome.state == st.COMPLETED, outcome.message
     action, answer = provider.sent[0], provider.sent[-1]
-    assert action["tool_choice"] == {"type": "any"}
-    assert answer["tool_choice"] is None
+    assert action["tool_choice"]["name"] == "execute_analysis"
+    assert answer["tool_choice"]["name"] == "finalize_response"
+    assert {t["name"] for t in answer["tools"]} <= {"finalize_response",
+                                                    "read_artifact"}
 
 
 def test_a_model_that_refuses_forced_tool_use_still_runs(ledger_factory,

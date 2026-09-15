@@ -127,6 +127,23 @@ class Orchestrator:
     #: turns run on the stop-early subset of `finalize_response`; this is
     #: what comes back once a result exists and there is an answer to write.
     answer_tools: list[dict[str, Any]] | None = None
+    #: `semantics.readiness` for this question, computed by the server
+    #: before any provider call. The action state machine reads it.
+    readiness: dict[str, Any] = field(default_factory=dict)
+    #: True when this request was classified as a data analysis at intake.
+    analytical: bool = False
+    #: What the last turn was allowed to be. Carried so a recovery can be
+    #: NARROWER than the attempt it recovers, and never broader.
+    decision: Any = None
+    #: Set once the catalogue has answered, so NEEDS_METADATA is a state a
+    #: run passes THROUGH rather than one it can sit in.
+    catalog_answered: bool = False
+    #: True once an ACTION turn has been cut off at its allowance. The
+    #: re-ask then gets the larger one: a truncation is direct evidence
+    #: that the allowance was the binding constraint on that turn, and it
+    #: is the only lever left once the schemas, the context, the tool
+    #: ambiguity and the effort have all been taken away.
+    action_truncated: bool = False
     #: The attention item this conversation was opened from, if any.
     investigation: dict[str, Any] | None = None
     #: What the QUESTION'S OWN WORDS were resolved to against the values this
@@ -501,76 +518,80 @@ class Orchestrator:
 
     # -- generation ------------------------------------------------------
 
-    def _finalization_tools(self) -> list[dict[str, Any]] | None:
-        """The tool set for a turn whose job is to WRITE THE ANSWER.
+    def _action_surface(self, *, recovering: bool = False):
+        """Which tools this turn may use, and which one it must call.
 
-        Once an analysis has succeeded, the next turn's task is "given this
-        exact result, answer the question" -- not "start investigating
-        again". Offering `execute_analysis` and `inspect_catalog` there costs
-        about fifteen kilobytes of schema on every answer turn and invites a
-        round the run does not need.
+        The state machine decides; this turns its decision into the tool
+        definitions and hands them to the analyst for one call.
 
-        This is tool AVAILABILITY, not analytical judgement: CreditProbe is
-        not deciding what the answer says. And it is not a capability the run
-        can lose -- `answer_only` is set only after an analysis has already
-        succeeded or an answer has already been refused, and a run that has
-        executed nothing keeps everything.
+        `recovering` is the whole of the live defect: a re-ask after a
+        malformed action may never be a broader question than the one that
+        failed. The live run restored a withheld tool between its two
+        attempts and told the reader "Product knowledge lookup available" --
+        so the turn that had just run out of output while deciding was
+        handed one more thing to decide about.
         """
-        from backend.cockpit_v4.contracts import (TOOL_EXECUTE, TOOL_INSPECT,
-                                                  TOOL_PRODUCT)
+        from backend.cockpit_v4 import action_state as acts
+        from backend.cockpit_v4.contracts import provider_tools
 
-        if not (self.executed or self.answer_only):
-            return None
-        keep = {TOOL_EXECUTE, TOOL_INSPECT, TOOL_PRODUCT}
-        current = list(self.analyst.tools or [])
-        # The FULL contract, not the action turn's stop-early subset. An
-        # answer turn that was offered the subset could not author narrative
-        # claims, tables or charts at all -- it would be holding a schema
-        # with no place to put the answer it just paid to compute.
-        source = list(self.answer_tools or current)
-        trimmed = [t for t in source if t.get("name") not in keep]
-        if not trimmed:
-            return None
-        return trimmed if (len(trimmed) < len(current)
-                           or trimmed != current) else None
+        # The product pack is withheld from the FIRST action of a broad
+        # product question and restored for every action after it -- that
+        # is a first-action economy, not a capability the run can lose.
+        #
+        # A RECOVERY is the exception, and it is the whole of the live
+        # defect: the re-ask after a malformed action must never be a
+        # broader question than the one that failed.
+        first_action = self.ledger.counters.generation_attempts < 1
+        withheld = (self.deferred_tools is not None
+                    and (first_action or recovering))
+        decision = acts.decide(
+            executed=self.executed, answer_only=self.answer_only,
+            analytical=self.analytical, readiness=self.readiness,
+            product_tool_withheld=withheld)
+        if self.catalog_answered:
+            decision = acts.after_catalog(decision, self.readiness)
+        if recovering:
+            decision = decision.narrow()
+        self.decision = decision
+
+        names = acts.offered(decision)
+        answering = decision.state == acts.RESULT_READY
+        tools = provider_tools(
+            catalog=self.catalog, only=names,
+            stage="" if answering else "analytical_action")
+        return decision, tools
 
     def _generate(self):
-        # WHICH KIND OF TURN THIS IS, and what it may cost.
+        # WHICH KIND OF TURN THIS IS, what it may call, and what it may
+        # cost.
         #
         # An action is a decision: which tool, with which arguments. An
-        # answer is a document: narrative, claims, a presentation plan. They
-        # were given the same allowance, so an action turn could spend an
-        # answer's worth of tokens -- and on an open analytical question it
-        # did, reached the cap, and delivered nothing that ran.
-        answering = bool(self.executed or self.answer_only)
+        # answer is a document. They were given the same allowance AND the
+        # same five tools, so an action turn could spend an answer's worth
+        # of output deciding among tools that could not legally do anything
+        # in the state the run was in.
+        from backend.cockpit_v4 import action_state as acts
+
+        recovering = self.purpose in ("ACTION_FORMAT_RECOVERY",
+                                      "ANSWER_FORMAT_RECOVERY")
+        decision, tools = self._action_surface(recovering=recovering)
+        answering = decision.state == acts.RESULT_READY
         limits = self.ledger.limits
-        reserved = (limits.reserved_output_tokens if answering
-                    else limits.action_output_tokens)
+        if answering:
+            reserved = limits.reserved_output_tokens
+        elif self.action_truncated:
+            reserved = max(limits.action_output_tokens,
+                           limits.action_output_ceiling)
+        else:
+            reserved = limits.action_output_tokens
         effort = (limits.answer_effort if answering else limits.action_effort)
-        if (self.deferred_tools is not None
-                and self.ledger.counters.generation_attempts >= 1):
-            # Second action onwards: the full tool set, whatever the first
-            # action was. Withholding is a first-action economy, never a
-            # capability the run can lose.
-            self.analyst.tools = self.deferred_tools
-            self.deferred_tools = None
-            self.emitter.append(
-                ev.CONTEXT_READY, stage="understanding",
-                operation="tools_restored", status=ev.STATUS_OK,
-                public_message="Product knowledge lookup available.")
-        # The answer turn carries only the tools an answer needs, and only
-        # the system context an answer needs.
-        restore_tools = None
+
+        if answering and self.purpose == "ANALYSIS_ACTION":
+            self.purpose = "FINAL_ANSWER"
+        restore_tools = self.analyst.tools
         restore_system = None
-        narrowed = self._finalization_tools()
-        if narrowed is not None:
-            # This call cannot execute, inspect or retrieve: the tools that
-            # do those things are not on it. Naming it an analysis action
-            # would be describing a turn that cannot take one.
-            if self.purpose == "ANALYSIS_ACTION":
-                self.purpose = "FINAL_ANSWER"
-            restore_tools = self.analyst.tools
-            self.analyst.tools = narrowed
+        self.analyst.tools = tools
+        if answering:
             from backend.cockpit_v4 import context as ctx
 
             compact = ctx.finalization_system(self.analyst.system)
@@ -581,32 +602,28 @@ class Orchestrator:
             ev.MODEL_REQUESTED, stage="understanding", operation="generate",
             status=ev.STATUS_STARTED,
             attempt=self.ledger.counters.generation_attempts + 1,
-            detail_ref=self._detail({"purpose": self.purpose,
-                                     "phase": "answer" if answering
-                                     else "action",
-                                     "tools_offered": len(self.analyst.tools),
-                                     "max_output_tokens": reserved,
-                                     "effort": effort,
-                                     "context_bytes":
-                                         self.analyst.payload_bytes()}),
-            public_message=_PURPOSE_MESSAGE.get(
-                self.purpose,
-                "Understanding the request"
-                if not self.analyst.messages[1:]
-                else "Preparing the next action"))
+            detail_ref=self._detail({
+                "purpose": self.purpose,
+                "phase": "answer" if answering else "action",
+                "action_state": decision.to_dict(),
+                "tools_offered": [t.get("name") for t in tools],
+                "required_tool": decision.require,
+                "max_output_tokens": reserved,
+                "effort": effort,
+                "context_bytes": self.analyst.payload_bytes()}),
+            public_message=_PURPOSE_MESSAGE.get(self.purpose,
+                                                decision.stage))
         try:
             try:
                 turn = self.analyst.ask(
                     purpose=self.purpose, max_output_tokens=reserved,
                     phase="answer" if answering else "action",
-                    effort=effort)
+                    effort=effort, require=decision.require)
             finally:
-                # Narrowing is per CALL. The full set comes back immediately
-                # so a run that genuinely needs another analytical round --
-                # because the sufficiency review asked for one -- still has
-                # every tool available to it.
-                if restore_tools is not None:
-                    self.analyst.tools = restore_tools
+                # The surface is per CALL and is rebuilt from the state on
+                # the next one, so nothing here can leave a run holding a
+                # narrower set than its own state allows.
+                self.analyst.tools = restore_tools
                 if restore_system is not None:
                     self.analyst.system = restore_system
         except OutputTruncated as exc:
@@ -618,6 +635,8 @@ class Orchestrator:
             # been paid for. Charging both to one counter is what refused a
             # live run whose query had already executed correctly.
             phase = "answer" if self.executed else "action"
+            if phase != "answer":
+                self.action_truncated = True
             self.ledger.spend_format_recovery(phase=phase)
             self.analyst.rollback_last_turn()
             self.purpose = ("ANSWER_FORMAT_RECOVERY" if phase == "answer"
@@ -633,13 +652,16 @@ class Orchestrator:
                     if phase == "answer" else
                     "The response was cut off before it was complete; "
                     "asking again once."))
-            self.analyst.user(self._action_recovery_prompt(exc)
-                              if phase != "answer" else
-                              f"Your previous response was cut off at its "
-                              f"{exc.limit:,}-token output allowance and "
-                              f"nothing from it ran. Send one complete tool "
-                              f"call. Keep it compact; do not shorten the "
-                              f"analysis itself.")
+            reason = (f"it reached its {exc.limit:,}-token output "
+                      f"allowance before a tool call was complete, so "
+                      f"nothing from it ran")
+            self.analyst.user(
+                self._action_recovery_prompt(reason)
+                if phase != "answer" else
+                f"Your previous response was cut off at its "
+                f"{exc.limit:,}-token output allowance and nothing from it "
+                f"ran. Send one complete tool call. Keep it compact; do not "
+                f"shorten the analysis itself.")
             return None
         except ProviderFailure as exc:
             if exc.retry_class == "transport":
@@ -690,37 +712,54 @@ class Orchestrator:
         self.store.save_messages(self.run.run_id, self.analyst.messages)
         return turn
 
-    def _action_recovery_prompt(self, exc) -> str:
+    def _action_recovery_prompt(self, reason: str) -> str:
         """What to send after an ACTION turn failed to produce one.
 
-        Four things, and deliberately nothing else: what the parser or the
-        allowance actually objected to, the question in the user's own
-        words, where the authoritative context already is, and what a valid
-        response looks like. The malformed output itself is NOT resent --
-        the run already paid for those tokens once, and sending them back
-        buys another chance to continue them.
+        Five things, and deliberately nothing else: the exact reason the
+        last attempt was unusable, the question in the user's own words, the
+        governed semantics already resolved for it, the grain and period a
+        query here reports on, and what a valid response is.
+
+        What is NOT sent: the malformed output itself (the run paid for
+        those tokens once; sending them back buys another chance to continue
+        them), the product synopsis, the catalogue, any tool the state does
+        not allow, and any part of the transcript this turn does not need.
         """
         question = ""
         first = self.analyst.messages[0] if self.analyst.messages else None
         if first and isinstance(first.get("content"), str):
             question = str(first["content"]).split("\n\n")[0]
-        lines = [
-            f"Your previous response was cut off at its {exc.limit:,}-token "
-            f"output allowance before a tool call was complete, so nothing "
-            f"from it ran.",
-            "",
-            f"The request, unchanged: {question}" if question else "",
-            "",
-            "Everything you need to author the next action is already in "
-            "the system context: the book, the release, the calendar, the "
-            "governed measures and the values this question named. Do not "
-            "restate any of it.",
-            "",
-            "Reply with ONE tool call and nothing else. No explanation, no "
-            "plan, no summary -- those belong in the final answer, after a "
-            "result exists.",
-        ]
-        return "\n".join(line for line in lines if line != "" or True).strip()
+            question = question.replace(
+                "USER REQUEST (original wording, unmodified):\n", "")
+
+        ready = dict(self.readiness or {})
+        resolved = [str(m.get("field_id") or m.get("term") or "")
+                    for m in
+                    (ready.get("governed_measures_already_resolved") or [])]
+        periods = dict(ready.get("periods_resolved") or {})
+        required = str(getattr(self.decision, "require", "") or "")
+
+        lines = [f"That attempt could not be used: {reason}", ""]
+        if question:
+            lines += [f"The request, unchanged: {question}", ""]
+        if resolved:
+            lines += ["Already resolved for you, in the opening context — do "
+                      "not look any of it up and do not restate it: "
+                      + ", ".join(resolved[:10]), ""]
+        column = str(periods.get("period_column") or "")
+        latest = str(periods.get("reporting") or "")
+        if column or latest:
+            said = f"This book reports on {column}." if column else ""
+            if latest:
+                said += f" Its latest populated period is {latest}."
+            lines += [said.strip(), ""]
+        if required:
+            lines += [f"Reply with ONE {required} call and nothing else. No "
+                      f"explanation, no plan, no summary — those belong in "
+                      f"the final answer, after a result exists."]
+        else:
+            lines += ["Reply with ONE tool call and nothing else."]
+        return "\n".join(lines).strip()
 
     # -- action handling -------------------------------------------------
 
@@ -728,13 +767,31 @@ class Orchestrator:
         calls = turn.tool_calls
         if not calls:
             # Free prose is not silently promoted into a validated answer.
-            self.ledger.spend_format_recovery(
-                phase="answer" if self.executed else "action")
-            self.analyst.user(
-                "That response contained no tool call. Every action, "
-                "including the final answer, is taken through one of: "
-                + ", ".join(TOOL_NAMES) + ".")
+            phase = "answer" if self.executed else "action"
+            self.analyst.annotate(parse_status="no_tool_call",
+                                  usable=False,
+                                  rejected_because="no tool call in the "
+                                                   "response")
+            self.ledger.spend_format_recovery(phase=phase)
+            self.purpose = ("ANSWER_FORMAT_RECOVERY" if phase == "answer"
+                            else "ACTION_FORMAT_RECOVERY")
+            self.emitter.append(
+                ev.RETRY_REQUESTED,
+                stage="publishing" if phase == "answer" else "understanding",
+                operation="no_tool_call", status=ev.STATUS_REJECTED,
+                public_message=("That response did not contain an action; "
+                                "asking again once."))
+            if phase == "answer":
+                self.analyst.user(
+                    "That response contained no tool call. Every action, "
+                    "including the final answer, is taken through one of: "
+                    + ", ".join(TOOL_NAMES) + ".")
+            else:
+                self.analyst.user(self._action_recovery_prompt(
+                    "it contained no tool call at all"))
             return None
+        self.analyst.annotate(parse_status="tool_call", usable=True,
+                              tool_names=[c.name for c in calls])
 
         unknown = [c.name for c in calls if c.name not in TOOL_NAMES]
         if unknown:
@@ -762,6 +819,13 @@ class Orchestrator:
             ev.MODEL_PARSED, stage="understanding", operation="parse",
             status=ev.STATUS_OK,
             public_message=f"Next action: {', '.join(sorted(names))}.")
+        if TOOL_INSPECT in names:
+            # NEEDS_METADATA is a state a run passes THROUGH. It asked for
+            # the field facts it said were missing; once they are in hand
+            # the next legal transition is to use them. A run that could
+            # ask again and again is the run that read the catalogue twice
+            # and answered nothing.
+            self.catalog_answered = True
 
         for call in calls:
             outcome = self._handle_call(call)

@@ -10,20 +10,8 @@
       "message_bytes": 221,
       "tools": [
         {
-          "name": "inspect_catalog",
-          "schema_bytes": 1834
-        },
-        {
           "name": "execute_analysis",
           "schema_bytes": 2409
-        },
-        {
-          "name": "read_artifact",
-          "schema_bytes": 846
-        },
-        {
-          "name": "finalize_response",
-          "schema_bytes": 2245
         }
       ],
       "unsupported_schema_keywords": []
@@ -37,24 +25,12 @@
       "message_bytes": 167,
       "tools": [
         {
-          "name": "inspect_catalog",
-          "schema_bytes": 1834
-        },
-        {
           "name": "inspect_product_knowledge",
           "schema_bytes": 845
         },
         {
-          "name": "execute_analysis",
-          "schema_bytes": 2409
-        },
-        {
-          "name": "read_artifact",
-          "schema_bytes": 846
-        },
-        {
           "name": "finalize_response",
-          "schema_bytes": 9463
+          "schema_bytes": 2245
         }
       ],
       "unsupported_schema_keywords": []
@@ -68,20 +44,8 @@
       "message_bytes": 167,
       "tools": [
         {
-          "name": "inspect_catalog",
-          "schema_bytes": 1834
-        },
-        {
-          "name": "execute_analysis",
-          "schema_bytes": 2409
-        },
-        {
-          "name": "read_artifact",
-          "schema_bytes": 846
-        },
-        {
           "name": "finalize_response",
-          "schema_bytes": 9463
+          "schema_bytes": 2245
         }
       ],
       "unsupported_schema_keywords": []

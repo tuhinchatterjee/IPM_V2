@@ -42,6 +42,7 @@ CORPORATE_QUESTIONS = [
     "What drove Construction ECL growth?",
     "Which borrowers were downgraded?",
     "Show Project Finance ECL by sector.",
+    "Why is risk building in Construction?",
     "Why is risk building in Real Estate?",
     "Which covenants are in breach?",
     "Give me an ECL decomposition.",

@@ -127,6 +127,15 @@ class Limits:
     #: was handed the whole remaining deadline, so the first one could spend
     #: eighty seconds and leave the run with nothing to recover with.
     action_call_seconds: float
+    #: The most an ACTION may be allowed after a TRUNCATION, and never
+    #: before one.
+    #:
+    #: A truncated action is direct evidence that the allowance was the
+    #: binding constraint on that turn -- not the schemas, not the context,
+    #: not the ambiguity, all of which were removed first. Raising it on the
+    #: re-ask is the one lever measurement actually points at, and it is
+    #: bounded: it may reach the answer's allowance and no further.
+    action_output_ceiling: int
     #: How hard the model works before it answers, per phase. Empty means
     #: "do not send it": see `Capability.supports_effort_control`.
     action_effort: str
@@ -145,11 +154,12 @@ STANDARD_LIMITS = Limits(
     catalog_calls=4, artifact_reads=6, steps_per_batch=6, total_steps=12,
     step_seconds=15.0, python_memory_mib=512, sql_memory_mib=512,
     output_bytes_per_step=25 * 1024 * 1024, preview_rows=100,
-    preview_columns=32, format_regenerations=1,
+    preview_columns=32, format_regenerations=2,
     answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=1.0, charts=2, soft_input_tokens=6_000,
     reserved_output_tokens=4_096, action_output_tokens=3_072,
-    action_call_seconds=40.0, action_effort="low", answer_effort="medium",
+    action_output_ceiling=4_096,
+    action_call_seconds=30.0, action_effort="low", answer_effort="medium",
     finalization_reserve_seconds=20.0, min_call_seconds=5.0)
 
 DEEP_LIMITS = Limits(
@@ -158,11 +168,12 @@ DEEP_LIMITS = Limits(
     catalog_calls=6, artifact_reads=10, steps_per_batch=8, total_steps=24,
     step_seconds=30.0, python_memory_mib=1024, sql_memory_mib=1024,
     output_bytes_per_step=50 * 1024 * 1024, preview_rows=100,
-    preview_columns=32, format_regenerations=1,
+    preview_columns=32, format_regenerations=2,
     answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=2.0, charts=3, soft_input_tokens=10_000,
     reserved_output_tokens=6_144, action_output_tokens=4_096,
-    action_call_seconds=60.0, action_effort="medium", answer_effort="high",
+    action_output_ceiling=6_144,
+    action_call_seconds=45.0, action_effort="medium", answer_effort="high",
     finalization_reserve_seconds=25.0, min_call_seconds=5.0)
 
 

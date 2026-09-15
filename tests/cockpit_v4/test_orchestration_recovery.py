@@ -180,14 +180,21 @@ def test_each_phase_spends_only_its_own_allowance(drive, store_db,
 # ---- the bounds still hold --------------------------------------------
 
 def test_a_second_truncated_action_still_fails_closed(drive, release_id):
-    """Separate buckets must not make the action phase unbounded."""
+    """Separate buckets must not make the action phase unbounded.
+
+    Three attempts, not two: the re-ask is granted while the request can
+    still change (the surface narrows, and a truncation raises the
+    allowance once). What it may never become is unbounded.
+    """
     quarter = oracles.latest_quarter(release_id)
     outcome, provider, _ = drive(
         "What is total exposure at default by sector in the latest quarter?",
-        [OutputTruncated("cut off", limit=4096), OutputTruncated("cut off", limit=4096),
+        [OutputTruncated("cut off", limit=4096),
+         OutputTruncated("cut off", limit=4096),
+         OutputTruncated("cut off", limit=4096),
          ScriptedResult(tool_calls=[_ead_call(quarter)])])
     assert outcome.state == st.FAILED
-    assert outcome.error_code == st.CALL_LIMIT
+    assert outcome.error_code == st.ACTION_FORMAT_EXHAUSTED
     assert (outcome.response or {}).get("disposition") != "answer"
 
 

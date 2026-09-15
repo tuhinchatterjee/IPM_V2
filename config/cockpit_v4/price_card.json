@@ -12,8 +12,6 @@
       "max_output_tokens": 8192,
       "supports_tools": true,
       "supports_token_counting": true,
-      "supports_forced_tool_use": true,
-      "supports_effort_control": false,
       "source": "PLACEHOLDER",
       "verified_at": "",
       "price": {
@@ -24,8 +22,5 @@
       }
     }
   },
-  "capability_notes": {
-    "supports_forced_tool_use": "Whether this model accepts tool_choice {\"type\": \"any\"}. An ACTION turn has no legal prose outcome, so CreditProbe requires a tool call on one. Most models accept this; a few answer 400, and for those set it to false. Default true: a model that refuses it is detected on the first rejection, the parameter is dropped for the rest of that run, and the call report says so.",
-    "supports_effort_control": "Whether this model accepts output_config.effort. CreditProbe sends a LOW effort on action turns and a higher one on the answer, because choosing the next action is a decision and the analysis itself runs in DuckDB. Default false: a model that does not know the parameter REJECTS the request rather than ignoring it, and a run failing closed over a latency optimisation would be worse than the latency. Set it to true once you have confirmed your model accepts it."
-  }
+  "capability_note": "This file is about MONEY. What a model accepts -- forced tool use, named-tool forcing, effort control -- is a fact about the provider's API and lives in backend/cockpit_v4/model_capabilities.py, keyed by model id. Nothing here controls it."
 }

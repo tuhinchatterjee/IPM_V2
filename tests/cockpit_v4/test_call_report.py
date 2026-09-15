@@ -120,17 +120,17 @@ def test_the_answer_turn_carries_less_context_than_the_action(drive,
                                                               release_id):
     """The finalization trim, measured rather than asserted.
 
-    The answer turn drops the catalogue index, the canonical semantics, the
-    product synopsis and the tools it cannot use. The conversation itself has
-    GROWN by then -- it now carries the executed result -- so the saving has
-    to show up where it was made, in the system blocks and the tool count.
+    The answer turn drops the catalogue index, the canonical semantics and
+    the product synopsis. The conversation itself has GROWN by then -- it
+    carries the executed result -- so the saving shows up in the system
+    blocks.
 
-    The tool BYTES now go the other way, and deliberately. An action turn
-    carries the stop-early subset of `finalize_response`; the answer turn is
-    the one that has an answer to write, so it gets the full contract --
-    narrative, claims, tables, charts and follow-ups. Two tool schemas of
-    the same name are not the same size, and the larger one belongs on the
-    turn that can use it.
+    The TOOLS no longer compare that way, and deliberately. Each turn now
+    carries only the tools its state can legally use: an execution-ready
+    action carries `execute_analysis` and nothing else, and the turn that
+    has a result to write up carries the full answer contract. Two requests
+    of one tool each are not the same request, and the larger schema
+    belongs on the turn that can use it.
     """
     quarter = oracles.latest_quarter(release_id)
     outcome, _, _ = _analysis(drive, release_id, [
@@ -138,7 +138,7 @@ def test_the_answer_turn_carries_less_context_than_the_action(drive,
     action, answer = outcome.call_report["calls"]
     assert answer["context_bytes"]["system"] < action["context_bytes"][
         "system"]
-    assert len(answer["tools_offered"]) < len(action["tools_offered"])
+    assert action["tools_offered"] == ["execute_analysis"]
     assert "finalize_response" in answer["tools_offered"]
     assert not ({"execute_analysis", "inspect_catalog",
                  "inspect_product_knowledge"}

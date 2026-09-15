@@ -146,6 +146,9 @@ class Analyst:
     #: repeated attempt, not the run.
     forced_tool_use: bool = True
     effort_control: bool = True
+    #: The call-report row for the most recent generation, so what happened
+    #: to its result can be written back onto it. See `annotate`.
+    _last_entry: dict[str, Any] | None = None
 
     # -- history ---------------------------------------------------------
 
@@ -363,7 +366,7 @@ class Analyst:
 
     def ask(self, *, purpose: str, max_output_tokens: int,
             tool_choice: str = "any", phase: str = "action",
-            effort: str = "") -> Turn:
+            effort: str = "", require: str = "") -> Turn:
         """One generation attempt. Bounded, reserved, counted and settled.
 
         `tool_choice` is now SENT. It was a parameter this method accepted
@@ -372,6 +375,12 @@ class Analyst:
         -- was free to answer in prose, and on an open analytical question
         it did. The turn then took as long as an essay takes, ended at the
         output allowance, and nothing from it ran.
+
+        `require` names ONE tool the turn must call. It is the difference
+        between "call something" and "call this": the first still asks the
+        model to choose among everything on the request, and choosing is
+        what a live run ran out of output doing. What to put IN the call --
+        the SQL, the steps, the filters, the method -- is untouched by it.
 
         `effort` bounds how hard the model works before it answers. An
         action turn is a decision, not an analysis: the analysis happens in
@@ -390,6 +399,9 @@ class Analyst:
             tools_offered=[str(t.get("name") or "") for t in self.tools],
             context_bytes=sizes, serialize_ms=serialize_ms,
             outcome="refused_before_send")
+        # Set before anything can fail, so a truncated or refused attempt is
+        # still the row an annotation lands on.
+        self._last_entry = entry
         try:
             self.ledger.check_deadline()
             # And refused outright if there is no longer time to use the
@@ -451,17 +463,33 @@ class Analyst:
         timeout = self.ledger.call_timeout_seconds(phase=phase)
         # WHAT THIS TURN IS ALLOWED TO BE.
         #
-        # An action turn may only be a tool call. An answer turn may be
-        # prose, because writing prose is what it is for.
+        # Three settings, in order of strength. A NAMED tool when the run's
+        # state leaves exactly one legal transition: the turn calls that
+        # tool and the only question left is what to put in it. ANY tool
+        # when more than one is legal but prose is not. And nothing at all
+        # on an answer turn, because writing prose is what it is for.
+        named = bool(require) and self.forced_tool_use and (
+            self.capability.supports_named_tool_forcing)
         forced = (phase != "answer" and self.forced_tool_use
                   and self.capability.supports_forced_tool_use)
-        choice = {"type": "any"} if forced else None
+        if named:
+            choice: dict[str, Any] | None = {"type": "tool", "name": require}
+        elif forced:
+            choice = {"type": "any"}
+        else:
+            choice = None
+        if choice is not None and self.capability.supports_single_tool_per_turn:
+            # One action per turn. A batch of parallel calls against a
+            # single-transition state is a batch the state machine would
+            # have to reject anyway.
+            choice["disable_parallel_tool_use"] = True
         config = ({"effort": effort}
                   if effort and self.effort_control
                   and self.capability.supports_effort_control else None)
         entry.update(output_allowance=dict(self.response_allowance),
                      call_timeout_seconds=round(timeout, 3),
                      tool_choice=(dict(choice) if choice else "auto"),
+                     required_tool=require if named else "",
                      effort=(config or {}).get("effort", ""),
                      outcome="sent")
         started = time.monotonic()
@@ -490,10 +518,14 @@ class Analyst:
             # truncated response -- which was served, billed and complete as
             # far as the socket was concerned -- reads in the report as a
             # network fault nobody can reproduce.
+            cut_off = isinstance(exc, OutputTruncated)
             entry.update(
-                outcome=("truncated" if isinstance(exc, OutputTruncated)
+                outcome=("truncated" if cut_off
                          else exc.code if isinstance(exc, ProviderFailure)
                          else "transport_error"),
+                truncated=cut_off,
+                parse_status="incomplete" if cut_off else "not_returned",
+                tool_names=[], tool_calls=0, usable=False,
                 provider_ms=int((time.monotonic() - started) * 1000),
                 error=str(exc)[:200])
             raise _classify(exc) from exc
@@ -536,6 +568,8 @@ class Analyst:
         if stop_reason == TRUNCATED_STOP:
             # The partial turn does NOT enter history. Keeping it would leave
             # an unanswered tool_use and make the next request malformed.
+            entry.update(truncated=True, parse_status="incomplete",
+                         tool_calls=0, tool_names=[], usable=False)
             raise OutputTruncated(
                 f"the response reached its {reserved_output:,}-token output "
                 f"allowance, so the {purpose} is incomplete. A truncated "
@@ -569,7 +603,31 @@ class Analyst:
                 id=str(raw.get("id") or ""), name=str(raw.get("name") or ""),
                 arguments=dict(arguments)))
         self._pending = [c.id for c in turn.tool_calls]
+        # §13. What actually came back, per attempt: which tools it called,
+        # whether the arguments parsed, and whether it was cut off. The
+        # SCHEMA validation happens downstream and is recorded by the caller
+        # through `annotate`, so one row of the call report answers "what
+        # did this generation produce and what happened to it".
+        entry.update(
+            truncated=False,
+            tool_names=[c.name for c in turn.tool_calls],
+            tool_calls=len(turn.tool_calls),
+            parse_status=("tool_call" if turn.tool_calls
+                          else "no_tool_call"),
+            response_text_chars=len(turn.text or ""))
         return turn
+
+    def annotate(self, **fields: Any) -> None:
+        """Record what happened to the LAST generation, after it returned.
+
+        Schema validation, execution acceptance and the orchestration
+        transition all happen after `ask` has handed the turn back. Without
+        this the call report could say a tool call arrived and never say
+        whether it was usable, which is exactly the gap that made the live
+        second attempt impossible to classify from the trace alone.
+        """
+        if self._last_entry is not None:
+            self._last_entry.update(fields)
 
     def rollback_last_turn(self) -> None:
         """Drop an assistant turn that must not be replayed."""

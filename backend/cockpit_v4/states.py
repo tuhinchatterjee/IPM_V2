@@ -63,6 +63,18 @@ INPUT_CONTEXT_LIMIT = "INPUT_CONTEXT_LIMIT"
 OUTPUT_LIMIT = "OUTPUT_LIMIT"
 COST_LIMIT = "COST_LIMIT"
 CALL_LIMIT = "CALL_LIMIT"
+#: The run could not be given a usable ACTION, and the one re-ask for a
+#: complete one was already spent.
+#:
+#: This is not a call limit and reporting it as one was untrue in a way that
+#: cost a day: the live run that produced it had used 2 of 12 generations,
+#: 9 of 24 provider attempts, $0.34 of $1.50 and 56 of 120 seconds. Nothing
+#: was exhausted except the allowance for asking again after a response
+#: arrived incomplete -- which is a different fact, with a different fix,
+#: and it now has its own name.
+ACTION_FORMAT_EXHAUSTED = "ACTION_FORMAT_EXHAUSTED"
+#: The same, for the turn that writes the answer. The analysis is preserved.
+ANSWER_FORMAT_EXHAUSTED = "ANSWER_FORMAT_EXHAUSTED"
 EXECUTION_LIMIT = "EXECUTION_LIMIT"
 ROUND_LIMIT = "ROUND_LIMIT"
 NO_PROGRESS = "NO_PROGRESS"
@@ -94,6 +106,7 @@ WORKER_LOST = "WORKER_LOST"
 
 ERROR_CODES: tuple[str, ...] = (
     INPUT_CONTEXT_LIMIT, OUTPUT_LIMIT, COST_LIMIT, CALL_LIMIT,
+    ACTION_FORMAT_EXHAUSTED, ANSWER_FORMAT_EXHAUSTED,
     EXECUTION_LIMIT, ROUND_LIMIT, NO_PROGRESS, MODEL_CONFIGURATION_MISSING,
     PROVIDER_CREDENTIAL_MISSING, CAPABILITY_UNVERIFIED, PROVIDER_AUTH,
     PROVIDER_UNAVAILABLE, PROVIDER_RATE_LIMIT, PROVIDER_REQUEST_INVALID,
@@ -269,6 +282,7 @@ def to_dict() -> dict[str, Any]:
 
 __all__ = ["ACCEPTED", "ACTION_VALIDATING", "ALL_STATES", "ANSWER_BEARING",
            "ANSWER_VALIDATION", "CANCELLED", "CANCELLED_BY_USER",
+           "ACTION_FORMAT_EXHAUSTED", "ANSWER_FORMAT_EXHAUSTED",
            "CALL_LIMIT", "CAPABILITY_UNVERIFIED", "COMPLETED",
            "CONTEXT_READY", "COST_LIMIT", "DATA_UNAVAILABLE",
            "DEADLINE_EXPIRED", "ERROR_CODES", "EXECUTION_LIMIT", "EXPIRED",
