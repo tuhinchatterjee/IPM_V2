@@ -614,3 +614,58 @@ Two test-isolation defects were fixed along the way: two snapshot tests
 counted the whole `playbook_metric_snapshots` table, which worked only while
 nothing in the product ever wrote a snapshot. They are now scoped to their own
 artifact.
+
+---
+
+## The front end
+
+The dashboard's judgement lives in `frontend/src/lib/intelligence.ts` and is
+tested with `node --test`, not in the components. That is the repository's own
+convention and it matters more here than usual: which tabs a document gets,
+what counts as green, whether two readings may be compared, what a history
+entry says, and how a readiness component is explained are all decisions, and
+a decision buried in JSX is a decision nobody can test.
+
+The React is a thin rendering of that:
+
+| Piece | File |
+|---|---|
+| Tokens, chips, score bar, field labels | `components/playbook/status/chips.tsx` |
+| Compact panel beside the thread | `status/status-panel.tsx` |
+| Header, status cards, readiness panel | `status/header.tsx`, `status-cards.tsx`, `readiness-panel.tsx` |
+| The six tabs | `status/{pack,findings,decisions,since,sections,metrics,sources,history}-tab.tsx` |
+| Governance forms | `status/govern-dialog.tsx` |
+| Update review, uploaded updates | `status/update-review.tsx`, `uploaded-updates.tsx` |
+| Per-tab error boundary | `status/tab-boundary.tsx` |
+| Assembly | `app/playbook/[id]/status/page.tsx` |
+
+Four rules the components hold to, each of which had to be enforced rather
+than assumed:
+
+1. **No status is generated.** Every percentage, badge and RAG tone is derived
+   from governed rows by a pure function. There is no path by which a model's
+   sentence becomes a number on this page.
+2. **Completion and readiness are never added together.** They are different
+   questions — how much is written, and whether anything is outstanding — and
+   a document can be complete and unapprovable, or approvable and unfinished.
+3. **A tab that throws takes only itself down.** `TabBoundary` exists because
+   one bad history row unmounted the whole application during development. A
+   dashboard whose job is to report state cannot be the thing that disappears
+   when the state is surprising.
+4. **The compact panel is absent on an empty Playbook**, rather than present
+   and full of noughts. A zero readiness on a document nobody has written is
+   not information.
+
+### Verified
+
+* `scripts/acceptance/playbook_dashboard_acceptance.py` — **176 passed, 0
+  failed**, and **344 over two consecutive cycles**, which is what proves the
+  run restores what it changes.
+* `scripts/acceptance/playbook_browser_acceptance.py` — 105 passed, 0 failed:
+  the chat-first workspace is unchanged.
+* `scripts/playbook_soak.py` — 21 journeys × 10 cycles, 891 checks passed, 0
+  failed.
+* `scripts/acceptance/verify_playbook_artifacts.py` — 14 files, 62 checks, 0
+  failed.
+* `npm test` — 516 passed; `tsc --noEmit`, `eslint` and `next build` clean;
+  `ruff check .` clean.

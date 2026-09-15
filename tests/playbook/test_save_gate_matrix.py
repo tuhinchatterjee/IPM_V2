@@ -195,5 +195,10 @@ def test_the_evidence_section_records_a_real_run(rows):
     # Whitespace-tolerant because Markdown wraps the line; otherwise exact.
     assert re.search(r"\*\*\d+ passed,\s+\d+ skipped,\s+0\s+failed\*\*",
                      text), "the Evidence section must record real counts"
-    # A skip is never a pass. The document has to say so.
-    assert "a skip is never counted as a pass" in text
+    # A skip is never a pass. The document has to say so — and this has to be
+    # whitespace-tolerant for the same reason the count check above is: the
+    # sentence sits mid-paragraph and Markdown wraps it wherever the reflow
+    # falls, so a literal match fails on an edit that changed nothing.
+    assert re.search(r"a\s+skip\s+is\s+never\s+counted\s+as\s+a\s+pass",
+                     text), (
+        "the Evidence section must state that a skip is not a pass")

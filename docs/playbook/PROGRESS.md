@@ -528,6 +528,53 @@ model's first draft rather than of the saved report. Each fix carries a
 regression test written in the shape of the failure. The checks mean something
 because they failed first.
 
+## The Document Intelligence dashboard
+
+The backend computed the whole dashboard from rows and was tested, and no
+React rendered any of it. That gap is now closed: `/playbook/{id}/status`
+carries the header, the status cards, the readiness panel and six tabs, with
+the compact panel and KNOW THE STATUS beside the conversation.
+
+Three decisions taken while building it, recorded because each had a plausible
+alternative:
+
+1. **The chat bridge travels in the URL**, as `?context=kind:target`, not in
+   session storage. A link to "this finding, in the conversation" is then
+   shareable and survives a reload, and the server decides what the context
+   means rather than the client carrying a rendered sentence across a
+   navigation. The first implementation used session storage; it failed after
+   a client-side transition and, once instrumented, was the wrong shape rather
+   than a broken one.
+2. **The history feed is assembled from the trails that already exist** on
+   versions, sections, sources, parses, bindings, findings, decisions and
+   actions, rather than written to a table beside them. A second record of
+   what happened is a second thing that can disagree with what happened.
+3. **The demonstration fails loudly on a section it cannot find.** The seed
+   named sections by wording the document did not use, so metrics attached to
+   nothing and reviewers reviewed nothing — silently, because the code skipped
+   what it could not match. Section keys are now resolved from the document
+   that was actually written, and a mismatch raises.
+
+Defects found by running it, fixed at the cause rather than at the symptom:
+
+* `sect.transition` accepted `"claude"` and `"system"` as actors and only
+  refused an empty string — a governance hole that let a model mark a section
+  ready for review or approved. Routed through `require_person`.
+* `assign_reviewer` wrote no review row, so the Review card read 0 / 0 beside
+  sections that plainly named a reviewer.
+* The readiness payload had one shape on first open and another on every read
+  after it. One function now produces it in both paths.
+* An idempotency key was globally unique rather than per workspace, so the
+  same key minted in two workspaces reported the second send as a duplicate.
+* A 29%-complete document reported itself ready. Completion is now part of the
+  approval bar, and says the number when it is what is holding the document.
+* `playbook_decisions.status` was varchar(16) and `ready_for_decision` is 18
+  characters. Widened rather than shortening the vocabulary to fit the column.
+* A section history entry threw on `entry.act`, which is governance-only, and
+  took the whole application down with it. The type was wrong, the function
+  moved to `lib/` with tests, and every tab now sits behind an error boundary
+  so one bad row cannot unmount the page.
+
 ## What is genuinely not done
 
 Stated here rather than left to be discovered.

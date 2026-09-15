@@ -1,8 +1,8 @@
-# CreditProbe Playbook V3 — handoff
+# CreditProbe Playbook — Document Intelligence handoff
 
-Against §31's twenty items, in its order. Nothing below is asserted without
-the command that produced it; where something is not done, it says so rather
-than being omitted.
+Nothing below is asserted without the command that produced it. Where
+something is not done, it says so rather than being omitted, and a skipped
+check is never reported as a passing one.
 
 ---
 
@@ -75,22 +75,23 @@ is versioned separately.
 
 ## 7. Screenshots
 
-**Partial, and this is the one item that is not complete.**
+Twenty-two, in `docs/playbook/screenshots/`, every one captured by the
+acceptance run that asserted the state it shows — so an image is evidence of
+a checked condition rather than a separate exercise.
 
-Present, in `docs/playbook/screenshots/`: Playbook home (desktop and laptop),
-the thread (desktop and laptop), the analysis picker (desktop and laptop),
-streaming, and the change-set panel.
+The chat-first workspace: `home-desktop`, `home-laptop`, `thread-desktop`,
+`thread-laptop`, `picker-desktop`, `picker-laptop`, `streaming`, `change-set`.
 
-**Absent: Know the Status, Findings, Decisions & Actions, Since Last Time,
-section detail, sources and history.** Those seven are screenshots of the
-dashboard user interface, and the dashboard UI has not been built. Frontend
-assembly was held pending the reference screenshots you said you would
-reattach, and they have not arrived in this session. The complete state and
-API contract behind each of those screens exists, is tested, and is listed in
-item 19 below — what is missing is the React that renders it.
+Document Intelligence: `thread-with-status` (the compact panel and the KNOW
+THE STATUS action beside the conversation), `dashboard-overview`,
+`dashboard-pack`, `dashboard-findings`, `dashboard-decisions`,
+`dashboard-since-last-time`, `dashboard-sections`, `dashboard-metric-mapping`,
+`dashboard-sources`, `dashboard-history`, `dashboard-update-review`,
+`chat-with-context` (the dashboard handing a subject back to the composer),
+and `dashboard-narrow` at 430px.
 
-This is the gating item for a complete Gate 12. Everything else in §31 is
-answered below.
+`docs/playbook/dashboard_acceptance.json` records which check each image was
+taken beside.
 
 ## 8. Save-gate regression matrix
 
@@ -105,24 +106,46 @@ source and fails if one was deleted, renamed or quarantined with
 
 ## 9. Soak-test counts
 
-`scripts/playbook_soak.py` — **10 journeys × 10 cycles, 380 checks passed, 0
-failed**, run three times (twice consecutively to prove no leakage between
-runs). Evidence: `docs/playbook/soak_results.json`. No provider call: the
+`scripts/playbook_soak.py` — **21 journeys × 10 cycles, 891 checks passed, 0
+failed**. Evidence: `docs/playbook/soak_results.json`. No provider call: the
 provider is replaced for the whole run and made to raise if reached.
 
-Adversarial pass: `tests/playbook/test_adversarial.py`, **27 passed**, over
-§21's list.
+The point of the repetition is state drift, so the fingerprint each cycle is
+compared against excludes creation metadata (ids, timestamps, the DOCX ZIP
+entry times and reportlab's `/ID`) and nothing else. A run that ends with the
+data in a different shape than it started fails, whether or not any individual
+check did.
+
+Adversarial pass: `tests/playbook/test_adversarial.py`, over §35's list —
+governance acts attempted as `system` and as `claude`, a metric confirmed from
+label similarity alone, a frozen snapshot written twice, a comparison across a
+changed dimension, a re-read that tries to rewrite a document, a stale base
+version, an idempotency key reused across workspaces, and a demonstration spec
+naming a section that does not exist.
 
 ## 10. Browser acceptance counts
 
+Two suites, both in real Chromium against the reseeded demonstration, both
+exiting non-zero rather than reporting a pass if Chromium cannot launch.
+
 `scripts/acceptance/playbook_browser_acceptance.py` — **105 passed, 0
-failed**, in real Chromium against the reseeded demonstration. This is §23's
-non-regression list exercised for real: open, upload, attach, multi-select,
-create with no template, create from a previous report, coverage questions,
-sharpen one section, apply only selected changes, all four formats, version
-history, download an old version, continue a thread, stream, stop, retry,
-reopen after refresh, seeded threads. Evidence:
+failed**. This is the non-regression list exercised for real: open, upload,
+attach, multi-select, create with no template, create from a previous report,
+coverage questions, sharpen one section, apply only selected changes, all four
+formats, version history, download an old version, continue a thread, stream,
+stop, retry, reopen after refresh, seeded threads. Evidence:
 `docs/playbook/browser_acceptance.json`.
+
+`scripts/acceptance/playbook_dashboard_acceptance.py` — **176 passed, 0
+failed**, and **344 passed, 0 failed over two consecutive cycles**, which is
+what proves the run restores whatever it changed rather than leaving the
+demonstration a little more answered each time. It covers thread entry, draft
+survival across CHAT → STATUS → CHAT, the dashboard shell, Pack, Findings,
+answering a finding, Decisions & Actions, Since Last Time, metric mapping,
+confirming a suggestion, Sections, Sources, re-reading, History, update
+review, the context bridge, keyboard and focus, accessibility, an empty
+Playbook, a non-committee document, and all three viewports. Evidence:
+`docs/playbook/dashboard_acceptance.json`.
 
 ## 11. Backend test counts
 
@@ -183,44 +206,75 @@ call at seed time**:
 3. Behavioural Scorecard Validation Report
 
 Each has ≥12 messages, real input files parsed through the real ingestion,
-attached exported analyses, a five-item change proposal with partial
-approval, two genuinely different versions, real DOCX/PDF/PPTX outputs, and a
-natural continuation point. Plus 30 substantial exports — six each from
-Cockpit, Early Warning, Scorecard Validation, Lenses, and six What If
-carried through the deferred adapter contract and labelled as such.
+attached exported analyses, a five-item change proposal with partial approval,
+two genuinely different versions, real DOCX/PDF/PPTX outputs, and a natural
+continuation point. Plus 30 substantial exports — six each from Cockpit, Early
+Warning, Scorecard Validation, Lenses, and six What If carried through the
+deferred adapter contract and labelled as such.
 
 Every dashboard is populated on first open. The IFRS 9 workspace is the
 committee example: period and meeting date, previous pack, 4 governed metrics
-and 1 suggested, 4 Since Last Time rows, 4 findings including one blocking,
-2 decisions (one recorded, one outstanding), 2 actions (one in progress, one
-overdue), and a readiness panel reading *blocked* with three named blockers.
+and 1 left suggested so the review path is visible, 4 Since Last Time rows, 4
+findings across four different origins including one blocking, 2 decisions
+(one recorded, one outstanding), 2 actions (one in progress, one overdue), 42
+history events across all eight kinds, and a readiness panel reading *blocked*
+with three named blockers. The other two are non-committee documents, so they
+carry the alternate tab set and are never asked about meeting dates or
+committee decisions.
+
+Two properties of the demonstration are deliberate and are pinned by tests:
+
+* **It does not open at 100%.** A dashboard that opens complete demonstrates
+  nothing. Readiness is strictly between 0 and 100 on first open, with its
+  blockers named.
+* **It shows a refusal to compare.** Stage 2 exposure carries the same label
+  in both packs and moved from SAR 72.00m to SAR 113.00m, which by label
+  comparison is a 57% jump onto a committee agenda. It is not a jump: the
+  previous pack measured the corporate book and the current reading covers
+  corporate and SME together. Since Last Time refuses to subtract them and
+  names the dimension that moved. A demonstration in which every pair happens
+  to be comparable teaches the reader the opposite of the rule.
 
 ## 16. Known limitations
 
 Stated rather than discovered.
 
-1. **The dashboard UI does not exist.** The state and the API are complete and
-   tested; no React component renders them. This is item 7's gating problem
-   and the single largest remaining piece of work.
-2. **OCR is unavailable.** An image-only PDF is declared unreadable rather
+1. **OCR is unavailable.** An image-only PDF is declared unreadable rather
    than guessed at. Pages that matter but did not extract are sent as image
    blocks for vision; nothing claims to have read an image it did not inspect.
-3. **Grounding is exact-token by design.** There is no numeric tolerance
-   anywhere. A re-round (`8.95 → 8.9`) is an invention and is removed. The
-   one deliberate widening is that a spreadsheet cell admits exactly two
-   readings — as stored and as the workbook displays it — and no third.
-4. **`GET /playbooks` and `GET /playbooks/{id}`** (the pre-existing
+2. **Grounding is exact-token by design.** There is no numeric tolerance
+   anywhere. A re-round (`8.95 → 8.9`) is an invention and is removed. The one
+   deliberate widening is that a spreadsheet cell admits exactly two readings —
+   as stored and as the workbook displays it — and no third.
+3. **`GET /playbooks` and `GET /playbooks/{id}`** (the pre-existing
    *monitoring* Playbooks feature) have no permission dependency and so bypass
    `REQUIRE_LOGIN`. Reported rather than silently patched, because it is
    outside this branch's scope. The new module does not repeat it.
-5. **CI has never run on this repository.** GitHub Actions reports
+4. **The application shell marks a non-live navigation item with colour
+   alone.** `frontend/src/components/layout/sidebar.tsx:94` draws a 4px dot
+   beside every nav item whose status is not `live`, and the only word for it
+   is the link's `title` — a hover tooltip. It is `aria-hidden`, so a screen
+   reader is unaffected; a sighted user who cannot see the dot has no other
+   signal. This is on every route in the product and is not Playbook's to
+   change, so the §32 sweep is scoped to the dashboard's own region and the
+   finding is recorded rather than absorbed into that run's result.
+5. **The shell overflows at 430px; the dashboard does not.** The untouched
+   `/playbooks` page shows the same escape. Every element of the Document
+   Intelligence dashboard stays inside the viewport at all three tested
+   widths, with wide tables scrolling inside their own boxes.
+6. **CI has never run on this repository.** GitHub Actions reports
    `total_count: 0` before and after every push on this branch. CI is not a
-   source of verification here; every count above was produced locally by the
-   commands given.
-6. **Two renders of the same document are not byte-identical.** DOCX ZIP entry
+   source of verification here; every count in this document was produced
+   locally by the commands given.
+7. **Two renders of the same document are not byte-identical.** DOCX ZIP entry
    timestamps and reportlab's `/ID` and `/CreationDate` move. Content is
    identical, and the soak fingerprint excludes exactly those fields. Making
    them constant would have every file claim a fictional creation time.
+8. **The dashboard is read-mostly on a phone.** It is laid out and asserted at
+   1366×768, 1440×900 and 430×900; at the narrow width the readiness panel
+   stacks beneath the main column rather than sitting beside it, and dense
+   tables scroll horizontally. Nothing disappears, but the three-column
+   Sections view is not comfortable at that width.
 
 ## 17. What If integration status
 
@@ -263,14 +317,21 @@ npm --prefix frontend run build && npm --prefix frontend run start
 `http://127.0.0.1:3000/playbook`
 
 The three seeded threads are on the home screen under **Recent Playbooks**.
-The dashboard behind them has no UI yet (item 7), so until it does it is
-reachable only over the API:
+Open one and the compact Document Status panel sits beside the conversation,
+with **KNOW THE STATUS** leading to the full dashboard at
+`/playbook/{id}/status`. Back to chat returns with the composer draft,
+attachments, selected analyses and scroll position intact.
+
+The same state is readable over the API, which is how a governance act can be
+exercised without the UI:
 
 ```
 GET  /api/v1/playbook/workspaces/{id}/intelligence
 GET  /api/v1/playbook/workspaces/{id}/intelligence/metrics
 GET  /api/v1/playbook/workspaces/{id}/intelligence/since-last-time
 GET  /api/v1/playbook/workspaces/{id}/intelligence/sections/{key}
+GET  /api/v1/playbook/workspaces/{id}/intelligence/history
+GET  /api/v1/playbook/workspaces/{id}/intelligence/updates
 GET  /api/v1/playbook/workspaces/{id}/intelligence/context?kind=…&target=…
 GET  /api/v1/playbook/workspaces/{id}/intelligence/context-actions
 GET  /api/v1/playbook/workspaces/{id}/sources/parses
@@ -359,66 +420,96 @@ so and refuses, which is itself the correct behaviour to check.
     *Expect:* named gaps, no invented tests, and **no artifact written** — a
     coverage question is not a request to write a report.
 
-### E — the governed objects, over the API (5 min)
+### E — the Document Intelligence dashboard (10 min)
 
-Until the dashboard UI exists (item 7), these are checked with `curl`. Replace
-`{id}` with the IFRS 9 workspace id from `/api/v1/playbook/home`.
-
-21. `GET /api/v1/playbook/workspaces/{id}/intelligence`
-    *Expect:* `readiness.approval_status = "blocked"`, three named blockers,
-    4 findings with 1 blocking, 2 decisions, 2 actions with 1 overdue.
-22. `GET .../intelligence/since-last-time`
-    *Expect:* 4 rows. Coverage moves **+0.08pp** — percentage *points*, not
-    per cent. That distinction is the one to check.
-23. `POST .../intelligence/decisions/{did}/record` with
-    `{"outcome":"approve"}` and **no** `X-IPM-User-Id` header.
-    *Expect:* **422 `not_permitted`** — "is a person's decision and records
-    who made it. Nothing was changed." Repeat with the header: it records, and
-    names you.
-24. `GET .../sources/parses`
-    *Expect:* every source, its reader version, and whether it needs
-    re-reading.
-25. `POST .../sources/reread` → then `GET .../sources/parses` again.
-    *Expect:* a new parse revision, the old one kept and marked superseded,
-    and **no new document version** — re-reading a source never rewrites a
-    report.
+21. In the IFRS 9 thread, type half a sentence into the composer and **do not
+    send it**. Click **KNOW THE STATUS**.
+    *Expect:* the dashboard at `/playbook/{id}/status`. The header names the
+    document, its type, its reporting period and its meeting date.
+22. Read the status cards and the readiness panel.
+    *Expect:* completion and readiness shown as two separate numbers, never
+    combined into one score. Readiness reads **blocked**, strictly between 0
+    and 100, with three named blockers. Click a readiness component: it opens
+    and tells you what it is made of. You should be able to answer "why is
+    readiness what it is?" without asking Claude.
+23. Open **Since last time**.
+    *Expect:* four rows. Coverage moves **+0.08pp** — percentage *points*, not
+    per cent; that distinction is the one to check. Stage 2 exposure shows
+    **Not comparable**, both readings still visible (SAR 72.00m and SAR
+    113.00m), an empty change column, and a line naming the dimension that
+    disagrees: the previous pack measured the corporate book, the current
+    reading covers corporate and SME. Comparing those two by label would put
+    a 57% jump on a committee agenda.
+24. Open **Metric mapping**.
+    *Expect:* one metric shown as *suggested*, not confirmed, and counted
+    outside coverage. Confirming it is a click you make; nothing confirmed it
+    from the labels matching.
+25. Open **Findings** and answer one.
+    *Expect:* your name on the answer, the finding's state moving, and the
+    change appearing in **History**.
+26. Open **Decisions & actions** and try to record a committee decision
+    without identifying yourself (drop the `X-IPM-User-Id` header over the API,
+    or use the form which requires a name).
+    *Expect:* **422 `not_permitted`** — "is a person's decision and records who
+    made it. Nothing was changed." With a name it records, and names you.
+27. Open **Sources**, re-read one, then look at **History**.
+    *Expect:* a new parse revision, the old one kept and marked superseded, and
+    **no new document version** — re-reading a source never rewrites a report.
+28. From any row, use **Ask**.
+    *Expect:* you land back in the conversation with that subject handed over,
+    your half-sentence still in the composer, and your scroll position kept.
+    The hand-over survives a reload and can be dismissed.
 
 ### F — what should still be true at the end (3 min)
 
-26. Reopen everything you touched.
+29. Reopen everything you touched.
     *Expect:* the thread, the versions, the files and the dashboard state are
     all as you left them.
-27. Restart the API and the web server, then reopen.
+30. Restart the API and the web server, then reopen.
     *Expect:* identical. Nothing lived only in memory.
+31. Open a Playbook with no document in it.
+    *Expect:* an explanation, not a wall of noughts. No zero percentages, no
+    empty readiness dial, no invented meeting date.
 
 ---
 
-## Definition of done — §32, honestly
+## Definition of done
 
 | | |
 |---|---|
-| Current chat-first Playbook intact | ✅ 105/105 browser checks |
-| Every document has an intelligence/status dashboard | ✅ state and API; ❌ no UI |
-| "Know the Status" visible from existing Playbooks | ❌ needs the UI |
-| Completion / page / section / readiness real | ✅ computed from rows, explainable |
-| Section-by-section editing | ✅ |
-| Metrics governed and linked | ✅ never by label similarity |
-| Since Last Time compares correct snapshots | ✅ |
-| Uploaded data refreshes metrics after confirmation | ✅ |
-| Exported analyses update linked metrics cleanly | ✅ |
-| Findings governed | ✅ |
-| Committee reports have decisions and actions | ✅ |
-| Approval readiness deterministic | ✅ |
-| Source parser revisions governed | ✅ |
-| Old save-gate bugs stay fixed | ✅ 19/19 |
+| Chat-first Playbook intact | ✅ 105/105 browser checks, unchanged |
+| Every document has a status dashboard | ✅ state, API and UI |
+| KNOW THE STATUS reachable from an existing Playbook | ✅ beside the thread |
+| CHAT → STATUS → CHAT loses nothing | ✅ draft, attachments, selection, scroll |
+| Completion and readiness never combined | ✅ two numbers, asserted separately |
+| Readiness explainable without asking Claude | ✅ clickable components, named blockers |
+| Committee and non-committee tab sets differ | ✅ no meeting date on a generic document |
+| Section-by-section editing and review | ✅ three-column Sections view |
+| Metrics governed, never linked by label | ✅ `is_governed` is the single predicate |
+| Since Last Time compares the right snapshots | ✅ THEN frozen per version |
+| A mismatched dimension is refused, not subtracted | ✅ demonstrated, not just supported |
+| Uploaded data refreshes metrics after confirmation | ✅ never auto-applied |
+| Check for Updates never auto-rewrites | ✅ proposals only |
+| Findings governed, with their origins | ✅ four origins in the demonstration |
+| Committee reports carry decisions and actions | ✅ |
+| Approval readiness deterministic | ✅ no model-generated percentage anywhere |
+| Source parser revisions governed | ✅ re-read writes no document version |
+| Real document statistics | ✅ page count measured from the rendered file |
+| History is a real trail | ✅ 42 events, eight kinds, assembled from the rows |
+| Old save-gate bugs stay fixed | ✅ 29/29, node ids resolved against the source |
 | No regression to chat workflows | ✅ |
-| Demo immediately usable | ✅ |
-| Repeated testing reveals no state drift | ✅ 380/380, three runs |
-| Human UAT can begin without known critical defects | ✅ for everything except the dashboard UI |
+| Demonstration immediately usable | ✅ populated on first open, never at 100% |
+| No zero-state noise on an empty Playbook | ✅ explained, not counted |
+| Accessible: focus, Escape, labels, non-colour status | ✅ within the dashboard |
+| Responsive at 1366×768, 1440×900 and narrow | ✅ nothing escapes the viewport |
+| Repeated testing reveals no state drift | ✅ 891/891 soak; 344/344 over two cycles |
+| Artifacts parse back to what they claim | ✅ 14 files, 62 checks |
+| Human UAT can begin with no known critical defect | ✅ |
 
-**Not done: the Document Intelligence user interface.** It is blocked on the
-reference screenshots, not on anything technical. When they arrive, the master
-prompt and the screenshots should be read together before any component is
-written, and the information architecture must not be simplified — Pack,
-Findings, Decisions & Actions, Since Last Time, Documents/Sections, History,
-with the readiness panel on the right.
+**Not done, and deliberately so: no live-provider run was made in this phase.**
+Every behaviour above is deterministic and was proven with the scripted
+provider, the real renderers, the real parse-back readers and a real browser.
+The live suite is unchanged and is re-runnable one check at a time; it exits 2
+without a credential, so a run that did not happen can never read as a pass.
+
+**Not merged, not deployed, no pull request opened.**
