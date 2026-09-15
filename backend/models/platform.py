@@ -1114,9 +1114,45 @@ class WorkflowEvent(Base):
 
 class Comment(Base):
     """A comment attached to any object — a result, a trace node, a dataset, a
-    document paragraph."""
+    document paragraph.
+
+    Most of this table is four columns: what it is attached to, what it says,
+    who said it and whether it is resolved. That is all a comment on a chart
+    needs.
+
+    A comment on a VALIDATION RESULT needs more, and §15 of the retail demo
+    contract says what: whose statement it is, what the author concluded, how
+    severe THEY think it is, what it is attached to precisely enough that it
+    can never migrate to a later run, what evidence they attached, and what
+    the comment said before it was edited. Those live here rather than in a
+    second table, because a second comment table is a second audit trail and
+    a second place to look — see `backend/models/scorecard_validation`, which
+    names this table as the one comments belong in.
+
+    All of them are nullable with a default, so every existing caller — the
+    trace node, the dataset, the document paragraph — is untouched.
+    """
 
     __tablename__ = "comments"
+
+    #: Whose statement this is. §15: a system-calculated finding, an
+    #: analyst's commentary and an approver's decision must never read as the
+    #: same kind of sentence in a report.
+    COMMENT = "COMMENT"                  # an ordinary note on anything
+    ANALYST = "ANALYST"                  # a validator's own assessment
+    REVIEWER = "REVIEWER"                # a response to one
+    APPROVER = "APPROVER"                # a decision taken on one
+    KINDS: tuple[str, ...] = (COMMENT, ANALYST, REVIEWER, APPROVER)
+
+    #: What the author concluded about the result they are commenting on.
+    #: Never about what the result IS: an analyst may disagree with a
+    #: measured number and may not change it, and the two are different
+    #: fields precisely so that the disagreement is recorded beside the
+    #: number rather than instead of it.
+    ASSESSMENTS: tuple[str, ...] = (
+        "AGREED", "DISAGREED", "ACCEPTED_WITH_ACTION", "NEEDS_EVIDENCE",
+        "NOT_ASSESSED",
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     object_type: Mapped[str] = mapped_column(String(48), nullable=False)
@@ -1126,6 +1162,33 @@ class Comment(Base):
     resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    kind: Mapped[str] = mapped_column(
+        String(24), nullable=False, default=COMMENT, server_default="COMMENT")
+    assessment: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="", server_default="")
+    #: The AUTHOR's severity, which may differ from the engine's. It never
+    #: overwrites a measured one; a report prints both and says which is which.
+    severity: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="", server_default="")
+    #: What this comment was made against, exactly: model id and version, run
+    #: key, test id, category, period, data as-of and the calculation
+    #: versions. This is what stops a comment written about one run from
+    #: appearing under the next as though it had been made about it.
+    context: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}")
+    #: References, not bytes — the shape `workflow_messages` already uses.
+    #: `[{"kind": "report", "label": "...", "reference": "..."}]`
+    attachments: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]")
+    edited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: An edit writes a NEW row superseding the old one, and the old row
+    #: stays exactly as written. A comment is evidence, and a schema that
+    #: permits editing one in place is a schema in which "what did the
+    #: reviewer actually say?" has no answer.
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("comments.id", ondelete="SET NULL"), nullable=True)
 
     __table_args__ = (Index("ix_comments_object", "object_type", "object_id"),)
 

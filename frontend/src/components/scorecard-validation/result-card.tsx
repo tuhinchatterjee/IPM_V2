@@ -3,6 +3,10 @@
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  CommentThread,
+  type CommentBook,
+} from "@/components/scorecard-validation/comments";
 import { ValidationChart } from "@/components/scorecard-validation/validation-chart";
 import { count, humanise, technical } from "@/lib/format";
 import type { ScvResult, ScvState, ScvTest } from "@/lib/api";
@@ -288,10 +292,16 @@ function ResultTable({ result }: { result: ScvResult }) {
   );
 }
 
-export function ResultCard({ result, test, defaultOpen = false }: {
+export function ResultCard({ result, test, defaultOpen = false, comments }: {
   result: ScvResult;
   test?: ScvTest;
   defaultOpen?: boolean;
+  /**
+   * §15: every test-evidence card gets Add Comment. Passed in rather than
+   * fetched here — one request serves the page, and fifty cards each
+   * fetching their own thread is fifty requests for one screen.
+   */
+  comments?: CommentBook;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const hasDetail = Boolean(
@@ -380,6 +390,19 @@ export function ResultCard({ result, test, defaultOpen = false }: {
                   <li key={limitation}>— {limitation}</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {comments && (
+            <div className="space-y-2 border-t border-border pt-3">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                What a person said about this
+              </h4>
+              <CommentThread
+                book={comments}
+                target={{ target: "scv_result", testId: result.test_id }}
+                label={result.test_id}
+              />
             </div>
           )}
 

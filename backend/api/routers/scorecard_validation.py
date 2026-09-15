@@ -39,7 +39,7 @@ from fastapi import (
     Response,
     status,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.api.permissions import (
@@ -53,6 +53,9 @@ from backend.scorecard import domains
 from backend.scorecard import report as report_mod
 from backend.scorecard.validation import (
     compare as run_compare,
+)
+from backend.scorecard.validation import (
+    comments as comment_store,
 )
 from backend.scorecard.validation import (
     conversation as reader,
@@ -555,8 +558,17 @@ def periods(model_id: str,
     }
 
 
-def _report(model: model_registry.Model, principal: Principal):
-    """Run everything, then assemble. The report never recomputes."""
+def _report(model: model_registry.Model, principal: Principal,
+            session: Session | None = None):
+    """Run everything, then assemble. The report never recomputes.
+
+    This route runs the tests fresh rather than reading a stored run, so it
+    has no run key — and therefore carries NO comments. A comment is tied to
+    the run it was written about; pulling this model's comments in here
+    would print statements about one set of numbers beside another. The
+    route that reports a RECORDED run is the one that carries them, which is
+    also the route an analyst uses after commenting.
+    """
     results: list[states.Result] = []
     for category in test_registry.CATEGORIES:
         results.extend(runner.run_category(category, model))
@@ -821,7 +833,14 @@ def _from_run(session: Session, run_key: str, principal: Principal):
         generated_by=(getattr(principal, "username", "")
                       or "CreditProbe Scorecard Validation"),
         windows=(stored.matured_window, stored.latest_period),
-        run_key=stored.run_key)
+        run_key=stored.run_key,
+        # §15: an analyst must be able to comment on a finding, generate the
+        # report, open it in Word and find that exact comment. Only the
+        # comments actually made against THIS run — a comment written about
+        # an earlier one refers to that run's numbers and reproducing it here
+        # would attribute it to these.
+        comments=comment_store.for_run(session, stored.run_key,
+                                       model_id=stored.model_id))
     return stored, document
 
 
@@ -957,6 +976,189 @@ def finalise_report(report_key: str,
 
 
 __all__ = ["router"]
+
+
+# ===================== §15: what a person says about a result ==============
+
+
+#: Reading a comment needs no more than reading the run it is attached to —
+#: RUNS_ARE_NOT_PRIVATE applies to the commentary for the same reason it
+#: applies to the numbers. WRITING one requires the analyse permission,
+#: because a comment on a validation result is a governance statement
+#: attributed to a named person.
+COMMENTS_ARE_BESIDE_THE_NUMBERS = (
+    "A comment is recorded beside a result and never over it. An analyst may "
+    "disagree with a measured value, and may not change one or relabel a "
+    "check that did not run as one that passed: results are written once and "
+    "no route edits them. A comment's own severity is the author's, is "
+    "labelled as theirs, and is printed beside the measured state."
+)
+
+
+class CommentIn(BaseModel):
+    """One comment on one thing. §15."""
+
+    target: str = comment_store.RESULT
+    category: str = ""
+    test_id: str = ""
+    finding_id: str = ""
+    #: The run on screen. Recorded as what the comment was made against; a
+    #: comment with no run cannot be tied to a particular set of numbers and
+    #: says so.
+    run_key: str = ""
+    body: str = ""
+    kind: str = "ANALYST"
+    assessment: str = ""
+    severity: str = ""
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    parent_id: int | None = None
+
+
+class CommentEditIn(BaseModel):
+    body: str = ""
+    assessment: str | None = None
+    severity: str | None = None
+    attachments: list[dict[str, Any]] | None = None
+
+
+def _run_for(session: Session, run_key: str, model_id: str) -> Any:
+    """The stored run a comment is being made against, or nothing.
+
+    A run key belonging to another model is refused rather than ignored.
+    Recording a comment on the Credit Card scorecard against a Personal
+    Finance run would produce a context that contradicts the object key, and
+    the context is the only thing stopping the comment drifting onto a later
+    run.
+    """
+    if not run_key:
+        return None
+    try:
+        run = run_store.get(session, run_key)
+    except run_store.StoreError as e:
+        raise _not_found(e) from e
+    if run.model_id != model_id:
+        raise _refused(ValueError(
+            f"{run_key} is a run of {run.model_id}, not of {model_id}. A "
+            "comment cannot be attached to another model's run."))
+    return run
+
+
+@router.get("/models/{model_id}/comments", summary="Comments on a scorecard")
+def list_comments(model_id: str, run_key: str = Query(""),
+                  category: str = Query(""), test_id: str = Query(""),
+                  include_superseded: bool = Query(False),
+                  principal: Principal = RequireScorecardView,
+                  session: Session = Depends(_session)) -> dict[str, Any]:
+    """Every live comment on this scorecard, with the run each was made about.
+
+    `run_key` does not filter. It MARKS: each comment says whether it was
+    written about the run on screen. §15 forbids a comment silently
+    attaching itself to a later run, and hiding the earlier ones would be
+    the same mistake the other way round — a reader would never learn that
+    somebody had already looked at this test and said something.
+    """
+    made = _model(model_id)
+    got = comment_store.listing(
+        session, model_id=made.model_id, run_key=run_key, category=category,
+        test_id=test_id, include_superseded=include_superseded)
+    return {
+        "model_id": made.model_id,
+        "run_key": run_key,
+        "comments": got,
+        "summary": comment_store.summary(got),
+        "kinds": [{"kind": k, "meaning": v}
+                  for k, v in comment_store.KIND_MEANING.items()],
+        "assessments": [{"assessment": k, "meaning": v}
+                        for k, v in comment_store.ASSESSMENT_MEANING.items()],
+        "targets": [{"target": t, "meaning": comment_store.TARGET_MEANING[t]}
+                    for t in comment_store.TARGETS],
+        "comments_are_beside_the_numbers": COMMENTS_ARE_BESIDE_THE_NUMBERS,
+        "comments_version": comment_store.COMMENTS_VERSION,
+    }
+
+
+@router.post("/models/{model_id}/comments", status_code=201,
+             summary="Comment on a category, a result or a finding")
+def add_comment(model_id: str, payload: CommentIn,
+                principal: Principal = RequireScorecardAnalyse,
+                session: Session = Depends(_session)) -> dict[str, Any]:
+    made = _model(model_id)
+    run = _run_for(session, payload.run_key, made.model_id)
+    result = None
+    if run is not None and payload.test_id:
+        for row in run.results:
+            if row.test_id == payload.test_id:
+                result = row
+                break
+    try:
+        return comment_store.add(
+            session, target=payload.target, model=made, body=payload.body,
+            author_id=getattr(principal, "user_id", None),
+            author_name=(getattr(principal, "username", "") or ""),
+            kind=payload.kind, assessment=payload.assessment,
+            severity=payload.severity, category=payload.category,
+            test_id=payload.test_id, finding_id=payload.finding_id,
+            run=run, result=result, attachments=payload.attachments,
+            parent_id=payload.parent_id)
+    except comment_store.CommentRefused as e:
+        raise _refused(e) from e
+
+
+@router.patch("/comments/{comment_id}", summary="Edit a comment")
+def edit_comment(comment_id: int, payload: CommentEditIn,
+                 principal: Principal = RequireScorecardAnalyse,
+                 session: Session = Depends(_session)) -> dict[str, Any]:
+    """An edit writes a new comment superseding the old one.
+
+    The old row keeps its text, its author and its timestamp. A comment is
+    evidence, and a record that permits editing one in place is a record in
+    which "what did the reviewer actually say before they changed it?" has
+    no answer.
+    """
+    try:
+        return comment_store.edit(
+            session, comment_id, body=payload.body,
+            author_id=getattr(principal, "user_id", None),
+            assessment=payload.assessment, severity=payload.severity,
+            attachments=payload.attachments)
+    except comment_store.CommentRefused as e:
+        raise _refused(e) from e
+
+
+@router.get("/comments/{comment_id}/history", summary="What it said before")
+def comment_history(comment_id: int,
+                    principal: Principal = RequireScorecardView,
+                    session: Session = Depends(_session)) -> dict[str, Any]:
+    try:
+        chain = comment_store.history(session, comment_id)
+    except comment_store.CommentRefused as e:
+        raise _not_found(e) from e
+    return {"comment_id": comment_id, "versions": chain,
+            "edits": max(0, len(chain) - 1)}
+
+
+@router.post("/comments/{comment_id}/resolve", summary="Resolve or reopen")
+def resolve_comment(comment_id: int, resolved: bool = Query(True),
+                    principal: Principal = RequireScorecardAnalyse,
+                    session: Session = Depends(_session)) -> dict[str, Any]:
+    try:
+        return comment_store.resolve(session, comment_id, resolved=resolved)
+    except comment_store.CommentRefused as e:
+        raise _not_found(e) from e
+
+
+@router.get("/runs/{run_key}/comments", summary="Comments made on one run")
+def comments_on_run(run_key: str,
+                    principal: Principal = RequireScorecardView,
+                    session: Session = Depends(_session)) -> dict[str, Any]:
+    """What the report prints. Only comments actually made against this run."""
+    try:
+        run = run_store.get(session, run_key)
+    except run_store.StoreError as e:
+        raise _not_found(e) from e
+    got = comment_store.for_run(session, run_key, model_id=run.model_id)
+    return {"run_key": run_key, "model_id": run.model_id,
+            "comments": got, "summary": comment_store.summary(got)}
 
 
 # ======================= §14.2: runs that do not hold a request ============

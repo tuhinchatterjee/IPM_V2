@@ -30,7 +30,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt, RGBColor
+from docx.shared import Inches, Pt, RGBColor
 
 from backend.scorecard import report as report_mod
 
@@ -170,6 +170,38 @@ def _title_page(document, report: report_mod.Report) -> None:
     run.font.color.rgb = MUTED
 
 
+def _figure(document, figure) -> None:
+    """One chart, drawn at write time from the spec the section carries.
+
+    Rendered here rather than stored, so a report regenerated from its
+    persisted content draws the same picture from the same numbers instead
+    of replaying an image somebody's matplotlib produced two years ago.
+
+    A figure that cannot be drawn writes nothing at all — not a placeholder,
+    not an empty frame. Every figure in this document accompanies a table,
+    so the evidence is in the section either way, and a grey box captioned
+    "chart unavailable" is a thing a reader has to interpret.
+    """
+    from backend.scorecard.validation import report_charts
+
+    png = report_charts.render(figure.kind, figure.payload)
+    if not png:
+        return
+    document.add_picture(io.BytesIO(png), width=Inches(6.1))
+    document.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.LEFT
+    if figure.caption:
+        caption = document.add_paragraph()
+        run = caption.add_run(figure.caption)
+        run.italic = True
+        run.font.size = Pt(8)
+        run.font.color.rgb = MUTED
+    if figure.note:
+        note = document.add_paragraph()
+        run = note.add_run(figure.note)
+        run.font.size = Pt(7.5)
+        run.font.color.rgb = MUTED
+
+
 def write(report: report_mod.Report) -> bytes:
     """The report, as .docx bytes."""
     document = Document()
@@ -214,6 +246,8 @@ def write(report: report_mod.Report) -> bytes:
             run.font.color.rgb = INK
         if entry.narrative:
             document.add_paragraph(entry.narrative)
+        for figure in entry.figures:
+            _figure(document, figure)
         if entry.unavailable:
             # Never a zero. §7 and §50 both come down to this paragraph.
             paragraph = document.add_paragraph()

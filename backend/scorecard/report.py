@@ -154,6 +154,46 @@ class Table:
 
 
 @dataclass
+class Figure:
+    """One chart, stored as a SPEC rather than as an image.
+
+    §15 asks the validation report to carry actual charts rather than tables
+    of the numbers behind them. Two ways to do that, and only one of them
+    survives being stored: hold the rendered PNG, or hold what to draw.
+
+    The PNG loses. A stored report is a JSONB row that a signed document is
+    regenerated from years later, and base64 image bytes in it would bloat
+    the row, change whenever a font or a matplotlib version changes, and
+    make the content hash certify a picture rather than the analysis behind
+    it. The spec is the same payload the screen's chart reads, so the figure
+    in the document and the figure on the screen cannot diverge, and the
+    hash is over the numbers.
+
+    `kind` is the runner's own chart vocabulary. A kind the renderer does
+    not know draws nothing and the section's table carries the evidence,
+    which is why every figure here accompanies a table rather than
+    replacing one.
+    """
+
+    caption: str
+    kind: str
+    payload: dict[str, Any] = field(default_factory=dict)
+    note: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"caption": self.caption, "kind": self.kind,
+                "payload": dict(self.payload), "note": self.note}
+
+    @classmethod
+    def from_dict(cls, body: dict[str, Any]) -> Figure:
+        raw = body.get("payload")
+        return cls(caption=str(body.get("caption") or ""),
+                   kind=str(body.get("kind") or ""),
+                   payload=dict(raw) if isinstance(raw, dict) else {},
+                   note=str(body.get("note") or ""))
+
+
+@dataclass
 class Section:
     """One numbered section. `number` carries its depth: "8.2" is level 2."""
 
@@ -161,6 +201,7 @@ class Section:
     title: str
     narrative: str = ""
     tables: list[Table] = field(default_factory=list)
+    figures: list[Figure] = field(default_factory=list)
     #: Set when the section could not be computed. Rendered instead of
     #: figures, never alongside a zero.
     unavailable: str = ""
@@ -171,12 +212,14 @@ class Section:
 
     @property
     def has_content(self) -> bool:
-        return bool(self.narrative or self.tables or self.unavailable)
+        return bool(self.narrative or self.tables or self.figures
+                    or self.unavailable)
 
     def to_dict(self) -> dict[str, Any]:
         return {"number": self.number, "title": self.title,
                 "level": self.level, "narrative": self.narrative,
                 "tables": [t.to_dict() for t in self.tables],
+                "figures": [f.to_dict() for f in self.figures],
                 "unavailable": self.unavailable}
 
     @classmethod
@@ -189,6 +232,8 @@ class Section:
                    narrative=str(body.get("narrative") or ""),
                    tables=[Table.from_dict(t)
                            for t in body.get("tables") or []],
+                   figures=[Figure.from_dict(f)
+                            for f in body.get("figures") or []],
                    unavailable=str(body.get("unavailable") or ""))
 
 

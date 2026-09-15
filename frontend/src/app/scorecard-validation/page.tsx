@@ -5,6 +5,12 @@ import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Ask } from "@/components/scorecard-validation/ask";
+import {
+  CommentThread,
+  Conclusion,
+  NotesDrawer,
+  useComments,
+} from "@/components/scorecard-validation/comments";
 import { ResultCard, StateChip }
   from "@/components/scorecard-validation/result-card";
 import { Badge } from "@/components/ui/badge";
@@ -164,7 +170,10 @@ const SEVERITY_BADGE: Record<string,
  * a finding they have to take on trust, which is the opposite of what an
  * independent validation is for.
  */
-function FindingCard({ finding }: { finding: ScvFinding }) {
+function FindingCard({ finding, comments }: {
+  finding: ScvFinding;
+  comments?: ReturnType<typeof useComments>;
+}) {
   return (
     <div className={cn("rounded-lg border p-4",
                        SEVERITY_TONE[finding.severity] ?? "border-border")}>
@@ -211,6 +220,15 @@ function FindingCard({ finding }: { finding: ScvFinding }) {
           <Badge key={reference} variant="outline">{reference}</Badge>
         ))}
       </div>
+      {comments && (
+        <div className="mt-3">
+          <CommentThread
+            book={comments}
+            target={{ target: "scv_finding", findingId: finding.finding_id }}
+            label={finding.finding_id}
+          />
+        </div>
+      )}
       {finding.verify_by && (
         <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
           <span className="font-semibold uppercase tracking-wider">
@@ -334,6 +352,11 @@ export default function ScorecardValidationPage() {
    */
   const ticket = React.useRef(0);
   const [job, setJob] = React.useState<ScvJob | null>(null);
+
+  // §15. One fetch for the whole screen, keyed on the model and marked with
+  // the run on screen, so every card's thread is a filter over rows already
+  // here rather than a request of its own.
+  const comments = useComments(modelId, run?.run_key ?? "");
 
   async function runCategory(key: string) {
     if (!modelId) return;
@@ -630,7 +653,8 @@ export default function ScorecardValidationPage() {
           {burning.length > 0 ? (
             <div className="space-y-3">
               {burning.map((finding) => (
-                <FindingCard key={finding.finding_id} finding={finding} />
+                <FindingCard key={finding.finding_id} finding={finding}
+                             comments={comments} />
               ))}
             </div>
           ) : (
@@ -698,13 +722,20 @@ export default function ScorecardValidationPage() {
                 ))}
             </div>
           </div>
+          <CommentThread
+            book={comments}
+            target={{ target: "scv_category", category }}
+            label={categories.find((c) => c.key === category)?.title
+                   ?? category}
+          />
           {inCategory.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
                 What this category concludes
               </h3>
               {inCategory.map((finding) => (
-                <FindingCard key={finding.finding_id} finding={finding} />
+                <FindingCard key={finding.finding_id} finding={finding}
+                             comments={comments} />
               ))}
             </div>
           )}
@@ -714,6 +745,7 @@ export default function ScorecardValidationPage() {
                 key={`${result.test_id}-${result.segment}`}
                 result={result}
                 test={tests[result.test_id]}
+                comments={comments}
               />
             ))}
           </div>
@@ -731,6 +763,11 @@ export default function ScorecardValidationPage() {
           </p>
         </Card>
       )}
+
+      {/* --------------------------------- §15: the notes and the opinion */}
+      <NotesDrawer book={comments}
+                   findings={(run?.findings ?? []).length} />
+      <Conclusion book={comments} />
 
       <p className="border-t border-border pt-4 text-[11px] leading-relaxed text-text-muted">
         {REPORT_IS_A_DRAFT}

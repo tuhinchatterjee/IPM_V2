@@ -132,6 +132,72 @@ def main() -> int:
               if "Stopped after" in body else "no stop message")
         page.screenshot(path=f"{OUT}/04-stopped.png", full_page=True)
 
+        print("\n5. §15: commenting on a result, and what survives")
+        page.reload(wait_until="commit")
+        page.wait_for_selector("text=Scorecard Validation", timeout=300_000)
+        page.wait_for_timeout(3000)
+        page.locator("button:has-text('Calibration')").first.click()
+        # Wait for the run to finish so there are results to comment on.
+        for _ in range(90):
+            page.wait_for_timeout(1000)
+            if page.locator('[data-testid="scv-stop"]').count() == 0:
+                break
+        page.wait_for_timeout(1500)
+        cards = page.locator("button:has-text('Evidence')")
+        check("the results workspace offers evidence to comment on",
+              cards.count() > 0, f"{cards.count()} cards")
+        if cards.count():
+            cards.first.click()
+            page.wait_for_timeout(700)
+            add = page.locator('[data-testid="scv-add-comment"]')
+            check("every piece of evidence offers Add Comment",
+                  add.count() > 0, f"{add.count()} controls")
+            add.first.click()
+            page.wait_for_timeout(400)
+            said = f"UAT-{int(time.time())}"
+            page.locator('[data-testid="scv-comment-body"]').first.fill(
+                f"{said}: the level gap predates this book; recalibration "
+                "should be dated rather than treated as drift.")
+            page.locator(
+                '[data-testid="scv-comment-assessment"]').first.select_option(
+                    "DISAGREED")
+            # A severity of the author's own, which §15 requires to be
+            # rendered as theirs rather than as the engine's verdict.
+            page.locator("select").nth(2).select_option("CRITICAL")
+            page.locator('[data-testid="scv-comment-save"]').first.click()
+            page.wait_for_timeout(2500)
+            # Lowercased before matching: the assessment chip is uppercased
+            # by CSS, and `inner_text` returns what is RENDERED, so a
+            # case-sensitive check compares the DOM's "Disagreed" against
+            # the screen's "DISAGREED" and reports a defect that is not one.
+            body = page.inner_text("body").lower()
+            check("the comment is on screen with its assessment",
+                  said.lower() in body and "disagreed" in body,
+                  "saved" if said.lower() in body else "not shown")
+            check("the author's severity is labelled as theirs, not the "
+                  "engine's",
+                  "author\u2019s severity critical" in body
+                  or "author's severity critical" in body,
+                  "labelled" if "severity critical" in body else "unlabelled")
+
+            # §15: survives a refresh.
+            page.reload(wait_until="commit")
+            page.wait_for_selector("text=Scorecard Validation",
+                                   timeout=300_000)
+            page.wait_for_timeout(4000)
+            drawer = page.locator('[data-testid="scv-notes-drawer"]')
+            check("the findings and notes drawer is present",
+                  drawer.count() > 0)
+            if drawer.count():
+                drawer.first.click()
+                page.wait_for_timeout(1200)
+            after = page.inner_text("body")
+            check("the comment survives a refresh", said in after,
+                  "still there" if said in after else "gone after reload")
+            check("an overall validation conclusion is offered",
+                  page.locator('[data-testid="scv-conclusion"]').count() > 0)
+        page.screenshot(path=f"{OUT}/05-comments.png", full_page=True)
+
         print("\npage errors:", errors[:4])
         browser.close()
 

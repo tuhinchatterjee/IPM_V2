@@ -9856,6 +9856,53 @@ export const api = {
         `/scorecard-validation/jobs/${encodeURIComponent(jobId)}/cancel`,
         { method: "POST", body: "{}", timeoutMs: LAKE_TIMEOUT_MS }),
 
+    // --------------------------------------------------- §15: the commentary
+
+    comments: (modelId: string, options: {
+      runKey?: string; category?: string; testId?: string;
+    } = {}) => {
+      const query = new URLSearchParams();
+      if (options.runKey) query.set("run_key", options.runKey);
+      if (options.category) query.set("category", options.category);
+      if (options.testId) query.set("test_id", options.testId);
+      const suffix = query.toString() ? `?${query}` : "";
+      return request<ScvComments>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}`
+        + `/comments${suffix}`);
+    },
+
+    addComment: (modelId: string, body: {
+      target: string; category?: string; test_id?: string;
+      finding_id?: string; run_key?: string; body: string; kind?: string;
+      assessment?: string; severity?: string;
+      attachments?: { kind?: string; label?: string; reference?: string }[];
+      parent_id?: number | null;
+    }) =>
+      request<ScvComment>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}/comments`,
+        { method: "POST", body: JSON.stringify(body) }),
+
+    editComment: (commentId: number, body: {
+      body: string; assessment?: string | null; severity?: string | null;
+    }) =>
+      request<ScvComment>(
+        `/scorecard-validation/comments/${commentId}`,
+        { method: "PATCH", body: JSON.stringify(body) }),
+
+    commentHistory: (commentId: number) =>
+      request<{ comment_id: number; versions: ScvComment[]; edits: number }>(
+        `/scorecard-validation/comments/${commentId}/history`),
+
+    resolveComment: (commentId: number, resolved = true) =>
+      request<ScvComment>(
+        `/scorecard-validation/comments/${commentId}/resolve`
+        + `?resolved=${resolved}`, { method: "POST", body: "{}" }),
+
+    commentsOnRun: (runKey: string) =>
+      request<{ run_key: string; model_id: string; comments: ScvComment[];
+                summary: ScvCommentSummary }>(
+        `/scorecard-validation/runs/${encodeURIComponent(runKey)}/comments`),
+
     /**
      * Which months exist, and which of them have a realised outcome.
      *
@@ -13454,6 +13501,70 @@ export type ScvCategory = {
  * assertion they have to take on trust, and a validation report is the last
  * place that belongs.
  */
+/**
+ * One comment on a validation category, result, finding or conclusion. §15.
+ *
+ * `context` is the half that matters. A comment keyed only on the model
+ * silently becomes a comment about whatever run is on screen next; one keyed
+ * on the run disappears the moment anybody re-runs. It is keyed on the model
+ * AND carries the run it was written about, and `made_against_this_run` says
+ * which of the two a reader is looking at.
+ *
+ * `severity` is the AUTHOR's, never the engine's. It sits beside the measured
+ * state and does not replace it — an analyst may disagree with a number and
+ * may not change one.
+ */
+export type ScvComment = {
+  comments_version: string;
+  id: number;
+  target: "scv_category" | "scv_result" | "scv_finding" | "scv_conclusion";
+  target_meaning: string;
+  object_id: string;
+  parent_id: number | null;
+  body: string;
+  kind: "COMMENT" | "ANALYST" | "REVIEWER" | "APPROVER";
+  kind_meaning: string;
+  assessment: string;
+  assessment_meaning: string;
+  severity: string;
+  severity_is_the_authors: boolean;
+  resolved: boolean;
+  author_id: number | null;
+  author: string;
+  created_at: string;
+  edited_at: string;
+  superseded: boolean;
+  supersedes_id: number | null;
+  attachments: { kind?: string; label?: string; reference?: string }[];
+  context: Record<string, unknown>;
+  run_key: string;
+  made_against_this_run?: boolean;
+  run_note?: string;
+  assessments_available: string[];
+};
+
+export type ScvCommentSummary = {
+  comments: number;
+  open: number;
+  resolved: number;
+  by_kind: Record<string, number>;
+  disagreements: number;
+  from_another_run: number;
+  separation: string;
+};
+
+export type ScvComments = {
+  model_id: string;
+  run_key: string;
+  comments: ScvComment[];
+  summary: ScvCommentSummary;
+  kinds: { kind: string; meaning: string }[];
+  assessments: { assessment: string; meaning: string }[];
+  targets: { target: string; meaning: string }[];
+  comments_are_beside_the_numbers: string;
+  comments_version: string;
+};
+
 export type ScvFinding = {
   finding_id: string;
   title: string;
