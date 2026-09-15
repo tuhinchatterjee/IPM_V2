@@ -99,6 +99,27 @@ function Caption({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * The sentence under a chart, written by whoever knows what it shows.
+ *
+ * Most payloads use the renderer's own caption, because the renderer draws
+ * one thing. The ones that do not are the shared shapes: a waterfall of row
+ * counts and a waterfall of default rates are the same picture and are not
+ * the same statement, and a caption about "rows surviving each filter"
+ * printed under a rate decomposition is worse than no caption.
+ */
+function Said({ chart, children }: {
+  chart: ScvChart; children: React.ReactNode;
+}) {
+  const said = typeof chart.caption === "string" ? chart.caption : "";
+  return <Caption>{said || children}</Caption>;
+}
+
+function text(chart: ScvChart, key: string, fallback: string): string {
+  const value = chart[key];
+  return typeof value === "string" && value ? value : fallback;
+}
+
 function Panel({ title, children }: {
   title: string; children: React.ReactNode;
 }) {
@@ -118,19 +139,21 @@ function Panel({ title, children }: {
 function Waterfall({ chart }: { chart: ScvChart }) {
   const steps = rows(chart, "steps");
   if (!steps.length) return null;
+  const key = text(chart, "value_key", "rows");
+  const label = text(chart, "value_label", "Rows surviving");
   return (
     <>
       <CategoryBarChart
-        data={plot(steps, ["step", "rows", "removed"])}
+        data={plot(steps, ["step", key, "removed", "moved_by"])}
         xKey="step"
-        series={series(["rows", "Rows surviving"])}
+        series={series([key, label])}
         height={Math.max(160, steps.length * 40)}
       />
-      <Caption>
+      <Said chart={chart}>
         Each bar is what remains after the filter named beside it. A step that
         removes most of the population is the one to read first — it is where
         the model is being judged on a different book from the one it decides.
-      </Caption>
+      </Said>
     </>
   );
 }
@@ -175,7 +198,113 @@ function Distribution({ chart }: { chart: ScvChart }) {
   const draws = Array.isArray(chart.draws) ? chart.draws as number[] : [];
   if (draws.length) return <Histogram draws={draws} chart={chart} />;
 
+  // Development against current, level by level. §14.3 asks for overlapping
+  // distributions rather than two indices, because "CSI 0.186" says a
+  // characteristic moved and this says WHERE it moved to — which is the half
+  // a modelling team needs to decide whether the bins still cut the risk.
+  const levels = rows(chart, "levels");
+  if (levels.length) return <Overlap levels={levels} chart={chart} />;
+
+  // A single banded distribution: the development score shape.
+  const bands = rows(chart, "bands");
+  if (bands.length) {
+    const label = text(chart, "label_key", "band");
+    const value = text(chart, "value_key", "share");
+    return (
+      <>
+        <CategoryBarChart
+          data={plot(bands, [label, value, "accounts"])}
+          xKey={label}
+          series={series([value, "Share of the population"])}
+          horizontal={false}
+          height={200}
+        />
+        <Said chart={chart}>
+          The shape of the population across the banded value.
+        </Said>
+      </>
+    );
+  }
+
   return null;
+}
+
+/**
+ * Two distributions of the same characteristic, side by side per level.
+ *
+ * Grouped rather than stacked: the question is whether a level grew or
+ * shrank, and a stack makes two shares that both moved look like one bar
+ * that did not.
+ */
+function Overlap({ levels, chart }: { levels: Row[]; chart: ScvChart }) {
+  const variables = React.useMemo(() => {
+    const seen: string[] = [];
+    for (const row of levels) {
+      const name = String(row.variable ?? "");
+      if (name && !seen.includes(name)) seen.push(name);
+    }
+    return seen;
+  }, [levels]);
+  const [chosen, setChosen] = React.useState("");
+  // Which one moved most, so the drawer opens on the interesting one rather
+  // than on whichever the engine happened to emit first.
+  const busiest = React.useMemo(() => {
+    let best = variables[0] ?? "";
+    let most = -1;
+    for (const name of variables) {
+      const moved = levels
+        .filter((row) => String(row.variable ?? "") === name)
+        .reduce((sum, row) => sum + Math.abs(num(row.change) ?? 0), 0);
+      if (moved > most) { most = moved; best = name; }
+    }
+    return best;
+  }, [levels, variables]);
+  const showing = chosen || busiest;
+  const shown = levels.filter(
+    (row) => !showing || String(row.variable ?? "") === showing);
+  if (!shown.length) return null;
+  const unseen = shown.filter((row) => row.unseen_at_development === true);
+
+  return (
+    <>
+      {variables.length > 1 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {variables.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setChosen(name)}
+              className={cn(
+                "rounded border px-2 py-0.5 font-mono text-[10px] transition-colors",
+                name === showing
+                  ? "border-border-strong bg-surface-hover text-text"
+                  : "border-border text-text-muted hover:text-text")}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      <CategoryBarChart
+        data={plot(every(shown, 14),
+                   ["level", "development_share", "current_share"])}
+        xKey="level"
+        series={series(["development_share", "At development"],
+                       ["current_share", "Now"])}
+        horizontal={false}
+        height={220}
+      />
+      <Said chart={chart}>
+        {showing ? `${showing}: ` : ""}the development distribution against the
+        current one, level by level. A level that has grown is a level the
+        model is now applied to more often than it was fitted for
+        {unseen.length > 0
+          ? `, and ${unseen.length} level(s) here carry no development evidence at all`
+          : ""}
+        .
+      </Said>
+    </>
+  );
 }
 
 /** The bootstrap draws, binned. The spread is the point. */
@@ -230,7 +359,8 @@ function Heatmap({ chart }: { chart: ScvChart }) {
   for (const cell of cells) {
     const variable = String(cell.variable ?? "");
     const period = String(cell.period ?? "");
-    const rate = num(cell.missing_rate) ?? num(cell.coverage) ?? 0;
+    const rate = num(cell.missing_rate) ?? num(cell.coverage)
+      ?? num(cell.value) ?? 0;
     if (!variables.includes(variable)) variables.push(variable);
     if (!periods.includes(period)) periods.push(period);
     grid[`${variable}|${period}`] = rate * 100;
@@ -247,12 +377,12 @@ function Heatmap({ chart }: { chart: ScvChart }) {
         cells={grid}
         diagonalHint={false}
       />
-      <Caption>
+      <Said chart={chart}>
         Percentage missing, by characteristic and month. A row that darkens
         part-way across is a feed that changed; a column that darkens is a
         month that arrived incomplete. The two have different fixes, which is
         why this is a grid rather than an average.
-      </Caption>
+      </Said>
     </>
   );
 }
@@ -319,21 +449,36 @@ function Curves({ chart, kind }: { chart: ScvChart; kind: string }) {
 function BandRate({ chart }: { chart: ScvChart }) {
   const bands = rows(chart, "bands");
   if (!bands.length) return null;
+  const label = text(chart, "label_key", "band");
+  // Some payloads carry a predicted PD beside the observed rate, and the
+  // comparison IS the chart — drawing only the observed half of a
+  // calibration picture leaves the reader to remember the other half.
+  const predicted = bands.some((row) => num(row.mean_predicted_pd) !== null)
+    ? "mean_predicted_pd"
+    : bands.some((row) => num(row.average_predicted_pd) !== null)
+      ? "average_predicted_pd" : "";
+  const observed = bands.some((row) => num(row.observed_rate) !== null)
+    ? "observed_rate" : "observed_default_rate";
   return (
     <>
       <CategoryBarChart
-        data={plot(bands, ["band", "observed_rate", "observations", "events"])}
-        xKey="band"
-        series={series(["observed_rate", "Observed default rate"])}
+        data={plot(bands, [label, observed, predicted, "observations",
+                           "events"].filter(Boolean))}
+        xKey={label}
+        series={series(
+          ...([[observed, "Observed default rate"]] as [string, string][]),
+          ...(predicted
+            ? ([[predicted, "Mean predicted PD"]] as [string, string][])
+            : []))}
         horizontal={false}
         height={220}
       />
-      <Caption>
+      <Said chart={chart}>
         The realised default rate in each score band. What matters is the
         ORDER: a band that defaults more than the band below it is a rank
         inversion, and a scorecard that inverts is being used to decline the
         wrong applications.
-      </Caption>
+      </Said>
     </>
   );
 }

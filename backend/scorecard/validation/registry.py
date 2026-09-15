@@ -316,6 +316,63 @@ TESTS: tuple[Test, ...] = (
        "Which periods and segments have enough data to be assessed.",
        "Observation and event counts by period and by segment.",
        charts=(CHART_HEATMAP,), cbuae=("MMS 10.4",)),
+    _t("DATA-PROVENANCE", "Development data provenance", DATA_QUALITY,
+       "What the model was actually fitted on: when, how much, how many "
+       "defaults, under which eligibility rules and exclusions.",
+       "The development window read from the model registry, measured over "
+       "the reference population: months, rows, unique subjects, the filter "
+       "waterfall, the outcome definition and horizon, the product, channel "
+       "and classification mix, and the development score distribution.",
+       requires=(NEEDS_REFERENCE,), comparative=True, segmentable=False,
+       charts=(CHART_DISTRIBUTION,),
+       limitations=("This describes the development sample as it is held "
+                    "today. Where the development extract itself was not "
+                    "retained, this is the window recomputed from the "
+                    "governed book, which is not the same object as the "
+                    "file the model was fitted on.",),
+       cbuae=("MMS 10.3", "MMS 10.4", "MMG 2.8")),
+    _t("DATA-INPUT-DRIFT", "Development versus current, every model input",
+       DATA_QUALITY,
+       "Whether each characteristic the model reads still has the "
+       "distribution it was fitted on.",
+       "Per input: CSI over the approved bins, development and current "
+       "share per bin, missingness on both sides, bins unseen at "
+       "development, and the share of current raw values outside the "
+       "development range.",
+       requires=(NEEDS_REFERENCE,), comparative=True, segmentable=False,
+       charts=(CHART_HEATMAP, CHART_DISTRIBUTION),
+       limitations=("A characteristic can drift without the model "
+                    "deteriorating, and can deteriorate without drifting. "
+                    "This measures the input, not the outcome.",),
+       cbuae=("MMS 10.4", "MMG 2.11")),
+    _t("DATA-ODR", "Development, monitoring and current event rates",
+       DATA_QUALITY,
+       "How the realised default rate and the predicted PD compare between "
+       "the development sample, the latest closed monitoring cohort and the "
+       "book as it stands.",
+       "Observed default rate and mean predicted PD over the development "
+       "window and over the latest matured cohort, both on the model's "
+       "own horizon; and for the current month, mean predicted PD and the "
+       "point-in-time delinquency stock, labelled as a different horizon "
+       "and never compared against the two ODRs.",
+       requires=(NEEDS_REFERENCE, NEEDS_OUTCOME, NEEDS_PD), comparative=True,
+       segmentable=False, charts=(CHART_BAND_RATE,),
+       limitations=("The current month has no realised outcome. Its row is "
+                    "a stock measure at a point in time and is not an "
+                    "annual default rate.",),
+       cbuae=("MMS 10.4", "MMG 3.9")),
+    _t("DATA-MIXADJ", "Matched and mix-adjusted event rates", DATA_QUALITY,
+       "How much of the change in the default rate is the book changing "
+       "shape, and how much is the same customers behaving differently.",
+       "Direct standardisation. Strata with support on both sides are "
+       "compared crude (matched) and again with the development mix held "
+       "fixed; the difference between the two is the composition effect.",
+       requires=(NEEDS_REFERENCE, NEEDS_OUTCOME), comparative=True,
+       segmentable=False, charts=(CHART_WATERFALL,),
+       limitations=("Standardisation removes the effect of the strata it "
+                    "is computed over and nothing else. A driver that does "
+                    "not vary across these strata is invisible to it.",),
+       cbuae=("MMS 10.4", "MMG 2.11")),
 
     # ------------------------------------------------------ conceptual soundness
     _t("CONC-PURPOSE", "Intended use and portfolio scope", CONCEPTUAL,
@@ -374,15 +431,22 @@ TESTS: tuple[Test, ...] = (
        charts=(CHART_KS,), cbuae=("MMS 10.4", "MMG 2.11")),
     _t("DISC-RANK", "Rank ordering by score band", DISCRIMINATION,
        "Whether the observed default rate falls monotonically as the score "
-       "rises.",
-       "Observed default rate by score band, with counts and confidence "
-       "intervals.",
+       "moves in the safer direction, and where it does not.",
+       "Equal-width bands over fixed cut points taken from the development "
+       "population, with open tails. Per band: the bounds, accounts, "
+       "distinct customers, defaults, observed rate with a 95% Wilson "
+       "interval, mean predicted PD and the largest tie group. Adjacent "
+       "inversions are reported with their size, support, whether the two "
+       "intervals separate, which segment concentrates in the inverting "
+       "band, and how many cohorts show the same pair inverting.",
        requires=(NEEDS_OUTCOME, NEEDS_SCORE),
        aliases=("rank ordering", "monotonicity", "bad rate by band"),
        minimum_observations=MIN_OBS, minimum_events=MIN_EVENTS,
        charts=(CHART_BAND_RATE,),
        limitations=("A monotonic portfolio can contain a segment that is "
-                    "not. Run it by segment before concluding.",),
+                    "not. Run it by segment before concluding.",
+                    "An inversion and a weak KS accompany each other here; "
+                    "neither is evidence that one caused the other.",),
        cbuae=("MMS 10.4", "MMG 2.11")),
     _t("DISC-LIFT", "Lift and cumulative gains", DISCRIMINATION,
        "How much of the bad book the model finds in the worst deciles.",
@@ -390,6 +454,19 @@ TESTS: tuple[Test, ...] = (
        requires=(NEEDS_OUTCOME, NEEDS_SCORE), aliases=("lift", "gains"),
        minimum_observations=MIN_OBS, minimum_events=MIN_EVENTS,
        charts=(CHART_LIFT, CHART_GAINS), cbuae=("MMS 10.4",)),
+    _t("DISC-RANK-PEER", "Rank ordering against the sibling scorecards",
+       DISCRIMINATION,
+       "Whether a rank inversion is a finding about this portfolio or about "
+       "the design every product shares.",
+       "The same banding and the same adjacent-inversion test, run on every "
+       "registered scorecard of the same type and domain, each on its own "
+       "development-anchored bands.",
+       requires=(NEEDS_OUTCOME, NEEDS_SCORE), segmentable=False,
+       charts=(CHART_RANKING,),
+       limitations=("Different portfolios are different books. A sibling "
+                    "that ranks cleanly is evidence that the design can, "
+                    "not evidence about what this portfolio should do.",),
+       cbuae=("MMS 10.4",)),
     _t("DISC-TREND", "Discrimination through time", DISCRIMINATION,
        "Whether the model's separation is holding up.",
        "AUC and KS per matured cohort, with the sample and event count "
@@ -651,6 +728,50 @@ def get(test_id: str) -> Test:
         raise KeyError(
             f"{test_id!r} is not a registered validation test. "
             f"{len(TESTS)} are defined.") from None
+
+
+def _slug(text: str) -> str:
+    """A category name reduced to letters, digits and underscores."""
+    import re as _re
+
+    return _re.sub(r"_+", "_", _re.sub(r"[^a-z0-9]+", "_",
+                                       str(text).lower())).strip("_")
+
+
+def resolve_category(wanted: str) -> str:
+    """The canonical category id, from an id or from the card's own title.
+
+    Eight of the eleven cards carry a title whose slug is not its key —
+    "Data & Representativeness" against `data_quality`, "Champion vs
+    Challenger" against `champion_challenger` — so a caller addressing a
+    category by the name on the screen got a 404 for a category that exists
+    and is right there. The stable ID is still the key, and every result
+    carries it; this only widens what may be typed to reach it.
+
+    Returns "" when nothing matches, so the caller can say which names work.
+    """
+    asked = _slug(wanted)
+    if not asked:
+        return ""
+    for key in CATEGORIES:
+        if asked == _slug(key):
+            return key
+    for definition in CATEGORY_DEFINITIONS:
+        if asked == _slug(definition.title):
+            return definition.key
+    # A prefix, so "data" and "champion" reach their categories. Only when it
+    # is unambiguous: a guess between two categories is worse than a 404.
+    hits = [key for key in CATEGORIES if _slug(key).startswith(asked)]
+    hits += [d.key for d in CATEGORY_DEFINITIONS
+             if _slug(d.title).startswith(asked) and d.key not in hits]
+    return hits[0] if len(hits) == 1 else ""
+
+
+def category_names() -> list[dict[str, str]]:
+    """Every category, with the key and the title that both resolve to it."""
+    return [{"key": one.key, "title": one.title,
+             "also_accepts": _slug(one.title)}
+            for one in CATEGORY_DEFINITIONS]
 
 
 def in_category(category: str) -> tuple[Test, ...]:

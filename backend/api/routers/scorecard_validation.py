@@ -1,7 +1,7 @@
 """The Scorecard Validation Intelligence cockpit, over HTTP.
 
-Three scorecards, forty-eight tests, and one rule that shapes every route
-here: a response never contains a number the engine did not measure. A test
+The registered scorecards, the registered tests, and one rule that shapes
+every route here: a response never contains a number the engine did not measure. A test
 that could not run comes back with its state, its explanation and no value,
 and the client renders the explanation. There is no field a chart can read
 that says 0.0 because a cohort has not matured.
@@ -39,6 +39,7 @@ from fastapi import (
     Response,
     status,
 )
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.api.permissions import (
@@ -227,7 +228,7 @@ def _periods(period: str) -> tuple[str, ...]:
 
 @router.get("/overview")
 def overview(principal: Principal = RequireScorecardView) -> dict[str, Any]:
-    """The three scorecards, the test registry, and what each can support.
+    """Every registered scorecard, the test registry, and what each supports.
 
     Deliberately does not run anything. This is the route a page load calls,
     and a page that computed forty-eight tests to render a heading would be
@@ -285,12 +286,10 @@ def overview(principal: Principal = RequireScorecardView) -> dict[str, Any]:
 def tests(category: str = Query("", description="One category, or all"),
           principal: Principal = RequireScorecardView) -> dict[str, Any]:
     """The test registry: what each test asks, and how it is calculated."""
+    if category:
+        category = _category(category)
     wanted = (test_registry.in_category(category) if category
               else test_registry.all_tests())
-    if category and not wanted:
-        raise _not_found(ValueError(
-            f"{category!r} is not a validation category. They are: "
-            f"{', '.join(test_registry.CATEGORIES)}."))
     return {
         "registry_version": test_registry.REGISTRY_VERSION,
         "category": category,
@@ -351,6 +350,23 @@ def run_one(model_id: str, test_id: str,
     return {"test": wanted.to_dict(), "result": result.to_dict()}
 
 
+def _category(wanted: str) -> str:
+    """The canonical category id, or a 404 naming what would have worked.
+
+    Eight of the eleven cards have a title whose slug is not its key, so a
+    caller addressing "data_representativeness" — the name on the screen —
+    got a 404 for the category it was looking at.
+    """
+    got = test_registry.resolve_category(wanted)
+    if not got:
+        names = ", ".join(
+            f"{one['key']} (or {one['also_accepts']})"
+            for one in test_registry.category_names())
+        raise _not_found(ValueError(
+            f"{wanted!r} is not a validation category. They are: {names}."))
+    return got
+
+
 @router.post("/models/{model_id}/categories/{category}")
 def run_category(model_id: str, category: str,
                  period: str = Query(""),
@@ -365,10 +381,7 @@ def run_category(model_id: str, category: str,
     mapping" is a finding about the model, not an empty row.
     """
     made = _model(model_id)
-    if category not in test_registry.CATEGORIES:
-        raise _not_found(ValueError(
-            f"{category!r} is not a validation category. They are: "
-            f"{', '.join(test_registry.CATEGORIES)}."))
+    category = _category(category)
     began = datetime.now(UTC)
     results = runner.run_category(category, made, periods=_periods(period),
                                   segment_field=segment_field)
@@ -666,7 +679,7 @@ def ask(body: dict[str, Any],
     if not question:
         raise _refused(ValueError(
             "Ask a question. This surface answers questions about validating "
-            "the three scorecards."))
+            "the scorecards in the model registry."))
     if len(question) > LONGEST_QUESTION:
         raise _refused(ValueError(
             f"That is {len(question)} characters. A question is a sentence; "
@@ -944,3 +957,118 @@ def finalise_report(report_key: str,
 
 
 __all__ = ["router"]
+
+
+# ======================= §14.2: runs that do not hold a request ============
+
+
+class JobStartIn(BaseModel):
+    """Start a validation run in the background."""
+
+    category: str = ""
+    period: str = ""
+
+
+@router.post("/models/{model_id}/jobs", summary="Start a validation run")
+def start_job(model_id: str, payload: JobStartIn,
+              principal: Principal = RequireScorecardAnalyse,
+              session: Session = Depends(_session)) -> dict[str, Any]:
+    """Return a job id immediately; the run continues without the request.
+
+    §14.2: a long validation must not hold a browser open. It returns in
+    milliseconds with an id, and the caller polls for progress, partial
+    results and an explicit finished state.
+    """
+    from backend.scorecard.validation import jobs
+
+    made = _model(model_id)
+    categories = ((_category(payload.category),) if payload.category
+                  else tuple(test_registry.CATEGORIES))
+    began = datetime.now(UTC)
+
+    def record(model: Any, results: list[Any]) -> dict[str, Any]:
+        # A new session: the request's own is closed by the time the job
+        # finishes, and writing through a closed session is the kind of
+        # failure that only appears under load.
+        from backend.db.engine import get_session
+
+        with get_session() as writing:
+            body = _package(model, payload.category, results)
+            body.update(_record(
+                writing, model, results, principal,
+                scope="CATEGORY" if payload.category else "FULL",
+                categories=categories, periods=_periods(payload.period),
+                segment_field="", began=began))
+            return body
+
+    def summarise(model: Any, results: list[Any]) -> dict[str, Any]:
+        """Package a stopped run without recording it.
+
+        A reader who pressed Stop still gets a real tally, coverage figure and
+        findings over the tests that did run. What they do not get is a run
+        key: a recorded validation run that covers seven of forty-eight tests
+        would be quotable as a validation, and it is not one.
+        """
+        body = _package(model, payload.category, results)
+        body["recorded"] = False
+        body["recorded_note"] = (
+            "This run was stopped before it finished, so it is not recorded "
+            "as a validation run. The results below are the tests that had "
+            "already been measured; the rest were not run and are not "
+            "reported as anything.")
+        return body
+
+    job = jobs.start(model_id=model_id, categories=categories,
+                     scope="CATEGORY" if payload.category else "FULL",
+                     period=payload.period, owner=principal.user_id,
+                     record=record, summarise=summarise)
+    return {**job.to_dict(with_results=False),
+            "model": made.to_dict(),
+            "poll": f"/scorecard-validation/jobs/{job.job_id}"}
+
+
+@router.get("/jobs/{job_id}", summary="Progress and partial results")
+def job_status(job_id: str, since: int = Query(0, ge=0),
+               principal: Principal = RequireScorecardView) -> dict[str, Any]:
+    """Where the run has got to, and everything it has finished so far.
+
+    `since` returns only the results after that index, so a page polling
+    every second sends back what it already has rather than the whole run
+    each time.
+    """
+    from backend.scorecard.validation import jobs
+
+    job = jobs.get(job_id, owner=principal.user_id)
+    if job is None:
+        raise _not_found(ValueError(
+            f"{job_id!r} is not a job this session can read. A job does not "
+            f"survive a backend restart; start the run again."))
+    body = job.to_dict(with_results=False)
+    body["results"] = job.results[since:]
+    body["results_from"] = since
+    if job.body is not None:
+        body["run"] = job.body
+    return body
+
+
+@router.post("/jobs/{job_id}/cancel", summary="Stop a running validation")
+def job_cancel(job_id: str,
+               principal: Principal = RequireScorecardAnalyse
+               ) -> dict[str, Any]:
+    from backend.scorecard.validation import jobs
+
+    job = jobs.cancel(job_id, owner=principal.user_id)
+    if job is None:
+        raise _not_found(ValueError(f"{job_id!r} is not a job you can stop."))
+    return job.to_dict(with_results=False)
+
+
+@router.get("/jobs", summary="Recent validation jobs")
+def job_list(limit: int = Query(20, ge=1, le=100),
+             principal: Principal = RequireScorecardView) -> dict[str, Any]:
+    from backend.scorecard.validation import jobs
+
+    return {"jobs": [one.to_dict(with_results=False)
+                     for one in jobs.listing(owner=principal.user_id,
+                                             limit=limit)],
+            "jobs_version": jobs.JOBS_VERSION}

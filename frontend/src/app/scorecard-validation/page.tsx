@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import type {
   ScvCategory,
   ScvFinding,
+  ScvJob,
   ScvModel,
   ScvOverview,
   ScvResult,
@@ -31,16 +32,18 @@ import { cn } from "@/lib/utils";
  *
  * A dashboard shows what it has. This shows what it has AND what it does not,
  * with equal weight, because the second is what a validation opinion has to
- * rest on. Forty-eight tests exist; a run reports how many produced a number
+ * rest on. The registry's tests exist; a run reports how many produced a number
  * and how many refused, and the refusals carry the reason rather than an empty
- * cell. Eleven passes out of eleven and eleven passes out of forty-eight are
+ * cell. Eleven passes out of eleven and eleven passes out of fifty-two are
  * different claims about a model, and a screen that renders only the passes
  * makes the second one look like the first.
  *
  * The shape, top to bottom
  * --------------------------
- * 1. **Which scorecard** — three, and only three. The module is restricted to
- *    them at the data layer, not by this page offering fewer options.
+ * 1. **Which scorecard** — whichever the registry holds. The module is
+ *    restricted to them at the data layer, not by this page offering fewer
+ *    options, and the count is read from the registry rather than written
+ *    into a caption that goes stale the first time a model is registered.
  * 2. **Model health** — what data exists, and specifically how much of it has
  *    a realised outcome. Almost every wrong number in model validation comes
  *    from measuring an outcome over a window that has not closed.
@@ -187,6 +190,17 @@ function FindingCard({ finding }: { finding: ScvFinding }) {
           — {finding.remediation}
         </p>
       )}
+      {(finding.also_in ?? []).length > 0 && (
+        <p className="mt-2 max-w-3xl text-[11px] leading-relaxed text-text-muted">
+          <span className="font-semibold uppercase tracking-wider">
+            Also read under
+          </span>{" "}
+          — {(finding.category_titles ?? []).slice(1).join(", ")}. This is one
+          finding seen from several categories, with one id
+          ({finding.finding_id}) and one set of values, not several findings
+          that agree.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {finding.evidence.map((test) => (
           <span key={test} className="font-mono text-[11px] text-text-muted">
@@ -249,6 +263,11 @@ export default function ScorecardValidationPage() {
   const [overview, setOverview] = React.useState<ScvOverview | null>(null);
   const [tests, setTests] = React.useState<Record<string, ScvTest>>({});
   const [modelId, setModelId] = React.useState("");
+  // Read inside the polling loop, which closes over the model it started
+  // with. Comparing against the state variable would compare against the
+  // value captured when the loop was created.
+  const modelIdRef = React.useRef("");
+  React.useEffect(() => { modelIdRef.current = modelId; }, [modelId]);
   const [category, setCategory] = React.useState("");
   const [run, setRun] = React.useState<ScvRun | null>(null);
   const [busy, setBusy] = React.useState("");
@@ -287,37 +306,117 @@ export default function ScorecardValidationPage() {
    */
   function chooseModel(next: string) {
     if (next === modelId) return;
+    // Takes the ticket, so a run started against the previous model can no
+    // longer paint its results under this one's name.
+    ticket.current += 1;
     setModelId(next);
+    modelIdRef.current = next;
     setRun(null);
+    setJob(null);
+    setBusy("");
     setCategory("");
     setFailed("");
   }
 
+  /**
+   * Only the latest request may write to the screen.
+   *
+   * The defect this closes, reproduced by timing: Data & Representativeness
+   * took 79 seconds and Champion vs Challenger took 0.15. Clicking the first
+   * and then the second painted the challenger results, and 79 seconds later
+   * the data results overwrote them — under the heading the reader had
+   * chosen last. That is §2.6's screenshot: a category's card showing
+   * another category's results.
+   *
+   * Every run takes a ticket. A response whose ticket is not the current one
+   * is discarded, and so is one whose model or category no longer matches
+   * what is on screen.
+   */
+  const ticket = React.useRef(0);
+  const [job, setJob] = React.useState<ScvJob | null>(null);
+
   async function runCategory(key: string) {
     if (!modelId) return;
-    setBusy(key);
-    setFailed("");
-    setCategory(key);
-    try {
-      setRun(await api.scorecardValidation.runCategory(modelId, key));
-    } catch (error) {
-      setFailed((error as Error).message);
-    } finally {
-      setBusy("");
-    }
+    await launch(key);
   }
 
   async function runEverything() {
     if (!modelId) return;
-    setBusy("__all__");
+    await launch("");
+  }
+
+  async function launch(key: string) {
+    const mine = ++ticket.current;
+    const forModel = modelId;
+    setBusy(key || "__all__");
     setFailed("");
-    setCategory("");
+    setCategory(key);
+    setRun(null);
+    setJob(null);
     try {
-      setRun(await api.scorecardValidation.runAll(modelId));
+      const started = await api.scorecardValidation.startJob(
+        forModel, key ? { category: key } : {});
+      if (mine !== ticket.current) return;
+      setJob(started);
+      await follow(started.job_id, mine, forModel);
     } catch (error) {
+      if (mine !== ticket.current) return;
       setFailed((error as Error).message);
-    } finally {
       setBusy("");
+    }
+  }
+
+  /**
+   * Poll until the job finishes, showing what it has done so far.
+   *
+   * §14.2 asks for progress, partial results and an explicit finished state.
+   * The loop stops the moment a newer run takes the ticket, so a reader who
+   * changes their mind is not waiting on the run they abandoned.
+   */
+  async function follow(jobId: string, mine: number, forModel: string) {
+    for (;;) {
+      await new Promise((wake) => setTimeout(wake, 900));
+      if (mine !== ticket.current) return;
+      let state: ScvJob;
+      try {
+        state = await api.scorecardValidation.job(jobId);
+      } catch (error) {
+        if (mine !== ticket.current) return;
+        setFailed((error as Error).message);
+        setBusy("");
+        return;
+      }
+      if (mine !== ticket.current || forModel !== modelIdRef.current) return;
+      setJob(state);
+      if (state.finished) {
+        setBusy("");
+        if (state.state === "FAILED") {
+          setFailed(state.error || "The validation run failed.");
+        } else if (state.run) {
+          // Complete or stopped, this is a whole run object: tally, coverage,
+          // findings and all. A stopped one arrives with recorded false and
+          // no run key, and the progress card above says how far it got.
+          //
+          // The earlier version built one here instead, by spreading the
+          // previous run and swapping in the partial results. That object had
+          // no `findings`, so the first render after Stop threw on
+          // `run.findings.length` and took the whole page down with it —
+          // which is why pressing Stop made the progress card vanish rather
+          // than say "Stopped after 7 of 48 tests".
+          setRun(state.run as unknown as ScvRun);
+        }
+        return;
+      }
+    }
+  }
+
+  async function stopRun() {
+    if (!job || job.finished) return;
+    try {
+      await api.scorecardValidation.cancelJob(job.job_id);
+    } catch {
+      // The job may have finished between the click and the call; the poll
+      // above will report whatever actually happened.
     }
   }
 
@@ -347,16 +446,32 @@ export default function ScorecardValidationPage() {
   for (const entry of overview.result_states) labels[entry.state] = entry.label;
   const burning = run?.burning_weaknesses ?? [];
   const results = run?.results ?? [];
+  // Findings that belong to the category on screen — including the shared
+  // ones, which name this category on `categories` without owning it. §14.5
+  // asks for the same finding, with the same id and the same values, under
+  // every category it bears on; a list that showed only the owned ones would
+  // put an under-prediction finding in Calibration and nowhere else, and the
+  // reader looking at Data & Representativeness would conclude it was clean.
+  const inCategory = category
+    ? (run?.findings ?? []).filter(
+        (finding) => (finding.categories ?? [finding.category])
+          .includes(category))
+    : [];
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-6 py-8">
       <PageHeader
         title="Scorecard Validation"
         description={
-          "Independent validation of three scorecards — the retail "
-          + "application scorecard, the retail behaviour scorecard and the "
-          + "Saudi SME scorecard — against forty-eight tests, each with a "
-          + "governed limit that says where it came from."
+          // Counted from the registry rather than written down. §14 is
+          // explicit: audit the scorecards the registry holds and do not
+          // hard-code an assumed number. This said "three scorecards …
+          // against forty-eight tests" over a registry that holds eight and
+          // fifty-two, which is a caption that goes stale the first time
+          // somebody registers a model.
+          `Independent validation of ${overview.scorecards.length} `
+          + `scorecards against ${overview.registry.tests} tests, each with `
+          + "a governed limit that says where it came from."
         }
         actions={
           <div className="flex flex-wrap gap-2">
@@ -440,8 +555,60 @@ export default function ScorecardValidationPage() {
             Draft report (Word)
           </a>
         )}
+        {job && !job.finished && (
+          <button
+            type="button"
+            onClick={stopRun}
+            data-testid="scv-stop"
+            className="rounded-md border border-negative/40 px-4 py-2 text-sm text-negative transition-colors hover:bg-negative/10"
+          >
+            Stop
+          </button>
+        )}
         <p className="text-[11px] text-text-muted">{overview.full_run_cost}</p>
       </section>
+
+      {/* ------------------------------------------------------- progress */}
+      {job && (
+        <Card className="p-4" data-testid="scv-progress">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-medium text-text">
+              {job.state === "RUNNING" ? "Running" : job.state[0]
+                + job.state.slice(1).toLowerCase()}
+              {job.categories.length === 1
+                ? ` — ${job.categories[0].replace(/_/g, " ")}`
+                : " — every category"}
+            </p>
+            <p className="text-[12px] tabular-nums text-text-muted"
+               data-testid="scv-progress-count">
+              {job.done} of {job.total} tests
+              {job.current ? ` · ${job.current}` : ""}
+            </p>
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-500"
+              style={{ width: `${Math.round(job.progress * 100)}%` }}
+            />
+          </div>
+          {job.partial && (
+            <p className="mt-2 text-[11px] text-text-muted">
+              These are partial results. The tally below covers the{" "}
+              {job.done} tests finished so far, not the whole run.
+            </p>
+          )}
+          {job.state === "CANCELLED" && (
+            <p className="mt-2 text-[11px] text-warning">
+              Stopped after {job.done} of {job.total} tests. What had already
+              been measured is kept; the rest was not run and is not reported
+              as anything.
+            </p>
+          )}
+          {job.state === "FAILED" && (
+            <p className="mt-2 text-[11px] text-negative">{job.error}</p>
+          )}
+        </Card>
+      )}
 
       {failed && (
         <Card className="p-4">
@@ -531,6 +698,16 @@ export default function ScorecardValidationPage() {
                 ))}
             </div>
           </div>
+          {inCategory.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                What this category concludes
+              </h3>
+              {inCategory.map((finding) => (
+                <FindingCard key={finding.finding_id} finding={finding} />
+              ))}
+            </div>
+          )}
           <div className="space-y-2">
             {results.map((result) => (
               <ResultCard
@@ -543,7 +720,7 @@ export default function ScorecardValidationPage() {
         </section>
       )}
 
-      {!run && (
+      {!run && !job && (
         <Card className="p-6">
           <p className="max-w-3xl text-sm leading-relaxed text-text-muted">
             Nothing has been run yet, and nothing is shown as passing.

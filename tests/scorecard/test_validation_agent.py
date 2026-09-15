@@ -13,7 +13,7 @@ import pytest
 
 from backend.agentic.tools import ToolDenied, ToolUnknown
 from backend.scorecard import domains
-from backend.scorecard.validation import agent, registry, states
+from backend.scorecard.validation import agent, models, registry, states
 
 # --------------------------------------------------- the prohibitions hold
 
@@ -111,9 +111,16 @@ def test_a_test_alias_resolves_without_a_question() -> None:
 # ---------------------------------------------------------- it works
 
 
-def test_it_lists_exactly_three_scorecards() -> None:
+def test_it_lists_every_registered_scorecard() -> None:
+    """Counted from the registry, not written down.
+
+    This asserted three. §14 is explicit that the audit covers the
+    scorecards the registry holds and that no count may be hard-coded, and
+    a retail installation registers eight — an application and a
+    behavioural model for each of the four products.
+    """
     answer = agent.invoke(agent.LIST_MODELS)
-    assert len(answer["scorecards"]) == 3
+    assert len(answer["scorecards"]) == len(models.all_models())
 
 
 def test_it_lists_every_test() -> None:

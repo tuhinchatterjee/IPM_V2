@@ -6419,6 +6419,30 @@ export type WhatIfThreadView = {
   disclosure?: string;
 };
 
+/** A validation run in flight, or finished. §14.2. */
+export type ScvJob = {
+  job_id: string;
+  model_id: string;
+  scope: string;
+  categories: string[];
+  period: string;
+  state: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  started_at: string;
+  finished_at: string;
+  total: number;
+  done: number;
+  progress: number;
+  current: string;
+  error: string;
+  run_key: string;
+  finished: boolean;
+  partial: boolean;
+  results?: Record<string, unknown>[];
+  results_from?: number;
+  run?: Record<string, unknown>;
+  poll?: string;
+};
+
 export const api = {
   // ---- authentication ----
   /**
@@ -9807,6 +9831,30 @@ export const api = {
     model: (modelId: string) =>
       request<ScvModel>(
         `/scorecard-validation/models/${encodeURIComponent(modelId)}`),
+
+    // ------------------------------------------------- §14.2: run as a job
+    //
+    // A validation used to hold the browser open for as long as it took —
+    // 79 seconds for one category, 273 for a full run — with nothing on
+    // screen and no way to stop it. These return an id in milliseconds and
+    // the page polls for progress and partial results.
+
+    startJob: (modelId: string, body: { category?: string;
+                                        period?: string } = {}) =>
+      request<ScvJob>(
+        `/scorecard-validation/models/${encodeURIComponent(modelId)}/jobs`,
+        { method: "POST", body: JSON.stringify(body),
+          timeoutMs: LAKE_TIMEOUT_MS }),
+
+    job: (jobId: string, since = 0) =>
+      request<ScvJob>(
+        `/scorecard-validation/jobs/${encodeURIComponent(jobId)}`
+        + `?since=${since}`, { timeoutMs: LAKE_TIMEOUT_MS }),
+
+    cancelJob: (jobId: string) =>
+      request<ScvJob>(
+        `/scorecard-validation/jobs/${encodeURIComponent(jobId)}/cancel`,
+        { method: "POST", body: "{}", timeoutMs: LAKE_TIMEOUT_MS }),
 
     /**
      * Which months exist, and which of them have a realised outcome.
@@ -13428,6 +13476,16 @@ export type ScvFinding = {
   model_version: string;
   supersedes: string[];
   confidence: string;
+  /**
+   * The other categories this same finding is read under. §14.5.
+   *
+   * One finding, several categories — not several findings. `categories`
+   * is `category` followed by these, so a screen filtering by category
+   * never has to decide which field is authoritative.
+   */
+  also_in: string[];
+  categories: string[];
+  category_titles: string[];
   findings_version: string;
 };
 

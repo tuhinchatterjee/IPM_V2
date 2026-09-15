@@ -304,7 +304,13 @@ def which_test(question: str) -> str:
     text = _words(question)
     # An explicit id wins over any synonym: somebody who typed STAB-CSI meant
     # STAB-CSI, whatever else the sentence contains.
-    for test in test_registry.TESTS:
+    #
+    # Longest id first. One test id can be a prefix of another — DISC-RANK
+    # and DISC-RANK-PEER — and registry order resolved "run DISC-RANK-PEER"
+    # to DISC-RANK, which answers a different question under the heading the
+    # reader typed.
+    for test in sorted(test_registry.TESTS,
+                       key=lambda one: -len(one.test_id)):
         if test.test_id.lower() in text:
             return test.test_id
     for phrase, test_id in sorted(_TEST_WORDS, key=lambda p: -len(p[0])):
@@ -322,9 +328,16 @@ def which_tests(question: str) -> tuple[str, ...]:
     """
     text = _words(question)
     found: list[str] = []
-    for test in test_registry.TESTS:
-        if test.test_id.lower() in text and test.test_id not in found:
+    # Longest id first, and the matched text is struck out, so a question
+    # naming DISC-RANK-PEER does not also come back with DISC-RANK on the
+    # strength of the same eight characters.
+    remaining = text
+    for test in sorted(test_registry.TESTS,
+                       key=lambda one: -len(one.test_id)):
+        lowered = test.test_id.lower()
+        if lowered in remaining and test.test_id not in found:
             found.append(test.test_id)
+            remaining = remaining.replace(lowered, " ")
     for phrase, test_id in sorted(_TEST_WORDS, key=lambda p: -len(p[0])):
         if test_id in found:
             continue
@@ -713,8 +726,12 @@ def answer(question: str, *, model_id: str = "") -> dict[str, Any]:
             body["clarification"] = {
                 "clarification_required": True,
                 "question": "Which part of the validation?",
+                # Counted from the registry. A sentence that names a number
+                # of tests is a sentence that is wrong the next time one is
+                # registered, and this one is read aloud to the user.
                 "because": (
-                    "Forty-eight tests run against this scorecard, in eleven "
+                    f"{len(test_registry.TESTS)} tests run against this "
+                    f"scorecard, in {len(test_registry.CATEGORIES)} "
                     "categories that ask different questions. Running all of "
                     "them to answer a general question would take a minute "
                     "and bury the answer."),

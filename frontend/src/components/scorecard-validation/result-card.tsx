@@ -124,6 +124,112 @@ function Provenance({ result }: { result: ScvResult }) {
   );
 }
 
+/**
+ * The supporting panels a result carries beside its one table.
+ *
+ * Some evidence is not one table. The development provenance is a list of
+ * recorded facts, an exclusion waterfall AND a score distribution, and
+ * flattening the three into the single `table` field would have meant
+ * choosing which two to throw away. They arrive on `lineage.panels`, each
+ * one either `facts` (label and value) or `table` (rows) or `levels`
+ * (development against current), and each is drawn as what it is.
+ */
+function Panels({ result }: { result: ScvResult }) {
+  const panels = (result.lineage?.panels ?? []) as Array<{
+    title?: string;
+    facts?: Array<{ label?: string; value?: unknown }>;
+    table?: Array<Record<string, unknown>>;
+    levels?: Array<Record<string, unknown>>;
+  }>;
+  if (!Array.isArray(panels) || !panels.length) return null;
+  return (
+    <div className="space-y-5">
+      {panels.map((panel, at) => (
+        <div key={panel.title ?? at} className="space-y-1.5">
+          {panel.title && (
+            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              {panel.title}
+            </h4>
+          )}
+          {Array.isArray(panel.facts) && panel.facts.length > 0 && (
+            <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+              {panel.facts.map((fact, i) => (
+                <div key={`${fact.label ?? i}`} className="min-w-0">
+                  <dt className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                    {fact.label}
+                  </dt>
+                  <dd className="text-xs leading-relaxed text-text">
+                    {String(fact.value ?? "—")}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {Array.isArray(panel.table) && panel.table.length > 0 && (
+            <PlainTable rows={panel.table} />
+          )}
+          {Array.isArray(panel.levels) && panel.levels.length > 0 && (
+            <PlainTable rows={panel.levels} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Rows of scalars, drawn as a table. Shared by the panels and the result. */
+function PlainTable({ rows }: { rows: Array<Record<string, unknown>> }) {
+  const columns = Object.keys(rows[0]).filter(
+    (key) => !Array.isArray(rows[0][key]) && typeof rows[0][key] !== "object");
+  if (!columns.length) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-border">
+            {columns.map((column) => (
+              <th
+                key={column}
+                className="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted"
+              >
+                {humanise(column)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.slice(0, 40).map((row, i) => (
+            <tr key={i} className="border-b border-border/50 last:border-0">
+              {columns.map((column) => {
+                const value = row[column];
+                return (
+                  <td
+                    key={column}
+                    className={cn(
+                      "px-2 py-1.5",
+                      typeof value === "number"
+                        && "text-right font-mono tabular-nums")}
+                  >
+                    {typeof value === "number"
+                      ? technical(value, 4)
+                      : String(value ?? "—")}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > 40 && (
+        <p className="mt-1 text-[11px] text-text-muted">
+          First 40 of {count(rows.length)} rows. The full table is in the
+          report.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** The result's own table, when it carries one. */
 function ResultTable({ result }: { result: ScvResult }) {
   const table = result.table ?? [];
@@ -190,7 +296,8 @@ export function ResultCard({ result, test, defaultOpen = false }: {
   const [open, setOpen] = React.useState(defaultOpen);
   const hasDetail = Boolean(
     result.chart || (result.table ?? []).length || result.method
-    || (result.limitations ?? []).length || test);
+    || (result.limitations ?? []).length
+    || (result.lineage?.panels as unknown[] | undefined)?.length || test);
 
   return (
     <div className="rounded-lg border border-border bg-surface">
@@ -249,6 +356,7 @@ export function ResultCard({ result, test, defaultOpen = false }: {
           )}
 
           <ValidationChart result={result} />
+          <Panels result={result} />
           <ResultTable result={result} />
 
           {result.method && (

@@ -472,27 +472,17 @@ def _lift(test: test_registry.Test, model: model_registry.Model,
         limitations=test.limitations, **kw)
 
 
-@handles("DISC-RANK", "SEG-RANK")
-def _rank_ordering(test: test_registry.Test, model: model_registry.Model,
-                   pool: Population, **kw: Any) -> states.Result:
-    rows = _band_table(pool.frame, model)
-    rates = [r["observed_rate"] for r in rows if r["observations"] >= 30]
-    monotonic = rates == sorted(rates, reverse=True)
-    inversions = sum(1 for a, b in zip(rates, rates[1:], strict=False) if b > a)
-    state = states.PASS if monotonic else states.FAIL
-    return states.measured(
-        test.test_id, state, float(inversions),
-        detail=("The observed default rate falls monotonically across every "
-                "score band." if monotonic else
-                f"{inversions} band(s) invert: the default rate rises as the "
-                "score rises, so the score is not ranking risk here."),
-        table=rows,
-        chart={"kind": test_registry.CHART_BAND_RATE, "bands": rows},
-        observations=len(pool.frame), model_id=model.model_id,
-        model_version=model.version, dataset=pool.dataset,
-        period=_period_label(pool), method=test.method,
-        calculation_version=kernels.METRICS_VERSION,
-        limitations=test.limitations, **kw)
+# DISC-RANK and SEG-RANK live in `ranking`, with the banding §14.4 asks for.
+#
+# They were here, cut into twelve equal bands across the model's DECLARED
+# score range — 300 to 900 for a book that occupies 555 to 707 — which left
+# two thirds of the bands empty, the populated ones wide enough to average a
+# local inversion away, and DISC-RANK reading PASS on every registered
+# scorecard. That is a statement about the banding rather than about the
+# scorecards, so the banding moved to a module that can carry its own
+# evidence: fixed cut points from the development population, open tails,
+# per-band intervals, and inversions reported with their support,
+# concentration and persistence.
 
 
 @handles("CAL-OE", "CAL-BRIER", "CAL-SLOPE", "CAL-BAND")
@@ -1072,21 +1062,6 @@ def _bands(model: model_registry.Model) -> list[float]:
     return [low + step * i for i in range(13)]
 
 
-def _band_table(frame: pd.DataFrame,
-                model: model_registry.Model) -> list[dict[str, Any]]:
-    cut = pd.cut(frame[model.score_column], bins=_bands(model))
-    rows: list[dict[str, Any]] = []
-    for band, part in frame.groupby(cut, observed=True):
-        events = int(part[model.outcome_column].fillna(0).sum())
-        rows.append({
-            "band": str(band),
-            "observations": len(part),
-            "events": events,
-            "observed_rate": round(events / len(part), 6) if len(part) else 0.0,
-        })
-    return rows
-
-
 def _band_override_table(frame: pd.DataFrame,
                          model: model_registry.Model) -> list[dict[str, Any]]:
     cut = pd.cut(frame[model.score_column], bins=_bands(model))
@@ -1188,3 +1163,7 @@ __all__ = [
 # rather than leaving a caller to remember a second import and get honest
 # UNAVAILABLE results for forgetting.
 from backend.scorecard.validation import extra as _extra  # noqa: E402,F401
+from backend.scorecard.validation import (  # noqa: E402,F401
+    ranking as _ranking,
+    representativeness as _representativeness,
+)

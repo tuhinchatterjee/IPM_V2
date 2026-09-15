@@ -110,6 +110,15 @@ class Finding:
     #: twice and nothing is silently dropped.
     supersedes: tuple[str, ...] = ()
     confidence: str = ""
+    #: The other categories this same finding must be read under.
+    #:
+    #: §14.5: a shared finding appears in Data, Calibration, Stability,
+    #: Segmentation, the overall validation and the report — with the SAME
+    #: id, the same values, the same sample dates and the same threshold. It
+    #: is one finding seen from several categories, not several findings
+    #: that happen to agree, and the distinction matters because a committee
+    #: counting rows would otherwise count it four times.
+    also_in: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.severity not in SEVERITIES:
@@ -150,6 +159,15 @@ class Finding:
             "cbuae": list(self.cbuae), "pattern": self.pattern,
             "supersedes": list(self.supersedes),
             "confidence": self.confidence,
+            "also_in": list(self.also_in),
+            # Every category this finding is read under, the owning one
+            # first. One list, so a screen filtering by category never has
+            # to decide whether `category` or `also_in` is authoritative.
+            "categories": [self.category, *self.also_in],
+            "category_titles": [
+                test_registry.BY_CATEGORY_KEY[key].title
+                for key in (self.category, *self.also_in)
+                if key in test_registry.BY_CATEGORY_KEY],
         }
 
 
@@ -161,6 +179,22 @@ class Finding:
 #: 0.25.
 MATERIAL_BREACH = 0.20
 SEVERE_BREACH = 0.50
+
+#: A characteristic stability index at or above this has moved enough to
+#: be named in a finding. Scorecard practice, seeded as demo policy, and the
+#: same number the CSI limit uses — stated once here rather than inlined.
+_CSI_NOTABLE = 0.10
+
+#: A segmentation level whose share moved by this much is named. Ten
+#: percentage points of a book is a different book.
+_SHARE_NOTABLE = 0.10
+
+
+def _subject_word(model: model_registry.Model) -> str:
+    from backend.scorecard.validation.representativeness import _subject
+
+    return _subject(model)[0]
+
 
 #: The information-value floor the runner already applies, imported rather
 #: than restated so the two cannot drift apart. Below it, "retained 0.41 of
@@ -758,6 +792,354 @@ def _challenger_is_not_better(pattern: Pattern,
         confidence=_confidence(comparison))
 
 
+def _population_is_less_representative(pattern: Pattern,
+                                      found: dict[str, states.Result],
+                                      model: model_registry.Model
+                                      ) -> Finding | None:
+    """§14.3's findings panel: why the book is less like the fitted one.
+
+    Assembled from the three tests that each see one part of it — the model
+    inputs, the segmentation mix, and whether the event rate moved because
+    the book changed shape. Reported as one finding because "indebtedness
+    has shifted", "the mix has moved" and "composition explains none of the
+    rate change" are three readings of one situation, and a validator acting
+    on the first without the third re-develops a model that did not need it.
+    """
+    drift = found.get("DATA-INPUT-DRIFT")
+    mix = found.get("DATA-REPRESENTATIVE")
+    if drift is None or not drift.measured:
+        return None
+
+    moved = [row for row in drift.table
+             if float(row.get("csi") or 0.0) >= _CSI_NOTABLE]
+    unseen = sum(int(row.get("bins_unseen_at_development") or 0)
+                 for row in drift.table)
+    shifted: list[dict[str, Any]] = []
+    if mix is not None and mix.measured:
+        shifted = [row for row in mix.table
+                   if abs(float(row.get("change") or 0.0)) >= _SHARE_NOTABLE]
+    if not moved and not unseen and not shifted:
+        return None
+
+    reasons: list[str] = []
+    if moved:
+        worst = moved[0]
+        reasons.append(
+            f"{len(moved)} of {len(drift.table)} model inputs have a "
+            f"characteristic stability index of {_CSI_NOTABLE:.2f} or more "
+            f"against the development sample, the largest being "
+            f"{worst['variable']} at {float(worst['csi']):.4f}")
+    if shifted:
+        worst_level = max(shifted,
+                          key=lambda row: abs(float(row.get("change") or 0.0)))
+        reasons.append(
+            f"{worst_level['variable']}={worst_level['level']} has gone from "
+            f"{float(worst_level['development_share']):.1%} of the book to "
+            f"{float(worst_level['current_share']):.1%}")
+    if unseen:
+        reasons.append(
+            f"{unseen} approved bin(s) are in use now that carried no "
+            "development evidence")
+
+    composition = ""
+    standardised = found.get("DATA-MIXADJ")
+    if standardised is not None and standardised.measured:
+        share = abs(float(standardised.value or 0.0))
+        composition = (
+            f" Standardising the matured default rate onto the development "
+            f"mix moves it by "
+            f"{float(standardised.lineage.get('composition_effect') or 0.0):+.3%}, "
+            f"so the change in shape accounts for {share:.1%} of the change "
+            f"in the event rate and the rest is the same kind of "
+            f"{_subject_word(model)} behaving differently.")
+
+    return Finding(
+        finding_id="F-PATTERN-LESS-REPRESENTATIVE",
+        title="The population is less representative of the development "
+              "sample than it was",
+        severity=_severity(drift, model, floor=LOW),
+        category=test_registry.DATA_QUALITY,
+        what=("The population is less representative because "
+              + "; ".join(reasons) + "." + composition),
+        why_it_matters=(
+            "A scorecard is fitted on a population and carries evidence "
+            "about that population. Where the book has moved, the points "
+            "attached to a bin are still the points fitted on customers who "
+            "are no longer the ones in it, and every downstream number — the "
+            "score, the PD, the stage, the expected loss — inherits that "
+            "without saying so."),
+        remediation=(
+            "Take the inputs that moved to the modelling team with their "
+            "development and current distributions attached, and decide "
+            "per characteristic whether the bins still cut the risk. Where "
+            "bins are in use with no development evidence, that decision "
+            "cannot be deferred to the next cycle."),
+        verify_by=("DATA-INPUT-DRIFT inside its limit against a re-stated "
+                   "development distribution, with no bin in use that "
+                   "carries no development evidence"),
+        evidence=tuple(t for t in ("DATA-INPUT-DRIFT", "DATA-REPRESENTATIVE",
+                                   "DATA-MIXADJ") if t in found),
+        values={
+            "inputs_drifted": len(moved),
+            "inputs_compared": len(drift.table),
+            "worst_input": (moved[0]["variable"] if moved else ""),
+            "worst_input_csi": (float(moved[0]["csi"]) if moved else None),
+            "bins_unseen_at_development": unseen,
+            "segmentation_levels_moved": len(shifted),
+        },
+        model_id=model.model_id, model_version=model.version,
+        period=drift.period,
+        pattern=pattern.key,
+        supersedes=("F-DATA-INPUT-DRIFT", "F-DATA-REPRESENTATIVE"),
+        confidence=_confidence(drift))
+
+
+def _shared_underprediction(pattern: Pattern,
+                            found: dict[str, states.Result],
+                            model: model_registry.Model) -> Finding | None:
+    """§14.5. One under-prediction finding, read under four categories.
+
+    It fires when the observed rate exceeds the predicted one ACROSS BANDS
+    rather than in aggregate, because an aggregate O/E above 1 can be one
+    band and a mix. Then it works the four explanations §14.5 names —
+    composition, conditional risk, a horizon or definition mismatch, and
+    calibration drift — and says which the evidence supports, rather than
+    reaching for the first.
+
+    Discrimination is reported alongside and never folded in. A model can
+    rank perfectly and be calibrated to the wrong level; the fix for the
+    second is a recalibration and the fix for the first is a
+    re-development, and a finding that blurs them buys the wrong one.
+    """
+    aggregate, bands = found.get("CAL-OE"), found.get("CAL-BAND")
+    if aggregate is None or not aggregate.measured or aggregate.value is None:
+        return None
+    if aggregate.state != states.FAIL or aggregate.value <= 1.0:
+        return None
+    rows = [row for row in (bands.table if bands is not None else [])
+            if row.get("observed_default_rate") is not None
+            and row.get("average_predicted_pd") is not None]
+    if not rows:
+        return None
+    under = [row for row in rows
+             if float(row["observed_default_rate"])
+             > float(row["average_predicted_pd"])]
+    if len(under) <= len(rows) / 2:
+        return None  # not across bands: an aggregate artefact, not this
+
+    # ---- the four explanations, each read off its own evidence -----------
+    reads: list[str] = []
+    values: dict[str, Any] = {
+        "observed_over_expected": round(float(aggregate.value), 6),
+        "limit": aggregate.limit,
+        "limit_source": aggregate.limit_source,
+        "bands_under_predicted": len(under),
+        "bands": len(rows),
+        "period": aggregate.period,
+    }
+
+    standardised = found.get("DATA-MIXADJ")
+    if standardised is not None and standardised.measured:
+        composition = float(standardised.lineage.get("composition_effect") or 0.0)
+        conditional = float(
+            standardised.lineage.get("conditional_risk_effect") or 0.0)
+        values["composition_effect"] = round(composition, 6)
+        values["conditional_risk_effect"] = round(conditional, 6)
+        reads.append(
+            "Changing composition: standardising onto the development mix "
+            f"moves the matured default rate by {composition:+.3%} against "
+            f"{conditional:+.3%} from conditional risk, so "
+            + ("the book changing shape is the larger part of it"
+               if abs(composition) > abs(conditional) else
+               "this is not mainly the book changing shape"))
+
+    horizon = found.get("DATA-ODR")
+    if horizon is not None and horizon.measured:
+        development = float(horizon.lineage.get("development_rate") or 0.0)
+        development_pd = None
+        for row in horizon.table:
+            if row.get("population", "").startswith("Development"):
+                development_pd = row.get("mean_predicted_pd")
+        if development and development_pd:
+            at_development = development / float(development_pd)
+            values["development_observed_over_expected"] = round(
+                at_development, 6)
+            reads.append(
+                "Horizon and default definition: the development sample "
+                f"itself reads an O/E of {at_development:.2f}, "
+                + ("which is the same order as today's, so the gap was "
+                   "present at development and is a definition or horizon "
+                   "mismatch rather than something the book has done since"
+                   if abs(at_development - float(aggregate.value))
+                   <= 0.5 * float(aggregate.value) else
+                   "materially different from today's, so the gap has opened "
+                   "since development rather than being built into it"))
+
+    drift = found.get("CAL-DRIFT")
+    if drift is not None and drift.measured and drift.value is not None:
+        values["observed_over_expected_change"] = round(float(drift.value), 6)
+        reads.append(
+            f"Calibration drift: the O/E has moved {float(drift.value):+.3f} "
+            "across the measurable cohorts, "
+            + ("so the level is moving and a re-calibration has to be dated "
+               "rather than applied as a constant"
+               if abs(float(drift.value)) >= 0.25 else
+               "so the level is stable and a constant re-calibration would "
+               "hold"))
+
+    ranking = found.get("DISC-KS") or found.get("DISC-AUC")
+    separate = ""
+    if ranking is not None and ranking.measured and ranking.value is not None:
+        values["discrimination_test"] = ranking.test_id
+        values["discrimination_value"] = round(float(ranking.value), 6)
+        separate = (
+            f" Discrimination is reported separately and is not part of this "
+            f"finding: {ranking.test_id} is {float(ranking.value):.4f} and "
+            f"{ranking.label.lower()}. "
+            + ("The model ranks risk and is calibrated to the wrong level; "
+               "those have different fixes."
+               if ranking.state in (states.PASS, states.NO_LIMIT) else
+               "Both are adverse, and they remain two findings."))
+
+    where = [test_registry.CALIBRATION, test_registry.DATA_QUALITY,
+             test_registry.STABILITY, test_registry.SEGMENTATION]
+    return Finding(
+        finding_id="F-PATTERN-UNDERPREDICTION",
+        title=(f"Observed default exceeds predicted PD in {len(under)} of "
+               f"{len(rows)} score bands"),
+        severity=_severity(aggregate, model, floor=MEDIUM),
+        category=test_registry.CALIBRATION,
+        also_in=tuple(c for c in where[1:] if c in test_registry.CATEGORIES),
+        what=(f"Over {aggregate.period}, observed default runs above the "
+              f"predicted PD in {len(under)} of {len(rows)} score bands and "
+              f"the aggregate observed-over-expected is "
+              f"{float(aggregate.value):.3f} against a limit of "
+              f"{aggregate.limit} ({aggregate.limit_source}). "
+              + (" ".join(r + "." for r in reads) if reads else "")
+              + separate),
+        why_it_matters=(
+            "A PD that is too low is not a ranking problem, it is a level "
+            "problem, and everything priced or provisioned off the PD "
+            "carries the same shortfall. Under IFRS 9 the expected credit "
+            "loss is linear in PD, so a factor on the PD is a factor on the "
+            "provision."),
+        remediation=(
+            "Re-calibrate the score-to-PD mapping on the latest closed "
+            "cohorts and date the calibration, rather than re-fitting the "
+            "scorecard. Confirm first that the outcome definition behind "
+            "the observed rate is the one the PD was fitted to predict — "
+            "the explanations above say whether that is where the gap "
+            "starts."),
+        verify_by=("CAL-OE inside its limit on the next closed cohort, with "
+                   "the band-level observed rate no longer above the "
+                   "predicted PD in a majority of bands"),
+        evidence=tuple(t for t in ("CAL-OE", "CAL-BAND", "CAL-DRIFT",
+                                   "DATA-MIXADJ", "DATA-ODR",
+                                   "DISC-KS", "DISC-AUC") if t in found),
+        values=values,
+        model_id=model.model_id, model_version=model.version,
+        period=aggregate.period,
+        pattern=pattern.key,
+        supersedes=("F-CAL-OE",),
+        confidence=_confidence(aggregate))
+
+
+def _a_local_inversion(pattern: Pattern, found: dict[str, states.Result],
+                       model: model_registry.Model) -> Finding | None:
+    """A rank inversion, with everything that decides what to do about it.
+
+    §14.4 asks for the size, the support, the concentration and the
+    persistence — and then asks something harder: to evaluate whether the
+    inversion ACCOMPANIES a weaker KS rather than to claim it causes one.
+    The two are separate measurements of the same score, and a run that
+    asserts a direction between them has asserted something its own evidence
+    does not contain. So this reports both and says they coincide.
+    """
+    ordering = found.get("DISC-RANK")
+    if ordering is None or not ordering.measured or not ordering.value:
+        return None
+    spots = ordering.lineage.get("inversions") or []
+    if not spots:
+        return None
+    worst = spots[0]
+    persistence = worst.get("persistence") or {}
+    concentration = worst.get("concentration") or {}
+
+    separated = worst.get("separated_by_the_evidence")
+    persistent = (persistence.get("assessable", 0) > 0
+                  and persistence["inverted"] > persistence["assessable"] / 2)
+    # Severity is the evidence, not the size. An inversion inside the
+    # sampling noise in one cohort is an observation; the same pair
+    # inverting in most closed cohorts is a finding whether or not either
+    # single cohort separates.
+    floor = (MEDIUM if separated or persistent else OBSERVATION)
+
+    separate = ""
+    ranking = found.get("DISC-KS") or found.get("DISC-AUC")
+    if ranking is not None and ranking.measured and ranking.value is not None:
+        weak = ranking.state in (states.FAIL, states.WARNING)
+        separate = (
+            f" {ranking.test_id} on the same population is "
+            f"{float(ranking.value):.4f} and {ranking.label.lower()}. "
+            + ("The inversion and the weaker separation accompany each "
+               "other; neither of these results says which produced the "
+               "other, and one run cannot."
+               if weak else
+               "The score separates defaulters from non-defaulters well "
+               "overall, so this is a local ordering defect rather than a "
+               "model that has stopped ranking."))
+
+    peer = found.get("DISC-RANK-PEER")
+    comparison = ""
+    if peer is not None and peer.measured:
+        comparison = " " + peer.detail
+
+    return Finding(
+        finding_id="F-PATTERN-LOCAL-INVERSION",
+        title=(f"The default rate rises between {worst['riskier_band']} and "
+               f"{worst['safer_band']}, against the score"),
+        severity=_severity(ordering, model, floor=floor),
+        category=test_registry.DISCRIMINATION,
+        also_in=(test_registry.SEGMENTATION,),
+        what=(f"{ordering.detail}{separate}{comparison}"),
+        why_it_matters=(
+            "A band that defaults more than the riskier band beneath it is "
+            "a band being treated as safer than it is, and every decision "
+            "keyed to the band — a limit increase, a collections priority, "
+            "a pricing tier — is taken the wrong way round inside it. The "
+            "portfolio statistic does not show this: the rank ordering of "
+            "the book as a whole can be, and here is, unaffected."),
+        remediation=(
+            "Take the two bands and the concentration to whoever owns the "
+            "binning specification. Where one segment dominates the "
+            "inverting band, the question is whether it belongs in a "
+            "separate segment rather than whether the scorecard needs "
+            "re-fitting. Do not re-band on one cohort."),
+        verify_by=("DISC-RANK reporting no adjacent inversion between the "
+                   "same two bands on the next closed cohort"),
+        evidence=tuple(t for t in ("DISC-RANK", "DISC-RANK-PEER", "DISC-KS",
+                                   "DISC-AUC") if t in found),
+        values={
+            "inversions": int(ordering.value),
+            "safer_band": worst["safer_band"],
+            "riskier_band": worst["riskier_band"],
+            "size": worst["size"],
+            "accounts_safer": worst["accounts_safer"],
+            "accounts_riskier": worst["accounts_riskier"],
+            "intervals_overlap": worst["intervals_overlap"],
+            "cohorts_inverted": persistence.get("inverted"),
+            "cohorts_assessable": persistence.get("assessable"),
+            "concentrated_in": (
+                f"{concentration.get('field')}={concentration.get('level')}"
+                if concentration else ""),
+        },
+        model_id=model.model_id, model_version=model.version,
+        period=ordering.period,
+        pattern=pattern.key,
+        supersedes=("F-DISC-RANK",),
+        confidence=_confidence(ordering))
+
+
 PATTERNS: tuple[Pattern, ...] = (
     Pattern("not_what_was_approved",
             "Production does not match the specification",
@@ -780,6 +1162,15 @@ PATTERNS: tuple[Pattern, ...] = (
     Pattern("challenger_inside_the_noise",
             "A challenger advantage inside the champion's interval",
             ("CC-DISCRIMINATION", "ROB-BOOTSTRAP"), _challenger_is_not_better),
+    Pattern("less_representative",
+            "The book no longer resembles the development sample",
+            ("DATA-INPUT-DRIFT",), _population_is_less_representative),
+    Pattern("shared_underprediction",
+            "Observed default above predicted PD across bands",
+            ("CAL-OE", "CAL-BAND"), _shared_underprediction),
+    Pattern("local_inversion",
+            "The score inverts between two adjacent bands",
+            ("DISC-RANK",), _a_local_inversion),
 )
 
 
