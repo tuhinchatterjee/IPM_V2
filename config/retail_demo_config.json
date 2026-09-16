@@ -91,6 +91,7 @@
     },
     "behaviour_months": 3,
     "stress_payment_to_due_scale": 0.05,
-    "stress_cash_advance_share_add": 0.26
+    "stress_cash_advance_share_add": 0.26,
+    "drawdown_miss_relief": 0.15
   }
 }

@@ -1008,6 +1008,8 @@ class RetailSimulation:
             opts.get("stress_payment_to_due_scale", 0.34))
         self.anb_stress_cash_advance_add = float(
             opts.get("stress_cash_advance_share_add", 0.22))
+        self.anb_drawdown_relief = float(
+            opts.get("drawdown_miss_relief", 0.25))
 
         # TWO WINDOWS, AND THEY ARE NOT THE SAME WINDOW.
         #
@@ -1114,6 +1116,37 @@ class RetailSimulation:
         return np.where(self.is_expansion,
                         self.anb_stress_cash_advance_add
                         * self.anb_band_gradient * weight, 0.0)
+
+    def _anb_drawdown_relief(self, t: int) -> np.ndarray:
+        """How much of the utilisation-driven miss term applies while drawing.
+
+        DRAWING ON THE CARD IS WHAT THEY DID INSTEAD OF MISSING.
+
+        The generator raises the chance of missing a payment with utilisation,
+        and that is right as a standing relationship: an account that lives
+        above eighty per cent of its limit is a riskier account. It is the
+        wrong relationship for the month in which a household reaches for the
+        limit BECAUSE it is short. That drawdown is what covers the cycle. It
+        is the reason the payment is made, not the reason it is missed — and it
+        is why the cohort is in so much more trouble the month after.
+
+        Without this, the buildup fought its own story. Utilisation climbing
+        through the quarter before the episode pushed arrears up with it, so
+        the months that were supposed to look boring did not: 20-29 DPD ran
+        1.9, 2.5, 2.7 and 3.3 per cent over the four months before the break
+        rather than sitting flat, and the break was measured against a baseline
+        its own buildup had already lifted.
+
+        So the term is damped for the expansion cohort while it is drawing and
+        still current, and applies in full in the arrears window, where the
+        cohort has run out of limit and the relationship is the ordinary one
+        again. Nothing is damped for any other account in any other month.
+        """
+        if not (self.anb_enabled and self._anb_behaviour_weight(t) > 0.0):
+            return 1.0
+        if self._anb_in_arrears_window(t):
+            return 1.0
+        return np.where(self.is_expansion, self.anb_drawdown_relief, 1.0)
 
     def _anb_pay_ratio_scale(self, t: int) -> np.ndarray:
         """How much of its usual repayment the cohort still makes, 0 to 1.
@@ -1287,6 +1320,7 @@ class RetailSimulation:
             alpha + MISS_STRESS_BETA * stress + MISS_DBR_BETA * dbr_pressure
             + MISS_SALARY_BETA * salary_missed_now.astype("float64")
             + 0.75 * np.where(is_card, np.clip(new_util - 0.55, 0, None) * 2.0, 0.0)
+              * self._anb_drawdown_relief(t)
             + balloon_pressure
             + self._anb_miss_logit(t)
         )

@@ -248,8 +248,36 @@ class TestTheSplit:
         assert found["focus_share_of_early"] > 50.0, (
             f"20-29 DPD is {found['focus_share_of_early']:.0f}% of the 1-29 "
             "population. The story is that it dominates it.")
-        assert focus["baseline_multiple"] >= 3.0, (
-            f"20-29 DPD is {focus['baseline_multiple']:.1f}x its baseline.")
+        assert focus["baseline_multiple"] >= 4.0, (
+            f"20-29 DPD is {focus['baseline_multiple']:.1f}x its baseline; the "
+            "calibration target is four times.")
+
+    def test_the_months_before_the_break_do_not_drift_upwards(self, book):
+        """The baseline the break is measured against must not be lifted by it.
+
+        This is the gate that caught the buildup fighting its own story. The
+        generator raises the chance of missing a payment with utilisation,
+        which is right as a standing relationship and wrong for the month a
+        household reaches for its limit BECAUSE it is short — that drawdown is
+        what covers the cycle. So utilisation climbing through the quarter
+        before the episode was pushing arrears up with it, the months that
+        were meant to look boring drifted from 1.9 to 3.3 per cent, and the
+        break was being measured against a baseline its own buildup had
+        already raised.
+
+        A chart whose baseline slopes is also a worse chart: it invites the
+        reading that this had been coming for months and nobody acted, which
+        is the opposite of what the case says.
+        """
+        found = anb.sub_bucket_trend()
+        before = [float(row[anb.FOCUS]) for row in found["rows"][:-1]]
+        assert len(before) >= 5, "too few months to judge a baseline"
+        first_half = sum(before[: len(before) // 2]) / (len(before) // 2)
+        last_half = sum(before[len(before) // 2 :]) / (len(before) - len(before) // 2)
+        assert last_half < first_half * 1.6, (
+            f"20-29 DPD averages {first_half:.2f}% over the first half of the "
+            f"baseline and {last_half:.2f}% over the second. The months before "
+            "the break are supposed to be flat, not a ramp into it.")
 
     def test_the_first_two_weeks_barely_moved(self, book):
         found = anb.sub_bucket_trend()
