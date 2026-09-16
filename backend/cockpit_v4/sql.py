@@ -400,18 +400,6 @@ def classify(error: Exception, session: Any) -> SqlRejected:
     return SqlRejected(RUNTIME_ERROR, first, domain_id=domain_id)
 
 
-def bind(sql: str, session: Any) -> None:
-    """Resolve the query against the real tables WITHOUT running it, then
-    check it does not silently multiply a measure."""
-    try:
-        session.connection.execute(f"EXPLAIN {sql}")
-    except Exception as exc:  # noqa: BLE001
-        raise classify(exc, session) from exc
-    risk = multiplication_risk(sql, session)
-    if risk is not None:
-        raise risk
-
-
 # ------------------------------------------------------------- 5. execution
 
 @dataclass
@@ -549,6 +537,6 @@ __all__ = ["CROSS_DOMAIN_ACCESS", "JOIN_MULTIPLICITY_RISK", "MAX_MODEL_ROWS",
            "RESOURCE_LIMIT", "RUNTIME_ERROR", "SYNTAX_ERROR", "SqlRejected",
            "SqlResult", "TYPE_MISMATCH", "UNRESOLVED_FIELD",
            "UNRESOLVED_RELATION", "UNSAFE_OPERATION", "additive_measures",
-           "authorize", "bind", "check_structure", "classify", "execute",
+           "authorize", "check_structure", "classify", "execute",
            "filter_values", "local_names", "multiplication_risk",
            "referenced_relations", "sample_rows"]
