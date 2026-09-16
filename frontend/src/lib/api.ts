@@ -8262,6 +8262,81 @@ export const api = {
       timeoutMs: 120_000,
     }),
 
+  // ---- workspace: documents (§19) ----
+
+  documents: (options: {
+    product?: string; status?: string; kind?: string; owner?: string;
+    projectId?: number; search?: string; includeHistorical?: boolean;
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (options.product) query.set("product", options.product);
+    if (options.status) query.set("status", options.status);
+    if (options.kind) query.set("kind", options.kind);
+    if (options.owner) query.set("owner", options.owner);
+    if (options.projectId) query.set("project_id", String(options.projectId));
+    if (options.search) query.set("search", options.search);
+    if (options.includeHistorical) query.set("include_historical", "true");
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<{ documents: WorkDocument[]; facets: WorkDocumentFacets;
+                     documents_version: string }>(
+      `/workspace/documents${suffix}`);
+  },
+
+  document: (id: number) =>
+    request<WorkDocumentBody>(`/workspace/documents/${id}`),
+
+  createDocument: (body: {
+    title: string; kind?: string; product?: string; summary?: string;
+    body?: string; as_of?: string; project_id?: number | null;
+    evidence?: Record<string, unknown>[];
+  }) =>
+    request<WorkDocumentBody>("/workspace/documents",
+      { method: "POST", body: JSON.stringify(body) }),
+
+  saveDocument: (id: number, body: {
+    title?: string; kind?: string; product?: string; summary?: string;
+    body?: string; as_of?: string; project_id?: number | null;
+    evidence?: Record<string, unknown>[];
+  }) =>
+    request<WorkDocumentBody>(`/workspace/documents/${id}`,
+      { method: "PATCH", body: JSON.stringify(body) }),
+
+  reviseDocument: (id: number) =>
+    request<WorkDocumentBody>(`/workspace/documents/${id}/revisions`,
+      { method: "POST", body: "{}" }),
+
+  documentRevisions: (id: number) =>
+    request<{ document_id: number; revisions: WorkDocument[] }>(
+      `/workspace/documents/${id}/revisions`),
+
+  moveDocument: (id: number, to: string) =>
+    request<WorkDocumentBody>(
+      `/workspace/documents/${id}/status?to=${encodeURIComponent(to)}`,
+      { method: "POST", body: "{}" }),
+
+  archiveDocument: (id: number) =>
+    request<{ document_id: number; status: string }>(
+      `/workspace/documents/${id}`, { method: "DELETE" }),
+
+  documentDocxUrl: (id: number) =>
+    `${API_BASE_URL}${API_PREFIX}/workspace/documents/${id}/document.docx`,
+
+  documentBundleUrl: (id: number) =>
+    `${API_BASE_URL}${API_PREFIX}/workspace/documents/${id}/support.zip`,
+
+  /**
+   * Keyed on the attachment's integer id. §19: no internal filesystem path
+   * appears in a download URL, so there is nothing in it to traverse.
+   *
+   * Built here rather than by concatenating the `href` the API returns onto
+   * a literal "/api/v1": that resolves against the FRONTEND origin, and the
+   * backend is on another port — the link 404s from the page's own server
+   * and nobody sees why.
+   */
+  documentAttachmentUrl: (attachmentId: number) =>
+    `${API_BASE_URL}${API_PREFIX}/workspace/documents/attachments/`
+    + `${attachmentId}`,
+
   // ---- workspace: review, comments, notifications ----
   workflowInbox: () => request<WorkflowInbox>("/workspace/workflow/inbox"),
   /** Send an object to people and/or teams, for a named action. §43, §44. */
@@ -13514,6 +13589,73 @@ export type ScvCategory = {
  * state and does not replace it — an analyst may disagree with a number and
  * may not change one.
  */
+/**
+ * A working paper: something a person writes, reviews and signs. §19.
+ *
+ * Not a generated report. Those are downloads, assembled from results and
+ * owned by nobody. This has an author, a status, revisions, comments and a
+ * life — and `is_current` is the field that carries the difference between
+ * the paper the committee approved and the draft somebody is working on now.
+ */
+export type WorkDocument = {
+  documents_version: string;
+  id: number;
+  title: string;
+  kind: string;
+  product: string;
+  status: "draft" | "in_review" | "approved" | "archived";
+  status_label: string;
+  as_of: string;
+  summary: string;
+  owner: string;
+  owner_id: number | null;
+  project_id: number | null;
+  revision: number;
+  is_current: boolean;
+  badge: string;
+  supersedes_id: number | null;
+  data_versions: Record<string, unknown>;
+  evidence_count: number;
+  attachment_count: number;
+  comment_count: number;
+  open_comments: number;
+  seeded: boolean;
+  user_edited: boolean;
+  words: number;
+  sections: number;
+  approved_at: string;
+  approved_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkDocumentBody = WorkDocument & {
+  body: string;
+  outline: { level: number; title: string; anchor: string }[];
+  evidence: { kind?: string; id?: string; label?: string; href?: string }[];
+  attachments: {
+    id: number; filename: string; label: string; role: string;
+    content_type: string; size_bytes: number; href: string;
+    created_at: string;
+  }[];
+  comments: {
+    id: number; body: string; author_id: number | null; resolved: boolean;
+    created_at: string;
+  }[];
+  can_edit: boolean;
+  why_not_editable: string;
+  transitions: string[];
+  statuses: { status: string; label: string }[];
+  roles: string[];
+};
+
+export type WorkDocumentFacets = {
+  products: string[];
+  kinds: string[];
+  owners: string[];
+  statuses: { status: string; label: string }[];
+};
+
 export type ScvComment = {
   comments_version: string;
   id: number;

@@ -397,3 +397,263 @@ def read_notifications(notification_id: int | None = None,
 
 
 __all__ = ["router"]
+
+
+# ============================================================== documents
+#
+# §19. Work → Documents rendered a hard-coded array of three objects from
+# `frontend/src/lib/demo.ts` before this: nothing stored, nothing editable,
+# nothing downloadable, and the same three titles with the same dates on
+# every installation whatever the book underneath had done.
+
+
+def _doc_session():
+    """A transactional session per request, committed on success."""
+    from backend.config import settings
+    from backend.db.engine import SessionLocal
+
+    if not settings.has_database:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "database_unavailable",
+                    "message": ("Documents are kept in PostgreSQL, and this "
+                                "deployment has none configured.")})
+    handle = SessionLocal()
+    try:
+        yield handle
+        handle.commit()
+    except Exception:
+        handle.rollback()
+        raise
+    finally:
+        handle.close()
+
+
+class DocumentIn(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    kind: str = Field(default="", max_length=120)
+    product: str = Field(default="", max_length=48)
+    summary: str = Field(default="", max_length=4000)
+    body: str = Field(default="", max_length=400_000)
+    as_of: str = Field(default="", max_length=32)
+    project_id: int | None = None
+    evidence: list[dict] = Field(default_factory=list)
+
+
+class DocumentSaveIn(BaseModel):
+    title: str | None = Field(default=None, max_length=300)
+    kind: str | None = Field(default=None, max_length=120)
+    product: str | None = Field(default=None, max_length=48)
+    summary: str | None = Field(default=None, max_length=4000)
+    body: str | None = Field(default=None, max_length=400_000)
+    as_of: str | None = Field(default=None, max_length=32)
+    project_id: int | None = None
+    evidence: list[dict] | None = None
+
+
+@router.get("/documents", summary="Every current document")
+def list_documents(product: str = Query(""), status_filter: str = Query(
+                       "", alias="status"),
+                   kind: str = Query(""), owner: str = Query(""),
+                   project_id: int | None = Query(None),
+                   search: str = Query(""),
+                   include_historical: bool = Query(False),
+                   limit: int = Query(100, ge=1, le=300),
+                   principal: Principal = Depends(current_principal),
+                   session=Depends(_doc_session)) -> dict:
+    from backend.services import documents as docs
+
+    rows = docs.listing(
+        session, product=product, status=status_filter, kind=kind,
+        owner=owner, project_id=project_id, search=search,
+        current_only=not include_historical, limit=limit)
+    return {
+        "documents": [docs.header(session, row) for row in rows],
+        "facets": docs.facets(session),
+        "documents_version": docs.DOCUMENTS_VERSION,
+    }
+
+
+@router.post("/documents", status_code=201, summary="Write a new document")
+def create_document(payload: DocumentIn,
+                    principal: Principal = RequireAnalyst,
+                    session=Depends(_doc_session)) -> dict:
+    from backend.services import documents as docs
+
+    try:
+        row = docs.create(
+            session, title=payload.title, kind=payload.kind,
+            product=payload.product, summary=payload.summary,
+            body=payload.body, as_of=payload.as_of,
+            project_id=payload.project_id,
+            owner_id=getattr(principal, "user_id", None),
+            owner_name=(getattr(principal, "username", "") or ""),
+            evidence=payload.evidence)
+    except docs.DocumentError as e:
+        raise HTTPException(status_code=422, detail={
+            "error": "document_refused", "message": str(e)}) from e
+    return docs.body_of(session, row)
+
+
+@router.get("/documents/attachments/{attachment_id}",
+            summary="Download one supporting file")
+def download_attachment(attachment_id: int,
+                        principal: Principal = Depends(current_principal),
+                        session=Depends(_doc_session)):
+    """Keyed on an integer id and nothing else.
+
+    §19: do not expose internal filesystem paths as downloads. The bytes
+    live in the row, so there is no path in the URL for anybody to
+    traverse — the stored filename is used only in the Content-Disposition
+    header, with its quotes and line breaks stripped.
+    """
+    from fastapi import Response
+
+    from backend.services import documents as docs
+
+    try:
+        one = docs.attachment(session, attachment_id)
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    safe = "".join(c for c in one.filename
+                   if c.isalnum() or c in "-_. ()").strip() or "attachment"
+    return Response(
+        content=one.content, media_type=one.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{safe}"'})
+
+
+@router.get("/documents/{document_id}", summary="One document, whole")
+def read_document(document_id: int,
+                  principal: Principal = Depends(current_principal),
+                  session=Depends(_doc_session)) -> dict:
+    from backend.services import documents as docs
+
+    try:
+        return docs.body_of(session, docs.get(session, document_id))
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+
+
+@router.patch("/documents/{document_id}", summary="Save a draft")
+def save_document(document_id: int, payload: DocumentSaveIn,
+                  principal: Principal = RequireAnalyst,
+                  session=Depends(_doc_session)) -> dict:
+    """Autosave and manual save land here. An approved revision refuses."""
+    from backend.services import documents as docs
+
+    try:
+        row = docs.save(
+            session, document_id, title=payload.title, body=payload.body,
+            summary=payload.summary, kind=payload.kind,
+            product=payload.product, as_of=payload.as_of,
+            project_id=payload.project_id, evidence=payload.evidence)
+    except docs.Immutable as e:
+        raise HTTPException(status_code=409, detail={
+            "error": "approved_record", "message": str(e)}) from e
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    return docs.body_of(session, row)
+
+
+@router.post("/documents/{document_id}/revisions",
+             summary="Create a new draft revision")
+def revise_document(document_id: int,
+                    principal: Principal = RequireAnalyst,
+                    session=Depends(_doc_session)) -> dict:
+    from backend.services import documents as docs
+
+    try:
+        row = docs.revise(
+            session, document_id,
+            owner_id=getattr(principal, "user_id", None),
+            owner_name=(getattr(principal, "username", "") or ""))
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    return docs.body_of(session, row)
+
+
+@router.get("/documents/{document_id}/revisions",
+            summary="Every revision of this paper")
+def document_revisions(document_id: int,
+                       principal: Principal = Depends(current_principal),
+                       session=Depends(_doc_session)) -> dict:
+    from backend.services import documents as docs
+
+    try:
+        return {"document_id": document_id,
+                "revisions": docs.revisions(session, document_id)}
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+
+
+@router.post("/documents/{document_id}/status", summary="Move it along")
+def move_document(document_id: int, to: str = Query(...),
+                  principal: Principal = RequireAnalyst,
+                  session=Depends(_doc_session)) -> dict:
+    from backend.services import documents as docs
+
+    try:
+        row = docs.set_status(
+            session, document_id, to,
+            by=(getattr(principal, "username", "") or ""))
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    except docs.DocumentError as e:
+        raise HTTPException(status_code=422, detail={
+            "error": "transition_refused", "message": str(e)}) from e
+    return docs.body_of(session, row)
+
+
+@router.delete("/documents/{document_id}", summary="Archive it")
+def archive_document(document_id: int,
+                     principal: Principal = RequireAnalyst,
+                     session=Depends(_doc_session)) -> dict:
+    """Archived, never deleted. A paper somebody wrote is not scratch."""
+    from backend.services import documents as docs
+
+    try:
+        docs.remove(session, document_id)
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    return {"document_id": document_id, "status": "archived"}
+
+
+@router.get("/documents/{document_id}/support.zip",
+            summary="The document and all its evidence")
+def document_bundle(document_id: int,
+                    principal: Principal = Depends(current_principal),
+                    session=Depends(_doc_session)):
+    from fastapi import Response
+
+    from backend.services import documents as docs
+
+    try:
+        blob, filename = docs.support_bundle(session, document_id)
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    return Response(
+        content=blob, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/documents/{document_id}/document.docx",
+            summary="The document as Word")
+def document_docx(document_id: int,
+                  principal: Principal = Depends(current_principal),
+                  session=Depends(_doc_session)):
+    from fastapi import Response
+
+    from backend.services import documents as docs
+    from backend.services import documents_docx
+
+    try:
+        row = docs.get(session, document_id)
+    except docs.NotFound as e:
+        raise _not_found(e) from e
+    blob = documents_docx.write(session, row)
+    return Response(
+        content=blob,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document"),
+        headers={"Content-Disposition":
+                 f'attachment; filename="{docs._slug(row.title)}.docx"'})

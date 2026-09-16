@@ -33,6 +33,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -1325,6 +1326,167 @@ class InvestigationMessage(Base):
         UniqueConstraint("investigation_id", "sequence", name="uq_investigation_message_seq"),
         Index("ix_investigation_messages_thread", "investigation_id", "sequence"),
     )
+
+
+# ================================================================ documents
+
+
+#: A document's place in its own life. §19 asks for exactly these four, and
+#: the distinction that matters is the last one: an approved record is an
+#: immutable snapshot, and editing it creates a new draft revision rather
+#: than changing what was approved.
+DOC_DRAFT = "draft"
+DOC_IN_REVIEW = "in_review"
+DOC_APPROVED = "approved"
+DOC_ARCHIVED = "archived"
+DOCUMENT_STATUSES: tuple[str, ...] = (DOC_DRAFT, DOC_IN_REVIEW, DOC_APPROVED,
+                                      DOC_ARCHIVED)
+DOCUMENT_STATUS_LABEL: dict[str, str] = {
+    DOC_DRAFT: "Draft",
+    DOC_IN_REVIEW: "In review",
+    DOC_APPROVED: "Approved",
+    DOC_ARCHIVED: "Archived",
+}
+
+
+class Document(Base):
+    """A working paper: something a person writes, reviews and signs.
+
+    Not a generated report. CreditProbe generates plenty of those and they
+    are downloads — a Word file assembled from results, reproducible from
+    its own evidence register and owned by nobody. A Document is the other
+    thing: the paper a credit officer drafts for a committee, edits over a
+    fortnight, attaches evidence to, sends for review and eventually has
+    approved. It has an author, a status, revisions, comments and a life.
+
+    Why a revision is a ROW and not a version column
+    -------------------------------------------------
+    §19: "Approved records are immutable snapshots; editing creates a new
+    draft revision." A version column with an update path cannot express
+    that — the moment editing is possible in place, "what did the committee
+    approve?" becomes a question about backup tapes. So every revision is
+    its own row, `supersedes_id` chains them, and `is_current` marks the one
+    a reader lands on. The approved row keeps its text exactly as approved,
+    for as long as the installation exists.
+
+    Why the body is Markdown and the outline is derived
+    ----------------------------------------------------
+    The section outline on the left of the editor is computed from the
+    headings in the body, not stored beside it. Stored separately they
+    drift: somebody renames a heading and the outline still shows the old
+    one, and the outline is what a reviewer navigates by.
+
+    `seed_key` and `seeded`
+    ------------------------
+    §24 asks a seed refresh to update machine-owned content by stable id and
+    to preserve user edits. `seed_key` is that stable id; `seeded` says the
+    row was machine-authored. A row a person has edited carries
+    `user_edited`, and the seeder does not touch it — it reports the
+    difference instead of overwriting somebody's work.
+    """
+
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    #: What kind of paper — "Board Risk Committee paper", "Validation
+    #: report", "Remediation plan". Free text rather than an enum, because
+    #: the list is a house convention and a new committee should not need a
+    #: migration.
+    kind: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    product: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default=DOC_DRAFT)
+    #: The period the paper is ABOUT, which is not when it was written.
+    as_of: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
+    owner_name: Mapped[str] = mapped_column(String(160), nullable=False,
+                                            default="")
+
+    #: Which model and which data the figures in the body came from. §19: a
+    #: stale historical document stays traceable, and a new revision on the
+    #: current book has to be obvious.
+    data_versions: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                default=dict)
+    #: `[{"kind": "analysis", "id": "...", "label": "...", "href": "..."}]`
+    #: — references, in the shape the rest of the platform uses.
+    evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_current: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true"))
+    supersedes_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+
+    seed_key: Mapped[str] = mapped_column(String(120), nullable=False,
+                                          default="")
+    seeded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false"))
+    user_edited: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false"))
+
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[str] = mapped_column(String(160), nullable=False,
+                                             default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now())
+
+    attachments: Mapped[list["DocumentAttachment"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_documents_current", "is_current", "updated_at"),
+        Index("ix_documents_seed", "seed_key"),
+        Index("ix_documents_project", "project_id"),
+    )
+
+
+class DocumentAttachment(Base):
+    """A supporting file, held as bytes rather than as a path.
+
+    §19: "Supporting files must be real downloadable content with the
+    correct MIME type. Do not expose internal filesystem paths as
+    downloads." Both halves are the same decision. A path in a download URL
+    is a path somebody will eventually traverse, and a demo that serves
+    `../../etc/passwd` because a filename reached the filesystem is a demo
+    that ends a procurement. The bytes live in the row; the URL carries an
+    integer id and nothing else.
+
+    Small by design — an evidence workbook, a chart bundle, a specification
+    extract. Anything large enough to want object storage is a signal the
+    document should reference a generated export instead of carrying one.
+    """
+
+    __tablename__ = "document_attachments"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    filename: Mapped[str] = mapped_column(String(200), nullable=False)
+    label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    content_type: Mapped[str] = mapped_column(String(120), nullable=False,
+                                              default="application/octet-stream")
+    #: What this file IS, so the right-hand rail can group it: "workbook",
+    #: "analysis", "specification", "charts", "note", "lineage".
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    document: Mapped[Document] = relationship(back_populates="attachments")
+
+    __table_args__ = (Index("ix_document_attachments_doc", "document_id"),)
 
 
 class SavedAnalysis(Base):
