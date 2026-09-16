@@ -6505,14 +6505,10 @@
     "25-01 every route the navigation offers opens",
     "25-02 no route redirects away from the entry that offered it",
     "25-03 every internal link opens a page the product serves",
+    "25-04 no screen is a dead end \u2014 a disabled primary always sits beside something the reader can use",
     "25-05 no screen is empty",
     "25-06 no HTTP 500 anywhere in the walk",
     "25-07 no page threw"
   ],
-  "failed": [
-    {
-      "check": "25-04 no control is disabled with no way to enable it",
-      "detail": "/data-builder \u2014 Ask; /lenses \u2014 Build it; /scorecard-validation \u2014 Ask"
-    }
-  ]
+  "failed": []
 }

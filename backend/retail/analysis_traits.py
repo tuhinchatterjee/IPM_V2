@@ -487,10 +487,51 @@ def band_migration(before: pd.DataFrame, after: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+#: Answers already computed, by the book they were computed from.
+#:
+#: The §7 analysis costs 24 seconds, and profiling says almost none of it is
+#: waste: 10 s is `movement.decompose` recomputing IFRS 9 expected credit loss
+#: per attribution prefix — which it has to do, because ECL is multiplicative
+#: and an allocated attribution would not reconcile — and 10 s is the trait
+#: inventory rescoring every active scorecard over both windows. The rest is
+#: pandas moving 546 columns of an Arrow-backed frame through two hundred
+#: boolean masks.
+#:
+#: What IS wasteful is doing it again. The answer depends on the published
+#: book, the two windows, and the scope — and on nothing else. `question` is
+#: echoed into the response and never computed from, so it is not part of the
+#: key; the echoed value is replaced on the way out, which is why the stored
+#: answer is copied rather than handed over.
+#:
+#: Keyed by the book's manifest hash, so a regenerated book does not find
+#: itself here and computes afresh. Same rule as the derived domains, and the
+#: reason this is safe where a time-based cache would not be.
+_ANSWERS: dict[tuple, dict[str, Any]] = {}
+
+#: Twelve scopes is every product, every classification and a few sub-products
+#: at both modes. Beyond that the oldest goes.
+_ANSWERS_KEPT = 24
+
+
+def forget() -> int:
+    """Drop the kept answers. For a process that has just rebuilt the book."""
+    held = len(_ANSWERS)
+    _ANSWERS.clear()
+    return held
+
+
 def run(*, month: str = "", prior: str = "", product: str = "",
         classification: str = "", sub_product: str = "",
         question: str = "", mode: str = "quarter") -> dict[str, Any]:
     """The full §7 answer: every variable, then the mechanism, then the loss."""
+    from backend.retail import source_stamp
+
+    key = (source_stamp.book_hash(), ANALYSIS_VERSION, month, prior, product,
+           classification, sub_product, mode)
+    held = _ANSWERS.get(key)
+    if held is not None:
+        return {**held, "question": question}
+
     months = S.book_months()
     if not months:
         return {"available": False, "because": "the book holds no months"}
@@ -547,7 +588,7 @@ def run(*, month: str = "", prior: str = "", product: str = "",
     label = (tax.PRODUCT_LABELS.get(product.upper(), product.title())
              if product else "Retail")
 
-    return {
+    out = {
         "available": True,
         "analysis_id": ANALYSIS_ID,
         "analysis_version": ANALYSIS_VERSION,
@@ -630,6 +671,10 @@ def run(*, month: str = "", prior: str = "", product: str = "",
             "an approved model.",
         ],
     }
+    if len(_ANSWERS) >= _ANSWERS_KEPT:
+        _ANSWERS.pop(next(iter(_ANSWERS)))
+    _ANSWERS[key] = out
+    return {**out, "question": question}
 
 
 def _stage_movement(before: pd.DataFrame, after: pd.DataFrame) -> dict[str, Any]:

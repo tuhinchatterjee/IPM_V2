@@ -153,9 +153,69 @@ def _warm_the_early_warning_score() -> None:
     threading.Thread(target=run, name="ews-warm", daemon=True).start()
 
 
+def _warm_the_seeded_trends() -> None:
+    """Compute the trends the seeded dashboards read, before anybody opens one.
+
+    A trend reads EVERY published month — twenty-five snapshots of fifty-nine
+    thousand rows, filtered and aggregated per month. `measures.trend` keeps
+    the answer, keyed by the book it was computed from, so the second reader
+    of a dashboard pays nothing. The FIRST reader paid twenty-six seconds,
+    and on a demonstration machine the first reader is the presenter.
+
+    So the trends the seeded lenses ask for are computed here, on a daemon
+    thread, while nobody is waiting. A reader who beats the warm-up computes
+    them as before; a failure leaves a working API that is merely slower on
+    its first dashboard.
+
+    Read off the seeded lens definitions rather than listed here, so a
+    dashboard added later is warmed without anybody remembering to come back
+    to this function.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return
+
+    def run() -> None:
+        with contextlib.suppress(Exception):
+            from backend.services import lenses as lens_service
+
+            started = time.perf_counter()
+            # Through the lens service's own helper, which asks
+            # `measures.trend` the identical question the renderer will.
+            # A warm-up that builds its own arguments drifts from the
+            # renderer and fills the cache with keys nobody looks up — this
+            # one did, and the first reader of a dashboard still paid
+            # nineteen seconds while twenty-six warmed trends sat unused.
+            warmed = lens_service.warm_seeded()
+            logging.getLogger(__name__).info(
+                "%d seeded dashboard trends warmed in %.1fs",
+                warmed, time.perf_counter() - started)
+
+        # The §7 trait analysis, which is the demonstration's second act and
+        # its most expensive answer: twenty-two seconds of IFRS 9
+        # recomputation per attribution prefix and a rescore of every active
+        # scorecard over both windows. Almost none of that is waste — ECL is
+        # multiplicative, so an allocated attribution would not reconcile —
+        # but doing it again for the same book is, so the answer is kept.
+        # Warmed at the whole-book scope, which is the one the Cockpit chip
+        # and the story's second act both ask for.
+        with contextlib.suppress(Exception):
+            from backend.retail import analysis_traits
+
+            started = time.perf_counter()
+            analysis_traits.run(mode="quarter")
+            logging.getLogger(__name__).info(
+                "trait analysis warmed in %.1fs",
+                time.perf_counter() - started)
+
+    threading.Thread(target=run, name="trend-warm", daemon=True).start()
+
+
 @contextlib.asynccontextmanager
 async def _lifespan(app: FastAPI):
     _warm_the_early_warning_score()
+    _warm_the_seeded_trends()
     yield
 
 

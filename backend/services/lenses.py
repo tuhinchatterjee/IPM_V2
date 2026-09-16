@@ -849,6 +849,50 @@ def render(lens_id: int, *, period: str | None = None,
     }
 
 
+def _trend_window(every: list[str], params: dict) -> list[str]:
+    """The months a trend tile reads.
+
+    A function rather than an expression inline, because the STARTUP warm-up
+    has to ask `measures.trend` the identical question or it fills the cache
+    with keys nobody looks up. It did exactly that once: the warm-up omitted
+    `over`, warmed twenty-six trends nothing asked for, and the first reader
+    of a dashboard still paid nineteen seconds.
+    """
+    return every[-int(params.get("months") or 13):]
+
+
+def warm_seeded() -> int:
+    """Compute what the seeded dashboards will ask for. Returns how many.
+
+    Through the same call the renderer makes, for the reason above.
+    """
+    from backend.retail import measures, seed_lenses
+
+    every = measures.months()
+    asked: set[tuple] = set()
+    for lens in seed_lenses.LENSES:
+        for panel in lens.get("panels") or []:
+            params = panel.get("params") or {}
+            if str(params.get("shape")) != "trend":
+                continue
+            wanted = [str(one) for one in (params.get("measures") or [])]
+            product = str(params.get("product") or "")
+            where = dict(params.get("where") or {})
+            over = _trend_window(every, params)
+            key = (tuple(wanted), product,
+                   tuple(sorted((str(k), str(v)) for k, v in where.items())),
+                   tuple(over))
+            if key in asked:
+                continue
+            asked.add(key)
+            try:
+                measures.trend(wanted, product=product, where=where, over=over)
+            except Exception:  # noqa: BLE001 - a warm-up never fails a start
+                logger.warning("could not warm a trend for %s",
+                               lens.get("slug"), exc_info=True)
+    return len(asked)
+
+
 def _render_metric(panel: Panel, *, period: str | None,
                    user_id: int | None,
                    periods: dict[tuple[Any, ...], str] | None = None
@@ -967,7 +1011,7 @@ def _render_retail(panel: Panel, *, period: str | None) -> dict[str, Any]:
             month = every[-1]
         if shape == "trend":
             got = measures.trend(wanted, product=product, where=where,
-                                 over=every[-int(params.get("months") or 13):])
+                                 over=_trend_window(every, params))
         elif shape == "value":
             got = measures.value(month, wanted[0], product=product,
                                  where=where)

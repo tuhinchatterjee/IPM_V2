@@ -1,0 +1,75 @@
+{
+  "steps": [
+    {
+      "step": "cockpit attention cards",
+      "cold_s": 0.05,
+      "warm_s": 0.02,
+      "budget_s": 3.0,
+      "within_budget": true
+    },
+    {
+      "step": "an investigation's first answer",
+      "cold_s": 1.17,
+      "warm_s": 0.59,
+      "budget_s": 15.0,
+      "within_budget": true
+    },
+    {
+      "step": "the trait inventory",
+      "cold_s": 0.22,
+      "warm_s": 0.21,
+      "budget_s": 12.0,
+      "within_budget": true
+    },
+    {
+      "step": "a What-If baseline",
+      "cold_s": 0.01,
+      "warm_s": 0.01,
+      "budget_s": 5.0,
+      "within_budget": true
+    },
+    {
+      "step": "a Delta scenario",
+      "cold_s": 10.73,
+      "warm_s": 10.26,
+      "budget_s": 20.0,
+      "within_budget": true
+    },
+    {
+      "step": "an XGBoost scenario",
+      "cold_s": 11.81,
+      "warm_s": 11.26,
+      "budget_s": 20.0,
+      "within_budget": true
+    },
+    {
+      "step": "the challenger model card",
+      "cold_s": 0.01,
+      "warm_s": 0.01,
+      "budget_s": 2.0,
+      "within_budget": true
+    },
+    {
+      "step": "a product lens, 18 tiles",
+      "cold_s": 1.82,
+      "warm_s": 1.71,
+      "budget_s": 10.0,
+      "within_budget": true
+    },
+    {
+      "step": "the validation overview",
+      "cold_s": 0.51,
+      "warm_s": 0.04,
+      "budget_s": 3.0,
+      "within_budget": true
+    },
+    {
+      "step": "the early-warning panel",
+      "cold_s": 0.01,
+      "warm_s": 0.01,
+      "budget_s": 12.0,
+      "within_budget": true
+    }
+  ],
+  "over_budget": []
+}

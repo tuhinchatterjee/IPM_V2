@@ -521,6 +521,43 @@ def table(month: str, measures: list[str], cut: str, *, product: str = "",
     }
 
 
+#: Trends already computed, by the book they were computed from.
+#:
+#: A trend reads EVERY published month: twenty-five snapshots of fifty-nine
+#: thousand rows, filtered and aggregated per month, per call. Measured, that
+#: is 37 seconds on a cold process and 8 seconds warm — and an executive lens
+#: with three trend tiles pays it three times, which is most of the eighteen
+#: seconds such a dashboard took to render.
+#:
+#: It is also a PURE FUNCTION of the published book. The months do not move,
+#: the rows in them do not move, and the only thing that can change the answer
+#: is the book being regenerated. So the answer is kept, keyed by the book's
+#: manifest hash — which means a regenerated book does not invalidate this
+#: cache so much as fail to find itself in it, and computes afresh. That is
+#: the same rule the derived domains use, and it is the reason this is safe
+#: where a time-based cache would not be.
+_TRENDS: dict[tuple, dict[str, Any]] = {}
+
+#: Enough for every seeded lens and analysis several times over, and small
+#: enough that a pathological caller cannot exhaust memory with it.
+_TRENDS_KEPT = 256
+
+
+def _trend_key(measures: list[str], product: str,
+               where: dict[str, Any] | None,
+               over: list[str] | None) -> tuple:
+    from backend.retail import source_stamp
+
+    return (
+        source_stamp.book_hash(),
+        MEASURES_VERSION,
+        tuple(measures),
+        product,
+        tuple(sorted((str(k), str(v)) for k, v in (where or {}).items())),
+        tuple(over) if over else (),
+    )
+
+
 def trend(measures: list[str], *, product: str = "",
           where: dict[str, Any] | None = None,
           over: list[str] | None = None) -> dict[str, Any]:
@@ -528,10 +565,21 @@ def trend(measures: list[str], *, product: str = "",
 
     The months are read from the lake rather than generated from a calendar:
     a trend that plots a month the book does not hold draws a gap as a zero.
+
+    Answered from `_TRENDS` where this book has been asked before. See the
+    note there for why that is safe and why it matters.
     """
+    key = _trend_key(measures, product, where, over)
+    held = _TRENDS.get(key)
+    if held is not None:
+        # Copied, because callers add to what they are given — a lens panel
+        # puts its own note on the result — and a cache that hands out its
+        # own dictionary grows whatever every caller attached to it.
+        return {**held, "rows": [dict(one) for one in held["rows"]]}
+
     every = over or months()
-    wanted = [BY_KEY[key] for key in measures if key in BY_KEY
-              and BY_KEY[key].applies_to(product)]
+    wanted = [BY_KEY[key_] for key_ in measures if key_ in BY_KEY
+              and BY_KEY[key_].applies_to(product)]
     rows: list[dict[str, Any]] = []
     for month in every:
         frame = population(month, product=product, where=where)
@@ -540,13 +588,26 @@ def trend(measures: list[str], *, product: str = "",
             got = one.compute(frame)
             row[one.key] = None if got is None else round(float(got), 8)
         rows.append(row)
-    return {
+    out = {
         "measures": [{"measure": one.key, "label": one.label,
                       "unit": one.unit, "meaning": one.meaning}
                      for one in wanted],
         "rows": rows, "product": product, "where": dict(where or {}),
         **stamp(every[-1] if every else ""),
     }
+    if len(_TRENDS) >= _TRENDS_KEPT:
+        # Oldest first. A trend is cheap to recompute relative to the cost of
+        # an unbounded dictionary in a long-running process.
+        _TRENDS.pop(next(iter(_TRENDS)))
+    _TRENDS[key] = out
+    return {**out, "rows": [dict(one) for one in out["rows"]]}
+
+
+def forget() -> int:
+    """Drop the kept trends. For a process that has just rebuilt the book."""
+    held = len(_TRENDS)
+    _TRENDS.clear()
+    return held
 
 
 def catalogue() -> dict[str, Any]:
@@ -569,5 +630,5 @@ def catalogue() -> dict[str, Any]:
 __all__ = [
     "BY_KEY", "CUTS", "CUT_BY_KEY", "MEASURES", "MEASURES_VERSION",
     "MeasureRefused", "PRODUCTS", "PRODUCT_LABEL", "book", "catalogue",
-    "months", "population", "stamp", "table", "trend", "value",
+    "forget", "months", "population", "stamp", "table", "trend", "value",
 ]
