@@ -107,6 +107,39 @@ rather than as a file.
 Nothing was removed to get there: the same 22 sheets, the same customer and
 facility detail, the same formatting and the same auditability.
 
+The demonstration path, re-measured at Phase 9 by
+`scripts/retail_uat/phase9_timings.py`. Cold is the first call after a
+restart with the startup warm-up finished, because that is what the
+presenter's first click actually is; the suite waits for the warm-up rather
+than measuring the race.
+
+| Step | Cold | Warm | Budget |
+|---|---:|---:|---:|
+| Cockpit attention cards | 0.05s | 0.02s | 3s |
+| An investigation's first answer | 1.17s | 0.59s | 15s |
+| The trait inventory | 0.22s | 0.21s | 12s |
+| A What-If baseline | 0.01s | 0.01s | 5s |
+| A Delta scenario | 10.73s | 10.26s | 20s |
+| An XGBoost scenario | 11.81s | 11.26s | 20s |
+| The challenger model card | 0.01s | 0.01s | 2s |
+| A product lens, 18 tiles | 1.82s | 1.71s | 10s |
+| The validation overview | 0.51s | 0.04s | 3s |
+| The early-warning panel | 0.01s | 0.01s | 12s |
+
+Two of those were far outside it before Phase 9. The trait inventory was
+37.2s and a product dashboard 18.9s, both because the same pure function of
+the published book was being recomputed on every request: `measures.trend`
+reads all twenty-five months, and the §7 analysis recomputes IFRS 9 ECL per
+attribution prefix. Both are now kept, keyed by the book's manifest hash, and
+warmed on the existing daemon thread so the presenter does not pay for the
+first one. The startup warm-up takes about two and a half minutes and nobody
+waits for it.
+
+Almost none of the §7 cost was waste, which is why it was cached rather than
+trimmed: 10s is `movement.decompose` recomputing ECL per prefix, which it has
+to do because ECL is multiplicative and an allocated attribution would not
+reconcile, and 10s is rescoring every active scorecard over both windows.
+
 ### Acceptance
 
 `scripts/retail_uat/phase5_acceptance.py` — **39 of 39**, both files
