@@ -107,7 +107,18 @@ KIND_METRIC = "metric"
 #: configuration a single figure has no use for (a dimension, a sort, a
 #: comparison) and because the two are validated against different rules.
 KIND_CHART = "chart"
-KINDS = (KIND_ANALYSIS, KIND_METRIC, KIND_CHART)
+
+#: A governed retail measure, over the canonical facility-month book. §20.
+#:
+#: A fourth kind rather than a metric tile with different params, for the
+#: reason the chart kind is a third one: what it renders is a different
+#: shape. A retail panel carries several measures at once broken down by one
+#: cut, or one measure across thirteen months, and the metric executor
+#: returns a single scalar with a formula behind it. Forcing one into the
+#: other would mean eight tiles where the screen wants one table.
+KIND_RETAIL = "retail"
+
+KINDS = (KIND_ANALYSIS, KIND_METRIC, KIND_CHART, KIND_RETAIL)
 
 #: How many charts one lens may hold. A chart costs a grouped scan of the
 #: lake, so this is lower than the tile limit, and low enough that a lens
@@ -776,6 +787,9 @@ def render(lens_id: int, *, period: str | None = None,
             panels.append(_render_chart(panel, period=period,
                                         user_id=user_id))
             continue
+        if panel.kind == KIND_RETAIL:
+            panels.append(_render_retail(panel, period=period))
+            continue
         try:
             outcome = run_analysis(
                 panel.analysis_id, params=panel.params, period=period,
@@ -887,6 +901,72 @@ def _render_metric(panel: Panel, *, period: str | None,
         "calculation": outcome["calculation"],
         "result": None,
     }
+
+
+def _render_retail(panel: Panel, *, period: str | None) -> dict[str, Any]:
+    """One governed retail measure panel, computed now. §20.
+
+    "LIVE" on a lens has to mean something, and what it means here is that
+    this ran against the latest published snapshot of the governed book when
+    the page asked. So nothing is cached: the panel carries the month it
+    read, the source hash of the book it read, and the time it read it, and
+    the screen decides from those whether the badge is honest.
+
+    A measure that is not meaningful for the panel's product does not render
+    as zero. It comes back refused with the reason, which is the same
+    contract the validation engine holds — loan-to-value on a credit card is
+    absent because a card has no collateral, not because the ratio is nil.
+    """
+    from datetime import UTC, datetime
+
+    from backend.retail import measures
+
+    params = dict(panel.params or {})
+    shape = str(params.get("shape") or "table")
+    wanted = [str(one) for one in (params.get("measures") or [])]
+    product = str(params.get("product") or "")
+    where = dict(params.get("where") or {})
+    month = panel.period or period or ""
+
+    body = {**panel.to_dict(), "status": "ok", "error": "",
+            "read_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    try:
+        every = measures.months()
+        if not every:
+            raise measures.MeasureRefused(
+                "The retail book holds no months, so there is nothing to "
+                "measure.")
+        # The latest published month unless the tile pins itself to one.
+        # Resolved from the book rather than from a clock: a lens that
+        # asked for "this month" on the first of the month would render
+        # every tile as a refusal.
+        if not month or month not in every:
+            month = every[-1]
+        if shape == "trend":
+            got = measures.trend(wanted, product=product, where=where,
+                                 over=every[-int(params.get("months") or 13):])
+        elif shape == "value":
+            got = measures.value(month, wanted[0], product=product,
+                                 where=where)
+        else:
+            got = measures.table(month, wanted, str(params.get("cut") or ""),
+                                 product=product, where=where)
+    except measures.MeasureRefused as problem:
+        return {**body, "status": "refused", "error": str(problem),
+                "result": None}
+    except Exception as problem:  # noqa: BLE001 - a broken tile says so
+        return {**body, "status": "failed",
+                "error": f"{type(problem).__name__}: {problem}",
+                "result": None}
+
+    return {**body, "result": got, "month": got.get("month", month),
+            "source_hash": got.get("source_hash", ""),
+            "latest_month": every[-1],
+            # The badge's whole basis, computed here rather than assumed on
+            # screen: a tile pinned to an older month is not stale, and a
+            # tile that read an older month because that is all the book has
+            # is.
+            "is_latest": got.get("month", month) == every[-1]}
 
 
 def _render_chart(panel: Panel, *, period: str | None,
