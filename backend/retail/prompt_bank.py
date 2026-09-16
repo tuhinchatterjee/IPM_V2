@@ -242,6 +242,10 @@ PROMPTS: tuple[Prompt, ...] = (
     Prompt("dpd-migration-loose",
            "Move 20% of 30-60 DPD exposure to 90+.",
            WHATIF, outcome=CLARIFY, operation="dpd_migration",
+           # The clarification must name the governed bucket it is offering,
+           # or the reader has to guess which one the product meant.
+           must_say=("30-59",),
+           must_not_say=("applied",),
            because="30-60 is not a canonical bucket. The product must ask "
                    "whether 30-59 was meant rather than silently rounding "
                    "to it."),

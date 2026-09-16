@@ -157,6 +157,46 @@ def main() -> int:
     for problem in problems:
         log.warning("  STILL UNRECONCILED: %s", problem)
 
+    # The demonstration CONTENT: twelve projects, the saved analyses under
+    # them, the investigation threads, the committee papers and the product
+    # dashboards. §17 to §20.
+    #
+    # This runs last on purpose. Every one of those objects is computed from
+    # the book through the governed measure engine, so it needs the views
+    # above to exist and to reconcile first — seeded before them, a project's
+    # headline figure would be computed from a book the views had not caught
+    # up with, which is exactly the version confusion this release is about.
+    #
+    # It has to be HERE rather than in a script somebody remembers to run.
+    # Without it a fresh Mac bootstraps successfully and opens on a Workspace
+    # with no projects, an Analyses list with nothing in it and a Documents
+    # screen reading "Nothing yet" — with every one of those capabilities
+    # built and working underneath.
+    #
+    # Idempotent: an object already seeded at this book version is left
+    # alone, and one whose figures have moved is refreshed, not duplicated.
+    from backend.retail import seed_workspace
+
+    with get_session() as session:
+        content = seed_workspace.build(session)
+        session.commit()
+    log.info("Demonstration content: %s",
+             ", ".join(f"{kind} {one['total']}"
+                       for kind, one in sorted(
+                           (content.get("summary") or {}).items()))
+             or "nothing written")
+    for problem in (content.get("errors") or [])[:10]:
+        log.warning("  %s", problem)
+
+    # And the residue a retail installation should not be showing: the
+    # corporate saved analyses a test left behind, and the investigations
+    # with no messages and no project. Anything carrying content is untouched.
+    with get_session() as session:
+        removed = seed_workspace.tidy(session, preview=False)
+        session.commit()
+    if removed.get("removed"):
+        log.info("Removed non-retail residue: %s", removed["removed"])
+
     if "retail_facility_month" not in published:
         log.warning(
             "retail_facility_month is not published in Data Builder. The Cockpit will "
@@ -231,6 +271,61 @@ def _check(log) -> int:
             problems.append(
                 f"the early-warning panel covers {len(scored)} of the "
                 f"{len(published_months)} published months")
+
+    # The demonstration content, counted rather than assumed. A readiness
+    # check that stops at the datasets reports READY for an installation
+    # whose Workspace, Analyses, Investigations, Documents and Lenses screens
+    # are all empty — which is what a presenter actually opens.
+    #
+    # Counted against the seed definitions, so the floor moves with them
+    # rather than being a number typed here that goes stale the first time a
+    # project is added.
+    from sqlalchemy import func, select
+
+    from backend.models.platform import (
+        Document,
+        Investigation,
+        Lens,
+        Project,
+        SavedAnalysis,
+    )
+    from backend.retail import seed_catalogue, seed_documents, seed_lenses
+    from backend.retail import seed_threads
+    from backend.retail.seed_workspace import KEY
+
+    wanted = {
+        "projects": (Project, len(seed_catalogue.PROJECTS)),
+        "saved analyses": (SavedAnalysis, len(seed_catalogue.ANALYSES)),
+        "investigations": (Investigation, len(seed_threads.all_threads())),
+        "documents": (Document, len(seed_documents.PAPERS)),
+        "lenses": (Lens, len(seed_lenses.LENSES)),
+    }
+    with get_session() as session:
+        for label, (model, floor) in wanted.items():
+            held = session.execute(
+                select(func.count()).select_from(model)).scalar() or 0
+            if held < floor:
+                problems.append(
+                    f"the {label} screen holds {held} of the {floor} this "
+                    f"release seeds, so it opens thin or empty")
+        # A seeded object whose figures were computed against a different
+        # book is worse than a missing one: it is on screen, it looks
+        # current, and it disagrees with the analysis beside it.
+        from backend.retail import measures
+
+        every = measures.months()
+        now = measures.stamp(every[-1]).get("source_hash", "") if every else ""
+        if now:
+            stale = session.execute(
+                select(func.count()).select_from(SavedAnalysis)
+                .where(SavedAnalysis.params[KEY].astext.isnot(None))
+                .where(SavedAnalysis.data_versions["source_hash"].astext
+                       != now)).scalar() or 0
+            if stale:
+                problems.append(
+                    f"{stale} seeded analyses were computed against an "
+                    f"older book than the one published now ({now[:12]}); "
+                    f"re-run the bootstrap to refresh them")
 
     for item in problems:
         log.warning("Still missing: %s", item)

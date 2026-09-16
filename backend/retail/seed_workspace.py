@@ -266,7 +266,8 @@ def _projects(session: Any, owner: Any, report: Report, *,
 
 def _analyses(session: Any, owner: Any, projects: dict[str, int],
               month: str, source_hash: str, report: Report, *,
-              preview: bool) -> dict[str, int]:
+              preview: bool,
+              results: dict[str, Any] | None = None) -> dict[str, int]:
     from sqlalchemy import select
 
     from backend.models.platform import SavedAnalysis
@@ -307,6 +308,13 @@ def _analyses(session: Any, owner: Any, projects: dict[str, int],
             "result": result,
             "tags": list(one.tags),
         }
+        if results is not None:
+            # The papers quote these. Computing them twice is not merely
+            # wasteful — two computations of the same measure at different
+            # moments can disagree, and a document that disagrees with the
+            # analysis it cites is the version confusion this whole release
+            # is about.
+            results[one.key] = body
         print_ = _fingerprint(result)
         params = {
             KEY: one.key, "shape": one.shape,
@@ -374,12 +382,19 @@ def build(session: Any, *, preview: bool = False,
 
     owner = _owner(session)
     projects = _projects(session, owner, report, preview=preview)
+    results: dict[str, Any] = {}
     _analyses(session, owner, projects, report.month, report.source_hash,
-              report, preview=preview)
-    from backend.retail import seed_lenses, seed_threads
+              report, preview=preview, results=results)
+    from backend.retail import seed_documents, seed_lenses, seed_threads
 
     seed_threads.build(session, owner, projects, report.month,
                        report.source_hash, report, preview=preview)
+    # The papers, which quote the analyses above by key. Seeded here rather
+    # than from a script somebody has to remember to run: a fresh install
+    # that comes up with twelve projects and no documents has a Documents
+    # screen that says "Nothing yet" in front of a client.
+    seed_documents.build(session, owner, projects, results, report.month,
+                         report.source_hash, report, preview=preview)
     seed_lenses.build(session, owner, report, preview=preview)
     report.seconds = time.time() - started
     return report.to_dict()

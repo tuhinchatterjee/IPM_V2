@@ -4803,11 +4803,19 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
 
     warnings: list[str] = []
     for exclusion in exclusions:
+        # Said as the STATE, not as the column. "customers where
+        # current_default_flag is set were removed" is a sentence about a
+        # database; the reader is asking about customers in default. The
+        # same rule that names the population in the headline names it here,
+        # so the two cannot disagree.
+        from backend.orchestration import scope as _scope
+
+        state = _scope.say(exclusion.field, True)
         warnings.append(
             f"The question said “{exclusion.phrase}”, so {_subject_word()}s "
-            f"where "
-            f"{exclusion.field} is set were removed before the evidence was "
-            f"counted. This is not the whole book.")
+            f"who are {state} were removed before the evidence was counted. "
+            f"The ranking below is {_subject_word()}s who are "
+            f"{_scope.say(exclusion.field, False)}, not the whole book.")
     if found.unavailable:
         warnings.append(
             f"The governed catalogue holds no measure for "

@@ -105,6 +105,8 @@ _STATE_SAYS: dict[str, tuple[str, str]] = {
     "cure": ("cured", "not cured"),
     "watchlist": ("on the watchlist", "not on the watchlist"),
     "secured": ("secured", "unsecured"),
+    "npl": ("non-performing", "performing"),
+    "non performing": ("non-performing", "performing"),
     "unlikeliness to pay": ("flagged unlikely to pay",
                             "not flagged unlikely to pay"),
 }
