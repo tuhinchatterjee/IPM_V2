@@ -294,6 +294,17 @@ class Cut:
     only_for: tuple[str, ...] = ()
     #: How to order the levels where the natural order is not alphabetical.
     order: tuple[str, ...] = ()
+    #: Which governed view the column lives in. "" is the canonical book.
+    #:
+    #: Sub-product and classification are DERIVED dimensions: the taxonomy
+    #: that produces them is versioned and lives with the Early Warning
+    #: score view, not in the facility-month book. Cutting by them means
+    #: joining that view on facility_id — which is a join onto a governed
+    #: derived dataset, not a dimension this module invents. The alternative
+    #: was to drop the cut, and §22's demonstration drills product to
+    #: classification to sub-product to customer, so dropping it would have
+    #: removed a required capability rather than served it.
+    source: str = ""
 
 
 CUTS: tuple[Cut, ...] = (
@@ -319,7 +330,8 @@ CUTS: tuple[Cut, ...] = (
     Cut("collateral_type", "Collateral type", "collateral_type",
         only_for=("HOME_LOAN", "AUTO_LOAN")),
     Cut("application_band", "Application score band", "application_score_band"),
-    Cut("sub_product", "Sub-product", "sub_product"),
+    Cut("sub_product", "Sub-product", "sub_product", source="ews"),
+    Cut("classification", "Classification", "classification", source="ews"),
 )
 
 CUT_BY_KEY: dict[str, Cut] = {one.key: one for one in CUTS}
@@ -341,9 +353,42 @@ def months() -> list[str]:
     return list(ews_score.book_months())
 
 
+#: The derived columns this module will join, and where they come from.
+#: Named explicitly rather than joining whatever the view happens to hold:
+#: a wildcard join would quietly shadow a book column with a derived one of
+#: the same name, and the two are not the same quantity.
+DERIVED: dict[str, tuple[str, ...]] = {
+    "ews": ("sub_product", "sub_product_label", "classification",
+            "classification_label"),
+}
+
+
+def _with_derived(frame: pd.DataFrame, month: str,
+                  columns: tuple[str, ...]) -> pd.DataFrame:
+    """Join the derived dimensions the cut needs, on facility_id."""
+    from backend.retail import ews_score
+
+    wanted = [one for one in columns if one not in frame.columns]
+    if not wanted:
+        return frame
+    view = ews_score.read(month)
+    keep = [one for one in wanted if one in view.columns]
+    if not keep or "facility_id" not in view.columns \
+            or "facility_id" not in frame.columns:
+        raise MeasureRefused(
+            f"{', '.join(wanted)} is not available for {month}. It is a "
+            "derived dimension and its view has not been built for this "
+            "month.")
+    return frame.merge(view[["facility_id", *keep]], on="facility_id",
+                       how="left")
+
+
 def population(month: str, *, product: str = "",
-               where: dict[str, Any] | None = None) -> pd.DataFrame:
+               where: dict[str, Any] | None = None,
+               derived: tuple[str, ...] = ()) -> pd.DataFrame:
     frame = book(month)
+    if derived:
+        frame = _with_derived(frame, month, derived)
     if product:
         frame = frame[frame["product_code"].astype(str) == product]
     for column, value in (where or {}).items():
@@ -435,10 +480,12 @@ def table(month: str, measures: list[str], cut: str, *, product: str = "",
             refused.append({"measure": one.key, "label": one.label,
                             "why": one.why_limited})
 
-    frame = population(month, product=product, where=where)
+    frame = population(month, product=product, where=where,
+                       derived=DERIVED.get(dimension.source, ()))
     if dimension.column not in frame.columns:
         raise MeasureRefused(
-            f"{dimension.column} is not a column of the retail book.")
+            f"{dimension.column} is not a column of the retail book, and is "
+            "not published by a derived view this module can read.")
 
     rows: list[dict[str, Any]] = []
     levels = frame[dimension.column].astype(str)

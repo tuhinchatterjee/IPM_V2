@@ -45,6 +45,13 @@ COHORTS: tuple[tuple[str, str, str], ...] = (
     ("current_bad", "Currently bad / delinquent", S.CURRENT_BAD_RULE
      + " Listed whether or not a trigger also fired against them."),
     ("forward_risk", "Performing — high forward risk", S.FORWARD_RISK_RULE),
+    # §21 asks for this IN ADDITION to the wider one, not instead of it.
+    # "Not currently bad" is under thirty days and includes everybody in one
+    # to twenty-nine, which collections is already working. This is the
+    # population a decision is still available for.
+    ("clean_forward_risk", "Fully current — high forward risk",
+     S.CLEAN_FORWARD_RISK_RULE),
+    ("clean", "Fully current", S.CLEAN_RULE),
     ("critical", "Critical", "Early Warning Score in the CRITICAL band."),
     ("high", "High", "Early Warning Score in the HIGH band."),
     ("everyone", "Every customer",
@@ -137,6 +144,30 @@ def _per_customer(frame: Any, *, columns: tuple[str, ...] | None = None) -> Any:
     # Sorted, as the default is. `sort=False` would be marginally faster and
     # would change the ROW ORDER of the roll-up, which anything downstream
     # taking a head without sorting would silently read as a different answer.
+    # §21's clean flag, derived HERE rather than read from the panel.
+    #
+    # `ews_score.score` writes it on every new build, but the panel already
+    # on disk was built before it existed, and a stored view is not rebuilt
+    # to add a column that can be computed from the columns it already has.
+    # §24 is explicit that a partial rebuild must not disturb retained
+    # months, and rebuilding a 59,449-row derived domain to gain one boolean
+    # is the kind of migration that loses one.
+    #
+    # Computed from the panel's own columns, to the same definition: zero
+    # days past due, not in default, not Stage 3, and no hard trigger.
+    if "clean_flag" not in frame.columns:
+        dpd = pd.to_numeric(frame.get("dpd"), errors="coerce").fillna(0.0)
+        stage = pd.to_numeric(frame.get("ifrs9_stage"),
+                              errors="coerce").fillna(1.0)
+        defaulted = (frame["current_default_flag"].fillna(False).astype(bool)
+                     if "current_default_flag" in frame.columns
+                     else pd.Series(False, index=frame.index))
+        hard = (frame["hard_trigger_applied"].fillna("").astype(str) != ""
+                if "hard_trigger_applied" in frame.columns
+                else pd.Series(False, index=frame.index))
+        frame = frame.assign(
+            clean_flag=(dpd <= 0.0) & (~defaulted) & (stage < 3) & (~hard))
+
     grouped = frame.groupby("customer_id")
     picked = grouped["ews_score"].idxmax()
     # Whatever the caller asked for, plus what this function itself reads to
@@ -167,6 +198,15 @@ def _per_customer(frame: Any, *, columns: tuple[str, ...] | None = None) -> Any:
         # 2026-08: a customer can be thirty days down on a facility that is
         # not the one carrying their highest score.
         any_current_bad=("current_bad_flag", "any"),
+        # §21's clean cohort, rolled up with ALL rather than ANY.
+        #
+        # A customer is clean only if every facility they hold is clean. Read
+        # with `any` — or off the worst-scoring row, which is the same
+        # mistake in a different shape — a customer forty days down on their
+        # card and perfectly current on their mortgage would appear in a
+        # list of customers who owe nothing, which is the one thing that
+        # list must not contain.
+        all_clean=("clean_flag", "all"),
     )
     joined = worst.join(totals, how="left").reset_index()
     for one in M.LAYERS:
@@ -175,6 +215,10 @@ def _per_customer(frame: Any, *, columns: tuple[str, ...] | None = None) -> Any:
     joined["current_bad_flag"] = joined["any_current_bad"].fillna(False)
     joined["forward_risk_flag"] = (
         (~joined["current_bad_flag"])
+        & joined["ews_severity"].isin(("HIGH", "CRITICAL")))
+    joined["clean_flag"] = joined["all_clean"].fillna(False).astype(bool)
+    joined["clean_forward_risk_flag"] = (
+        joined["clean_flag"]
         & joined["ews_severity"].isin(("HIGH", "CRITICAL")))
     del pd
     return joined
@@ -868,6 +912,10 @@ def _cohort(people: Any, cohort: str) -> Any:
         return people[people["current_bad_flag"].fillna(False)]
     if cohort == "forward_risk":
         return people[people["forward_risk_flag"].fillna(False)]
+    if cohort == "clean_forward_risk":
+        return people[people["clean_forward_risk_flag"].fillna(False)]
+    if cohort == "clean":
+        return people[people["clean_flag"].fillna(False)]
     if cohort == "critical":
         return warned[warned["ews_severity"] == "CRITICAL"]
     if cohort == "high":

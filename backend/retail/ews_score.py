@@ -83,6 +83,26 @@ FORWARD_RISK_RULE = (
     "Not currently bad, and an Early Warning Score in the HIGH or CRITICAL "
     "band. A prediction about a customer who is still paying.")
 
+#: §21's stricter cohort, and the reason it exists beside the wider one.
+#:
+#: "Not currently bad" means under thirty days. That includes everybody
+#: sitting in one to twenty-nine, which is a population collections is
+#: already working — so a forward-risk list built on it spends most of its
+#: length on customers somebody has already phoned. The presenter's question
+#: is the other one: who is completely up to date, has tripped no hard
+#: trigger, and is deteriorating anyway. That is the population a decision is
+#: still available for, and it needs its own filter rather than a note asking
+#: the reader to ignore some rows.
+CLEAN_RULE = (
+    "Zero days past due on every facility, not flagged in default, not in "
+    "IFRS 9 Stage 3, and no hard trigger applied. Completely up to date — "
+    "not merely under thirty days.")
+
+CLEAN_FORWARD_RISK_RULE = (
+    CLEAN_RULE + " With an Early Warning Score in the HIGH or CRITICAL "
+    "band: elevated forward risk on a customer who owes nothing yet. For "
+    "the latest month this says needs review, not will default.")
+
 ODR_DEFINITION = (
     "Facilities entering default during the month, over facilities that were "
     "not in default at the start of it. A portfolio measure; it is never a "
@@ -1322,6 +1342,23 @@ def _score_month(frame: Any, results: dict[str, Fired],
         | (stage_now >= 3))
     out["forward_risk_flag"] = (
         (~out["current_bad_flag"])
+        & out["ews_severity"].isin(("HIGH", "CRITICAL")))
+
+    # §21's clean cohort: completely up to date, not merely under thirty
+    # days, and with no hard trigger applied. `applied` is the hard-trigger
+    # mask computed above — a customer whose score was forced to a band by a
+    # hard trigger is not a leading-indicator case, they are a rule firing,
+    # and mixing the two is how a forward-risk review turns into a rerun of
+    # the collections queue.
+    out["clean_flag"] = (
+        (dpd_now <= 0.0)
+        & (~out.get("current_default_flag",
+                    pd.Series(False, index=out.index)).fillna(False)
+           .astype(bool))
+        & (stage_now < 3)
+        & (~pd.Series(applied, index=out.index).fillna(False).astype(bool)))
+    out["clean_forward_risk_flag"] = (
+        out["clean_flag"]
         & out["ews_severity"].isin(("HIGH", "CRITICAL")))
 
     # --- reason codes and the worst layer
