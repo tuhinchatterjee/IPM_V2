@@ -289,7 +289,7 @@ async def findings_tab(page, workspace_id: int, *, shoot: bool) -> None:
           any(s in body for s in ("High", "Medium", "Low", "Information")))
     check("a finding names where it came from", says(body, "Origin"))
     check("a finding offers an answer action", "Answer" in body)
-    check("a finding offers Ask Claude", "Ask Claude" in body)
+    check("a finding offers Ask CreditProbe", "Ask CreditProbe" in body)
     check("accepting, closing and deferring are all offered",
           "Accept" in body and "Close" in body and "Defer" in body)
 
@@ -620,7 +620,7 @@ async def sections_tab(page, workspace_id: int, *, shoot: bool) -> None:
     body = await intel.inner_text() if await intel.count() else ""
     for label in ("Status", "Page", "Words", "Reviewer", "Evidence"):
         check(f"the section pane shows {label.lower()}", says(body, label))
-    check("the section offers Ask Claude", "Ask Claude" in body)
+    check("the section offers Ask CreditProbe", "Ask CreditProbe" in body)
     check("the section offers to be updated", "Update this section" in body)
     check("a reviewer can be assigned", "Assign reviewer" in body)
 

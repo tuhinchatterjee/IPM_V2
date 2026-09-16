@@ -608,7 +608,7 @@ export default function PlaybookStatusPage({
       id: decision.id,
       title: `Record decision ${decision.reference}`,
       description: decision.question,
-      note: "A committee decision is recorded against a person, with a time and a rationale. Claude may draft the recommendation; it may not record this.",
+      note: "A committee decision is recorded against a person, with a time and a rationale. CreditProbe may draft the recommendation; it may not record this.",
       submitLabel: "Record the decision",
       fields: [
         { name: "outcome", label: "Outcome",
@@ -654,7 +654,7 @@ export default function PlaybookStatusPage({
       id: action.id,
       title: "Complete this action",
       description: action.title,
-      note: "Recorded against your name. Claude may never mark an action done.",
+      note: "Recorded against your name. CreditProbe may never mark an action done.",
       submitLabel: "Mark complete",
       fields: [{ name: "reason", label: "What was done", multiline: true,
         required: true }],

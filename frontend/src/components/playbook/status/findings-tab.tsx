@@ -270,7 +270,7 @@ function FindingCard({
         </SmallButton>
         <SmallButton onClick={onAsk} icon={MessageSquare} disabled={busy}
           testId="playbook-finding-ask">
-          Ask Claude
+          Ask CreditProbe
         </SmallButton>
         <SmallButton onClick={onAttachEvidence} icon={Paperclip} disabled={busy}
           testId="playbook-finding-evidence">

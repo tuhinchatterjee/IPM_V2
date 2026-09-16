@@ -195,7 +195,7 @@ export function MetricsTab({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <SmallButton onClick={() => onAsk(metric)}>
-                        Ask Claude about this
+                        Ask CreditProbe about this
                       </SmallButton>
                     </td>
                   </tr>

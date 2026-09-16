@@ -30,7 +30,6 @@ comes back. A word can only reach a user through one of those two doors.
 
 from __future__ import annotations
 
-import json
 import pathlib
 import re
 
@@ -185,7 +184,45 @@ USER_ROUTES = (
     "/api/v1/ask/mode",
     "/api/v1/analyses",
     "/api/v1/data-builder/domains",
+    "/api/v1/playbook/home",
+    "/api/v1/playbook/capabilities",
 )
+
+#: Tables of user-facing text the backend sends straight to the screen.
+#:
+#: The route scan above cannot reach most of them: a dashboard label only
+#: appears in a response for a workspace that exists, and this suite has no
+#: seeded workspace. That gap is how "Ask Claude about this" reached the metric
+#: table — the frontend scan does not see a server string and the route scan
+#: never asked for one. Scanning the tables themselves needs no fixture and
+#: cannot be outrun by a route the list forgets.
+LABEL_TABLES = (
+    ("playbook.intelligence.context", "ACTION_LABELS"),
+    ("playbook.intelligence.history", "KIND_LABELS"),
+    ("playbook.intelligence.binding", "METHOD_LABELS"),
+    ("playbook.intelligence.governance", "ORIGIN_LABELS"),
+    ("playbook.reparse", "REASON_LABELS"),
+)
+
+
+def _strings(value) -> list[str]:
+    """Every string VALUE in a payload, and no key.
+
+    A key is an identifier the client addresses a field by; nobody reads it.
+    `playbook_workspaces` rows carry a `demo` flag because a seeded row has to
+    be marked somewhere, and the interface renders that flag as "Synthetic" —
+    the word "demo" never reaches a screen. Scanning the serialised body
+    instead of its values makes that boolean field indistinguishable from a
+    sentence, which would trade a rule the product keeps for a rule it cannot.
+
+    Every word a user can read is still scanned, because a word can only
+    reach them as a value.
+    """
+    if isinstance(value, dict):
+        return [t for v in value.values() for t in _strings(v)]
+    if isinstance(value, list):
+        return [t for v in value for t in _strings(v)]
+    return [value] if isinstance(value, str) else []
 
 
 class TestNoRouteReturnsAVendorOrADemo:
@@ -196,9 +233,19 @@ class TestNoRouteReturnsAVendorOrADemo:
                                               "X-IPM-User-Id": "1"})
         if response.status_code in (401, 403, 404):
             pytest.skip(f"{route} is not available here: {response.status_code}")
-        body = json.dumps(response.json())
-        found = pc.violations(body)
+        found = [(text, v) for text in _strings(response.json())
+                 for v in [pc.violations(text)] if v]
         assert not found, f"{route} returned {found[:6]}"
+
+    @pytest.mark.parametrize("module,table", LABEL_TABLES)
+    def test_a_backend_label_table_names_no_vendor(self, module, table):
+        """Every word these tables hold is read by a user, on a dashboard."""
+        import importlib
+
+        values = getattr(importlib.import_module(f"backend.{module}"), table)
+        offences = [(key, text, pc.violations(text))
+                    for key, text in values.items() if pc.violations(text)]
+        assert not offences, f"{module}.{table}: {offences}"
 
     def test_the_status_route_withholds_the_identity(self, client):
         """Blank, not absent — the shape is unchanged and the value is gone."""

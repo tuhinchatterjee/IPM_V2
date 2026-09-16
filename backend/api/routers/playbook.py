@@ -198,11 +198,19 @@ def get_capabilities(principal: Principal = RequireAnalyst) -> dict:
     The provider state is reported honestly and without a credential, so the
     interface can say "configuration required" rather than offering a button
     that will fail.
+
+    The identity behind that state is withheld, as it is on every other surface
+    a normal user reads: the state and what it means are what the interface
+    needs, and the vendor and model are not. `/ai/status/audit` still serves
+    them to an administrator, and the telemetry ledger still records which
+    model produced which answer — the ban is on the screen, not on the machine.
     """
     from backend.playbook import provider
+    from backend.release import product_copy
 
     del principal
-    return {**capabilities.describe(), "provider": provider.status().as_dict()}
+    return product_copy.withhold_identity(
+        {**capabilities.describe(), "provider": provider.status().as_dict()})
 
 
 @router.get("/home")

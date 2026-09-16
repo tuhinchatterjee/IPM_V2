@@ -64,7 +64,7 @@ DRAFT_RECOMMENDATION = "draft_recommendation"
 REFRESH_AFFECTED = "refresh_affected_sections"
 
 ACTION_LABELS = {
-    ASK_ABOUT_METRIC: "Ask Claude about this",
+    ASK_ABOUT_METRIC: "Ask CreditProbe about this",
     DRAFT_FINDING_ANSWER: "Draft an answer",
     UPDATE_SECTION: "Update this section",
     EXPLAIN_MOVEMENTS: "Explain these movements",

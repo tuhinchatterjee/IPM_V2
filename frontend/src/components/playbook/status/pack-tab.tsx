@@ -200,7 +200,7 @@ function SectionCard({
             onClick={() => onAsk("section", section.section_key)}
             icon={MessageSquare}
           >
-            Ask Claude
+            Ask CreditProbe
           </SmallButton>
           <SmallButton onClick={onUpdate} icon={PencilLine}>
             Update this section

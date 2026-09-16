@@ -144,7 +144,7 @@ ORIGIN_LABELS = {
     FROM_IMPORT: "Imported analysis",
     FROM_VALIDATION: "Validation result",
     FROM_CHANGE: "Change since last time",
-    FROM_AI: "Suggested by Claude",
+    FROM_AI: "Suggested by CreditProbe",
     FROM_HUMAN: "Raised by a person",
 }
 

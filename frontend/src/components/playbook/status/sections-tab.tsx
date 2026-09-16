@@ -260,7 +260,7 @@ function SectionIntelligence({
         <div className="mt-2 flex flex-wrap gap-1.5">
           <SmallButton onClick={onAsk} icon={MessageSquare} disabled={busy}
             testId="playbook-section-ask">
-            Ask Claude
+            Ask CreditProbe
           </SmallButton>
           <SmallButton onClick={onUpdate} disabled={busy}
             testId="playbook-section-update">

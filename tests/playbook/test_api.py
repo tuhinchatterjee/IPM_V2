@@ -1318,7 +1318,7 @@ class TestTheContextBridgeOverHttp:
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["action"] == "ask_about_metric"
-        assert body["label"] == "Ask Claude about this"
+        assert body["label"] == "Ask CreditProbe about this"
         assert "Stage 2 coverage" in body["prompt"]
         assert body["references"][0]["governed"] is True
         assert body["evidence"][0]["locator"] == "xlsx://Coverage!B12"

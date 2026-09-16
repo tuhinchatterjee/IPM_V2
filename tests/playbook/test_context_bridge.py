@@ -233,7 +233,7 @@ class TestAMetricBecomesAQuestion:
         built = ctx.build(db, workspace.id, kind="metric", target=str(row.id))
 
         assert built.action == ctx.ASK_ABOUT_METRIC
-        assert built.label == "Ask Claude about this"
+        assert built.label == "Ask CreditProbe about this"
         assert "Stage 2 coverage" in built.prompt and "5.86%" in built.prompt
         assert built.references[0].governed is True
         assert built.evidence[0]["locator"] == "xlsx://Coverage!B12"
