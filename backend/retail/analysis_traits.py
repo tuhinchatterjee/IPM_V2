@@ -46,6 +46,8 @@ the world.
 
 from __future__ import annotations
 
+import copy
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -530,7 +532,12 @@ def run(*, month: str = "", prior: str = "", product: str = "",
            classification, sub_product, mode)
     held = _ANSWERS.get(key)
     if held is not None:
-        return {**held, "question": question}
+        # Deep-copied for the reason in `measures.trend`: a shallow copy
+        # leaves every nested list and dict shared with the stored answer.
+        # One answer is 0.16 MB, against the 22 seconds it costs to compute.
+        out = copy.deepcopy(held)
+        out["question"] = question
+        return out
 
     months = S.book_months()
     if not months:
@@ -674,7 +681,9 @@ def run(*, month: str = "", prior: str = "", product: str = "",
     if len(_ANSWERS) >= _ANSWERS_KEPT:
         _ANSWERS.pop(next(iter(_ANSWERS)))
     _ANSWERS[key] = out
-    return {**out, "question": question}
+    given = copy.deepcopy(out)
+    given["question"] = question
+    return given
 
 
 def _stage_movement(before: pd.DataFrame, after: pd.DataFrame) -> dict[str, Any]:

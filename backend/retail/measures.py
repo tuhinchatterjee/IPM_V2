@@ -34,6 +34,8 @@ read is one nobody can check.
 
 from __future__ import annotations
 
+import copy
+
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -340,11 +342,14 @@ CUT_BY_KEY: dict[str, Cut] = {one.key: one for one in CUTS}
 # --------------------------------------------------------------- the pass
 
 
-def book(month: str) -> pd.DataFrame:
-    """One month of the canonical book, from the reader that caches it."""
+def book(month: str, *, keep: bool = True) -> pd.DataFrame:
+    """One month of the canonical book, from the reader that caches it.
+
+    `keep=False` for a caller sweeping every month: see `_read_book`.
+    """
     from backend.retail import ews_score
 
-    return ews_score._read_book(month)
+    return ews_score._read_book(month, keep=keep)
 
 
 def months() -> list[str]:
@@ -385,8 +390,9 @@ def _with_derived(frame: pd.DataFrame, month: str,
 
 def population(month: str, *, product: str = "",
                where: dict[str, Any] | None = None,
-               derived: tuple[str, ...] = ()) -> pd.DataFrame:
-    frame = book(month)
+               derived: tuple[str, ...] = (),
+               keep: bool = True) -> pd.DataFrame:
+    frame = book(month, keep=keep)
     if derived:
         frame = _with_derived(frame, month, derived)
     if product:
@@ -572,17 +578,24 @@ def trend(measures: list[str], *, product: str = "",
     key = _trend_key(measures, product, where, over)
     held = _TRENDS.get(key)
     if held is not None:
-        # Copied, because callers add to what they are given — a lens panel
-        # puts its own note on the result — and a cache that hands out its
-        # own dictionary grows whatever every caller attached to it.
-        return {**held, "rows": [dict(one) for one in held["rows"]]}
+        # Deep-copied, because callers add to what they are given — a lens
+        # panel puts its own note on the result — and a cache that hands out
+        # its own dictionary grows whatever every caller attached to it. A
+        # shallow copy left `where` and the measure list shared, which no
+        # caller mutates today and any caller could tomorrow. A trend is
+        # twenty-five rows; this is not a cost worth reasoning about.
+        return copy.deepcopy(held)
 
     every = over or months()
     wanted = [BY_KEY[key_] for key_ in measures if key_ in BY_KEY
               and BY_KEY[key_].applies_to(product)]
     rows: list[dict[str, Any]] = []
     for month in every:
-        frame = population(month, product=product, where=where)
+        # One month at a time. A trend sweeps every published month, and
+        # keeping each one resident is what drove a backend to 12.5 GB.
+        # Safe to drop because the finished trend is itself kept below, so
+        # the sweep happens once per book rather than once per reader.
+        frame = population(month, product=product, where=where, keep=False)
         row: dict[str, Any] = {"month": month, "facilities": int(len(frame))}
         for one in wanted:
             got = one.compute(frame)
@@ -600,7 +613,7 @@ def trend(measures: list[str], *, product: str = "",
         # an unbounded dictionary in a long-running process.
         _TRENDS.pop(next(iter(_TRENDS)))
     _TRENDS[key] = out
-    return {**out, "rows": [dict(one) for one in out["rows"]]}
+    return copy.deepcopy(out)
 
 
 def forget() -> int:

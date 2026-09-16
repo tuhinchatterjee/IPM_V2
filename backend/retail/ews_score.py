@@ -182,7 +182,8 @@ _CACHE: dict[str, Any] = {}
 _BOOK_CACHE: dict[str, Any] = {}
 
 
-def _read_book(month: str, analytics_dir: str | Path | None = None) -> Any:
+def _read_book(month: str, analytics_dir: str | Path | None = None, *,
+               keep: bool = True) -> Any:
     """One month of the canonical book, held the way the panel is held.
 
     This was the only uncached reader of the four, and it costs 1.20 seconds
@@ -206,9 +207,30 @@ def _read_book(month: str, analytics_dir: str | Path | None = None) -> Any:
     if not parts:
         raise FileNotFoundError(f"the retail book has no {month}")
     frame = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
-    # The book is wider than the panel — 546 columns against 498 — so fewer
-    # months are held before the cache is cleared.
-    if len(_BOOK_CACHE) > 8:
+    if not keep:
+        # A caller walking EVERY month wants one month at a time, not nine
+        # resident. One month of this book is 650 MB, the cache holds nine,
+        # and a trend touches twenty-five — so a sweep both thrashes the
+        # cache and, because each eviction allocates the replacement before
+        # the old frame is released, drives peak memory far above what is
+        # resident. That is not theoretical: it OOM-killed a backend at
+        # 12.5 GB the first time the startup warm-up swept every trend.
+        #
+        # Serving from the cache above is still right — if somebody else
+        # already paid for this month, take it.
+        return frame
+    # Three months, not nine.
+    #
+    # One month of this book is 650 MB resident. Holding nine is 5.9 GB, on a
+    # demonstration machine that is also running Postgres, a Next.js dev
+    # server and a browser — and it left so little headroom that a warm-up
+    # sweeping every month OOM-killed the backend outright.
+    #
+    # Nothing needs more than two. A trend sweeps the months and no longer
+    # keeps them; the §7 trait analysis compares exactly two; every other
+    # reader is at one. Three leaves a month spare for a comparison that
+    # straddles a boundary, and takes resident memory from 5.9 GB to under 2.
+    if len(_BOOK_CACHE) > 3:
         _BOOK_CACHE.clear()
     _BOOK_CACHE[key] = frame
     return frame
