@@ -31,10 +31,10 @@
         "/users",
         "/settings",
         "/investigations",
+        "/investigations/1172",
+        "/investigations/1171",
         "/investigations/1170",
-        "/investigations/1169",
-        "/investigations/1168",
-        "/investigations/1167"
+        "/investigations/1169"
       ],
       "buttons": [
         {
@@ -177,7 +177,6 @@
       "heading": "My workspace",
       "links": [
         "/",
-        "/messages",
         "/",
         "/workspace",
         "/messages",
@@ -245,7 +244,7 @@
           "explained": false
         }
       ],
-      "characters": 667,
+      "characters": 665,
       "url": "http://localhost:5328/workspace",
       "landed": "/workspace",
       "not_found": false
@@ -389,25 +388,7 @@
         "/agent-operations",
         "/ai-studio",
         "/users",
-        "/settings",
-        "/projects/108",
-        "/projects/102",
-        "/projects/104",
-        "/projects/105",
-        "/projects/106",
-        "/projects/107",
-        "/projects/103",
-        "/projects/97",
-        "/projects/98",
-        "/projects/99",
-        "/projects/100",
-        "/projects/101",
-        "/projects/92",
-        "/projects/93",
-        "/projects/94",
-        "/projects/95",
-        "/projects/96",
-        "/projects/91"
+        "/settings"
       ],
       "buttons": [
         {
@@ -451,7 +432,7 @@
           "explained": false
         }
       ],
-      "characters": 5051,
+      "characters": 521,
       "url": "http://localhost:5328/projects",
       "landed": "/projects",
       "not_found": false
@@ -620,7 +601,12 @@
           "explained": false
         },
         {
-          "label": "Open investigation: Stage split, as it stood",
+          "label": "Open investigation: Show retail exposure, customers and weig",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Show retail exposure, customers and weig",
           "disabled": false,
           "explained": false
         },
@@ -635,37 +621,17 @@
           "explained": false
         },
         {
-          "label": "Open investigation: Has coverage moved because risk moved, o",
+          "label": "Open investigation: Stage split, as it stood",
           "disabled": false,
           "explained": false
         },
         {
-          "label": "Open investigation: Is the non-salaried card pocket priced f",
+          "label": "Open investigation: Is the card book growing into the delinq",
           "disabled": false,
           "explained": false
         },
         {
-          "label": "Open investigation: How fast is personal finance growing, an",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Is the card book migrating into stage 2 ",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: The retail book this quarter, across all",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Which card segments carry the deteriorat",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Does employment status separate the reta",
+          "label": "Open investigation: Auto customers still current with erodin",
           "disabled": false,
           "explained": false
         },
@@ -680,6 +646,61 @@
           "explained": false
         },
         {
+          "label": "Open investigation: Which card segments carry the deteriorat",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Does employment status separate the reta",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Has coverage moved because risk moved, o",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Is the card book migrating into stage 2 ",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Does the card behavioural scorecard stil",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: The retail book this quarter, across all",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Is the card book being drawn harder?",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Customers still current whose forward in",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: How is the auto finance book distributed",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: The auto balloon window and what it woul",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Is the mortgage SICR trigger firing on t",
+          "disabled": false,
+          "explained": false
+        },
+        {
           "label": "Open investigation: Has verified income moved across the ret",
           "disabled": false,
           "explained": false
@@ -690,47 +711,7 @@
           "explained": false
         },
         {
-          "label": "Open investigation: Is the mortgage SICR trigger firing on t",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Does recorded indebtedness separate the ",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Which customer traits have deteriorated,",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Does the card behavioural scorecard stil",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Is the card deterioration geographic?",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Customers still current whose forward in",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Why has Credit Card 30+ DPD risen for fi",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Is the card book growing into the delinq",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Does the origination channel still predi",
+          "label": "Open investigation: Personal finance scorecard monitoring, t",
           "disabled": false,
           "explained": false
         },
@@ -745,37 +726,7 @@
           "explained": false
         },
         {
-          "label": "Open investigation: The auto balloon window and what it woul",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: What does each card sub-product cost in ",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: How is the credit card book distributed ",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Is the card book being drawn harder?",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: How is the retail book distributed acros",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: How is the auto finance book distributed",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: How is the auto book distributed across ",
+          "label": "Open investigation: Is the card deterioration geographic?",
           "disabled": false,
           "explained": false
         },
@@ -790,6 +741,36 @@
           "explained": false
         },
         {
+          "label": "Open investigation: What does each card sub-product cost in ",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: How is the credit card book distributed ",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Which customer traits have deteriorated,",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: How is the auto book distributed across ",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: How is the retail book distributed acros",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: How is the auto finance book distributed",
+          "disabled": false,
+          "explained": false
+        },
+        {
           "label": "Open investigation: Has the modelled PD moved with the obser",
           "disabled": false,
           "explained": false
@@ -800,12 +781,12 @@
           "explained": false
         },
         {
-          "label": "Open investigation: Mix or behaviour: which moved the portfo",
+          "label": "Open investigation: Does the origination channel still predi",
           "disabled": false,
           "explained": false
         },
         {
-          "label": "Open investigation: Auto customers still current with erodin",
+          "label": "Open investigation: What does salary transfer change about t",
           "disabled": false,
           "explained": false
         },
@@ -820,7 +801,7 @@
           "explained": false
         },
         {
-          "label": "Open investigation: How is the auto finance book distributed",
+          "label": "Open investigation: Does recorded indebtedness separate the ",
           "disabled": false,
           "explained": false
         },
@@ -830,27 +811,27 @@
           "explained": false
         },
         {
+          "label": "Open investigation: Is the non-salaried card pocket priced f",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Why has Credit Card 30+ DPD risen for fi",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Open investigation: Mix or behaviour: which moved the portfo",
+          "disabled": false,
+          "explained": false
+        },
+        {
           "label": "Open investigation: What loss severity is each product carry",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Personal finance scorecard monitoring, t",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: What does salary transfer change about t",
-          "disabled": false,
-          "explained": false
-        },
-        {
-          "label": "Open investigation: Is the personal finance arrears geograph",
           "disabled": false,
           "explained": false
         }
       ],
-      "characters": 8812,
+      "characters": 8781,
       "url": "http://localhost:5328/investigations",
       "landed": "/investigations",
       "not_found": false
@@ -4468,18 +4449,18 @@
         "/users",
         "/settings",
         "/?focus=ask",
-        "/trace/3296",
-        "/trace/3295",
-        "/trace/3294",
-        "/trace/3293",
-        "/trace/3292",
-        "/trace/3291",
-        "/trace/3290",
-        "/trace/3289",
-        "/trace/3288",
-        "/trace/3287",
-        "/trace/3286",
-        "/trace/3285"
+        "/trace/3316",
+        "/trace/3315",
+        "/trace/3314",
+        "/trace/3313",
+        "/trace/3312",
+        "/trace/3311",
+        "/trace/3310",
+        "/trace/3309",
+        "/trace/3308",
+        "/trace/3307",
+        "/trace/3306",
+        "/trace/3305"
       ],
       "buttons": [
         {
@@ -4518,7 +4499,7 @@
           "explained": false
         }
       ],
-      "characters": 3502,
+      "characters": 3345,
       "url": "http://localhost:5328/trace",
       "landed": "/trace",
       "not_found": false
@@ -6495,7 +6476,7 @@
           "explained": true
         }
       ],
-      "characters": 4458,
+      "characters": 4876,
       "url": "http://localhost:5328/settings",
       "landed": "/settings",
       "not_found": false
