@@ -4637,6 +4637,28 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     # into a predicate the runtime refused outright.
     exclusions = cmp.excluded(text, available)
 
+    # An exclusion and a positive filter on the SAME governed state are the
+    # same words read twice, and keeping both is worse than either reading.
+    #
+    # "Which retail customers are deteriorating but NOT YET in default?" is
+    # read in two places by design: `state_condition` asserts the state a
+    # question names, and `excluded()` reads the sentence's negation around
+    # it. With only the first the product answered the opposite of the
+    # question — "25 customers WITH current default". With both it asked for
+    # rows that are in default AND not in default, and reported "no borrower
+    # in the book shows any of the 5 governed deterioration signals", which
+    # is a true statement about an empty set and a false one about the book.
+    #
+    # The negation is the later, more specific reading of the same phrase, so
+    # it wins and the positive filter goes.
+    excluded_fields = {one.field for one in exclusions}
+    contradicted = [(f, v) for f, v in filters if f in excluded_fields]
+    if contradicted:
+        filters = [(f, v) for f, v in filters if f not in excluded_fields]
+        logger.info("The question negates %s, so the positive filter(s) %r "
+                    "read from the same phrase were dropped in favour of the "
+                    "exclusion.", sorted(excluded_fields), contradicted)
+
     read = {key, *([name] if name else []), *([size] if size else [])}
     if grouping:
         read.add(grouping)

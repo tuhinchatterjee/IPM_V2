@@ -186,7 +186,35 @@ class Vocabulary:
     )
 
     def _resolve_flag_phrase(self, haystack: str) -> tuple[str, str] | None:
-        """A two-valued dimension named by a phrase rather than by its value."""
+        """A two-valued dimension named by a phrase rather than by its value.
+
+        Negation is read, not ignored
+        -------------------------------
+        The defect this fixes, and it is the worst kind — the product answered
+        the OPPOSITE of the question and said so in a confident headline:
+
+            "Which retail customers are deteriorating but NOT YET in default?"
+            → filters {current_default_flag: "True"}
+            → "25 customers with current default, ranked by ..."
+
+        `FLAG_PHRASES` carried negative spellings for exactly one flag, salary
+        transfer, because that is the one somebody hit. Every other flag in
+        the table had only its positive spelling, so "not in default", "not
+        forborne", "excluding restructured", "not credit impaired" and
+        seventeen more each resolved to the population the question had
+        explicitly excluded.
+
+        Writing twenty more negative spellings would fix twenty phrasings and
+        leave the twenty-first. So the negation is read where it is written:
+        immediately before the phrase, allowing only the words that can stand
+        between a negation and its object — "not YET in default", "not
+        CURRENTLY forborne". A negation further away is not this phrase's:
+        "customers who are not growing and are in default" means in default.
+
+        A phrase that already spells its own negative ("no salary transfer",
+        which is listed as False) is left alone: longest-match wins it, and
+        flipping it would undo the very thing the listing does.
+        """
         best: tuple[str, str] | None = None
         best_len = 0
         for phrase, dimension, value in self.FLAG_PHRASES:
@@ -194,9 +222,21 @@ class Vocabulary:
                 continue
             if value not in {str(v) for v in self.dimensions[dimension]}:
                 continue
-            needle = " " + _normalise(phrase) + " "
-            if needle in haystack and len(phrase) > best_len:
-                best, best_len = (dimension, value), len(phrase)
+            said = _normalise(phrase)
+            needle = " " + said + " "
+            if needle not in haystack or len(phrase) <= best_len:
+                continue
+            resolved = value
+            if not _NEGATIVE_PHRASE.match(said) and _negated(haystack, said):
+                opposite = "False" if str(value) == "True" else "True"
+                # Only if the book can express it. A dimension that carries
+                # one value cannot answer "not that", and inventing the
+                # opposite would be a second wrong answer rather than a fix.
+                if opposite in {str(v) for v in self.dimensions[dimension]}:
+                    resolved = opposite
+                else:
+                    continue
+            best, best_len = (dimension, resolved), len(phrase)
         return best
 
     def other_values(self, dimension: str, excluded: str) -> list[str]:
@@ -228,6 +268,37 @@ def _normalise(text: str) -> str:
     instruction as not understood.
     """
     return " ".join(re.sub(r"[^a-z0-9]+", " ", str(text).lower()).split())
+
+
+#: A listed phrase that already spells its own negative. Flipping one of these
+#: would undo the listing.
+_NEGATIVE_PHRASE = re.compile(r"^(?:no|non|not|without|excluding)\b")
+
+#: What may stand between a negation and the thing it negates. Deliberately
+#: short: a negation three clauses away is not this phrase's negation.
+_NEGATION = re.compile(
+    r"\b(?:not|non|no|without|excluding|exclude|excludes|excluded|"
+    r"other\s+than|but\s+not|outside|aren\s*t|isn\s*t|never)\s+"
+    r"(?:yet\s+)?(?:been\s+|being\s+|be\s+|is\s+|are\s+|was\s+|were\s+|"
+    r"currently\s+|already\s+|formally\s+)*$")
+
+
+def _negated(haystack: str, said: str) -> bool:
+    """Whether every occurrence of `said` in `haystack` is negated.
+
+    Every, not any. "Compare customers in default with customers not in
+    default" names both populations, and reading it as one is a worse answer
+    than reading it as the other — so a question that says the phrase both
+    ways is left to resolve positively and the comparison path handles it.
+    """
+    at = haystack.find(" " + said + " ")
+    seen = False
+    while at != -1:
+        seen = True
+        if not _NEGATION.search(haystack[:at + 1]):
+            return False
+        at = haystack.find(" " + said + " ", at + 1)
+    return seen
 
 
 def _analysis_menu() -> dict[str, dict[str, Any]]:

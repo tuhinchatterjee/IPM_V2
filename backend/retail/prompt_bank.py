@@ -118,6 +118,52 @@ PROMPTS: tuple[Prompt, ...] = (
                    "chain behind it."),
 
     # ------------------------------------------------------ trait analysis
+    # The five questions the Cockpit itself offers, verbatim from
+    # `backend.orchestration.suggestions.RETAIL_COCKPIT`. A suggestion is a
+    # promise: the reader did not choose it, the product offered it. So the
+    # offered wording is banked exactly, and the suite submits it through the
+    # composer as a click does — §23's "test chips through the same path as
+    # typed questions" is not satisfied by calling the resolver directly.
+    #
+    # Every one of these was run through /ask before it was banked. The first
+    # draft of this list read "Where is risk building across the retail
+    # book?", which came back "Which figure should CreditProbe measure?" —
+    # the exact failure an offered question must never produce, since the
+    # reader did what they were told and the product asked them what they
+    # meant.
+    Prompt("cockpit-position",
+           "Show retail exposure, customers and weighted ECL by product.",
+           COCKPIT, operation="portfolio_position",
+           must_say=("2026-08",),
+           must_not_say=("which figure",),
+           because="The opening position, named by measure so the planner "
+                   "never has to ask which figure was meant."),
+    Prompt("cockpit-deteriorated",
+           "Which retail products have deteriorated this quarter?",
+           COCKPIT, operation="deterioration_scan",
+           must_not_say=("which figure",),
+           because="It must settle on a complete period rather than "
+                   "reporting a partial one as if it were whole."),
+    Prompt("cockpit-stage2-ecl",
+           "What is driving Stage 2 and ECL growth?",
+           COCKPIT, operation="ecl_drivers",
+           must_say=("stage 2",),
+           because="Stage 2 and ECL are different movements and the answer "
+                   "must not present one as the explanation of the other."),
+    Prompt("cockpit-not-yet-default",
+           "Which retail customers are deteriorating but not yet in default?",
+           COCKPIT, operation="forward_cohort",
+           must_say=("not in default",),
+           must_not_say=("with current default",),
+           because="\u00a721's forward-risk cohort, and the negation defect "
+                   "it caught: this asked for customers NOT in default and "
+                   "was answered with the 816 who are, under a confident "
+                   "headline. The chip is banked so that cannot come back."),
+    Prompt("cockpit-signals-together",
+           "Where are multiple early warning signals appearing together?",
+           COCKPIT, operation="signal_overlap",
+           because="Co-occurrence, not a list of the individual triggers "
+                   "ranked by count."),
     Prompt("traits-main",
            "Tell me what customer traits have deteriorated and what is the "
            "impact on ECL because of them.",
@@ -241,11 +287,23 @@ PROMPTS: tuple[Prompt, ...] = (
            because="Cumulative semantics: the thread must be able to step "
                    "back without losing what came before."),
     Prompt("vague", "make it worse somehow",
-           WHATIF, outcome=CLARIFY,
+           WHATIF, outcome=CLARIFY, operation="clarify_shock",
+           # A clarification is only useful if it names the missing thing. A
+           # product that replies "could you be more specific?" has asked the
+           # reader to guess what it does not understand.
+           must_say=("which", "measure"),
+           must_not_say=("10%", "applied"),
            because="No defensible reading. A product that guesses a shock "
-                   "here has invented a number somebody will quote."),
+                   "here has invented a number somebody will quote. The "
+                   "clarification must name the measure and the size it "
+                   "needs, not ask the reader to try again."),
     Prompt("no-eligible", "Move 20% of 30-59 DPD exposure to 90+",
-           WHATIF, outcome=REFUSE,
+           WHATIF, outcome=REFUSE, operation="refuse_no_eligible",
+           # The refusal must carry the count that makes it a fact rather
+           # than a policy, and the authorised alternative — a refusal with
+           # no way forward is a dead end in front of a client.
+           must_say=("0", "selection"),
+           must_not_say=("applied to",),
            because="Asked of a clean cohort that holds no such accounts. "
                    "It must say so and offer to switch to a broader "
                    "authorised selection, not widen silently."),

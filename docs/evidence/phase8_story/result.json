@@ -1,0 +1,51 @@
+{
+  "passed": [
+    "01 the story is served with acts and steps",
+    "03 the story carries the source hash",
+    "04 every step resolved on this installation",
+    "05 every step is resumable \u2014 each one has a route",
+    "06 every artifact the story names is fetchable",
+    "09 Start story opens the first step's screen",
+    "10 Resume returns to the step the presenter left on",
+    "11 Restart returns the story to not started",
+    "12 the Cockpit composer is still free text with a story open",
+    "13 the prompt bank is versioned and covers every surface",
+    "15 the bank requires clarifications and refusals, not only answers",
+    "20 no HTTP 500 across the story and the chips",
+    "21 no browser page errors"
+  ],
+  "failed": [
+    {
+      "check": "02 the breadcrumb month is the book's latest month",
+      "detail": "story '2026-08' vs manifest {'reporting_month': '2026-08', 'snapshot_date': '2026-08-31', 'rows': 59449, 'distinct_customers': 42824, 'distinct_facilities': 59449, 'products': ['AUTO_LOAN', 'CREDIT_CARD', 'HOME_LOAN', 'PERSONAL_LOAN'], 'validation_status': 'PASSED', 'content_hash': '3eeeaa096e76d91e'}"
+    },
+    {
+      "check": "07 the Demo Story screen renders every act and step",
+      "detail": "0 acts, 0 steps on screen"
+    },
+    {
+      "check": "08 the breadcrumb shows the source month and book version",
+      "detail": "month '', book ''"
+    },
+    {
+      "check": "14 every banked prompt states what it must resolve",
+      "detail": "46 entries carry outcome, operation and rationale"
+    },
+    {
+      "check": "16 every chip the Cockpit offers is in the bank",
+      "detail": "What data do you have in Retail facility month-end position?"
+    },
+    {
+      "check": "17 clicking a chip submits it as a question",
+      "detail": "no POST carried ''"
+    },
+    {
+      "check": "18 the chip and the typed phrasing take the SAME path",
+      "detail": "chip '' vs typed ''"
+    },
+    {
+      "check": "19 the chip's question is answered, not deflected",
+      "detail": "chip ''"
+    }
+  ]
+}

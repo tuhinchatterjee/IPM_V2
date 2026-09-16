@@ -5933,6 +5933,69 @@ export interface RetailEarlyWarning {
   notes?: string[];
 }
 
+/** One resolved link inside a story step: the object as it exists here. */
+export interface DemoStoryLink {
+  id: number;
+  title: string;
+  href: string;
+  turns?: number;
+  status?: string;
+}
+
+export interface DemoStoryStep {
+  key: string;
+  prompt: string;
+  route: string;
+  /** True when this step changes screen; false when it acts on the one the
+   *  story is already standing on and the route is the carried-forward one. */
+  navigates: boolean;
+  control: string;
+  narration: string;
+  expect: string[];
+  links: Record<string, DemoStoryLink>;
+  ready: boolean;
+  why_not_ready: string;
+}
+
+export interface DemoStoryAct {
+  key: string;
+  title: string;
+  purpose: string;
+  steps: DemoStoryStep[];
+  ready: boolean;
+}
+
+export interface DemoStory {
+  story_version: string;
+  month: string;
+  source_hash: string;
+  acts: DemoStoryAct[];
+  ready: boolean;
+  missing: string[];
+  steps: number;
+  how_to_use: string;
+  disclosure?: string;
+}
+
+export interface BankedPrompt {
+  key: string;
+  said: string;
+  outcome: "answer" | "clarify" | "refuse";
+  scope: Record<string, string>;
+  operation: string;
+  must_say: string[];
+  must_not_say: string[];
+  because: string;
+}
+
+export interface PromptBank {
+  prompt_bank_version: string;
+  prompts: number;
+  by_surface: Record<string, BankedPrompt[]>;
+  outcomes: { outcome: string; meaning: string }[];
+  chips_are_prompts: string;
+}
+
 export interface RetailManifest {
   domain_display: string;
   dataset: string;
@@ -7640,6 +7703,18 @@ export const api = {
       { timeoutMs: LAKE_TIMEOUT_MS }),
   retailManifest: () =>
     request<RetailManifest>("/retail/manifest", { timeoutMs: LAKE_TIMEOUT_MS }),
+
+  // ---- the presenter story and the prompt bank ----
+  //
+  // Both are read live. The story's artifact ids are this installation's own
+  // — a reseed changes them — so the screen must never cache a breadcrumb
+  // across a session.
+  retailDemoStory: () =>
+    request<DemoStory>("/retail/demo/story", { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailDemoPrompts: (surface?: string) =>
+    request<PromptBank>(
+      `/retail/demo/prompts${surface ? `?surface=${encodeURIComponent(surface)}` : ""}`,
+    ),
 
   // ---- retail What-If ----
   //

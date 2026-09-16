@@ -10,6 +10,7 @@ import {
   Brain,
   BookMarked,
   ClipboardCheck,
+  Clapperboard,
   Database,
   FileText,
   FlaskConical,
@@ -213,14 +214,27 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/documents",
     label: "Documents",
     description:
-      "Board and committee papers authored with live analytical content. Placeholder for this release.",
+      "Board and committee papers authored from live analytical content, each carrying the month and the book version its figures were computed on.",
     icon: FileText,
-    status: "preview",
-    phase: "Placeholder by design",
+    status: "live",
+    phase: "",
     group: "Work",
-    demo: "hidden",
+    demo: "core",
     demoNote:
-      "Placeholder by design: the cards are fixed sample records, not authored documents. Nothing here is wired to analytical content, so it would be the first dead end a client found.",
+      "Real stored documents with versions, a draft/review/approved lifecycle, attachments and a Word download. The version column is the point: a paper about a 19,745-facility book and one about a 59,449-facility book do not both get to say \u201cAugust 2026\u201d.",
+  },
+  {
+    href: "/demo-story",
+    label: "Demo Story",
+    description:
+      "The guided presenter route through the product: five acts over real analyses, with this installation\u2019s own artifact ids resolved live.",
+    icon: Clapperboard,
+    status: "live",
+    phase: "",
+    group: "Work",
+    demo: "optional",
+    demoNote:
+      "A navigation aid, not a slideshow. Every step opens a real screen and every prompt is answered live through the same path a typed question takes.",
   },
 
   // ---- INTELLIGENCE: standing capability rather than one-off work ----
@@ -498,6 +512,7 @@ export const RETAIL_NAV_HREFS: ReadonlySet<string> = new Set([
   "/investigations",
   "/analyses",
   "/documents",
+  "/demo-story",
   "/lenses",
   "/metrics",
   "/early-warning",

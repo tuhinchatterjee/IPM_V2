@@ -543,6 +543,50 @@ def find(text: str, catalogue: Any = None) -> Resolved | None:
 #: signals being negated; it is a restriction of the POPULATION to the names
 #: that have not yet been formally marked. So it is read here, beside the
 #: composite it qualifies, and applied where the composite reads its rows.
+#: The governed states a retail book carries, and how each one is spelled.
+#:
+#: The defect this closes, and it is the one that matters most of the set:
+#: the two patterns above name `watchlist` and `npl`, which are CORPORATE
+#: columns. The retail book carries none of them — it carries
+#: `current_default_flag`, `credit_impaired_flag`, `forbearance_flag`,
+#: `restructured_flag` and `writeoff_flag` — so `excluded()` returned nothing
+#: here however the question was phrased, `state_condition` asserted the state
+#: positively as it is designed to, and
+#:
+#:     "Which retail customers are deteriorating but NOT YET in default?"
+#:
+#: came back as "25 customers WITH current default". The product answered the
+#: opposite of the question, in a confident headline, with the excluded
+#: population on the screen.
+#:
+#: Written as a table of spellings rather than five hand-built regexes,
+#: because the negation half is identical for every state and the part that
+#: differs is only how a credit officer says the state out loud.
+_STATES: tuple[tuple[str, str], ...] = (
+    ("current_default_flag", r"in\s+default|defaulted|in\s+a\s+default"),
+    ("credit_impaired_flag", r"credit[-\s]?impaired|impaired"),
+    ("forbearance_flag", r"forborne|in\s+forbearance|under\s+forbearance"),
+    ("restructured_flag", r"restructured|restructur(?:ed|ing)"),
+    ("writeoff_flag", r"written[-\s]off|write[-\s]?off"),
+)
+
+#: What may stand between the negation and the state. "not YET in default",
+#: "not CURRENTLY forborne", "not FORMALLY restructured". Short on purpose:
+#: a negation three clauses away belongs to a different phrase, and
+#: "customers who are not growing and are in default" means in default.
+_BEFORE = (r"(?:not|aren'?t|are\s+not|is\s+not|isn'?t|were\s+not|"
+           r"have\s+not|has\s+not|hasn'?t|haven'?t|without|excluding|"
+           r"exclude[sd]?|but\s+not|other\s+than|outside|never)\s+"
+           r"(?:yet\s+)?(?:been\s+|being\s+|be\s+|currently\s+|"
+           r"already\s+|formally\s+)*")
+
+_STATE_EXCLUSIONS: tuple[tuple[str, str], ...] = tuple(
+    (field, rf"\b{_BEFORE}(?:{spellings})\b"
+            rf"|\bnon-?(?:{spellings})\b")
+    for field, spellings in _STATES
+)
+
+
 EXCLUSIONS: tuple[tuple[str, str], ...] = (
     ("watchlist",
      r"\b(?:not|aren'?t|are\s+not|is\s+not|isn'?t|without|excluding|"
@@ -556,6 +600,7 @@ EXCLUSIONS: tuple[tuple[str, str], ...] = (
      r"\b(?:not|aren'?t|are\s+not|is\s+not|isn'?t|without|excluding|"
      r"but\s+not)\s+(?:yet\s+)?(?:classified\s+)?non-?performing\b"
      r"|\bstill\s+performing\b|\bperforming\s+only\b"),
+    *_STATE_EXCLUSIONS,
 )
 
 

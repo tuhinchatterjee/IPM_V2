@@ -253,6 +253,52 @@ COCKPIT: tuple[tuple[str, tuple[str, ...]], ...] = (
      ("portfolio_facility",)),
 )
 
+#: The same promise, for the retail installation.
+#:
+#: The defect this fixes: `COCKPIT` gates on `portfolio_facility` and
+#: `ifrs9_staging`, which are the CORPORATE catalogue's dataset names. A
+#: retail-only deployment publishes `retail_facility_month` and friends, so
+#: NONE of the five above was ever answerable here and `opening()` fell
+#: through to its last resort every time — the Cockpit's suggestion strip
+#: offered "What data do you have in Retail facility month-end position?",
+#: a data-dictionary question, as the product's opening statement about
+#: itself.
+#:
+#: These five are the retail equivalents, gated on the datasets this product
+#: actually publishes. Each has been run through the real Ask path here, and
+#: `scripts/retail_uat/phase8_story.py` runs them again against the bank.
+#:
+#: Two drafts were withdrawn for failing exactly the test this list exists to
+#: enforce. "Where is risk building across the retail book?" came back "Which
+#: figure should CreditProbe measure?" — the reader did what they were told
+#: and the product asked them what they meant. "Which customers are weakening
+#: but are not yet on the watchlist?" answered, but the retail book carries no
+#: watchlist column, so the exclusion the question stated could not be applied
+#: and the answer said so in a caveat under a headline that did not. Both are
+#: replaced by phrasings the engine resolves completely.
+RETAIL_COCKPIT: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Show retail exposure, customers and weighted ECL by product.",
+     ("retail_facility_month",)),
+    ("Which retail products have deteriorated this quarter?",
+     ("retail_facility_month",)),
+    ("What is driving Stage 2 and ECL growth?",
+     ("retail_facility_month",)),
+    ("Which retail customers are deteriorating but not yet in default?",
+     ("retail_facility_month",)),
+    ("Where are multiple early warning signals appearing together?",
+     ("retail_ews_score",)),
+)
+
+
+def approved() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """The approved set for the product this installation serves."""
+    try:
+        from backend.retail.profile import is_retail
+
+        return RETAIL_COCKPIT if is_retail() else COCKPIT
+    except Exception:  # noqa: BLE001 - a profile that cannot be read is corporate
+        return COCKPIT
+
 
 def _rotation(on: Any = None) -> int:
     """Which of the approved questions the Cockpit starts from today.
@@ -267,7 +313,7 @@ def _rotation(on: Any = None) -> int:
     from datetime import date
 
     day = on or date.today()
-    return day.toordinal() % max(len(COCKPIT), 1)
+    return day.toordinal() % max(len(approved()), 1)
 
 
 def opening(context: Any, *, on: Any = None) -> list[str]:
@@ -279,7 +325,7 @@ def opening(context: Any, *, on: Any = None) -> list[str]:
     try:
         datasets = list(getattr(context, "datasets", None) or [])
         names = {str(getattr(d, "name", "")).lower() for d in datasets}
-        answerable = [question for question, needs in COCKPIT
+        answerable = [question for question, needs in approved()
                       if all(n in names for n in needs)]
         if not answerable:
             # Nothing governed to ask about. Offering a question anyway would

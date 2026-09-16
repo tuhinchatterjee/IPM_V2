@@ -2425,3 +2425,44 @@ def retail_report(family: str, payload: ReportIn,
         media_type=("application/vnd.openxmlformats-officedocument"
                     ".wordprocessingml.document"),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# --------------------------------------------------------------------------
+# The presenter story (§22) and the prompt bank (§23).
+#
+# Both are read-only descriptions of intent. The story resolves its artifact
+# ids against this installation on every request rather than caching them,
+# because a reseed changes them and a cached breadcrumb sends a presenter to
+# a dead link in front of a client. The bank is static by design: it is the
+# contract the chips and the automated suite share, so a chip cannot drift
+# from what is tested.
+# --------------------------------------------------------------------------
+
+
+@router.get("/demo/story", summary="The guided presenter story")
+def demo_story(_: Principal = RequireCommenter) -> dict:
+    from backend.db.engine import get_session
+    from backend.retail import demo_story as story_mod
+
+    with get_session() as session:
+        out = story_mod.story(session)
+    out["disclosure"] = SYNTHETIC_DISCLOSURE
+    return out
+
+
+@router.get("/demo/prompts", summary="The versioned prompt bank")
+def demo_prompts(surface: str | None = Query(None),
+                 _: Principal = RequireCommenter) -> dict:
+    from backend.retail import prompt_bank
+
+    out = prompt_bank.catalogue()
+    if surface:
+        held = out["by_surface"].get(surface)
+        if held is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                f"No prompts are banked for the {surface!r} surface. "
+                f"Known surfaces: {', '.join(sorted(out['by_surface']))}.")
+        out["by_surface"] = {surface: held}
+        out["prompts"] = len(held)
+    return out

@@ -357,6 +357,13 @@ def story(session: Any) -> dict[str, Any]:
 
     acts: list[dict[str, Any]] = []
     missing: list[str] = []
+    # The screen the story is standing on. Most steps are a control press on
+    # the screen the previous step opened, so they carry no route of their
+    # own — but a presenter RESUMING at one of those needs somewhere to go,
+    # and "no link" is not an answer when the whole point of the feature is
+    # picking the story back up mid-act. So the last route resolved is
+    # carried forward until a step changes it.
+    standing = ""
     for act in ACTS:
         steps: list[dict[str, Any]] = []
         for step in act.steps:
@@ -376,8 +383,15 @@ def story(session: Any) -> dict[str, Any]:
             # every other.
             if not route and links:
                 route = next(iter(links.values())).get("href", "")
+            if route:
+                standing = route
+                own = True
+            else:
+                route = standing
+                own = False
             steps.append({
                 "key": step.key, "prompt": step.prompt, "route": route,
+                "navigates": own,
                 "control": step.control, "narration": step.narration,
                 "expect": list(step.expect), "links": links,
                 "ready": ready,

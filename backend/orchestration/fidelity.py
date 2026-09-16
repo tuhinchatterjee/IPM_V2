@@ -319,6 +319,19 @@ def _population_in(question: str, *, reading: Any = None,
         raw = (entity.get("value") if isinstance(entity, dict)
                else getattr(entity, "value", entity))
         value = str(raw or "").strip()
+        # A boolean is not a population anybody would recognise on a screen,
+        # and the same rule already applies to the carried filters below.
+        #
+        # It matters here because the reading resolves a named STATE to one:
+        # "in default" becomes current_default_flag = True. When the sentence
+        # goes on to NEGATE that state — "deteriorating but not yet in
+        # default" — the planner correctly drops the positive filter, and this
+        # check then reported that correct behaviour as a lost population,
+        # in the words "The question is about True, and the analysis did not
+        # restrict to it", sitting directly under a caveat that had just
+        # explained the exclusion properly.
+        if value.lower() in ("true", "false", "none"):
+            continue
         if value:
             found.append(value)
 

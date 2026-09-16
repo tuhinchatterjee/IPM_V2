@@ -178,6 +178,12 @@ export function Composer({
               <button
                 key={s.question}
                 type="button"
+                // §23 asks that a chip be tested through the same path as a
+                // typed question. It already is — the click sets the
+                // composer's value and calls the same `onSubmit` the Ask
+                // button calls — and this id is what lets the suite prove
+                // it rather than assert it.
+                data-testid="ask-chip"
                 title={s.note}
                 disabled={busy}
                 onClick={() => {
