@@ -205,7 +205,7 @@
       ],
       "gross_carrying_amount_sar": 5021027864.4,
       "ecl_final_sar": 61047914.29,
-      "content_hash": "bb9582e45f9b0fb8601bca11b274231b47581f88bb08ee1284154b10efa407fe",
+      "content_hash": "624633d06e38a2d1fc1533ecce67fd13dbe1df43f005c6cdc4a55672fff6d756",
       "validation_status": "PASSED"
     },
     {
@@ -222,7 +222,7 @@
       ],
       "gross_carrying_amount_sar": 5101079916.04,
       "ecl_final_sar": 56513597.706,
-      "content_hash": "de97f5c0d6e4d8e0ab90ebf07ea8b3267b6ca4b348be4bfda333d43adb9aa45a",
+      "content_hash": "45b54c7c6a3f0d77270173c8c54b81f58c60ed399a2218b9c49d7455198d5f08",
       "validation_status": "PASSED"
     },
     {
@@ -239,7 +239,7 @@
       ],
       "gross_carrying_amount_sar": 5195214097.67,
       "ecl_final_sar": 51792708.827999994,
-      "content_hash": "53058d0901809e476203e85d19c00b8b809843fccc76058919dbaeee9ac241ac",
+      "content_hash": "8c47d9b81be83b8180df312868f1f13e8aa6595769361bb42e9a469d048f89b9",
       "validation_status": "PASSED"
     },
     {
@@ -256,7 +256,7 @@
       ],
       "gross_carrying_amount_sar": 5294035893.639999,
       "ecl_final_sar": 47415371.156,
-      "content_hash": "90433551e4f17d2a2eb952d0e4b5b071362ee5b92b75339e3d114603359cac04",
+      "content_hash": "e437c3aaf3047ddc4a1868f8971c66d43c7070f5df81fb031f2a76f089df698a",
       "validation_status": "PASSED"
     },
     {
@@ -273,7 +273,7 @@
       ],
       "gross_carrying_amount_sar": 5388240879.88,
       "ecl_final_sar": 44351260.914,
-      "content_hash": "00734a28e69f0eed3292b7e76b8ec0e75c0c93fac571afd102de841ecfb7d1ef",
+      "content_hash": "10700d6b0ddf3d6b7051e88cb9a22b945cdbe83ba165835a578560a3b64ba626",
       "validation_status": "PASSED"
     },
     {
@@ -290,7 +290,7 @@
       ],
       "gross_carrying_amount_sar": 5483881424.82,
       "ecl_final_sar": 42356704.050000004,
-      "content_hash": "7937d8c0b0c22edebc321efdcb547776625a88b1cae350c91f0d50ffdef3acb1",
+      "content_hash": "b7298601fb97651b6840d3a3a424b7c646387992c06fe83b9bfe8d9441bff487",
       "validation_status": "PASSED"
     },
     {
@@ -307,7 +307,7 @@
       ],
       "gross_carrying_amount_sar": 5573430881.03,
       "ecl_final_sar": 41533206.098000005,
-      "content_hash": "56ba1ecb48319bf0590a890f60a175f30e3744daf84ab47be0b39932e2d6b48a",
+      "content_hash": "10be317240bd41f57392dc20a68492dc498ca663049755ae7cd803081f98b94e",
       "validation_status": "PASSED"
     },
     {
@@ -324,7 +324,7 @@
       ],
       "gross_carrying_amount_sar": 5673226130.540001,
       "ecl_final_sar": 41189863.148,
-      "content_hash": "bc8d2a57d0b522061d4e82ec769e266844e8b1e78e96b67dd8a7cdeb8759fddb",
+      "content_hash": "8f440550b2f871e2c87df628b6b841b4e5aaa08334744f0631874998ab0b3e34",
       "validation_status": "PASSED"
     },
     {
@@ -341,7 +341,7 @@
       ],
       "gross_carrying_amount_sar": 5792685508.66,
       "ecl_final_sar": 42736274.444000006,
-      "content_hash": "9d8b54ceca686f8fee9b8a78aef05bfc218bbcd8269fb92274d5325e32627312",
+      "content_hash": "24f9091febaa7081fa70828884d4918aa2bb1ab2d9fcd9e77130afab368742ba",
       "validation_status": "PASSED"
     },
     {
@@ -358,7 +358,7 @@
       ],
       "gross_carrying_amount_sar": 5925508217.05,
       "ecl_final_sar": 43630803.338,
-      "content_hash": "63c51950e9aedba55ed20f310274301533cdc1274655765b6047d1b460945a43",
+      "content_hash": "586db02c3bfcbc53bd9a70abaa75ffaa05f69cba5dc40db8a9dd474845dc73b8",
       "validation_status": "PASSED"
     },
     {
@@ -375,7 +375,7 @@
       ],
       "gross_carrying_amount_sar": 6035377712.210001,
       "ecl_final_sar": 46263340.368,
-      "content_hash": "ab1aab61e6c43ac93a5c3bfacdb2a1435aa84659d78f619d12d77c1328d62301",
+      "content_hash": "b1c50c4caf575c7eb470f44965dc9190f56eae1611f6d3e1e0c914f55042f18b",
       "validation_status": "PASSED"
     },
     {
@@ -390,9 +390,9 @@
         "HOME_LOAN",
         "PERSONAL_LOAN"
       ],
-      "gross_carrying_amount_sar": 6186588669.02,
-      "ecl_final_sar": 50940082.278,
-      "content_hash": "f6c6c1498fc9d3601f0229171e9371ea5341efab55ce285393761f2cb9e8fe14",
+      "gross_carrying_amount_sar": 6186568773.48,
+      "ecl_final_sar": 50778915.492,
+      "content_hash": "e71e0262783f521252b96477615c057ab4c54e37c0ae4566a697cfeb7c30b518",
       "validation_status": "PASSED"
     },
     {
@@ -407,9 +407,9 @@
         "HOME_LOAN",
         "PERSONAL_LOAN"
       ],
-      "gross_carrying_amount_sar": 6336000578.41,
-      "ecl_final_sar": 58629149.778,
-      "content_hash": "7ccded9541c07821737bcfc3458fcfde13bfc4b8c9209ba26763738958bb847d",
+      "gross_carrying_amount_sar": 6335938721.629999,
+      "ecl_final_sar": 58069411.112,
+      "content_hash": "f0e5b3dab0efb3d89850aecf972343e724cd60873ab773c7d29ae2afd277e8cf",
       "validation_status": "PASSED"
     },
     {
@@ -424,9 +424,9 @@
         "HOME_LOAN",
         "PERSONAL_LOAN"
       ],
-      "gross_carrying_amount_sar": 6475182086.219999,
-      "ecl_final_sar": 70933788.09400001,
-      "content_hash": "c5a864e083f70db88e8b1d6df9375209cb24c993707d7f9f2a6537de7ed6b6fb",
+      "gross_carrying_amount_sar": 6475173413.58,
+      "ecl_final_sar": 70397904.63,
+      "content_hash": "05615a1af58d13d378f4d3c6c260a174ba3fbfb0b4a6abacc95feb09db85b586",
       "validation_status": "PASSED"
     }
   ],
@@ -486,6 +486,6 @@
     "affordability_policy_version": "retail-affordability-1.0.0"
   },
   "lifetime_horizon_cap_months": 120,
-  "manifest_hash": "12e4733724e8b93b8b9f4b13f4c0020a0716f78e6f9a2023086fb748d032a99d",
-  "build_seconds": 653.0
+  "manifest_hash": "37c03a48828b5235ee56a01f6b16adad57349db9f810812d3b434dd9ed5fc1b5",
+  "build_seconds": 475.9
 }
