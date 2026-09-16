@@ -387,3 +387,82 @@ def build(session: Any, *, preview: bool = False,
 
 __all__ = ["Change", "KEY", "Report", "SEEDER_VERSION", "build", "compute",
            "headline", "plan"]
+
+
+# ------------------------------------------------------------- the tidy-up
+
+
+#: What a retail installation's saved analyses may point at. Anything else
+#: is a corporate analysis that reached this database through a test.
+RETAIL_ANALYSIS_PREFIX = "retail."
+
+
+def tidy(session: Any, *, preview: bool = True) -> dict[str, Any]:
+    """Remove the residue a retail installation should not be showing.
+
+    §2.5 of the delta map reproduced this as a defect: "the Analyses list
+    carries corporate rows — e.g. 'Shipping PD increase' — in a retail-only
+    installation". Underneath it is the problem `backend/demo/workspace`
+    describes at length — a development database accumulates, and every row
+    a passing test left behind is on screen in front of a client.
+
+    What it removes, and the rule for each
+    ----------------------------------------
+    * **Foreign analyses.** A saved analysis whose registered analysis is
+      not a retail one. On this installation that is the corporate shipping
+      and borrower-deterioration fixtures, which describe a book this
+      product does not hold.
+    * **Empty investigations.** A thread with no messages at all. Not a
+      conversation — a row a test created and abandoned.
+
+    What it will not touch
+    -----------------------
+    Anything seeded (it is refreshed rather than deleted), anything with a
+    project, and anything carrying actual conversation. A tidy that removed
+    a thread somebody had used would be worse than the residue.
+
+    Preview by default. A destructive operation whose default is to do it
+    is a destructive operation somebody runs by accident.
+    """
+    from sqlalchemy import func, select
+
+    from backend.models.platform import (
+        Investigation,
+        InvestigationMessage,
+        SavedAnalysis,
+    )
+
+    report = Report()
+    report.source_hash = "n/a — this removes rows, it computes nothing"
+
+    for row in session.execute(select(SavedAnalysis)).scalars().all():
+        if (row.params or {}).get("seeded"):
+            continue
+        if str(row.analysis_id or "").startswith(RETAIL_ANALYSIS_PREFIX):
+            continue
+        report.add("analysis", f"id:{row.id}", "remove",
+                   f"{row.title} — {row.analysis_id}, not a retail analysis")
+        if not preview:
+            session.delete(row)
+
+    counts = dict(session.execute(
+        select(InvestigationMessage.investigation_id,
+               func.count(InvestigationMessage.id))
+        .group_by(InvestigationMessage.investigation_id)).all())
+    for row in session.execute(select(Investigation)).scalars().all():
+        if (row.context or {}).get(KEY):
+            continue
+        if counts.get(row.id, 0) > 0 or row.project_id:
+            continue
+        report.add("investigation", f"id:{row.id}", "remove",
+                   f"{str(row.title)[:60]} — no messages, no project")
+        if not preview:
+            session.delete(row)
+
+    body = report.to_dict()
+    body["preview"] = preview
+    body["note"] = (
+        "Preview by default. Nothing seeded is removed, nothing with a "
+        "project is removed, and nothing carrying conversation is removed."
+        if preview else "Removed.")
+    return body

@@ -384,7 +384,7 @@ def build(session: Any, owner: Any, report: Any, *,
                 slug=one["slug"], name=one["name"],
                 description=one["description"], audience=one["audience"],
                 definition=definition, status="published", version=1,
-                origin="seed", created_by=getattr(owner, "id", None)))
+                origin="seed", owner_id=getattr(owner, "id", None)))
             report.add("lens", one["slug"], "create",
                        f"{one['name']} — {len(one['panels'])} panels")
             continue
