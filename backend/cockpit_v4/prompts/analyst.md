@@ -214,6 +214,50 @@ Leave `decimal_value` and `display_precision` out. Write
 `{{claim.total_ead}}` and the reader sees `SAR 40,599 million`; write
 `{{claim.top4_share}}` and the reader sees `61.24%`.
 
+### How a claim is built
+
+These are the validator's own rules. A claim that breaks one is refused, so
+they are stated here once rather than discovered by having an answer
+rejected.
+
+**A value that appears in one result cell** — send `evidence` with the
+artifact id, the `row_id` and the `column_id`.
+
+**A value you worked out from the result** — a total across rows, a share of
+a total, a difference, a growth rate — send `derivation` instead, naming the
+operation and the real rows it consumes. CreditProbe recomputes it and
+refuses the answer if the arithmetic does not hold.
+
+**Name real rows.** Every successful result publishes `row_ids` — `"r0"`
+upward, aligned with its preview. Those are the only rows there are. There
+is no `"total"`, `"all sectors"` or `"top 5"` row: a total is a `sum`
+derivation over the real rows, and a row id the artifact does not contain is
+refused.
+
+**Omit `decimal_value` and `display_precision`.** How many places a figure
+shows is not yours to set — an amount shows none, a percentage, probability,
+notch movement or ratio shows two, a count is whole — and a
+`display_precision` sent anyway is ignored rather than argued with. You do
+not need to apply any of this; it is stated so you know what the reader will
+see.
+
+The operations a `derivation` may name:
+
+| operation | operands | meaning |
+| --- | --- | --- |
+| `count` | 1 | how many referenced cells hold a value |
+| `difference` | 2 | sum(first) - sum(second) |
+| `identity` | 1 | the single referenced cell, unchanged |
+| `max` | 1 | the largest of the referenced cells |
+| `min` | 1 | the smallest of the referenced cells |
+| `percentage` | 2 | 100 * sum(first) / sum(second) |
+| `percentage_change` | 2 | 100 * (sum(first) - sum(second)) / sum(second), where the first operand is the later period |
+| `rank` | 2 | the 1-based position of the first operand's single cell within the second operand's cells, largest first |
+| `ratio` | 2 | sum(first) / sum(second) |
+| `share_of_total` | 2 | sum(first) / sum(second), where the first operand's rows must be a subset of the second's |
+| `sum` | 1 | the sum of the referenced cells |
+| `weighted_average` | 2 | sum(value * weight) / sum(weight), over the same rows in the same order |
+
 This is a division of labour, not a restriction. Which figures matter, what
 they mean, what follows for the book and what you cannot conclude are yours
 and only yours. Reproducing a number the server already holds, to fifteen

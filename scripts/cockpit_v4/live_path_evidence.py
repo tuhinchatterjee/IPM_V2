@@ -53,9 +53,9 @@ def build_app(release_id: str, runtime_dir: Path, port: int):
 
     capability = Capability(
         provider="anthropic", model_id="stub-analyst", sdk_version="evidence",
-        context_tokens=200_000, max_output_tokens=8192, supports_tools=True,
-        supports_token_counting=True,
-        price=PriceCard(15.0, 75.0, 18.75, 1.5),
+        context_tokens=200_000, max_output_tokens=128_000,
+        supports_tools=True, supports_token_counting=True,
+        price=PriceCard(5.0, 25.0, 6.25, 0.5),
         source="evidence stub", verified_at="2026-09-10T00:00:00Z",
         live_verified=True)
 

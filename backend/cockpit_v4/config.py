@@ -127,6 +127,15 @@ class Limits:
     #: was handed the whole remaining deadline, so the first one could spend
     #: eighty seconds and leave the run with nothing to recover with.
     action_call_seconds: float
+    #: The longest ONE answer generation may block WHILE A RE-ASK REMAINS.
+    #:
+    #: The answer turn used to keep the whole remainder unconditionally, and
+    #: the live failure is what that costs: two attempts took 43s and 47s of
+    #: a 120s deadline and the third had 7.8s to live in. Bounding the last
+    #: attempt would be wrong -- it is the one that must not be cut short --
+    #: so this bounds only the attempts that still have a successor. See
+    #: `Ledger.call_timeout_seconds`.
+    answer_call_seconds: float
     #: The most an ACTION may be allowed after a TRUNCATION, and never
     #: before one.
     #:
@@ -136,10 +145,29 @@ class Limits:
     #: re-ask is the one lever measurement actually points at, and it is
     #: bounded: it may reach the answer's allowance and no further.
     action_output_ceiling: int
+    #: The most the FINAL ANSWER may be allowed after a TRUNCATION, and
+    #: never before one. The action side's twin, for the phase that needed
+    #: it more.
+    #:
+    #: Measured, not guessed. A correct answer to a four-step analysis --
+    #: sixteen claims, a narrative that references them, four tables and two
+    #: charts -- serializes to about 12.6 KB, which the run's own estimator
+    #: puts at ~5,700 tokens BEFORE the model thinks. Against a 4,096
+    #: allowance that object could not be emitted at any effort setting, and
+    #: the live truncation was not marginal: it was arithmetic.
+    answer_output_ceiling: int
     #: How hard the model works before it answers, per phase. Empty means
     #: "do not send it": see `Capability.supports_effort_control`.
     action_effort: str
     answer_effort: str
+    #: Effort on a RE-ASK after the answer was cut off.
+    #:
+    #: Thinking is spent from the same allowance as the answer, so a
+    #: truncated turn is one where thinking and the object competed and the
+    #: object lost. The re-ask lowers the former to buy room for the latter:
+    #: by then the analysis is done and the numbers are chosen, and what is
+    #: left is serialising a decision already taken.
+    answer_recovery_effort: str
     #: Time held back so a finished analysis can still be written up. An
     #: action call is refused once the run is inside this window; the ANSWER
     #: call may spend it, because it is what the window was held for.
@@ -155,11 +183,13 @@ STANDARD_LIMITS = Limits(
     step_seconds=15.0, python_memory_mib=512, sql_memory_mib=512,
     output_bytes_per_step=25 * 1024 * 1024, preview_rows=100,
     preview_columns=32, format_regenerations=2,
-    answer_format_regenerations=1, answer_corrections=1,
+    answer_format_regenerations=2, answer_corrections=1,
     spend_ceiling_usd=1.0, charts=2, soft_input_tokens=6_000,
-    reserved_output_tokens=4_096, action_output_tokens=3_072,
-    action_output_ceiling=4_096,
-    action_call_seconds=30.0, action_effort="low", answer_effort="medium",
+    reserved_output_tokens=8_192, action_output_tokens=3_072,
+    action_output_ceiling=4_096, answer_output_ceiling=12_288,
+    action_call_seconds=30.0, answer_call_seconds=55.0,
+    action_effort="low", answer_effort="medium",
+    answer_recovery_effort="low",
     finalization_reserve_seconds=20.0, min_call_seconds=5.0)
 
 DEEP_LIMITS = Limits(
@@ -169,11 +199,13 @@ DEEP_LIMITS = Limits(
     step_seconds=30.0, python_memory_mib=1024, sql_memory_mib=1024,
     output_bytes_per_step=50 * 1024 * 1024, preview_rows=100,
     preview_columns=32, format_regenerations=2,
-    answer_format_regenerations=1, answer_corrections=1,
+    answer_format_regenerations=2, answer_corrections=1,
     spend_ceiling_usd=2.0, charts=3, soft_input_tokens=10_000,
-    reserved_output_tokens=6_144, action_output_tokens=4_096,
-    action_output_ceiling=6_144,
-    action_call_seconds=45.0, action_effort="medium", answer_effort="high",
+    reserved_output_tokens=12_288, action_output_tokens=4_096,
+    action_output_ceiling=6_144, answer_output_ceiling=16_384,
+    action_call_seconds=45.0, answer_call_seconds=90.0,
+    action_effort="medium", answer_effort="high",
+    answer_recovery_effort="low",
     finalization_reserve_seconds=25.0, min_call_seconds=5.0)
 
 

@@ -52,11 +52,12 @@ def _runtime(tmp: Path):
         supervisor_poll_seconds=2.0, credential_present=True, missing=())
     capability = Capability(
         provider="anthropic", model_id="stub-analyst", sdk_version="evidence",
-        context_tokens=200_000, max_output_tokens=8_192, supports_tools=True,
+        context_tokens=200_000, max_output_tokens=128_000,
+        supports_tools=True,
         supports_token_counting=False,
-        price=PriceCard(input_usd_per_mtok=15.0, output_usd_per_mtok=75.0,
-                        cache_write_usd_per_mtok=18.75,
-                        cache_read_usd_per_mtok=1.5),
+        price=PriceCard(input_usd_per_mtok=5.0, output_usd_per_mtok=25.0,
+                        cache_write_usd_per_mtok=6.25,
+                        cache_read_usd_per_mtok=0.5),
         source="evidence script", verified_at="2026-09-13T00:00:00Z",
         live_verified=False)
     catalog, _, summary = load_release(cfg)

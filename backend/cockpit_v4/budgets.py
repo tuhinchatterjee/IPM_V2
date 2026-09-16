@@ -163,15 +163,39 @@ class Ledger:
         window is cancelled while there is still a window left to try again
         in -- which is the whole point of holding one.
 
-        The answer turn keeps the full remainder. It is the last call the
-        run makes, and cutting it short would throw away work that has
-        already been done and paid for.
+        The LAST answer attempt keeps the full remainder. It is the last
+        call the run makes, and cutting it short would throw away work that
+        has already been done and paid for.
+
+        An answer attempt that still has a successor does not. That is the
+        live failure: two answer attempts took 43s and 47s of a 120-second
+        run, and the re-ask the run was entitled to had 7.8 seconds to live
+        in. Whichever of the two would have succeeded, neither was given the
+        room, because the first was allowed to spend the second's time.
+
+        So the rule is a question about the future, not about the phase:
+        *can CreditProbe ask again?* While it can, no single attempt may eat
+        the clock. Once it cannot, the attempt in hand is the last one and
+        gets everything that is left.
         """
         usable = self.remaining_seconds - self.SETTLEMENT_MARGIN_SECONDS
         bound = min(usable, self.limits.deadline_seconds)
         if phase != "answer":
             bound = min(bound, self.limits.action_call_seconds)
+        elif self.answer_reask_remains():
+            bound = min(bound, self.limits.answer_call_seconds)
         return max(1.0, bound)
+
+    def answer_reask_remains(self) -> bool:
+        """True while a truncated or malformed answer could be asked again.
+
+        Read by `call_timeout_seconds` to decide whether the attempt in hand
+        is the last one. Kept as its own name because "is this the last
+        attempt" is the question, and `answer_format_recoveries <
+        answer_format_regenerations` is only how it happens to be answered.
+        """
+        return (self.counters.answer_format_recoveries
+                < self.limits.answer_format_regenerations)
 
     def check_call_window(self, *, phase: str = "action") -> None:
         """Refuse a call there is no longer time to use.

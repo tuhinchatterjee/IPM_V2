@@ -446,24 +446,52 @@ def test_the_analytical_limits_are_deliberate_values():
         assert getattr(standard, field) == getattr(base, field), field
 
 
+def _prespend_leaving(ledger, *, input_tokens: int, output_tokens: int
+                      ) -> float:
+    """What to reserve up front so exactly `output_tokens` stay affordable.
+
+    Derived from the capability's own price card rather than typed in. The
+    literals here used to be tuned by hand against a $15/$75 fixture, so
+    correcting that fixture to the model CreditProbe actually serves broke
+    a test about affordability arithmetic for reasons that had nothing to
+    do with affordability arithmetic.
+    """
+    price = ledger.capability.price
+    fixed = price.cost(input_tokens=input_tokens, output_tokens=0)
+    per_token = price.cost(input_tokens=0, output_tokens=1_000_000) / 1e6
+    return ledger.limits.spend_ceiling_usd - fixed - output_tokens * per_token
+
+
 def test_the_response_allowance_shrinks_before_the_run_fails(ledger_factory):
     """A shorter answer is affordable; refusing outright was the defect."""
     ledger = ledger_factory(spend_ceiling_usd=1.0)
-    ledger.store.reserve(run_id=ledger.run_id, purpose="earlier",
-                         reserved_usd=0.71)
+    wanted = config_mod.STANDARD_LIMITS.reserved_output_tokens
+    # Leave room for half the answer: enough to be worth writing, not
+    # enough to write the whole of it.
+    ledger.store.reserve(
+        run_id=ledger.run_id, purpose="earlier",
+        reserved_usd=_prespend_leaving(ledger, input_tokens=12_000,
+                                       output_tokens=wanted // 2))
     affordable = ledger.affordable_output_tokens(input_tokens=12_000,
-                                                 wanted=4_096)
-    assert 0 < affordable < 4_096
+                                                 wanted=wanted)
+    assert 0 < affordable < wanted
     assert affordable >= ledger.MIN_RESPONSE_TOKENS
 
 
 def test_a_budget_that_cannot_buy_any_answer_still_fails_closed(
         ledger_factory):
     ledger = ledger_factory(spend_ceiling_usd=1.0)
-    ledger.store.reserve(run_id=ledger.run_id, purpose="earlier",
-                         reserved_usd=0.99)
+    wanted = config_mod.STANDARD_LIMITS.reserved_output_tokens
+    # Room for half the floor is no room at all: below MIN_RESPONSE_TOKENS
+    # there is no answer worth paying for, and the run must say so rather
+    # than buy a stub.
+    ledger.store.reserve(
+        run_id=ledger.run_id, purpose="earlier",
+        reserved_usd=_prespend_leaving(
+            ledger, input_tokens=12_000,
+            output_tokens=ledger.MIN_RESPONSE_TOKENS // 2))
     assert ledger.affordable_output_tokens(
-        input_tokens=12_000, wanted=4_096) < ledger.MIN_RESPONSE_TOKENS
+        input_tokens=12_000, wanted=wanted) < ledger.MIN_RESPONSE_TOKENS
 
 
 def test_the_first_analytical_failure_survives_a_later_terminal_stop(

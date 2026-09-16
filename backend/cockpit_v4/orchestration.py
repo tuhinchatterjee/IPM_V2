@@ -178,6 +178,11 @@ class Orchestrator:
     #: is the only lever left once the schemas, the context, the tool
     #: ambiguity and the effort have all been taken away.
     action_truncated: bool = False
+    #: True once the FINAL ANSWER turn has been cut off at its allowance.
+    #: Its twin, for the phase the live failure was in. Sticky, like the
+    #: action side: an allowance proven too small once is too small for the
+    #: rest of the run.
+    answer_truncated: bool = False
     #: The attention item this conversation was opened from, if any.
     investigation: dict[str, Any] | None = None
     #: What the QUESTION'S OWN WORDS were resolved to against the values this
@@ -666,14 +671,32 @@ class Orchestrator:
         decision, tools = self._action_surface(recovering=recovering)
         answering = decision.state == acts.RESULT_READY
         limits = self.ledger.limits
-        if answering:
+        if answering and self.answer_truncated:
+            # THE RE-ASK MUST DIFFER FROM THE REQUEST THAT FAILED.
+            #
+            # It used to be the identical call with "keep it compact"
+            # appended, which is the one instruction that cannot help: a
+            # correct answer to a four-step analysis measures ~5,700 tokens
+            # before the model thinks, and the allowance was 4,096. Asking
+            # again at the same size asks for the impossible twice.
+            #
+            # So the re-ask gets more room AND spends less of it thinking.
+            # By this point the analysis has run and the numbers are chosen;
+            # what is left is serialising a decision already taken, which is
+            # the cheapest kind of work there is.
+            reserved = max(limits.reserved_output_tokens,
+                           limits.answer_output_ceiling)
+            effort = limits.answer_recovery_effort or limits.answer_effort
+        elif answering:
             reserved = limits.reserved_output_tokens
+            effort = limits.answer_effort
         elif self.action_truncated:
             reserved = max(limits.action_output_tokens,
                            limits.action_output_ceiling)
+            effort = limits.action_effort
         else:
             reserved = limits.action_output_tokens
-        effort = (limits.answer_effort if answering else limits.action_effort)
+            effort = limits.action_effort
 
         if answering and self.purpose == "ANALYSIS_ACTION":
             self.purpose = "FINAL_ANSWER"
@@ -724,33 +747,73 @@ class Orchestrator:
             # been paid for. Charging both to one counter is what refused a
             # live run whose query had already executed correctly.
             phase = "answer" if self.executed else "action"
-            if phase != "answer":
+            # WHICH LATCH, AND WHY IT IS NOT `phase`.
+            #
+            # `phase` above answers "whose recovery budget pays for this",
+            # and it asks `self.executed` because the cost of a truncation
+            # is the work already done behind it. The LATCH answers a
+            # different question -- "which allowance was too small" -- and
+            # the allowance was chosen by `answering`, a few lines up. The
+            # two predicates agree on every ordinary turn and disagree on an
+            # action issued after a successful query, where the counter
+            # should charge the answer phase and the allowance raised must
+            # be the action's. Each follows the thing it is about.
+            if answering:
+                self.answer_truncated = True
+            else:
                 self.action_truncated = True
             self.ledger.spend_format_recovery(phase=phase)
             self.analyst.rollback_last_turn()
             self.purpose = ("ANSWER_FORMAT_RECOVERY" if phase == "answer"
                             else "ACTION_FORMAT_RECOVERY")
+            # The number the re-ask is entitled to name, taken from the
+            # same predicate the allowance ladder used. Naming the answer
+            # ceiling on an ACTION re-ask would be a promise the next call
+            # does not keep -- which is the divergent case the latch
+            # comment above is about, said out loud.
+            raised = (max(limits.reserved_output_tokens,
+                          limits.answer_output_ceiling) if answering else
+                      max(limits.action_output_tokens,
+                          limits.action_output_ceiling))
             self.emitter.append(
                 ev.RETRY_REQUESTED,
                 stage="publishing" if phase == "answer" else "understanding",
                 operation="output_truncated", status=ev.STATUS_REJECTED,
+                detail_ref=self._detail({
+                    "phase": phase, "answering": answering,
+                    "overran": exc.limit, "next_allowance": raised}),
                 public_message=(
-                    "The written answer was cut off before it was complete; "
-                    "asking again once. The analysis is unaffected and its "
-                    "result is preserved."
-                    if phase == "answer" else
+                    f"The written answer was cut off before it was "
+                    f"complete; asking again with a larger allowance "
+                    f"({raised:,} tokens). The analysis is unaffected and "
+                    f"its result is preserved."
+                    if answering else
                     "The response was cut off before it was complete; "
                     "asking again once."))
             reason = (f"it reached its {exc.limit:,}-token output "
                       f"allowance before a tool call was complete, so "
                       f"nothing from it ran")
+            # WHAT THE RE-ASK IS TOLD.
+            #
+            # It used to be told to "keep it compact", which asks the model
+            # to solve a problem it cannot: the object that overran was the
+            # right size for the analysis, and the allowance was the thing
+            # that was wrong. Telling it to shrink invites a shorter answer
+            # about the same result -- fewer claims, fewer rows -- which is
+            # a worse answer, not a shorter one. So the re-ask says what
+            # actually changed, and what NOT to do with it.
             self.analyst.user(
                 self._action_recovery_prompt(reason)
-                if phase != "answer" else
+                if not answering else
                 f"Your previous response was cut off at its "
                 f"{exc.limit:,}-token output allowance and nothing from it "
-                f"ran. Send one complete tool call. Keep it compact; do not "
-                f"shorten the analysis itself.")
+                f"ran. The allowance for this attempt is larger: "
+                f"{raised:,} tokens. Send the complete finalize_response "
+                f"call. Do NOT drop claims, rows or coverage to make it "
+                f"fit -- the analysis is already done and paid for, and a "
+                f"shorter answer about it is a worse one. Spend the room on "
+                f"the object rather than on reasoning about it: what to say "
+                f"was settled by the result you already have.")
             return None
         except ProviderFailure as exc:
             if exc.retry_class == "transport":
@@ -790,8 +853,19 @@ class Orchestrator:
                 "output_tokens": turn.output_tokens,
                 "cache_read_tokens": turn.cache_read_tokens,
                 "cache_write_tokens": turn.cache_write_tokens,
+                # WHAT THE CALL WAS ACTUALLY GRANTED.
+                #
+                # `MODEL_REQUESTED` above carries what was WANTED, because
+                # it is emitted before the call. `affordable_output_tokens`
+                # can then cut that down to fit the cost ceiling, and until
+                # now the only record of it was one field on a call-report
+                # row nothing reads. So the trace could say 12,288 while the
+                # request sent 6,000 -- and a truncation at 6,000 looked
+                # like the model overrunning a generous allowance rather
+                # than the ledger handing it a smaller one.
+                "output_allowance": dict(self.analyst.response_allowance),
                 "duration_ms": turn.duration_ms}),
-            public_message="Response received.")
+            public_message=self._allowance_message(answering))
         # The recovery label belongs to the call that recovers, and to no
         # call after it. Leaving it set was how a completed run reported its
         # final answer as a structure re-ask -- on the ledger reservation as
@@ -800,6 +874,23 @@ class Orchestrator:
         self.purpose = "ANALYSIS_ACTION"
         self.store.save_messages(self.run.run_id, self.analyst.messages)
         return turn
+
+    def _allowance_message(self, answering: bool) -> str:
+        """"Response received", unless the ledger shrank the allowance.
+
+        A reader whose answer came back cut off is owed the reason it was
+        cut off, and "the cost ceiling decided how long this could be" is a
+        different fact from "the model wrote too much". Only said when it is
+        true, and only on the answer turn, where the length is what the
+        reader experiences.
+        """
+        granted = self.analyst.response_allowance or {}
+        if not (answering and granted.get("reduced")):
+            return "Response received."
+        return (f"Response received. The written answer was allowed "
+                f"{int(granted.get('granted', 0)):,} tokens rather than the "
+                f"{int(granted.get('wanted', 0)):,} this run reserves for "
+                f"it, because that is what remained under the cost ceiling.")
 
     def _action_recovery_prompt(self, reason: str) -> str:
         """What to send after an ACTION turn failed to produce one.

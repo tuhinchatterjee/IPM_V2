@@ -220,9 +220,24 @@ def test_a_correctly_rounded_cross_check_is_accepted(drive, release_id):
     assert len(provider.sent) == 2
 
 
-# ---- §19: the packet carries both forms --------------------------------
+# ---- the packet carries the result; the rules live in the prompt -------
 
-def test_the_result_packet_carries_the_readers_form_too(drive, release_id):
+def test_the_result_packet_carries_what_is_true_of_this_result(drive,
+                                                               release_id):
+    """Rows once, the units to describe them, and the ids to name them.
+
+    The packet used to carry every row TWICE -- canonical, then the same
+    rows rendered as display strings -- plus, per step, ~2.8 KB of constant
+    rules and the whole row-id list three more times inside a worked
+    example. On a four-step result that was ~67 KB of duplication in the
+    input the answer turn had to read before it could write anything, and
+    the answer turn was the one running out of room.
+
+    Nothing but the model ever read the second copy, and the model is told
+    in the same payload not to type numbers at all: CreditProbe formats
+    every figure a reader sees. So the rows are sent once, and what stays
+    beside them is only what varies by result.
+    """
     seen: dict = {}
 
     def _capture(messages):
@@ -234,11 +249,43 @@ def test_the_result_packet_carries_the_readers_form_too(drive, release_id):
     assert outcome.state == st.COMPLETED, outcome.message
 
     step = seen["step"]
-    assert "preview_formatted" in step
-    assert "column_units" in step
+    assert "preview_formatted" not in step, (
+        "the rows are sent once; a display copy is input nobody reads")
+    # What the analyst does still need, and could not get anywhere else.
+    assert step["preview"], "the rows themselves"
+    assert step["row_ids"], "the ids a claim names"
+    assert "column_units" in step, "what each column holds, so a claim can "\
+                                   "declare a unit"
     guide = step["how_to_cite_these_numbers"]
-    assert "you_do_not_type_numbers" in guide
-    assert "decimal_value" in guide["you_do_not_type_numbers"]
+    assert guide["artifact_id"] == step["artifact_id"]
+    assert guide["row_count"] == step["row_count"]
+    assert guide["money_unit"], (
+        "the worked example must be denominated in THIS release's unit")
+
+
+def test_the_constant_claim_rules_are_sent_once_and_not_per_step():
+    """They moved to the prompt; they did not vanish.
+
+    `MATH_ENGINE_REPORT` records that these rules exist because a live run
+    spent two rejected answers discovering them. Dropping them from the
+    per-step packet is only safe because the analyst is told them up front,
+    where they are sent once and cached rather than restated for every
+    result in every batch.
+    """
+    from pathlib import Path
+
+    prompt = (Path(__file__).resolve().parents[2] / "backend" / "cockpit_v4"
+              / "prompts" / "analyst.md").read_text(encoding="utf-8")
+    for rule in ("decimal_value", "display_precision", "row_ids",
+                 "derivation", "evidence"):
+        assert rule in prompt, f"the analyst is never told about {rule}"
+    assert "There is no `\"total\"`" in prompt or "no `\"total\"`" in prompt, (
+        "the rule that stopped a live run inventing an 'all sectors' row")
+    # The operation table travels with the rules, not with each result.
+    from backend.cockpit_v4 import derivation as deriv
+
+    for operation in deriv.describe():
+        assert f"`{operation['operation']}`" in prompt, operation["operation"]
 
 
 def test_a_column_the_catalogue_cannot_name_is_not_given_a_currency(runtime):
@@ -254,25 +301,31 @@ def test_a_column_the_catalogue_cannot_name_is_not_given_a_currency(runtime):
     assert "breaches" not in units
 
 
-def test_an_unresolved_column_is_written_without_asserting_a_unit(runtime):
+def test_an_unresolved_column_is_written_without_asserting_a_unit():
     """No currency is implied, and no machine precision is printed either.
 
     Both halves matter. Naming a denomination nobody computed shows a reader
     something false; printing 1.5690646127781567 shows them something true
     and unreadable, and a published table did exactly that until the second
     half of this rule existed.
-    """
-    from backend.cockpit_v4.execute_tool import formatted_preview
 
-    rows = [{"sector_name": "Construction", "ead_reported": 3421.1736,
-             "coverage": 1.5690646127781567, "facilities": 12}]
-    shown = formatted_preview(rows, {"ead_reported": "SAR million"})
-    assert shown[0]["ead_reported"] == "SAR 3,421 million"
-    assert shown[0]["coverage"] == "1.57"
-    assert shown[0]["facilities"] == "12", (
+    Asserted against `display`, which is where the rule lives and where
+    every figure a reader sees passes through. It used to be asserted
+    against a preview helper that formatted rows for the MODEL -- a second
+    copy of every result, which nothing but the model read, and which the
+    answer turn then had to pay to read back. That helper is gone; the
+    guarantee it was standing in for is not.
+    """
+    from decimal import Decimal
+
+    from backend.cockpit_v4 import display as disp
+
+    assert disp.format_value(Decimal("3421.1736"),
+                             "SAR million") == "SAR 3,421 million"
+    assert disp.format_unitless(Decimal("1.5690646127781567")) == "1.57"
+    assert disp.format_unitless(Decimal("12")) == "12", (
         "a whole number is written whole; that is a fact about the value, "
         "not a guess about its kind")
-    assert shown[0]["sector_name"] == "Construction"
 
 
 # ---- §24, §39: this round REDUCES calls -------------------------------

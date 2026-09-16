@@ -83,9 +83,13 @@ class ScriptedProvider:
         assert allow_retry is False, (
             "the SDK must not retry behind the ledger's back")
         # `tool_choice` and `output_config` are recorded, not ignored: the
-        # snapshot tests assert what an ACTION turn was actually allowed to
-        # be, and a double that dropped them would let the run go back to
-        # sending unconstrained turns without a single test noticing.
+        # snapshot tests assert what a turn was actually allowed to be, and
+        # a double that dropped them would let the run go back to sending
+        # unconstrained turns without a single test noticing. Effort lives
+        # inside `output_config` -- the bare `effort` keyword above is
+        # accepted and unused, and asserting on it would be asserting on
+        # nothing. Thinking is spent from the output allowance, so what is
+        # in `output_config` is part of how much room an answer had.
         self.sent.append({"system": system, "messages": [dict(m) for m in
                                                          messages],
                           "tools": tools, "max_tokens": max_tokens,
@@ -190,11 +194,11 @@ def capability():
 
     return Capability(
         provider="anthropic", model_id="mock-analyst", sdk_version="test",
-        context_tokens=200_000, max_output_tokens=8_192, supports_tools=True,
-        supports_token_counting=True,
-        price=PriceCard(input_usd_per_mtok=15.0, output_usd_per_mtok=75.0,
-                        cache_write_usd_per_mtok=18.75,
-                        cache_read_usd_per_mtok=1.5),
+        context_tokens=200_000, max_output_tokens=128_000,
+        supports_tools=True, supports_token_counting=True,
+        price=PriceCard(input_usd_per_mtok=5.0, output_usd_per_mtok=25.0,
+                        cache_write_usd_per_mtok=6.25,
+                        cache_read_usd_per_mtok=0.5),
         source="test fixture", verified_at="2026-09-10T00:00:00Z",
         live_verified=True)
 

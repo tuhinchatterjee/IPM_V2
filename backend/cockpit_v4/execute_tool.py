@@ -77,100 +77,51 @@ def column_units(catalog: Any, columns: list[str],
     return out
 
 
-def formatted_preview(preview: list[dict[str, Any]],
-                      units: dict[str, str]) -> list[dict[str, Any]]:
-    """The same rows as a reader would see them. Canonical rows are kept.
-
-    A cell whose column has a resolved unit is written in that unit. One
-    whose unit nobody could name is still written for a person, with no unit
-    asserted: a formatted preview never contains a denomination that was
-    invented, and never contains sixteen digits either.
-    """
-    from decimal import Decimal, InvalidOperation
-
-    from backend.cockpit_v4 import display as disp
-
-    out: list[dict[str, Any]] = []
-    for row in preview:
-        shown: dict[str, Any] = {}
-        for key, value in row.items():
-            if value is None:
-                shown[key] = value
-                continue
-            try:
-                number = Decimal(str(value))
-            except (InvalidOperation, ValueError):
-                shown[key] = value
-                continue
-            unit = units.get(key, "")
-            shown[key] = (disp.format_value(number, unit) if unit
-                          else disp.format_unitless(number))
-        out.append(shown)
-    return out
-
-
 def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
                 row_count: int, money_unit: str = "") -> dict[str, Any]:
-    """The evidence contract, sent with every successful result.
+    """What is true of THIS result, for the claims written about it.
 
-    This is a CONTRACT, not reasoning assistance. It exists because the
-    alternative is discovery by trial and error, and a live run spent two
-    rejected answers on that: told only that its claims must reference
-    evidence, it referenced rows named "all sectors" and "top 4 sectors",
-    which no result contains. The rules below are exactly what the validator
-    enforces, stated once, before the answer is written.
+    The rules a claim must satisfy are constant -- they are the validator's
+    rules, and they do not vary by result -- so they live in the analyst
+    system prompt, where they are sent once and cached. What cannot live
+    there is this: which artifact, which columns, how many rows, and what a
+    correct claim over THEM looks like in THIS release's money unit.
+
+    It used to carry both, restated in full for every step of every batch:
+    ~2.8 KB of identical prose and the whole row-id list three more times
+    over, per step. On a four-step result that was 20 KB of repetition in
+    the payload the answer turn then had to read before writing anything --
+    and the answer turn was the one running out of room.
+
+    The worked examples stay, and stay HERE rather than in the prompt,
+    because `money_unit` is what makes them correct: an example denominated
+    in the wrong currency steers the analyst into declaring the wrong unit
+    on every amount, which is exactly the release-isolation failure this
+    argument was added to prevent.
     """
-    last = row_ids[-1] if row_ids else "r0"
+    sample = list(row_ids[:2]) or ["r0"]
+    value_column = columns[-1] if columns else "value"
     return {
         "artifact_id": artifact_id,
         "columns": list(columns),
-        "row_ids": list(row_ids),
         "row_count": row_count,
-        "you_do_not_type_numbers": (
-            "A numeric_claim says WHERE a number comes from, not what it is. "
-            "Omit decimal_value and omit display_precision: CreditProbe "
-            "computes the value from the cell or the arithmetic you name, "
-            "and writes it the way this domain writes that kind of figure. "
-            "How many decimal places a figure shows is not yours to set -- "
-            "an amount shows none, a percentage shows two -- and a "
-            "display_precision sent anyway is ignored rather than argued "
-            "with, so sending one costs a field and changes nothing. "
-            "Reference it from your narrative as {{claim.<claim_id>}} and "
-            "the validated, formatted figure is substituted there."),
-        "direct_value": (
-            "A number that appears in one result cell: send 'evidence' with "
-            "this artifact_id, the row_id and the column_id."),
-        "calculated_value": (
-            "A number you worked out from the result -- a total across rows, "
-            "a share of a total, a difference, a growth rate: send "
-            "'derivation' instead of 'evidence', naming the operation and "
-            "the real rows it consumes. CreditProbe recomputes it and "
-            "refuses the answer if the arithmetic does not hold."),
-        "how_numbers_are_written": (
-            "Amounts show no decimal places; percentages, probabilities, "
-            "point movements and ratios show two; counts are whole numbers. "
-            "You do not need to apply any of this -- it is stated so you "
-            "know what the reader will see."),
-        "never": (
-            "Do NOT invent a row to point at. There is no 'total', 'all "
-            "sectors' or 'top 5' row unless one is listed in row_ids above. "
-            "A total is a derivation over the real rows."),
-        "operations": deriv.describe(),
+        "money_unit": money_unit,
+        "row_ids_are": (
+            f"published with this result as `row_ids` -- {row_count} of "
+            f"them, \"r0\" upward. Name the real ones; a row id this "
+            f"artifact does not contain is refused."),
         "example_total": {
             "claim_id": "total_x", "unit": money_unit,
             "derivation": {"operation": "sum", "operands": [
-                {"artifact_id": artifact_id,
-                 "column_id": (columns[-1] if columns else "value"),
-                 "row_ids": list(row_ids)}]}},
+                {"artifact_id": artifact_id, "column_id": value_column,
+                 "row_ids": sample}]}},
         "example_share": {
             "claim_id": "top_share", "unit": "percent",
             "derivation": {"operation": "percentage", "operands": [
-                {"artifact_id": artifact_id,
-                 "column_id": (columns[-1] if columns else "value"),
-                 "row_ids": row_ids[:1] or ["r0"]},
-                {"artifact_id": artifact_id,
-                 "column_id": (columns[-1] if columns else "value"),
-                 "row_ids": list(row_ids) or [last]}]}},
+                {"artifact_id": artifact_id, "column_id": value_column,
+                 "row_ids": sample[:1]},
+                {"artifact_id": artifact_id, "column_id": value_column,
+                 "row_ids": sample}]}},
     }
 
 
@@ -195,12 +146,11 @@ class StepResult:
     #: into declaring the wrong unit on every amount.
     money_unit: str = ""
     #: column -> the unit that column holds, resolved from the catalogue.
-    #: What makes a formatted preview possible at all: without it a column
-    #: of floats is just floats, and "SAR" would be a guess.
+    #: Published so the analyst can DECLARE a unit on a claim over that
+    #: column: without it a column of floats is just floats, and "SAR"
+    #: would be a guess. Only columns the catalogue could actually name
+    #: appear here.
     units: dict[str, str] = field(default_factory=dict)
-    #: The preview rows as a reader would see them. §19: the packet carries
-    #: BOTH forms so the analyst never has to produce the second one.
-    formatted: list[dict[str, Any]] = field(default_factory=list)
     truncated: bool = False
     artifact_id: str = ""
     warnings: list[str] = field(default_factory=list)
@@ -223,11 +173,16 @@ class StepResult:
                         "preview": self.preview, "row_ids": self.row_ids,
                         "preview_truncated": self.truncated,
                         "artifact_id": self.artifact_id,
-                        # Canonical values are what the arithmetic runs on;
-                        # these are the same rows as a reader would see
-                        # them. Carried so the analyst can write about the
-                        # figures without reproducing any of them.
-                        "preview_formatted": self.formatted,
+                        # `column_units` names what each column holds, which
+                        # is what the analyst needs to declare a unit. The
+                        # rows themselves are sent ONCE, canonical: a second
+                        # copy rendered as display strings used to ride
+                        # along (~11 KB a step, 44% of the block) and
+                        # nothing but the model ever read it -- while the
+                        # model is told, in the same payload, not to type
+                        # numbers at all. CreditProbe formats every figure
+                        # a reader sees; the analyst never needed the
+                        # formatted form to write about it.
                         "column_units": dict(self.units),
                         "how_to_cite_these_numbers": claim_guide(
                             self.artifact_id, self.columns, self.row_ids,
@@ -600,7 +555,6 @@ class ExecutionService:
             code_digest=digest, purpose=step.purpose, columns=columns,
             row_count=result.row_count, preview=preview, row_ids=row_ids,
             money_unit=self._money_unit(), units=units,
-            formatted=formatted_preview(preview, units),
             truncated=bool(result.truncated) or len(
                 columns) > self.limits.preview_columns,
             artifact_id=artifact_id,

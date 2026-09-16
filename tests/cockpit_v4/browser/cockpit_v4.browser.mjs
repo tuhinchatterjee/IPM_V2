@@ -1187,9 +1187,26 @@ await test("the conversation is named by the question, not 'New conversation'",
     try {
       // §23: named as soon as the question exists -- while the run is still
       // working, not when the answer lands.
+      //
+      // Read as a RACE, not as a single read. The title arrives with the
+      // transcript fetch that navigation starts, and reading it in the same
+      // tick as `ask` returns asks whether that fetch has landed yet --
+      // which is a question about machine load, not about §23. The claim
+      // under test is an ORDER: the name beats the answer. So wait for
+      // both and assert which one arrived first.
       await ask(page, "reported EAD by sector this quarter");
-      const title = await page.textContent('[data-testid="v4-thread-title"]');
-      assert.match(title ?? "", /reported EAD by sector/i, title ?? "");
+      const named = page.waitForFunction(
+        () => /reported EAD by sector/i.test(
+          document.querySelector('[data-testid="v4-thread-title"]')
+            ?.textContent ?? ""),
+        { timeout: 60_000 }).then(() => "named");
+      const answered = page.waitForSelector(
+        '[data-testid="v4-turn-assistant"]', { timeout: 60_000 })
+        .then(() => "answered");
+      assert.equal(
+        await Promise.race([named, answered]), "named",
+        "the answer landed before the conversation had a name; §23 wants "
+        + "the question to name it while the run is still working");
       await waitForAnswer(page);
       assert.match(
         await page.textContent('[data-testid="v4-thread-title"]') ?? "",
