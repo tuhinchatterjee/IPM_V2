@@ -4803,19 +4803,19 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
 
     warnings: list[str] = []
     for exclusion in exclusions:
-        # Said as the STATE, not as the column. "customers where
-        # current_default_flag is set were removed" is a sentence about a
-        # database; the reader is asking about customers in default. The
-        # same rule that names the population in the headline names it here,
-        # so the two cannot disagree.
-        from backend.orchestration import scope as _scope
-
-        state = _scope.say(exclusion.field, True)
+        # The reader's own words, not the column and not a synonym for it.
+        #
+        # "customers where current_default_flag is set were removed" is a
+        # sentence about a database. Quoting the phrase the question used is
+        # both clearer and the only form that needs no state vocabulary —
+        # an earlier attempt routed this through `scope.say`, which meant
+        # inventing prettier wordings for each flag and broke the governed
+        # convention that keeps the headline, the scope line and this caveat
+        # calling a population the same thing.
         warnings.append(
-            f"The question said “{exclusion.phrase}”, so {_subject_word()}s "
-            f"who are {state} were removed before the evidence was counted. "
-            f"The ranking below is {_subject_word()}s who are "
-            f"{_scope.say(exclusion.field, False)}, not the whole book.")
+            f"The question said “{exclusion.phrase}”, so the "
+            f"{_subject_word()}s it names were removed before the evidence "
+            f"was counted. This is not the whole book.")
     if found.unavailable:
         warnings.append(
             f"The governed catalogue holds no measure for "

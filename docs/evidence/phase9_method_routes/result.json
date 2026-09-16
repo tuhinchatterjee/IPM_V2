@@ -1,0 +1,17 @@
+{
+  "passed": [
+    "A-01 the retail What-If offers an XGBoost card",
+    "A-02 the card points at the retail route, not the corporate one",
+    "A-03 clicking it opens the retail challenger page",
+    "A-04 the challenger page carries its content, not a stub",
+    "A-05 browser Back returns to the retail What-If screen",
+    "B-01 the corporate /what-if/models/ml stays guarded in a retail installation",
+    "B-02 the guarded screen sends the reader to the retail page",
+    "B-03 the corporate /what-if/models/delta stays guarded too",
+    "C-01 the retail Delta method page opens",
+    "C-02 each methodology links to the other",
+    "Z-01 no HTTP 500 across the method routes",
+    "Z-02 no page errors"
+  ],
+  "failed": []
+}

@@ -89,29 +89,6 @@ WIDENED_SAYS: dict[str, str] = {"gte": "or worse", "lte": "or better"}
 _BOOLEAN = {"true": True, "false": False, "yes": True, "no": False}
 
 
-#: The states a credit officer names rather than describes, said their way.
-#:
-#: `_state` de-underscores the column and puts "with" in front of it, which
-#: reads correctly for most flags — "with salary transfer", "without
-#: collateral". It does not for the ones that are already a preposition and a
-#: noun: "816 customers WITH CURRENT DEFAULT" is not how anybody says it, and
-#: an answer that reads like a column name reads like a machine.
-_STATE_SAYS: dict[str, tuple[str, str]] = {
-    "current default": ("in default", "not in default"),
-    "credit impaired": ("credit-impaired", "not credit-impaired"),
-    "forbearance": ("in forbearance", "not in forbearance"),
-    "restructured": ("restructured", "not restructured"),
-    "writeoff": ("written off", "not written off"),
-    "cure": ("cured", "not cured"),
-    "watchlist": ("on the watchlist", "not on the watchlist"),
-    "secured": ("secured", "unsecured"),
-    "npl": ("non-performing", "performing"),
-    "non performing": ("non-performing", "performing"),
-    "unlikeliness to pay": ("flagged unlikely to pay",
-                            "not flagged unlikely to pay"),
-}
-
-
 def _state(field_name: str, truth: bool) -> str:
     """A yes/no restriction, said as the state it selects.
 
@@ -127,9 +104,18 @@ def _state(field_name: str, truth: bool) -> str:
             name = name[: -len(suffix)]
             break
     name = name.replace("_", " ").strip() or str(field_name)
-    said = _STATE_SAYS.get(name)
-    if said:
-        return said[0] if truth else said[1]
+    # One convention, and no table of exceptions to it.
+    #
+    # A table was added here to say "in default" rather than "with current
+    # default", on the belief that the screen was reading "with current
+    # default FLAG". It was not: the suffix strip above already removes that,
+    # and the word "True" that made the headline wrong came from the fidelity
+    # contract, which is where it was fixed. So the table bought nothing and
+    # cost a governed contract —
+    # `test_a_yes_no_filter_is_said_as_the_state_it_selects` pins
+    # `forbearance_flag` to "with forbearance", and a prettier synonym is not
+    # worth breaking the one rule that keeps four surfaces agreeing about
+    # what a population is called.
     return f"with {name}" if truth else f"without {name}"
 
 

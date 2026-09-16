@@ -5,11 +5,16 @@
  *
  * What was here before
  * ---------------------
- * Nothing. `/what-if/models/ml` retired itself in a retail installation with
- * the sentence "the retail What-If runs one documented methodology" — which
- * stopped being true the moment the thread offered Delta, XGBoost or both.
- * The challenger ran on every scenario that asked for it and had no page, no
- * version anybody could quote and no artifact anybody could open.
+ * Nothing. The challenger ran on every scenario that asked for it and had no
+ * page, no version anybody could quote and no artifact anybody could open.
+ *
+ * Where this is mounted, and where it is not
+ * -------------------------------------------
+ * `/what-if/methods/xgboost`, in the retail namespace. NOT
+ * `/what-if/models/ml`, which is a corporate route reading the corporate
+ * registry and is retired in a retail installation. It was briefly mounted
+ * there, which turned a corporate route into a retail one and broke the
+ * boundary `TestTheCorporateWhatIfRoutesDoNotServeTheirScreen` holds.
  *
  * Why the honesty note is at the top
  * -----------------------------------

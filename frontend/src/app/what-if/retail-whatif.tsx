@@ -697,16 +697,21 @@ function Journeys({ onChoose, onOpen, opening }: {
                 Methodology {data.methodology_version} · staging modes{" "}
                 {data.staging_modes.join(", ")}
               </span>
+              {/* The RETAIL methodology pages. These used to point at
+                  /what-if/models/delta and /what-if/models/ml, which are
+                  corporate routes: in a retail installation both retire
+                  themselves, so the two cards on the retail What-If screen
+                  led to "this screen is not part of this installation". */}
               <Button variant="outline" size="sm" asChild>
-                <a href="/what-if/models/delta"
+                <a href="/what-if/methods/delta"
                    data-testid="retail-whatif-open-delta">
                   Delta method
                 </a>
               </Button>
               <Button variant="outline" size="sm" asChild>
-                <a href="/what-if/models/ml"
+                <a href="/what-if/methods/xgboost"
                    data-testid="retail-whatif-open-xgboost">
-                  ML model — XGBoost
+                  XGBoost challenger
                 </a>
               </Button>
             </CardContent>

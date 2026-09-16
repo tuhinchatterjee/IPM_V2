@@ -686,6 +686,15 @@ export function WhatIfThread({ threadId = "", selectionId = "",
           <span className="text-[11px] text-text-muted">
             {METHODS.find((one) => one.key === method)?.hint}
           </span>
+          {/* One click from the method being used to what it does. The
+              chips SELECT a method, so they cannot also navigate. */}
+          {(method === "delta" || method === "xgboost") && (
+            <a href={`/what-if/methods/${method}`}
+               data-testid={`whatif-method-detail-${method}`}
+               className="text-[11px] text-accent underline underline-offset-2">
+              How this method works
+            </a>
+          )}
         </div>
 
         <div className="mt-2 flex items-end gap-2">
