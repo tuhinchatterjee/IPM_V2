@@ -195,6 +195,21 @@ def main() -> int:  # noqa: C901
             page.wait_for_timeout(2500)
             _visible(page, '[data-testid="lens-freshness"]', 120)
             shown = page.inner_text("body")
+            # The TILES, on screen. 20-03 asks the API and passed throughout
+            # a period when every tile rendered as an error card and then the
+            # whole page fell to an error boundary — the endpoint was right
+            # and the reader saw nothing. A dashboard check that never looks
+            # at a tile is not checking the dashboard.
+            drawn = sum(page.locator(f'[data-testid="retail-tile-{one}"]').count()
+                        for one in ("value", "table", "trend"))
+            check("20-06", "every tile is drawn on screen, not just returned "
+                           "by the API",
+                  drawn == len(panels),
+                  f"{drawn} of {len(panels)} tiles drawn")
+            check("20-07", "the dashboard did not fall to an error boundary",
+                  "could not be loaded" not in shown.lower()
+                  and "could not be produced" not in shown.lower(),
+                  "no error boundary and no failed tile")
             badge = (page.locator('[data-testid="lens-freshness"]').inner_text()
                      if page.locator('[data-testid="lens-freshness"]').count()
                      else "")

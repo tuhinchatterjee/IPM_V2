@@ -11,13 +11,11 @@
     "20-02 there is a dashboard for each of the four products",
     "20-03 every tile on a seeded lens renders from the book",
     "20-04 the render envelope says which month and which book it read",
+    "20-06 every tile is drawn on screen, not just returned by the API",
+    "20-07 the dashboard did not fall to an error boundary",
+    "20-05 the lens screen shows the month, the book and whether it is the latest",
     "99-01 no HTTP 500 across the model page and the lenses",
     "99-02 no page errors"
   ],
-  "failed": [
-    {
-      "check": "20-05 the lens screen shows the month, the book and whether it is the latest",
-      "detail": "month 2026-08, badge absent"
-    }
-  ]
+  "failed": []
 }
