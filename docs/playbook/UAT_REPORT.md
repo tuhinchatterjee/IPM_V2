@@ -80,6 +80,7 @@ and driven through a real browser, and the live path that applies it is PB-015.
 |---|---|---|
 | Playbook backend | `pytest tests/playbook` | **1037 passed, 8 live checks skipped, 0 failed** |
 | Affected backend | `pytest tests/api tests/demo tests/exports tests/docs tests/services tests/llm tests/proof tests/validation` | **1113 passed, 8 skipped, 0 failed** |
+| Full backend | `pytest -q` | **10,528 passed, 30 skipped, 0 failed** |
 | Frontend units | `npm test` | **516 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
@@ -268,6 +269,24 @@ comparable teaches the reader the opposite of the rule.
    label a user sees is "Synthetic data" — the check was asserting the copy the
    repository bans. Fixed to assert both the badge and the per-message note that
    the reply was not written by a model.
+8. **The dashboard named the vendor on screen.** The product forbids any string
+   a normal user reads from naming an intelligence provider or model, and the
+   dashboard broke it in eight places — four "Ask CreditProbe" buttons that had
+   said otherwise, two governance notes, the metric table's action label, and
+   the origin shown against a suggested finding. Found by the whole-repository
+   suite; every subset being run at the time excluded `tests/release`.
+
+   Two of the eight were beyond the reach of the check that should have caught
+   them: its frontend scan reads rendered strings and cannot see a label the
+   server sends, and its route scan walks eight fixed routes, none of them
+   Playbook's. The rule now also scans the backend's own user-facing label
+   tables, which needs no seeded fixture and cannot be outrun by a route the
+   list forgets. That immediately found one more — `GET /playbook/capabilities`
+   was returning the provider name and the model to the browser, where every
+   other surface withholds them; it now goes through the same
+   `product_copy.withhold_identity` helper two other routers already use. The
+   audit route and the telemetry ledger still record which model produced which
+   answer.
 
 ## The first live run, and what it found
 

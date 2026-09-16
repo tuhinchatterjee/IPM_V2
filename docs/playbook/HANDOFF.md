@@ -170,13 +170,17 @@ removed. Nothing on the server is touched.
 ## 11. Backend test counts
 
 ```
+pytest                (whole repository)                10528 passed, 30 skipped
 tests/playbook                                           1037 passed,  8 skipped
-tests/api tests/demo tests/exports tests/docs
-  tests/services tests/llm tests/proof tests/validation  1113 passed,  8 skipped
 ```
 
-Both exit 0. The 8 skips in each are the live-provider checks, which skip
-without a credential. A skip is never counted as a pass.
+Both exit 0. The skips are the live-provider checks, which skip without a
+credential. A skip is never counted as a pass.
+
+Run the whole repository, not a subset of it. Running the eight suites that
+looked relevant is what let the dashboard ship strings naming the provider on
+screen: `tests/release` polices what the product may say about itself, it was
+not in that list, and nothing else would have caught it.
 
 `ruff check .` clean repository-wide, and `scripts/feature_matrix.py --check`
 reports that every page on disk carries a curated expected behaviour — which is
