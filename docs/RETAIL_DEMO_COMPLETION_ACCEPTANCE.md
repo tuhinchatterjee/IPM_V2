@@ -241,7 +241,7 @@ commit:
 | CONTENT-05 | 4 product + 4 additional lenses | 13 published, 12 seeded including one per product. **Decided on screen, after a first attempt that was not good enough**: the count below was right while the Credit Card dashboard rendered eighteen error cards, and then while it threw and fell to an error boundary. `phase9_models_and_lenses.py` now opens a seeded dashboard and asserts that as many tiles are DRAWN as the render returned, that none reads "could not be produced", and that the page did not fall to an error boundary — 18 of 18 drawn, with the month, the live badge and the book hash on screen. Previously **FAIL** — 4, none a product dashboard | PASS |
 | CONTENT-06 | No empty titles and no repetitive filler | every title, question and headline is written per analysis; the headline is computed from the result | PASS |
 | CONTENT-07 | No corporate residue in a retail installation | `tidy()` runs in the bootstrap and removes the 9 corporate analyses ("Shipping PD increase" and friends), investigations with no messages and no project, and — added at this re-audit — unfiled threads repeating a question another unfiled thread already asks. It had to be widened: acceptance runs create a thread per question WITH messages, so the list had reached 1,005 investigations of which 633 were a literal repeat of a title already present, 58 of them identical. §2.5 names repetitive filler specifically. 1,005 → 370, every seeded thread kept, no unfiled duplicate left, and a title seen once is never touched | PASS |
-| CONTENT-08 | A refused measure is recorded as a refusal, not a zero | `MeasureRefused` is caught per analysis and recorded with its reason | PASS |
+| CONTENT-08 | A refused measure is recorded as a refusal, not a zero | four refusal paths exercised and read: a measure asked of a product it is meaningless for ("Mean utilisation is not meaningful for Personal Finance. Utilisation needs a revolving limit"), over-limit share and loan-to-value likewise, an ungoverned cut, and a filter on a column the book does not carry. Every one returns a sentence naming the reason; none returns 0 | PASS |
 | CONTENT-09 | A document quotes the analysis it cites | documents are seeded from the same computed results as the analyses rather than recomputing them | PASS |
 | CONTENT-10 | The content is seeded by the bootstrap, not by hand | wired into `bootstrap_retail_installation.py`; `--check` counts against the seed definitions and fails when a screen would open thin | PASS |
 
@@ -269,6 +269,40 @@ commit:
 
 Two of ninety-two. Both are recorded here rather than argued away, and
 neither is on the twenty-minute demonstration path.
+
+### Rows decided by reading the implementation, not by observing a run
+
+CONTENT-05 was wrong in a specific way worth generalising: its evidence was
+a true statement about the system that could not have detected the failure.
+Auditing the other ninety-one rows for the same shape, twelve were decided
+the same way — by establishing that the code does the right thing, rather
+than by a suite that watched it do so. One of the twelve, CONTENT-08, was
+cheap to settle and has been: four refusal paths were forced and their
+sentences read. Eleven remain.
+
+They are listed because listing them is the only honest thing to do with
+them. None is believed wrong; several describe defects this release fixed
+and whose fixes are visible in the diff. But CONTENT-05 was also not
+believed wrong.
+
+| Row | The claim | What would upgrade it |
+|---|---|---|
+| STORY-04 | worsening, cures and entry/exit are reported separately, not netted | a check that reads the four figures off an investigation and asserts they do not sum to a single net movement |
+| STORY-08 | the trait → score → PD → ECL chain is computed end to end and each link is shown | a check that reads all four links off the answer |
+| STORY-12 | a question the catalogue cannot answer says so rather than answering a narrower one | a banked prompt whose expected outcome is a refusal, asserted through the composer |
+| WIF-12 | narrowing a cohort is carried into the result | a check that narrows, exports, and finds the narrowing stated in the workbook |
+| WIF-13 | every challenger result names its version, library, book hash and held-back R² | the smoke runs an XGBoost scenario but does not read those four fields off it |
+| EXPORT-08 | each report carries its bundle version and the book hash | open the .docx and find both |
+| EXPORT-10 | regeneration is reproducible — the content hash is anchored on the window end, not the clock | generate twice and compare the hashes. Attempted here by reading `_due()` for the words it anchors on; it mentions both the window and a clock, which settles nothing. Grepping for a substring is the same weak evidence this section is about, so the row stays on this list |
+| VAL-13 | findings appear in every category they belong to | a check that finds one finding under two categories |
+| CONTENT-06 | no empty titles and no repetitive filler | now partly observable: the tidy's duplicate rule proves the *investigations* half. The analyses and documents half is still read from the seed definitions |
+| CONTENT-09 | a document quotes the analysis it cites | read a figure from a paper and the analysis it names, and compare |
+| NAV-10 | free-text navigation still works with a story open | observed only as "the composer is editable", which is weaker than the claim |
+
+Three in the same neighbourhood are genuinely observed and are not on this
+list: MODEL-05 and MODEL-07 by `phase9_models_and_lenses.py` checks 10-05
+and 10-06, and the persistence half of VAL-14 by the release smoke's check
+08.
 
 ### What this re-audit changed, and why the matrix moved
 
