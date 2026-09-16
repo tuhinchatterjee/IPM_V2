@@ -4215,8 +4215,13 @@ export interface LensPanel {
    * "chart" breaks one metric out across a dimension. A chart carries its
    * configuration in `params` — dimension, aggregate, sort, direction, limit,
    * compare — so no stored lens had to be rewritten to hold one.
+   *
+   * "retail" is the measure engine's own tile: a value, a cut or a trend
+   * from `backend/retail/measures.py`, carrying its unit and its meaning.
+   * It is drawn by `RetailPanelView`, not by `ResultView`, because the two
+   * results are different shapes.
    */
-  kind: "analysis" | "metric" | "chart";
+  kind: "analysis" | "metric" | "chart" | "retail";
   analysis_id: string;
   metric_id: string;
   title: string;

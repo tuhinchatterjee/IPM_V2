@@ -18,6 +18,7 @@ import { ChartTile } from "@/components/metrics/chart-tile";
 import { MetricTile } from "@/components/metrics/metric-tile";
 import { DownloadResults } from "@/components/exports/download";
 import { Badge } from "@/components/ui/badge";
+import { RetailPanelView, isRetailPanel } from "@/components/lenses/retail-panel";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -532,7 +533,16 @@ function PanelView({
         </div>
       </div>
       <div className="px-5 py-4">
-        <ResultView run={run} />
+        {/* A tile the measure engine produced is drawn by the renderer that
+            understands its shape. `ResultView` expects an analysis run with
+            columns and rows; handed a measure result it threw "Cannot
+            convert undefined or null to object" and took the whole page
+            down to an error boundary. Nobody saw it because the status bug
+            fixed in 5c53937 was rendering every retail tile as an error
+            card, so this line was never reached. */}
+        {isRetailPanel(panel)
+          ? <RetailPanelView panel={panel} />
+          : <ResultView run={run} />}
       </div>
     </Card>
   );
