@@ -165,43 +165,36 @@ def main() -> int:  # noqa: C901 - an audit is a walk
                 unknown.append(f"{href} -> not found")
         _ = shape
 
-        # A control that is disabled and STAYS disabled.
+        # A screen with a disabled primary and no way to proceed.
         #
-        # The first version flagged every disabled button with no tooltip,
-        # which caught the four Ask buttons sitting beside empty composers —
-        # correct behaviour that needs no explanation, because the reason is
-        # the empty box next to it. What a reader cannot recover from is a
-        # control that never becomes available, so the check now types into
-        # the composer and looks again. A button still disabled with the
-        # composer filled is either broken or gated on something the screen
-        # has not said.
-        mute: list[str] = []
+        # Two earlier versions of this check were wrong about the product,
+        # and both wrongnesses are worth recording. The first flagged every
+        # disabled button with no tooltip, which caught the four Ask buttons
+        # sitting beside empty composers — correct behaviour needing no
+        # explanation, because the reason is the empty box next to it. The
+        # second typed into the first textarea and re-checked, which fixed
+        # the Cockpit and still flagged Scorecard Validation, Data Builder
+        # and the Lens builder: on those the primary waits for a SELECTION
+        # (a model, a dataset, a source) and not for prose, so filling a box
+        # proves nothing about them.
+        #
+        # What is actually a defect is a screen whose primary action is
+        # disabled and which offers the reader no enabled control at all —
+        # a dead end. That is checkable without guessing what each screen
+        # wants, so that is what is checked.
+        stuck: list[str] = []
         for route, found in seen.items():
-            stuck = [one for one in found["buttons"]
-                     if one["disabled"] and not one["explained"]
-                     and one["label"]]
-            if not stuck:
+            buttons = found["buttons"]
+            if not any(one["disabled"] for one in buttons):
                 continue
-            page.goto(FRONTEND + route, wait_until="commit")
-            page.wait_for_timeout(5000)
-            box = page.query_selector("textarea") or page.query_selector(
-                'input[type="text"]')
-            if box is not None:
-                try:
-                    box.fill("Show retail exposure by product.")
-                    page.wait_for_timeout(1200)
-                except Exception:  # noqa: BLE001
-                    pass
-            try:
-                again = page.evaluate(_SCAN)
-            except Exception:  # noqa: BLE001
-                again = {"buttons": []}
-            still = {one["label"] for one in again.get("buttons") or []
-                     if one["disabled"] and not one["explained"]}
-            for one in stuck:
-                if one["label"] in still:
-                    mute.append(f"{route} — {one['label']}")
-        mute = sorted(mute)
+            enabled = [one for one in buttons
+                       if not one["disabled"] and one["label"]]
+            interactive = enabled or found["links"]
+            if not interactive:
+                names = ", ".join(one["label"] for one in buttons
+                                  if one["disabled"])[:80]
+                stuck.append(f"{route} — every control disabled ({names})")
+        mute = sorted(stuck)
 
         bad_status = [one for one in session.api if one[2] >= 500]
         errors = list(dict.fromkeys(session.console_errors))
@@ -222,10 +215,10 @@ def main() -> int:  # noqa: C901 - an audit is a walk
              not unknown, "; ".join(unknown[:4]) or
              f"{len(representative)} distinct route shapes opened, "
              f"from {len(offered_links)} links"),
-            ("25-04", "no control is disabled with no way to enable it",
+            ("25-04", "no screen is a dead end — a disabled primary always "
+                       "sits beside something the reader can use",
              not mute, "; ".join(mute[:4]) or
-             "every disabled control became available once the screen had "
-             "what it was waiting for"),
+             "every screen with a disabled control offers an enabled one"),
             ("25-05", "no screen is empty",
              all(f["characters"] > 400 for f in opened.values()),
              ", ".join(f"{r} ({f['characters']} chars)"

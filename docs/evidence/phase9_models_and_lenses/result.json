@@ -1,0 +1,29 @@
+{
+  "passed": [
+    "10-01 the XGBoost page opens in a retail installation",
+    "10-02 it says an artifact is stored",
+    "10-03 all six tabs \u00a710.2 names are present",
+    "10-05 the stored artifact scores as the fitted model did",
+    "10-06 the artifact names the book it was fitted from",
+    "10-07 the worked example scores real facilities from the book, against their recorded ECL",
+    "20-01 at least eight lenses are published",
+    "20-02 there is a dashboard for each of the four products",
+    "20-05 the lens screen shows the month it is reading",
+    "99-01 no HTTP 500 across the model page and the lenses",
+    "99-02 no page errors"
+  ],
+  "failed": [
+    {
+      "check": "10-04 every tab has content behind it, not just a label",
+      "detail": "Performance"
+    },
+    {
+      "check": "20-03 a seeded lens renders its tiles from the book",
+      "detail": "retail-credit-card \u2014 18 panels"
+    },
+    {
+      "check": "20-04 the render says which month and which book it read",
+      "detail": "month \u2014, book \u2014, stale"
+    }
+  ]
+}

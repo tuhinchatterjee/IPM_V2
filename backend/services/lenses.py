@@ -824,9 +824,22 @@ def render(lens_id: int, *, period: str | None = None,
     elif unavailable:
         note = (f"{len(unavailable)} of {len(panels)} panels have no data for "
                 "this period. Each says why.")
+    # The month the tiles actually read, where the request named none. The
+    # screen carries ONE badge for the lens, and an envelope with a null
+    # period leaves it with nothing to show while every tile underneath
+    # knows exactly which month it read. Taken from the panels, and only
+    # where they agree — a lens whose tiles are pinned to different months
+    # has no single month, and inventing one would be worse than the blank.
+    months = {str(one.get("month") or "") for one in panels} - {""}
+    said_period = period or (months.pop() if len(months) == 1 else None)
+    books = {str(one.get("source_hash") or "") for one in panels} - {""}
     return {
         "lens": view.to_dict(),
-        "period": period,
+        "period": said_period,
+        "month": said_period,
+        "source_hash": books.pop() if len(books) == 1 else "",
+        "is_latest": all(one.get("is_latest") is not False for one in panels
+                         if "is_latest" in one),
         "sections": view.sections,
         "notes": view.notes,
         "panels": panels,
@@ -928,7 +941,17 @@ def _render_retail(panel: Panel, *, period: str | None) -> dict[str, Any]:
     where = dict(params.get("where") or {})
     month = panel.period or period or ""
 
-    body = {**panel.to_dict(), "status": "ok", "error": "",
+    # "succeeded", not "ok".
+    #
+    # The defect this was: every retail tile rendered with its figure, its
+    # month and its source hash, and every one of them appeared on screen as
+    # an error. The lens screen gates on `status === "succeeded"` and the
+    # envelope's counter treats anything that is not "succeeded" or
+    # "unavailable" as failed — so a credit-card dashboard whose eighteen
+    # tiles all computed correctly was headed "18 of 18 panels could not be
+    # produced". Two vocabularies for the same fact, and this renderer was
+    # the one speaking the wrong one.
+    body = {**panel.to_dict(), "status": "succeeded", "error": "",
             "read_at": datetime.now(UTC).isoformat(timespec="seconds")}
     try:
         every = measures.months()

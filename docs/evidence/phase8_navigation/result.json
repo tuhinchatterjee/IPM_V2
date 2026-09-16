@@ -4,6 +4,7 @@
       "heading": "Good morning, Mr. Sajid",
       "links": [
         "/",
+        "/messages",
         "/",
         "/workspace",
         "/messages",
@@ -28,7 +29,12 @@
         "/agent-operations",
         "/ai-studio",
         "/users",
-        "/settings"
+        "/settings",
+        "/investigations",
+        "/investigations/1170",
+        "/investigations/1169",
+        "/investigations/1168",
+        "/investigations/1167"
       ],
       "buttons": [
         {
@@ -67,9 +73,24 @@
           "explained": false
         },
         {
-          "label": "What is this screen for?",
+          "label": "From the governed catalogue",
           "disabled": false,
-          "explained": false
+          "explained": true
+        },
+        {
+          "label": "From the governed catalogue",
+          "disabled": false,
+          "explained": true
+        },
+        {
+          "label": "From the governed catalogue",
+          "disabled": false,
+          "explained": true
+        },
+        {
+          "label": "Hide suggested questions",
+          "disabled": false,
+          "explained": true
         },
         {
           "label": "What is this screen for?",
@@ -77,7 +98,12 @@
           "explained": false
         },
         {
-          "label": "All0",
+          "label": "What is this screen for?",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "All7",
           "disabled": false,
           "explained": false
         },
@@ -87,7 +113,7 @@
           "explained": false
         },
         {
-          "label": "Segments0",
+          "label": "Segments7",
           "disabled": false,
           "explained": false
         },
@@ -98,6 +124,31 @@
         },
         {
           "label": "Data0",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Credit Card 30+ DPD has risen for 5 consecutive months CRITI",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Personal Finance 30+ DPD has risen for 4 consecutive months ",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Home Finance ECL rose 12.7% this month MEDIUM Segment 4,088 ",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Personal Finance ECL rose 12.6% this month MEDIUM Segment 1,",
+          "disabled": false,
+          "explained": false
+        },
+        {
+          "label": "Auto Finance ECL rose 16.7% this month MEDIUM Segment 734.6 ",
           "disabled": false,
           "explained": false
         },
@@ -117,7 +168,7 @@
           "explained": false
         }
       ],
-      "characters": 800,
+      "characters": 1952,
       "url": "http://localhost:5328/",
       "landed": "/",
       "not_found": false
@@ -194,7 +245,7 @@
           "explained": false
         }
       ],
-      "characters": 762,
+      "characters": 667,
       "url": "http://localhost:5328/workspace",
       "landed": "/workspace",
       "not_found": false
@@ -6444,7 +6495,7 @@
           "explained": true
         }
       ],
-      "characters": 4844,
+      "characters": 4458,
       "url": "http://localhost:5328/settings",
       "landed": "/settings",
       "not_found": false
@@ -6453,18 +6504,15 @@
   "passed": [
     "25-01 every route the navigation offers opens",
     "25-02 no route redirects away from the entry that offered it",
+    "25-03 every internal link opens a page the product serves",
     "25-05 no screen is empty",
     "25-06 no HTTP 500 anywhere in the walk",
     "25-07 no page threw"
   ],
   "failed": [
     {
-      "check": "25-03 every internal link leads to a route the product serves",
-      "detail": "/?focus=ask (from /investigations); /engine-builder (from /studio); /engine-builder/retail.auto-bucket-mix?returnTo=%2Fanalyses%23analysis-154&returnLabel=Auto%20Finance%20delinquency%20bucket%20mix&returnType=analysis (from /analyses); /engine-builder/retail.auto-by-channel?returnTo=%2Fanalyses%23analysis-80&returnLabel=Auto%20Finance%20by%20origination%20channel&returnType=analysis (from /analyses)"
-    },
-    {
-      "check": "25-04 no control is disabled without saying why",
-      "detail": "/ \u2014 Ask; /data-builder \u2014 Ask; /lenses \u2014 Build it; /scorecard-validation \u2014 Ask"
+      "check": "25-04 no control is disabled with no way to enable it",
+      "detail": "/data-builder \u2014 Ask; /lenses \u2014 Build it; /scorecard-validation \u2014 Ask"
     }
   ]
 }
