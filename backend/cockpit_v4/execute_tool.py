@@ -127,7 +127,8 @@ def column_units(catalog: Any, columns: list[str],
 
 
 def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
-                row_count: int, money_unit: str = "") -> dict[str, Any]:
+                row_count: int, money_unit: str = "",
+                complete: bool = True) -> dict[str, Any]:
     """What is true of THIS result, for the claims written about it.
 
     The rules a claim must satisfy are constant -- they are the validator's
@@ -150,27 +151,44 @@ def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
     """
     sample = list(row_ids[:2]) or ["r0"]
     value_column = columns[-1] if columns else "value"
+    addressed = len(row_ids)
+    whole = {"artifact_id": artifact_id, "column_id": value_column,
+             "rows": deriv.ALL_ROWS}
     return {
         "artifact_id": artifact_id,
         "columns": list(columns),
         "row_count": row_count,
         "money_unit": money_unit,
+        "complete": complete,
+        # WHAT IS ADDRESSABLE, WHICH IS NOT ALWAYS WHAT WAS PRODUCED.
+        #
+        # This sentence used to quote the QUERY's row count while `row_ids`
+        # held only the preview's, so a clipped result told the analyst
+        # there were five thousand rows addressed "r0" upward when there
+        # were a hundred. It now says how many can be named, and whether
+        # that is the whole result -- which is also what decides whether
+        # `rows: "all"` may be said about it.
         "row_ids_are": (
-            f"published with this result as `row_ids` -- {row_count} of "
+            f"published with this result as `row_ids` -- {addressed} of "
             f"them, \"r0\" upward. Name the real ones; a row id this "
-            f"artifact does not contain is refused."),
+            f"artifact does not contain is refused."
+            + ("" if complete else
+               f" This result was CLIPPED: {row_count} rows were produced "
+               f"and {addressed} are published, so no total over it is that "
+               f"result's total.")),
+        # TWO FORMS, BECAUSE THERE ARE TWO CASES. A total is usually over
+        # everything, which is what `rows: "all"` says in nine bytes rather
+        # than in a hundred row ids; a share usually is not, so its
+        # numerator still names the rows it means.
         "example_total": {
             "claim_id": "total_x", "unit": money_unit,
-            "derivation": {"operation": "sum", "operands": [
-                {"artifact_id": artifact_id, "column_id": value_column,
-                 "row_ids": sample}]}},
+            "derivation": {"operation": "sum", "operands": [dict(whole)]}},
         "example_share": {
             "claim_id": "top_share", "unit": "percent",
             "derivation": {"operation": "percentage", "operands": [
                 {"artifact_id": artifact_id, "column_id": value_column,
                  "row_ids": sample[:1]},
-                {"artifact_id": artifact_id, "column_id": value_column,
-                 "row_ids": sample}]}},
+                dict(whole)]}},
     }
 
 
@@ -250,7 +268,8 @@ class StepResult:
                         "column_units": dict(self.units),
                         "how_to_cite_these_numbers": claim_guide(
                             self.artifact_id, self.columns, self.row_ids,
-                            self.row_count, self.money_unit)})
+                            self.row_count, self.money_unit,
+                            not self.truncated)})
         else:
             out.update({"error_code": self.error_code,
                         "failed_check": self.failed_check,
@@ -637,6 +656,18 @@ class ExecutionService:
             scope={"relations": list(getattr(self.session, "relations", ())),
                    "step_id": step.step_id,
                    "domain_id": str(getattr(self.catalog, "domain_id", "")),
+                   # WHETHER THIS ARTIFACT IS THE WHOLE RESULT.
+                   #
+                   # A query past the preview cap is clipped before it is
+                   # stored, so the artifact holds the first N rows of a
+                   # larger answer and nothing in the record said so. A
+                   # claim that says "every row" of a clipped result would
+                   # publish a partial total that reads as a complete one,
+                   # which is what the engine's own clipped-table warning
+                   # is about. Recorded here so the claim validator can
+                   # refuse it rather than infer it.
+                   "complete": not result.truncated,
+                   "produced_rows": int(result.row_count),
                    **({"release_fingerprint":
                        self.header.release_fingerprint} if self.header
                       else {})},
@@ -761,7 +792,12 @@ class ExecutionService:
             run_id=self.run_id, tenant_id=self.tenant_id, kind="result",
             release_id=self.release_id,
             scope={"step_id": step.step_id, "language": "python",
-                   "domain_id": str(getattr(self.catalog, "domain_id", ""))},
+                   "domain_id": str(getattr(self.catalog, "domain_id", "")),
+                   # The other direction: a Python step stores every row it
+                   # produced, and publishes an id for the first N. "Every
+                   # row" would then mean cells the analyst was never shown.
+                   "complete": len(rows) <= self.limits.preview_rows,
+                   "produced_rows": len(rows)},
             columns=columns, rows=rows, code_digest=digest)
         self.artifacts[step.step_id] = artifact_id
         return StepResult(

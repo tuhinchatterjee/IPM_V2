@@ -105,7 +105,17 @@ export type FinalResponse = {
      *  answer was allowed to publish. */
     derivation?: {
       operation: string;
-      operands: { artifact_id: string; column_id: string; row_ids: string[] }[];
+      /*
+        An operand names its cells one of two ways and never both: every row
+        of the result (`rows: "all"`), or the ids it means. Both are optional
+        here because only one of them is ever present.
+      */
+      operands: {
+        artifact_id: string;
+        column_id: string;
+        row_ids?: string[];
+        rows?: string;
+      }[];
     };
   }[];
   /**

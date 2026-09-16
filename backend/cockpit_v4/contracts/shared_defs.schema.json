@@ -400,7 +400,7 @@
     },
     "CellSet": {
       "type": "object",
-      "description": "Cells in one column of one executed result artifact, named by the row ids the result packet published.",
+      "description": "Cells in one column of one executed result artifact. Say WHICH cells exactly one way: `rows: \"all\"` for every row of the result, or `row_ids` naming them individually. Sending both, or neither, is refused.",
       "properties": {
         "artifact_id": {
           "type": "string",
@@ -410,6 +410,13 @@
           "type": "string",
           "description": "One output column of that artifact."
         },
+        "rows": {
+          "type": "string",
+          "enum": [
+            "all"
+          ],
+          "description": "Every row of this result, in the order it was published. Use it for a figure that spans the whole result -- a total, or the denominator of a share -- instead of listing every row id. It is refused when the result was clipped at the preview cap, because a total over part of a result is not that result's total; name the rows you mean in that case. Omit this when sending 'row_ids'."
+        },
         "row_ids": {
           "type": "array",
           "minItems": 1,
@@ -417,13 +424,12 @@
           "items": {
             "type": "string"
           },
-          "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...). A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up."
+          "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...), for a figure over SOME of the rows. A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up. Omit this when sending 'rows'."
         }
       },
       "required": [
         "artifact_id",
-        "column_id",
-        "row_ids"
+        "column_id"
       ],
       "additionalProperties": false
     },
@@ -456,7 +462,7 @@
           "items": {
             "$ref": "#/$defs/CellSet"
           },
-          "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's."
+          "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's. Each operand names its cells with 'rows: \"all\"' or with 'row_ids'."
         }
       },
       "required": [

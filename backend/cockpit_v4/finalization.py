@@ -873,6 +873,12 @@ def correction_packet(final: FinalResponse, report: ValidationReport, *,
         "direct_value": (
             "A number that appears in one result cell: send 'evidence' with "
             "artifact_id, row_id and column_id."),
+        "row_scope": (
+            "Each operand says WHICH cells one way and not both: "
+            "rows='all' for every row of that result -- a total, or the "
+            "denominator of a share -- or row_ids naming the ones you mean. "
+            "rows='all' is refused on a result that was clipped at the "
+            "preview cap."),
         "calculated_value": (
             "A number calculated from the result -- a total, a share, a "
             "difference, a growth rate: send 'derivation' instead of "

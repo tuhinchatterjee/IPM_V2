@@ -252,28 +252,66 @@ def test_no_allowance_exceeds_what_the_model_will_emit(limits, capability):
             f"{limits.mode}.{field} would be silently clamped")
 
 
+def _tokens(obj) -> int:
+    """The run's own estimator: `provider.count_input`, len/2.2."""
+    import json
+
+    return int(len(json.dumps(obj, ensure_ascii=False, default=str)) / 2.2) + 1
+
+
 def test_the_answer_allowance_covers_a_real_four_step_answer():
     """Measured, not asserted from taste.
 
     A four-step analysis answered properly -- sixteen claims, a narrative
     that references them, four tables, two charts, coverage, limitations and
-    follow-ups -- is what the live thread was trying to emit. The estimator
-    is the run's own (`provider.count_input`, len/2.2), so this is the same
-    arithmetic the run does about itself.
+    follow-ups -- is what the live thread was trying to emit.
+
+    BOTH SPELLINGS, because the regression and the fix are different facts.
+    The long form is the object that overran: every operand naming every row
+    id, twelve times over. It still overruns 4,096, and it has to, or the
+    incident this file exists for stops being reproducible. The shorthand
+    form is the same answer saying "every row" instead of reciting them, and
+    what it establishes is that the truncation was never about how much
+    there was to say.
+    """
+    from answer_object import four_step_answer
+
+    long_form = _tokens(four_step_answer(shorthand=False))
+    short = _tokens(four_step_answer())
+    base = config_mod.ANALYTICAL_STANDARD_LIMITS.reserved_output_tokens
+
+    assert long_form > 4_096, (
+        f"the long form needs ~{long_form:,} tokens and no longer overruns "
+        f"the OLD 4,096 allowance; the regression this pins has changed "
+        f"shape, so re-measure before relaxing the bound")
+    assert base > long_form, (
+        f"a correct answer needs ~{long_form:,} tokens and the allowance is "
+        f"{base:,}; the object cannot be emitted at any effort setting")
+    assert short < long_form, "the shorthand did not make the object smaller"
+    assert short < 4_096, (
+        f"the same answer, saying 'every row' rather than listing them, "
+        f"needs ~{short:,} tokens -- it was supposed to fit inside the "
+        f"allowance the live run overran")
+
+
+def test_the_row_ids_were_two_thirds_of_what_the_answer_had_to_write():
+    """Where the weight actually was.
+
+    Sixteen claims over four results, and eight of their operands spanned a
+    whole hundred-row result -- four totals and four share denominators.
+    Each of those named a hundred ids, so the analyst spent most of its
+    output reciting the result back to the server that had just sent it.
     """
     import json
 
     from answer_object import four_step_answer
 
-    body = json.dumps(four_step_answer(), ensure_ascii=False, default=str)
-    needed = int(len(body) / 2.2) + 1
-    base = config_mod.ANALYTICAL_STANDARD_LIMITS.reserved_output_tokens
-    assert needed > 4_096, (
-        "if this no longer overruns the OLD allowance the regression it "
-        "pins has changed shape; re-measure before relaxing the bound")
-    assert base > needed, (
-        f"a correct answer needs ~{needed:,} tokens and the allowance is "
-        f"{base:,}; the object cannot be emitted at any effort setting")
+    long_form = four_step_answer(shorthand=False)
+    claims = len(json.dumps(long_form["numeric_claims"], ensure_ascii=False))
+    whole = len(json.dumps(long_form, ensure_ascii=False))
+    assert claims / whole > 0.6, (
+        f"numeric_claims are {claims / whole:.0%} of the long-form answer; "
+        f"the measurement this round was sized from said two thirds")
 
 
 # ---- the trace says what the call was actually granted -------------------

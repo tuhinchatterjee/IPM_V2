@@ -64,32 +64,39 @@ def artifact_id(step_id: str) -> str:
     return f"art-{step_id}-9f2c41ab"
 
 
-def four_step_answer() -> dict[str, Any]:
+def four_step_answer(*, shorthand: bool = True) -> dict[str, Any]:
     """The `finalize_response` body a correct four-step answer carries.
 
     Sixteen claims, four per result: a total and a share (both derived over
-    the real rows, which is why they name them) and the top two values
-    (direct, one cell each). That is the shape of every ranked breakdown a
-    credit reader asks for, and the derivations are where the weight is --
-    a `sum` over 100 rows names 100 row ids, because there is no shorthand
-    in the contract for "all of them".
+    the real rows) and the top two values (direct, one cell each). That is
+    the shape of every ranked breakdown a credit reader asks for, and the
+    derivations are where the weight is.
+
+    Both spellings are buildable, and the difference between them is the
+    whole point. With `shorthand=False` a `sum` over 100 rows names 100 row
+    ids, twelve times over, which is how the object came to be two-thirds
+    row ids and to overrun the allowance the live thread was cut off at.
+    That form is kept -- not as history but as evidence: the regression is
+    only pinned if the object that overran can still be built and measured.
     """
     ids = row_ids()
+    whole = (lambda art, column: {
+        "artifact_id": art, "column_id": column, "rows": "all"}) if shorthand \
+        else (lambda art, column: {
+            "artifact_id": art, "column_id": column, "row_ids": ids})
     claims: list[dict[str, Any]] = []
     for n, (step_id, _purpose, columns) in enumerate(STEPS):
         art, value_column = artifact_id(step_id), columns[-1]
         claims.append({
             "claim_id": f"total_{n}", "unit": MONEY_UNIT,
             "derivation": {"operation": "sum", "operands": [
-                {"artifact_id": art, "column_id": value_column,
-                 "row_ids": ids}]}})
+                whole(art, value_column)]}})
         claims.append({
             "claim_id": f"share_{n}", "unit": "percent",
             "derivation": {"operation": "percentage", "operands": [
                 {"artifact_id": art, "column_id": value_column,
                  "row_ids": ids[:4]},
-                {"artifact_id": art, "column_id": value_column,
-                 "row_ids": ids}]}})
+                whole(art, value_column)]}})
         for rank, label in ((0, "top"), (1, "second")):
             claims.append({
                 "claim_id": f"{label}_{n}", "unit": MONEY_UNIT,

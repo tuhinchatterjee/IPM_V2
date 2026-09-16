@@ -94,15 +94,49 @@ def test_the_guide_carries_what_varies_and_nothing_that_does_not():
     assert len(body) <= 1_200, f"the guide measures {len(body):,} B"
 
 
-def test_the_guide_still_names_real_rows_to_use():
-    """Slimmer is not vaguer. The examples must be runnable as written."""
+def test_the_guide_shows_both_ways_of_naming_cells():
+    """Slimmer is not vaguer. The examples must be runnable as written.
+
+    And there are two of them for a reason: the model copies the example it
+    is handed, so an example that lists a hundred row ids teaches the model
+    to list a hundred row ids. A total is usually over everything and says
+    so; a share's numerator usually is not, and names its rows.
+    """
     ids = ao.row_ids()
     guide = claim_guide("art-x", ["sector", "ead_sar_mn"], ids, ao.ROWS,
                         "SAR million")
-    used = guide["example_total"]["derivation"]["operands"][0]["row_ids"]
-    assert used, "an example with no rows teaches nothing"
-    assert set(used) <= set(ids), "an example must name rows that exist"
+
+    total = guide["example_total"]["derivation"]["operands"][0]
+    assert total["rows"] == "all", "the worked total spans the whole result"
+    assert "row_ids" not in total, "an operand says it one way, not both"
+
+    part, whole = guide["example_share"]["derivation"]["operands"]
+    assert part["row_ids"], "an example with no rows teaches nothing"
+    assert set(part["row_ids"]) <= set(ids), "an example names rows that exist"
+    assert whole["rows"] == "all", "a share is measured against everything"
     assert "r0" in str(guide), "the first row id is the one to pattern from"
+
+
+def test_a_clipped_result_says_so_where_the_analyst_will_read_it():
+    """The sentence used to be false.
+
+    It quoted the QUERY's row count while `row_ids` held only the preview's,
+    so a clipped result told the analyst there were five thousand rows
+    addressed "r0" upward when there were a hundred. That is also the
+    difference between a total and a total over the part that fitted.
+    """
+    ids = ao.row_ids()
+    clipped = claim_guide("art-x", ["sector", "ead_sar_mn"], ids, 5_000,
+                          "SAR million", False)
+    assert clipped["complete"] is False
+    said = clipped["row_ids_are"]
+    assert f"{len(ids)} of them" in said, said
+    assert "CLIPPED" in said and "5000 rows were produced" in said, said
+
+    whole = claim_guide("art-x", ["sector", "ead_sar_mn"], ids, ao.ROWS,
+                        "SAR million", True)
+    assert whole["complete"] is True
+    assert "CLIPPED" not in whole["row_ids_are"]
 
 
 @pytest.mark.parametrize(

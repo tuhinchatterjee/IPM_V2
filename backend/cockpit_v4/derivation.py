@@ -117,23 +117,48 @@ class DerivationError(Exception):
     """A derivation that cannot be recomputed, with the reason to send back."""
 
 
+#: The one value `rows` may take. A word, not a wildcard: `*` and `all` and
+#: `:` are all things `_index_of` would happily try to match against a cell
+#: value, and a token that can resolve to data is not a token.
+ALL_ROWS = "all"
+
+
 @dataclass(frozen=True)
 class CellSet:
-    """Cells in ONE column of ONE artifact, named by row id.
+    """Cells in ONE column of ONE artifact.
 
-    `row_ids` accepts the ids the result packet publishes (`r0`, `r1`, ...),
-    a plain index, or a `column=value` key. All three resolve to the same
-    rows; the packet publishes the first form because it is stable and
-    unambiguous even when two rows share a label.
+    Named one of two ways, and never both. `row_ids` accepts the ids the
+    result packet publishes (`r0`, `r1`, ...), a plain index, or a
+    `column=value` key; all three resolve to the same rows, and the packet
+    publishes the first because it is stable even when two rows share a
+    label. `all_rows` means every row of the result, expanded HERE against
+    the stored artifact.
+
+    WHY THE SHORTHAND IS A SEPARATE FIELD, NOT A TOKEN IN `row_ids`.
+    A four-step answer used to spend about 8.3 KB -- two thirds of its whole
+    output -- reciting row ids back to the server, because a sum over a
+    hundred rows had to name a hundred rows. But `_index_of`'s last rule
+    matches a key against any cell value in any row, so a sentinel inside
+    `row_ids` would silently resolve to a data row that happened to hold
+    that string. A separate field cannot collide with a value, and it leaves
+    `row_ids` meaning exactly one thing: real ids. An invented label like
+    "all sectors" is still refused, which is the guarantee a live run paid
+    for.
     """
 
     artifact_id: str
     column_id: str
-    row_ids: tuple[str, ...]
+    row_ids: tuple[str, ...] = ()
+    all_rows: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {"artifact_id": self.artifact_id, "column_id": self.column_id,
-                "row_ids": list(self.row_ids)}
+        body: dict[str, Any] = {"artifact_id": self.artifact_id,
+                                "column_id": self.column_id}
+        if self.all_rows:
+            body["rows"] = ALL_ROWS
+        else:
+            body["row_ids"] = list(self.row_ids)
+        return body
 
 
 @dataclass(frozen=True)
@@ -180,14 +205,40 @@ def parse(body: Any) -> Derivation:
         artifact_id = str(item.get("artifact_id") or "").strip()
         column_id = str(item.get("column_id") or "").strip()
         rows = item.get("row_ids")
+        scope = item.get("rows")
         if not artifact_id or not column_id:
             raise DerivationError(
                 f"operand {index} of {operation!r} must name both an "
                 f"artifact_id and a column_id.")
+        # EXACTLY ONE OF THE TWO FORMS, the way a claim carries exactly one
+        # of `evidence` and `derivation`. The provider's tool dialect has no
+        # way to say "one of these two" in a schema, so it is said in the
+        # field descriptions and enforced here, where the message can name
+        # the operand that broke it.
+        wants_all = scope is not None
+        names_rows = isinstance(rows, list) and bool(rows)
+        if wants_all and names_rows:
+            raise DerivationError(
+                f"operand {index} of {operation!r} carries both 'rows' and "
+                f"'row_ids'. Either it is every row of the result or it is "
+                f"the rows you name; send whichever it is, not both.")
+        if wants_all:
+            if str(scope).strip().lower() != ALL_ROWS:
+                raise DerivationError(
+                    f"operand {index} of {operation!r} sets rows={scope!r}. "
+                    f"The only value 'rows' takes is {ALL_ROWS!r}, meaning "
+                    f"every row of that result. For some of the rows, name "
+                    f"them in 'row_ids'.")
+            # NOT counted against MAX_REFS here: `parse` has no artifact and
+            # cannot know how many rows it is admitting. The bound is
+            # enforced in `_compute`, once every operand is resolved.
+            operands.append(CellSet(artifact_id, column_id, (), True))
+            continue
         if not isinstance(rows, list) or not rows:
             raise DerivationError(
-                f"operand {index} of {operation!r} must name at least one "
-                f"row in 'row_ids'.")
+                f"operand {index} of {operation!r} names no cells. Send "
+                f"rows={ALL_ROWS!r} for every row of that result, or name "
+                f"the ones you mean in 'row_ids'.")
         row_ids = tuple(str(r) for r in rows)
         total_refs += len(row_ids)
         if total_refs > MAX_REFS:
@@ -246,6 +297,37 @@ class _Resolved:
     indices: list[int]
 
 
+def _incomplete(record: dict[str, Any], artifact_id: str, *,
+                label: str) -> str:
+    """Why "every row" may not be said about this result, if it may not.
+
+    A SQL result past the preview cap is clipped BEFORE it is stored, and
+    the engine already warns that a clipped table is not a complete
+    aggregate. A Python result is stored whole but only its first rows carry
+    published ids. So "every row" is honest in exactly one case -- the
+    artifact holds every row the step produced, and every one of them was
+    addressed -- and that is recorded on the artifact when it is written.
+
+    Missing means no: an artifact stored before this was recorded cannot
+    say how much of its result it holds, and a total over an unknown
+    fraction is the failure this gate exists to prevent.
+    """
+    scope = record.get("scope") or {}
+    if scope.get("complete") is True:
+        return ""
+    held = len(record.get("rows") or ())
+    produced = scope.get("produced_rows")
+    if produced and int(produced) > held:
+        return (f"{label} says 'every row' of artifact {artifact_id!r}, but "
+                f"that result produced {int(produced):,} rows and only "
+                f"{held:,} of them were published. A total over part of a "
+                f"result is not that result's total: either narrow the "
+                f"query so the whole result fits, or name in 'row_ids' the "
+                f"rows you actually mean.")
+    return (f"{label} says 'every row' of artifact {artifact_id!r}, which "
+            f"does not record whether it holds its whole result. Name the "
+            f"rows you mean in 'row_ids'.")
+
 def _resolve(cells: CellSet, artifacts: dict[str, dict[str, Any]],
              *, label: str) -> _Resolved:
     record = artifacts.get(cells.artifact_id)
@@ -259,10 +341,23 @@ def _resolve(cells: CellSet, artifacts: dict[str, dict[str, Any]],
             f"artifact {cells.artifact_id!r}. Its columns are "
             f"{record['columns']}.")
     rows = record["rows"]
+    # EXPANDED HERE, WHERE THE ARTIFACT IS. `parse` is artifact-blind, so a
+    # shorthand travels as a flag and becomes ids at the last moment -- in
+    # STORED ORDER, which `weighted_average` depends on: it pairs values
+    # with weights by position and compares the two index lists for
+    # equality, so two shorthands must expand identically and a shorthand
+    # against an explicit list must expand the way the packet published.
+    if cells.all_rows:
+        refused = _incomplete(record, cells.artifact_id, label=label)
+        if refused:
+            raise DerivationError(refused)
+        wanted: tuple[str, ...] = tuple(row_id_for(i) for i in range(len(rows)))
+    else:
+        wanted = cells.row_ids
     seen: set[int] = set()
     values: list[Decimal] = []
     indices: list[int] = []
-    for row_id in cells.row_ids:
+    for row_id in wanted:
         index = _index_of(row_id, rows)
         if index < 0:
             raise DerivationError(
@@ -282,8 +377,12 @@ def _resolve(cells: CellSet, artifacts: dict[str, dict[str, Any]],
         if cell is None:
             raise DerivationError(
                 f"{label} includes row {row_id!r}, whose "
-                f"{cells.column_id!r} is NULL. A null is not zero: exclude "
-                f"the row and say so, or report the figure as unavailable.")
+                f"{cells.column_id!r} is NULL. A null is not zero: "
+                + ("name the rows you mean in 'row_ids', leaving this one "
+                   "out, and say so"
+                   if cells.all_rows else
+                   "exclude the row and say so")
+                + ", or report the figure as unavailable.")
         values.append(_decimal(cell))
         indices.append(index)
     return _Resolved(values, indices)
@@ -336,6 +435,18 @@ def _compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
                  label=(f"{label} operand {i + 1}" if len(derivation.operands)
                         > 1 else label))
         for i, cells in enumerate(derivation.operands)]
+
+    # THE BOUND, WHERE THE COUNT IS FINALLY KNOWN. `parse` checks it too,
+    # so a nine-hundred-id list is refused before the database is touched --
+    # but `parse` cannot count a shorthand, and the shorthand is the form
+    # that can expand without the analyst seeing how far. Both checks say
+    # the same thing; this is the one that cannot be walked around.
+    referenced = sum(len(r.values) for r in resolved)
+    if referenced > MAX_REFS:
+        raise DerivationError(
+            f"{label} references {referenced:,} cells and a single "
+            f"derivation may reference at most {MAX_REFS}. Publish it as a "
+            f"table.")
 
     if operation == IDENTITY:
         if len(resolved[0].values) != 1:

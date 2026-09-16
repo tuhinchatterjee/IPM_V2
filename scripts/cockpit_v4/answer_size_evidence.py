@@ -44,24 +44,40 @@ def main() -> int:
 
     limits = config_mod.ANALYTICAL_STANDARD_LIMITS
     answer = ao.four_step_answer()
+    long_form = ao.four_step_answer(shorthand=False)
     batch = ao.four_step_tool_result()
     step = batch["steps"][0]
+
+    def shape(obj) -> dict:
+        return {
+            "bytes": size(obj), "tokens": tokens(obj),
+            "narrative_bytes": size(obj["narrative"]),
+            "numeric_claims": len(obj["numeric_claims"]),
+            "numeric_claims_bytes": size(obj["numeric_claims"]),
+            "numeric_claims_share": round(
+                size(obj["numeric_claims"]) / size(obj), 3)}
 
     report = {
         "what": "a four-step, 100-row analysis answered properly",
         "estimator": "len(json)/2.2 -- provider.count_input",
-        "answer_object": {
-            "bytes": size(answer), "tokens": tokens(answer),
-            "narrative_bytes": size(answer["narrative"]),
-            "numeric_claims": len(answer["numeric_claims"]),
-            "numeric_claims_bytes": size(answer["numeric_claims"]),
-            "numeric_claims_share": round(
-                size(answer["numeric_claims"]) / size(answer), 3)},
+        # The object the live thread was cut off writing: every operand
+        # naming every row id, because the contract had no way to say
+        # "all of them".
+        "answer_object_naming_every_row": shape(long_form),
+        # The same answer, saying it.
+        "answer_object": shape(answer),
+        "row_scope_shorthand_saved": {
+            "bytes": size(long_form) - size(answer),
+            "tokens": tokens(long_form) - tokens(answer),
+            "share": round(1 - size(answer) / size(long_form), 3),
+            "operands_that_span_a_whole_result": 8},
         "allowance": {
             "before_stage_2": 4_096,
             "base": limits.reserved_output_tokens,
             "ceiling_on_a_truncated_re_ask": limits.answer_output_ceiling,
             "fits_before_stage_2": tokens(answer) <= 4_096,
+            "naming_every_row_fits_before_stage_2":
+                tokens(long_form) <= 4_096,
             "fits_now": tokens(answer) <= limits.reserved_output_tokens},
         "tool_result_after_the_shrink": {
             "four_step_bytes": size(batch),
@@ -88,13 +104,23 @@ def main() -> int:
     out = ROOT / "docs" / "cockpit_v4" / "evidence" / "answer_size.json"
     out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
-    a = report["answer_object"]
-    print(f"\nanswer object     {a['bytes']:>9,} B  ~{a['tokens']:>6,} tok")
+    a, long = report["answer_object"], report["answer_object_naming_every_row"]
+    saved = report["row_scope_shorthand_saved"]
+    print(f"\nnaming every row  {long['bytes']:>9,} B  "
+          f"~{long['tokens']:>6,} tok")
+    print(f"  numeric_claims  {long['numeric_claims_bytes']:>9,} B  "
+          f"({long['numeric_claims_share']:.0%} of it, "
+          f"{long['numeric_claims']} claims)")
+    print(f"\nsaying 'all'      {a['bytes']:>9,} B  ~{a['tokens']:>6,} tok"
+          f"   ({saved['share']:.0%} off, {saved['tokens']:,} tok)")
     print(f"  numeric_claims  {a['numeric_claims_bytes']:>9,} B  "
           f"({a['numeric_claims_share']:.0%} of it, "
           f"{a['numeric_claims']} claims)")
     print(f"\nallowance before  {4_096:>9,} tok   "
-          f"fits: {report['allowance']['fits_before_stage_2']}")
+          f"long form fits: "
+          f"{report['allowance']['naming_every_row_fits_before_stage_2']}"
+          f"   shorthand fits: "
+          f"{report['allowance']['fits_before_stage_2']}")
     print(f"allowance now     {limits.reserved_output_tokens:>9,} tok   "
           f"fits: {report['allowance']['fits_now']}")
     print(f"ceiling on re-ask {limits.answer_output_ceiling:>9,} tok")

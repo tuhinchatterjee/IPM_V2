@@ -234,6 +234,15 @@ is no `"total"`, `"all sectors"` or `"top 5"` row: a total is a `sum`
 derivation over the real rows, and a row id the artifact does not contain is
 refused.
 
+**For every row of a result, say so rather than listing them.** An operand
+may carry `"rows": "all"` in place of `row_ids`, meaning every row of that
+result in the order it was published — use it for a total, or for the
+denominator of a share. Send one or the other, never both. It is refused
+when the result was clipped at the preview cap, because a total over part
+of a result is not that result's total; name the rows you mean in that case.
+This is a shorthand for real rows, not a way around naming them: a label the
+artifact does not contain is still refused, whichever field it arrives in.
+
 **Omit `decimal_value` and `display_precision`.** How many places a figure
 shows is not yours to set — an amount shows none, a percentage, probability,
 notch movement or ratio shows two, a count is whole — and a
