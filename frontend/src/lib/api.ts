@@ -4486,6 +4486,12 @@ export interface LensNote {
 export interface RenderedLens {
   lens: Lens;
   period: string | null;
+  /** The month every tile read, where they agree. Same value as `period`. */
+  month?: string | null;
+  /** The book those tiles were computed from. */
+  source_hash?: string;
+  /** Whether that book's month is the latest the product publishes. */
+  is_latest?: boolean;
   panels: RenderedPanel[];
   sections: LensSection[];
   notes: LensNote[];

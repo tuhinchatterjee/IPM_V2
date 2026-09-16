@@ -403,10 +403,31 @@ function Header({ lens, rendered }: { lens: Lens; rendered: RenderedLens }) {
           {lens.description}
         </p>
       )}
-      <p className="mt-2 text-xs text-text-muted">
-        {rendered.panels.length}{" "}
-        {rendered.panels.length === 1 ? "panel" : "panels"}
-        {rendered.period && <span> · {rendered.period}</span>}
+      {/* §20: which month, which book, and whether that is the latest.
+          A dashboard is the one screen a reader is most likely to quote
+          without opening anything underneath it, so the freshness has to
+          be on the dashboard rather than one click into a tile's Trace. */}
+      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
+        <span>
+          {rendered.panels.length}{" "}
+          {rendered.panels.length === 1 ? "panel" : "panels"}
+        </span>
+        {rendered.period && (
+          <span data-testid="lens-month">· {rendered.period}</span>
+        )}
+        {rendered.period && (
+          <Badge
+            variant={rendered.is_latest === false ? "warning" : "positive"}
+            data-testid="lens-freshness"
+          >
+            {rendered.is_latest === false ? "not the latest month" : "live"}
+          </Badge>
+        )}
+        {rendered.source_hash && (
+          <span data-testid="lens-book" title="The published book these tiles were computed from">
+            · book <code>{rendered.source_hash.slice(0, 12)}</code>
+          </span>
+        )}
         {rendered.note && (
           <span className={rendered.failed ? "text-negative" : "text-warning"}>
             {" "}

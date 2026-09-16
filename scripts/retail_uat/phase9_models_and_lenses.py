@@ -99,12 +99,19 @@ def main() -> int:  # noqa: C901
                 ("Performance", "WAPE (held back)"),
                 ("Artifact", '[data-testid="challenger-parity"]'),
                 ("Worked example", '[data-testid="challenger-example"]')):
-            page.get_by_text(label, exact=True).first.click()
-            page.wait_for_timeout(2500)
+            # The tab, by its role. `get_by_text` matched the first node
+            # carrying the word anywhere on the page — on the Performance
+            # tab that was the prose in the limitation banner, so the click
+            # landed on a paragraph and the tab never changed.
+            page.locator(f'[role="tab"]:text-is("{label}")').first.click()
+            page.wait_for_timeout(3000)
             if marker.startswith("["):
                 if not _visible(page, marker, 180):
                     empty.append(label)
-            elif marker not in page.inner_text("body"):
+            # Case-insensitively: these labels are CSS-uppercased, so
+            # `inner_text` returns "WAPE (HELD BACK)" and a literal compare
+            # reported an empty tab on a page that had rendered the figure.
+            elif marker.lower() not in page.inner_text("body").lower():
                 empty.append(label)
         check("10-04", "every tab has content behind it, not just a label",
               not empty, ", ".join(empty) or "four data tabs read")
@@ -186,10 +193,17 @@ def main() -> int:  # noqa: C901
                 if len(page.inner_text("body")) > 600:
                     break
             page.wait_for_timeout(2500)
+            _visible(page, '[data-testid="lens-freshness"]', 120)
             shown = page.inner_text("body")
-            check("20-05", "the lens screen shows the month it is reading",
-                  str(rendered.get("month", "")) in shown,
-                  f"looking for {rendered.get('month','?')}")
+            badge = (page.locator('[data-testid="lens-freshness"]').inner_text()
+                     if page.locator('[data-testid="lens-freshness"]').count()
+                     else "")
+            check("20-05", "the lens screen shows the month, the book and "
+                           "whether it is the latest",
+                  str(rendered.get("month", "")) in shown and bool(badge)
+                  and str(rendered.get("source_hash", ""))[:12] in shown,
+                  f"month {rendered.get('month','?')}, badge "
+                  f"{badge.strip().lower() or 'absent'}")
             page.screenshot(path=f"{OUT}/20-05-lens.png", full_page=True)
         else:
             check("20-05", "the lens screen shows the month it is reading",

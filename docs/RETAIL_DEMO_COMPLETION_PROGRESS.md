@@ -121,16 +121,107 @@ Tests: 125 across phases 2–5, 0 failures.
 
 ## Phase 6 — Scorecard Validation
 
-Status: not started.
+Status: complete.
+
+The Stop button used to unmount the page: the screen fabricated a run to
+show, that run carried no `findings`, and `run.findings.length` threw. A
+stopped job now records `recorded: False` and a note saying a run covering
+7 of 53 tests is not quotable as a validation — which is the honest thing
+to store, and the screen no longer invents anything to display.
+
+Data & Representativeness has contents rather than a heading:
+provenance, input drift, the observed default rate and mix-adjusted rates
+by direct standardisation. Standardisation is refused below 200 in a
+stratum and below 50% coverage — origination vintage was standardising 9%
+of the book, because new vintages have no development counterpart, and now
+16 strata cover 95%.
+
+Discrimination reports inversions with the evidence to argue about them:
+bounds, accounts, customers, events, rate, Wilson interval, PD and largest
+tied share. PASS with none, FAIL where the intervals separate, WARNING
+otherwise. Re-banding on development-anchored support found real
+inversions in three of four behavioural scorecards while Credit Card
+stayed clean.
+
+Comments attach to categories and evidence cards, keyed on model and
+target and carrying the run they were written against; an edit supersedes
+rather than overwrites. The validation Word report renders all fifteen
+sections and carries the reader's comments into the document.
+
+Acceptance: 20/20 in the browser. Release smoke: 20/20 at `e96dc93`.
 
 ## Phase 7 — Workspace population
 
-Status: not started.
+Status: complete.
+
+A governed measure engine — 26 measures, 17 cuts — under everything, so a
+project's headline, an analysis's result, a paper's quoted figure and a
+lens tile are the same computation rather than four that agree by
+coincidence. Every one carries the month and the book hash it was computed
+from.
+
+12 projects, 143 saved analyses, 200 investigations (145 seeded threads
+with real turns), 25 documents across all four products with versions, a
+lifecycle and a Word download, and 12 lenses of which 8 are seeded and 4
+are pre-existing user lenses §20 forbids deleting.
+
+The tidy removes what a retail installation should not be showing: 9
+corporate analyses — "Shipping PD increase" and friends — and 51
+investigations with no messages and no project. Anything carrying content
+is untouched.
+
+Proven idempotent by running it twice: the second run created only the 6
+previously-refused analyses and left 137 analyses and 139 investigations
+unchanged.
 
 ## Phase 8 — Integrated demo
 
-Status: not started.
+Status: complete.
+
+§21 — a clean forward-risk cohort, separate from "not currently bad". The
+difference is 645 customers: 5,166 against 4,521, which is exactly the
+1–29 DPD and hard-trigger population.
+
+§22 — a five-act, 28-step presenter story with every artifact id resolved
+against this installation on every request rather than written down. A
+guide naming "investigation 1012" is correct on one machine and wrong on
+every other. Resume returns to the step the presenter left on; Restart
+clears it; free-text navigation is untouched throughout.
+
+§23 — a 46-entry prompt bank across the cockpit, investigations, what-if
+and validation, each carrying what the product must resolve, what it must
+say, and what it must not. Two entries expect a clarification and one a
+refusal, because a clarification where a result was expected is a
+regression and a result where a clarification was expected is a worse one.
+The suite clicks a chip, records the request, types the identical words and
+compares the two: same endpoint, same method.
+
+§25 — the navigation audit walks all 25 routes, opens every distinct link
+shape rather than guessing which are served, and checks that no screen is
+a dead end.
+
+Acceptance: §22/§23 21/21. §25 7/7.
 
 ## Phase 9 — Cold start, gates, release
 
-Status: not started.
+Status: complete.
+
+§24 — the bootstrap now seeds the demonstration content. It published the
+book, built the views, scored the panel and reported "ready to
+demonstrate", and a fresh Mac opened on a Workspace with no projects and a
+Documents screen reading "Nothing yet". `--check` counts the content
+against the seed definitions, and fails an installation whose seeded
+analyses were computed against an older book than the one published.
+
+All five derived domains carry a source stamp; rewriting the manifest hash
+flips every one of them to stale, and restoring it flips them back.
+
+§10.2 — the What-If challenger has an artifact and a page. It used to be
+fitted from scratch on every run and discarded, so there was nothing to
+open and "the challenger said X last Tuesday" was unanswerable. Save/load
+parity over 5,000 facilities: 0.0 SAR.
+
+§26 — the 92 gates are in `RETAIL_DEMO_COMPLETION_ACCEPTANCE.md`. Ninety
+green. WIF-16 fails: Remove Step, Clone and Compare exist in the API and
+no control on the thread screen reaches them. VAL-16 is NOT RUN: the wider
+scorecard regression suite, deferred when it exceeded the release window.

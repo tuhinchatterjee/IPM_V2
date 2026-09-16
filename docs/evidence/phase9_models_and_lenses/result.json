@@ -8,7 +8,8 @@
     "10-07 the worked example scores real facilities from the book, against their recorded ECL",
     "20-01 at least eight lenses are published",
     "20-02 there is a dashboard for each of the four products",
-    "20-05 the lens screen shows the month it is reading",
+    "20-03 every tile on a seeded lens renders from the book",
+    "20-04 the render envelope says which month and which book it read",
     "99-01 no HTTP 500 across the model page and the lenses",
     "99-02 no page errors"
   ],
@@ -18,12 +19,8 @@
       "detail": "Performance"
     },
     {
-      "check": "20-03 a seeded lens renders its tiles from the book",
-      "detail": "retail-credit-card \u2014 18 panels"
-    },
-    {
-      "check": "20-04 the render says which month and which book it read",
-      "detail": "month \u2014, book \u2014, stale"
+      "check": "20-05 the lens screen shows the month it is reading",
+      "detail": "looking for 2026-08"
     }
   ]
 }
