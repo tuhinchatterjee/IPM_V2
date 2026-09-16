@@ -464,7 +464,8 @@ def tidy(session: Any, *, preview: bool = True) -> dict[str, Any]:
         select(InvestigationMessage.investigation_id,
                func.count(InvestigationMessage.id))
         .group_by(InvestigationMessage.investigation_id)).all())
-    for row in session.execute(select(Investigation)).scalars().all():
+    every = session.execute(select(Investigation)).scalars().all()
+    for row in every:
         if (row.context or {}).get(KEY):
             continue
         if counts.get(row.id, 0) > 0 or row.project_id:
@@ -474,10 +475,47 @@ def tidy(session: Any, *, preview: bool = True) -> dict[str, Any]:
         if not preview:
             session.delete(row)
 
+    # Unfiled threads asking a question another unfiled thread already asks.
+    #
+    # The rule above keeps anything carrying conversation, which is right for
+    # a thread somebody wrote — and wrong for what an acceptance suite leaves
+    # behind, because every question a suite asks creates a thread WITH
+    # messages. Eight runs of the release smoke put eight identical
+    # "Show weighted ECL by retail product for August 2026" rows in the list,
+    # and this database had reached 1,005 investigations of which 633 were a
+    # repeat of a title already present. A client opening Investigations sees
+    # that, and §2.5 names repetitive filler specifically.
+    #
+    # Deliberately narrow. A title seen ONCE is never touched, however it got
+    # there: a presenter rehearsing asks each question once, and losing their
+    # thread would be worse than showing it. Only the repeats go, and the
+    # most recent of each is the one kept — it is the one whose answer was
+    # computed against the current book.
+    seen: dict[str, list[Any]] = {}
+    for row in every:
+        if (row.context or {}).get(KEY) or row.project_id:
+            continue
+        if counts.get(row.id, 0) <= 0:
+            continue  # already handled above
+        seen.setdefault(" ".join(str(row.title or "").split()).lower(),
+                        []).append(row)
+    for said, rows in seen.items():
+        if len(rows) < 2 or not said:
+            continue
+        rows.sort(key=lambda one: one.id)
+        for row in rows[:-1]:
+            report.add("investigation", f"id:{row.id}", "remove",
+                       f"{str(row.title)[:52]} — one of {len(rows)} unfiled "
+                       f"threads asking it; the newest is kept")
+            if not preview:
+                session.delete(row)
+
     body = report.to_dict()
     body["preview"] = preview
     body["note"] = (
-        "Preview by default. Nothing seeded is removed, nothing with a "
-        "project is removed, and nothing carrying conversation is removed."
+        "Preview by default. Nothing seeded is removed, nothing filed "
+        "under a project is removed, and no question that appears only "
+        "once is removed — only repeats of a title another unfiled thread "
+        "already carries, keeping the most recent of each."
         if preview else "Removed.")
     return body

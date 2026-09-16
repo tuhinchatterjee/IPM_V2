@@ -104,8 +104,29 @@ appearing on disk, or a function existing in the source. Where a gate was
 decided by a script, the script is named and is in the repository; where it
 was decided in a browser, the screenshot is under `docs/evidence/`.
 
-Re-audited at `d58c80c` · book `3268b725…` · 2026-08 · 59,449 facilities /
+**An endpoint returning the right thing is not this contract's bar, and one
+row of this matrix had to be re-decided to prove it.** CONTENT-05 was marked
+PASS on a count of published lenses returned by the API. That count was
+correct. The dashboards it counted did not render at all: every tile showed
+"could not be produced", and when that was fixed the page threw and fell to
+an error boundary. Both defects are now fixed and the gate is genuinely
+green — but it was green for a while on evidence that could not have caught
+either. The rows below say what was actually opened and read. Where a gate's
+evidence was strengthened after the fact, it says that too.
+
+Re-audited at `8bfa4c5` · book `3268b725…` · 2026-08 · 59,449 facilities /
 42,824 customers.
+
+The suites that decide the browser-facing rows, and their scores at that
+commit:
+
+| Suite | Covers | Score |
+|---|---|---|
+| `scripts/retail_uat/smoke_release.py` | the demonstration spine, end to end | 17 / 17 |
+| `scripts/retail_uat/phase8_story.py` | §22 Demo Story, §23 prompt bank | 21 / 21 |
+| `scripts/retail_uat/phase8_navigation.py` | §25 navigation and controls | 7 / 7 |
+| `scripts/retail_uat/phase9_models_and_lenses.py` | §10.2 model page, §20 lenses | 16 / 16 |
+| `scripts/retail_uat/phase9_timings.py` | §27 cold and warm | every step in budget |
 
 ### DATA (10)
 
@@ -214,12 +235,12 @@ Re-audited at `d58c80c` · book `3268b725…` · 2026-08 · 59,449 facilities /
 | ID | Gate | How it was decided | Status |
 |---|---|---|---|
 | CONTENT-01 | 12 non-empty projects | 12 seeded (18 total), each with analyses and investigations under it. Previously **FAIL** — 6, all with 0 analyses | PASS |
-| CONTENT-02 | 60 meaningful investigations | 200, of which 145 are seeded threads carrying real turns. Previously **FAIL** — 50, quality unverified | PASS |
+| CONTENT-02 | 60 meaningful investigations | 148 seeded threads carrying real turns, counted from the database rather than from a paginated list endpoint — the first count for this row read 200 off a page of 50. 370 threads in total | PASS |
 | CONTENT-03 | 100 saved analyses | 143, each computed through the governed measure engine and carrying its source hash. Previously **FAIL** — 9 | PASS |
 | CONTENT-04 | 24 substantive documents | 25 across all four products, with versions, a draft/review/approved lifecycle, attachments and a Word download. Previously **FAIL** — no backend at all | PASS |
-| CONTENT-05 | 4 product + 4 additional lenses | 12 (8 seeded, 4 pre-existing user lenses §20 forbids deleting). Previously **FAIL** — 4, none a product dashboard | PASS |
+| CONTENT-05 | 4 product + 4 additional lenses | 13 published, 12 seeded including one per product. **Decided on screen, after a first attempt that was not good enough**: the count below was right while the Credit Card dashboard rendered eighteen error cards, and then while it threw and fell to an error boundary. `phase9_models_and_lenses.py` now opens a seeded dashboard and asserts that as many tiles are DRAWN as the render returned, that none reads "could not be produced", and that the page did not fall to an error boundary — 18 of 18 drawn, with the month, the live badge and the book hash on screen. Previously **FAIL** — 4, none a product dashboard | PASS |
 | CONTENT-06 | No empty titles and no repetitive filler | every title, question and headline is written per analysis; the headline is computed from the result | PASS |
-| CONTENT-07 | No corporate residue in a retail installation | the 9 corporate analyses and 51 empty investigations are removed by `tidy()`, which runs in the bootstrap. Previously the Analyses list carried "Shipping PD increase" | PASS |
+| CONTENT-07 | No corporate residue in a retail installation | `tidy()` runs in the bootstrap and removes the 9 corporate analyses ("Shipping PD increase" and friends), investigations with no messages and no project, and — added at this re-audit — unfiled threads repeating a question another unfiled thread already asks. It had to be widened: acceptance runs create a thread per question WITH messages, so the list had reached 1,005 investigations of which 633 were a literal repeat of a title already present, 58 of them identical. §2.5 names repetitive filler specifically. 1,005 → 370, every seeded thread kept, no unfiled duplicate left, and a title seen once is never touched | PASS |
 | CONTENT-08 | A refused measure is recorded as a refusal, not a zero | `MeasureRefused` is caught per analysis and recorded with its reason | PASS |
 | CONTENT-09 | A document quotes the analysis it cites | documents are seeded from the same computed results as the analyses rather than recomputing them | PASS |
 | CONTENT-10 | The content is seeded by the bootstrap, not by hand | wired into `bootstrap_retail_installation.py`; `--check` counts against the seed definitions and fails when a screen would open thin | PASS |
@@ -230,9 +251,9 @@ Re-audited at `d58c80c` · book `3268b725…` · 2026-08 · 59,449 facilities /
 |---|---|---|---|
 | NAV-01 | Every route the navigation offers opens | 25 routes walked in a browser | PASS |
 | NAV-02 | No route redirects away from the entry that offered it | measured per route | PASS |
-| NAV-03 | Every internal link opens a page the product serves | each distinct route shape opened; Next serves its not-found page with a 200, so the body is read rather than the status | PASS |
-| NAV-04 | No control is disabled with no way to enable it | disabled controls are re-checked after the screen is given what it was waiting for | PASS |
-| NAV-05 | No empty screens | character count per route | PASS |
+| NAV-03 | Every internal link opens a page the product serves | each distinct route shape opened; Next serves its not-found page with a 200, so the body is read rather than the status. An earlier version compared links against the nav allowlist and reported `/engine-builder` — a route the product serves and simply does not put in the sidebar — as dead | PASS |
+| NAV-04 | No screen is a dead end — a disabled primary always sits beside something the reader can use | two earlier versions of this check were wrong about the product and are recorded in the script: one flagged every disabled button without a tooltip, catching Ask buttons beside empty composers; the next typed prose and re-checked, still flagging screens whose primary waits for a SELECTION. What is checkable without guessing is whether a screen offers any enabled control at all | PASS |
+| NAV-05 | No empty screens | character count per route, floor 400. **A weak check, recorded as weak**: a screen that has fallen to an error boundary carries more than 400 characters and passes it. It is the tile-level checks in `phase9_models_and_lenses.py` that catch that, not this one | PASS |
 | NAV-06 | No HTTP 500 across the walk | every API call recorded | PASS |
 | NAV-07 | No page errors | `pageerror` recorded throughout | PASS |
 | NAV-08 | The Demo Story is reachable and resumable | 28 steps across 5 acts; Resume returns to the step the presenter left on, Restart clears it | PASS |
@@ -248,3 +269,33 @@ Re-audited at `d58c80c` · book `3268b725…` · 2026-08 · 59,449 facilities /
 
 Two of ninety-two. Both are recorded here rather than argued away, and
 neither is on the twenty-minute demonstration path.
+
+### What this re-audit changed, and why the matrix moved
+
+Four rows were green on evidence that could not have caught the defect
+underneath them. Recording that is the point of the column: a matrix that
+only ever says PASS teaches nobody anything about how much to trust it.
+
+| Row | What the evidence was | What it missed | What it is now |
+|---|---|---|---|
+| CONTENT-05 | a count of published lenses from the API | every tile rendered "could not be produced"; then, once that was fixed, the page threw `Cannot convert undefined or null to object` and fell to an error boundary. Eight dashboards had never displayed | the dashboard opened, 18 of 18 tiles drawn on screen, no error boundary, month and book hash visible |
+| CONTENT-02 | 200 investigations | 200 was a page of 50 misread; the real figure was 1,005, of which 633 were repeats left by acceptance runs | counted from the database; 148 seeded, 370 total after the tidy |
+| CONTENT-07 | corporate analyses and empty investigations removed | a thread created by a suite has messages, so the rule kept all 857 of them | widened to unfiled duplicate questions, keeping the most recent of each |
+| NAV-05 | character count per route | an error boundary is not an empty screen | unchanged, but marked as weak, with the check that actually covers it named |
+
+One regression was introduced during this work and is recorded here because
+the release smoke is what caught it. The §27 startup warm-up swept every
+published month through a nine-month book cache; one month is 650 MB, and
+the sweep OOM-killed the backend at 12.5 GB. The smoke reported six
+failures — "socket hang up", "no thread", "no composer" — which is the shape
+a suite takes when the server it is talking to has died, not a product
+defect. Fixed by reading months without retaining them and holding three
+rather than nine: peak 3.2 GB, and the warm-up is twice as fast. The smoke
+then passed 17 of 17.
+
+Two things about this release's own verification are worth stating, because
+both cost time and neither was the product's fault. A heavy `pytest` run
+alongside a browser suite starved both and produced readings about
+contention. And the `tests/retail` suite cannot run while the API server is
+up on this machine: they share a memory cgroup, and the resident backend
+leaves the suite too little headroom.

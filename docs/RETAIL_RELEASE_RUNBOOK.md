@@ -62,6 +62,14 @@ set -a && . ./.env.retail && set +a
 .venv/bin/python scripts/bootstrap_retail_installation.py
 ```
 
+It also tidies. Every question anybody asks — a presenter rehearsing, an
+acceptance suite running — creates an investigation, and they accumulate:
+this database had reached 1,005 of which 633 were a literal repeat of a
+title already present, 58 of them identical. The bootstrap removes unfiled
+duplicates, keeping the most recent of each, and never touches a seeded
+thread, a thread filed under a project, or a question that appears only
+once. **Run it before a client sees the machine**, not only after a pull.
+
 Then ask it whether it is ready. This changes nothing and reads the running
 application rather than the files — an installation whose files are all
 present and whose server is serving older code is exactly the failure it
@@ -180,6 +188,15 @@ port 8000. Stop it, `set -a && . ../.env.retail && set +a`, start it again.
 
 **A screen opens empty.** Run `--check`. It counts the seeded content against
 the seed definitions and will say which screen is thin.
+
+**The Investigations list is full of repeated questions.** Rehearsal and
+acceptance runs leave a thread per question. Re-run the bootstrap; it
+removes the duplicates and keeps everything seeded, everything filed under
+a project, and every question asked only once.
+
+**The retail test suite is killed part way through.** It shares a memory
+cgroup with the API server, which holds the book resident. Stop the API
+before running `pytest tests/retail`.
 
 **A figure looks stale.** Every screen carries the month and the first twelve
 characters of the book hash it was computed from. If two disagree, the book
