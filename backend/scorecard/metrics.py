@@ -746,12 +746,20 @@ def variable_discrimination(frame: pd.DataFrame, *, variable: str,
         special = float(frame[bin_column].isin(
             binning_mod.SPECIAL_BINS).mean())
 
+    # Derived from the AUC AS PUBLISHED, not from the one behind it — the same
+    # reason as `backend.retail.ews_performance`. Rounding the three
+    # independently lets a reader double the AUC they can see and fail to
+    # reproduce the Gini printed beside it, by up to one unit in the last
+    # place. Six decimals here rather than four, so it takes a rarer value to
+    # land on the boundary, which makes it a defect that waits rather than one
+    # that does not exist.
+    published_auc = round(auc, 6)
     return {
         "variable": variable,
         "measured_on": column,
-        "auc": round(auc, 6),
-        "gini": round(2 * auc - 1, 6),
-        "accuracy_ratio": round(2 * auc - 1, 6),
+        "auc": published_auc,
+        "gini": round(2 * published_auc - 1, 6),
+        "accuracy_ratio": round(2 * published_auc - 1, 6),
         "ks": round(ks, 6),
         "observations": len(y),
         "events": events,

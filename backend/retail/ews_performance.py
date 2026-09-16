@@ -116,10 +116,28 @@ def _roc(scores: Any, events: Any) -> dict[str, Any]:
     pr_auc = float(np.trapezoid(precision, recall))
 
     points = np.linspace(0, len(tpr) - 1, num=min(40, len(tpr))).astype(int)
+
+    # GINI IS DERIVED FROM THE AUC AS PUBLISHED, NOT FROM THE ONE BEHIND IT.
+    #
+    # These were rounded independently off the full-precision AUC, so the two
+    # figures on screen did not satisfy the identity that relates them. A
+    # reader who doubles the published 0.5825 and subtracts one gets 0.1650,
+    # and the panel beside it says 0.1649. Both are correctly rounded and the
+    # pair is still wrong, because the only AUC a reader has is the one they
+    # can see.
+    #
+    # Whose figures reconcile matters more here than a digit of precision that
+    # is never displayed: the discarded difference is below the fourth decimal
+    # place, and the thing it buys is that the arithmetic checks out.
+    #
+    # It is a latent defect rather than a new one — it needed an AUC that
+    # rounds across the boundary, and the retail book only produced one after
+    # the card cohort's calibration changed.
+    published_auc = round(auc, 4)
     return {
         "available": True,
-        "auc": round(auc, 4),
-        "gini": round(2 * auc - 1, 4),
+        "auc": published_auc,
+        "gini": round(2 * published_auc - 1, 4),
         "ks": round(float(np.max(tpr - fpr)), 4),
         "ks_at_share": round(float(share[ks_at]), 4),
         "pr_auc": round(pr_auc, 4),
