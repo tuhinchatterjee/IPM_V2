@@ -5996,6 +5996,66 @@ export interface PromptBank {
   chips_are_prompts: string;
 }
 
+/** The stored What-If challenger, §10.2. */
+export interface ChallengerCard {
+  version: string;
+  library: string;
+  features: string[];
+  target: string;
+  source_hash: string;
+  month: string;
+  rows_fitted: number;
+  rows_held_back: number;
+  seconds: number;
+  built_at: string;
+  metrics: Record<string, number>;
+  training_metrics: Record<string, number>;
+  importance: { feature: string; share: number }[];
+}
+
+export interface ChallengerModel {
+  key: string;
+  name: string;
+  version: string;
+  what: string;
+  authority: string;
+  has_artifact: boolean;
+  stale: boolean;
+  card?: ChallengerCard;
+  because?: string;
+  disclosure?: string;
+}
+
+export interface ChallengerParity {
+  rows: number;
+  identical: boolean;
+  largest_row_disagreement_sar: number;
+  total_disagreement_sar: number;
+  fitted_version: string;
+  loaded_version: string;
+  same_book: boolean;
+  says: string;
+}
+
+export interface ChallengerExampleRow {
+  facility_id: string;
+  product: string;
+  stage: number | null;
+  inputs: Record<string, number>;
+  recorded_ecl_sar: number;
+  challenger_ecl_sar: number;
+  difference_sar: number;
+  difference_pct: number | null;
+}
+
+export interface ChallengerExample {
+  month: string;
+  version: string;
+  library: string;
+  rows: ChallengerExampleRow[];
+  says: string;
+}
+
 export interface RetailManifest {
   domain_display: string;
   dataset: string;
@@ -7715,6 +7775,22 @@ export const api = {
     request<PromptBank>(
       `/retail/demo/prompts${surface ? `?surface=${encodeURIComponent(surface)}` : ""}`,
     ),
+
+  // ---- the What-If challenger's model page (§10.2) ----
+  retailChallenger: () =>
+    request<ChallengerModel>("/retail/whatif/models/challenger",
+                             { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailChallengerParity: () =>
+    request<ChallengerParity>("/retail/whatif/models/challenger/parity",
+                              { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailChallengerExample: (rows = 8) =>
+    request<ChallengerExample>(
+      `/retail/whatif/models/challenger/example?rows=${rows}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailChallengerRebuild: () =>
+    request<{ card: ChallengerCard; says: string }>(
+      "/retail/whatif/models/challenger/rebuild",
+      { method: "POST", timeoutMs: LAKE_TIMEOUT_MS }),
 
   // ---- retail What-If ----
   //

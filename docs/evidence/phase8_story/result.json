@@ -13,21 +13,14 @@
     "11 Restart returns the story to not started",
     "12 the Cockpit composer is still free text with a story open",
     "13 the prompt bank is versioned and covers every surface",
+    "14 every banked prompt states what it must resolve or say",
     "15 the bank requires clarifications and refusals, not only answers",
     "16 every chip the Cockpit offers is in the bank",
     "17 clicking a chip submits it as a question",
     "18 the chip and the typed phrasing take the SAME path",
+    "19 every offered chip is answered and says what the bank requires",
     "20 no HTTP 500 across the story and the chips",
     "21 no browser page errors"
   ],
-  "failed": [
-    {
-      "check": "14 every banked prompt states what it must resolve or say",
-      "detail": "dpd-migration-loose"
-    },
-    {
-      "check": "19 every offered chip is answered and says what the bank requires",
-      "detail": "cockpit-not-yet-default: never said 'not in default'"
-    }
-  ]
+  "failed": []
 }

@@ -2466,3 +2466,81 @@ def demo_prompts(surface: str | None = Query(None),
         out["by_surface"] = {surface: held}
         out["prompts"] = len(held)
     return out
+
+
+# --------------------------------------------------------------------------
+# The What-If challenger's model page (§10.2).
+#
+# The route the frontend model page used to read is the CORPORATE registry,
+# which in a retail installation answers "Corporate IFRS 9 publishes no
+# periods to train on" — a model card with no versions, for a model that
+# cannot exist here, while the challenger that actually runs retail scenarios
+# had no page at all.
+# --------------------------------------------------------------------------
+
+
+@router.get("/whatif/models/challenger",
+            summary="The stored What-If challenger, and what it was fitted on")
+def challenger_card(_: Principal = RequireCommenter) -> dict:
+    from backend.retail import challenger_registry as registry
+    from backend.retail import whatif_cohort as cohort
+
+    held = registry.held()
+    body: dict[str, Any] = {
+        **cohort.METHODS[cohort.CHALLENGER],
+        "has_artifact": held is not None,
+        "stale": registry.stale(),
+        "disclosure": SYNTHETIC_DISCLOSURE,
+    }
+    if held is None:
+        body["because"] = (
+            "No challenger has been fitted on this installation yet. The "
+            "bootstrap fits one; until then a scenario asking for the "
+            "challenger fits it on the spot.")
+        return body
+    body["card"] = held.to_dict()
+    if registry.stale():
+        body["because"] = (
+            "The stored challenger was fitted on a different book than the "
+            "one published now. It will be refitted on the next scenario "
+            "that asks for it rather than served.")
+    return body
+
+
+@router.post("/whatif/models/challenger/rebuild",
+             summary="Refit the What-If challenger on the published book")
+def challenger_rebuild(principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import challenger_registry as registry
+
+    try:
+        _, card = registry.build()
+    except registry.ChallengerUnavailable as problem:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(problem)) from problem
+    return {"card": card.to_dict(),
+            "says": (f"Refitted on {card.rows_fitted:,} facilities of the "
+                     f"book published at {card.month}, held back "
+                     f"{card.rows_held_back:,} to measure on.")}
+
+
+@router.get("/whatif/models/challenger/parity",
+            summary="Whether the stored artifact scores as the fitted model did")
+def challenger_parity(principal: Principal = RequireAnalyst) -> dict:
+    """§10.2's save/load parity, run rather than asserted."""
+    from backend.retail import challenger_registry as registry
+
+    try:
+        return registry.parity()
+    except registry.ChallengerUnavailable as problem:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(problem)) from problem
+
+
+@router.get("/whatif/models/challenger/example",
+            summary="Real facilities, scored by the challenger")
+def challenger_example(rows: int = Query(8, ge=1, le=50),
+                       _: Principal = RequireCommenter) -> dict:
+    from backend.retail import challenger_registry as registry
+
+    try:
+        return registry.example(rows=rows)
+    except registry.ChallengerUnavailable as problem:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(problem)) from problem

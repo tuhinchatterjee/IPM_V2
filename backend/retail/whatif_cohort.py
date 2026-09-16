@@ -177,6 +177,45 @@ def _levels(selection: sel.Selection) -> list[dict[str, Any]]:
     return unique
 
 
+#: Below this a movement is rounding, not a direction. Expected credit loss
+#: is in SAR over a book of six billion, so a sub-riyal difference between two
+#: estimates is not a disagreement about anything.
+_A_DIRECTION_SAR = 1.0
+
+
+def _agreement(challenger_delta: float, delta_method_delta: Any) -> str:
+    """Whether the two methods point the same way, said honestly.
+
+    The defect: this was `(after - base) * delta_ecl > 0`, which is False
+    when BOTH are zero — so a scenario whose shocks did not move anything
+    reported "The two methods disagree on direction, which is a reason to
+    trust the Delta method and investigate the challenger". Two methods that
+    both say nothing moved agree completely, and telling a committee they
+    disagree invites an investigation of a number that is not there.
+    """
+    if delta_method_delta is None:
+        return ""
+    engine = float(delta_method_delta)
+    challenger = float(challenger_delta)
+    still = (abs(engine) < _A_DIRECTION_SAR
+             and abs(challenger) < _A_DIRECTION_SAR)
+    if still:
+        return ("Neither method moves expected credit loss, so there is no "
+                "direction to agree or disagree about.")
+    if abs(engine) < _A_DIRECTION_SAR or abs(challenger) < _A_DIRECTION_SAR:
+        # `.capitalize()` would lower-case the rest and write "The delta
+        # method", which is not the method's name.
+        engine_moved = abs(engine) >= _A_DIRECTION_SAR
+        moved = "The Delta method" if engine_moved else "The challenger"
+        still_named = "the challenger" if engine_moved else "the Delta method"
+        return (f"{moved} moves expected credit loss and {still_named} does "
+                f"not. The Delta method is the calculation of record.")
+    if challenger * engine > 0:
+        return "The two methods agree on direction."
+    return ("The two methods disagree on direction, which is a reason to "
+            "trust the Delta method and investigate the challenger.")
+
+
 def _challenger(book: Any, population: Any, shocks: dict[str, Any],
                 delta_result: dict[str, Any]) -> dict[str, Any]:
     """The comparison estimate.
@@ -186,56 +225,43 @@ def _challenger(book: Any, population: Any, shocks: dict[str, Any],
     asked what it would say about the shocked one. It is a different route to
     the same question, which is the only reason to show it.
     """
-    # XGBoost where the installation has it, scikit-learn's gradient boosting
-    # where it does not. Which one actually ran is reported on the result: the
-    # method was keyed "xgboost" while it fitted a scikit-learn estimator, and
-    # a reader comparing two methodologies has to be able to see which model
-    # produced the number in front of them.
-    estimator, library = None, ""
+    # The STORED artifact, not a fresh fit.
+    #
+    # This used to fit a gradient-boosted model over the whole book on every
+    # single scenario run and then throw it away. Three things were wrong with
+    # that, in rising order. It was the dominant cost of a run that is
+    # otherwise arithmetic. There was nothing to open, so §10.2's model page
+    # had no model to describe. And "the challenger said X last Tuesday" was
+    # unanswerable, because the model that said it no longer existed.
+    #
+    # `load()` serves the artifact when it was fitted on the book that is
+    # published now, and rebuilds when it was not — a challenger trained on a
+    # book that has been regenerated, answering questions about the one that
+    # replaced it, loads perfectly and is wrong.
+    from backend.retail import challenger_registry as registry
+
     try:
-        from xgboost import XGBRegressor
-
-        estimator = XGBRegressor(
-            n_estimators=120, max_depth=6, learning_rate=0.1,
-            tree_method="hist", random_state=20260914, n_jobs=2)
-        library = f"XGBoost {__import__('xgboost').__version__}"
-    except ImportError:
-        try:
-            from sklearn.ensemble import HistGradientBoostingRegressor
-
-            estimator = HistGradientBoostingRegressor(
-                max_iter=120, max_depth=6, learning_rate=0.1,
-                random_state=20260914)
-            library = ("scikit-learn HistGradientBoostingRegressor — XGBoost "
-                       "is not installed here")
-        except ImportError:
-            return {"available": False,
-                    "because": ("the challenger estimator needs XGBoost or "
-                                "scikit-learn, and this installation has "
-                                "neither"),
-                    **METHODS[CHALLENGER]}
+        model, card = registry.load()
+    except registry.ChallengerUnavailable as problem:
+        return {"available": False, "because": str(problem),
+                **METHODS[CHALLENGER]}
 
     import numpy as np
     import pandas as pd
 
-    features = ["pd_pit_12m_base", "pd_pit_lifetime_base", "lgd_base",
-                "ead_base_sar", "ccf_base", "gross_carrying_amount_sar",
-                "ifrs9_stage", "dpd"]
-    have = [one for one in features if one in book.columns]
-    if len(have) < 5 or not len(population):
+    have = list(card.features)
+    library = card.library
+    if not len(population) or not have:
         return {"available": False,
-                "because": "the book does not carry enough parameters to fit",
+                "because": "the selection holds no rows to score",
                 **METHODS[CHALLENGER]}
-
-    train = book[have + ["ecl_weighted_sar"]].dropna()
-    if len(train) < 500:
+    missing = [one for one in have if one not in population.columns]
+    if missing:
         return {"available": False,
-                "because": "too few complete rows to fit a challenger",
+                "because": (f"the selection does not carry "
+                            f"{', '.join(missing)}, which the stored "
+                            f"challenger was fitted on"),
                 **METHODS[CHALLENGER]}
-
-    model = estimator
-    model.fit(train[have].to_numpy(dtype=float),
-              train["ecl_weighted_sar"].to_numpy(dtype=float))
 
     # The shocked parameters, as the Delta method computed them, fed back in.
     shocked = population.copy()
@@ -266,18 +292,18 @@ def _challenger(book: Any, population: Any, shocks: dict[str, Any],
         "available": True,
         **METHODS[CHALLENGER],
         "estimator": library,
-        "fitted_on": int(len(train)),
+        "model_version": card.version,
+        "fitted_on": card.rows_fitted,
+        "fitted_from_book": card.source_hash[:12],
+        "held_back": card.rows_held_back,
+        "held_back_r2": round(card.metrics.get("r2", 0.0), 4),
+        "held_back_wape": round(card.metrics.get("wape", 0.0), 4),
         "features": have,
         "estimated_ecl_before_sar": round(base, 2),
         "estimated_ecl_after_sar": round(after, 2),
         "estimated_delta_sar": round(after - base, 2),
         "delta_method_delta_sar": delta_ecl,
-        "agreement": (
-            "The two methods agree on direction."
-            if delta_ecl is not None and (after - base) * float(delta_ecl) > 0
-            else "The two methods disagree on direction, which is a reason to "
-                 "trust the Delta method and investigate the challenger."
-            if delta_ecl is not None else ""),
+        "agreement": _agreement(after - base, delta_ecl),
         "note": ("An estimate from a model fitted on this book, shown for "
                  "comparison. The Delta method is the calculation of record."),
     }

@@ -157,6 +157,27 @@ def main() -> int:
     for problem in problems:
         log.warning("  STILL UNRECONCILED: %s", problem)
 
+    # The What-If challenger's artifact. §10.2.
+    #
+    # Fitted here rather than on the first scenario that asks for it, so the
+    # model page has a model to describe from the moment the installation
+    # comes up, and so the first reader to choose the challenger does not pay
+    # for the fit. It is stamped with the book, so a regenerated book refits
+    # it rather than serving a model trained on data that is gone.
+    from backend.retail import challenger_registry
+
+    try:
+        _, challenger = challenger_registry.build()
+        log.info("What-If challenger: %s fitted on %d facilities, held back "
+                 "%d, R² %.4f on the held-back rows",
+                 challenger.library, challenger.rows_fitted,
+                 challenger.rows_held_back,
+                 challenger.metrics.get("r2", 0.0))
+    except challenger_registry.ChallengerUnavailable as problem:
+        log.warning("  The What-If challenger could not be fitted: %s. "
+                    "Scenarios asking for it will say so rather than "
+                    "returning a number.", problem)
+
     # The demonstration CONTENT: twelve projects, the saved analyses under
     # them, the investigation threads, the committee papers and the product
     # dashboards. §17 to §20.
@@ -326,6 +347,18 @@ def _check(log) -> int:
                     f"{stale} seeded analyses were computed against an "
                     f"older book than the one published now ({now[:12]}); "
                     f"re-run the bootstrap to refresh them")
+
+    from backend.retail import challenger_registry
+
+    if challenger_registry.held() is None:
+        problems.append(
+            "no What-If challenger artifact is stored, so the XGBoost model "
+            "page has no model to describe and the first scenario that asks "
+            "for the challenger pays to fit one")
+    elif challenger_registry.stale():
+        problems.append(
+            "the stored What-If challenger was fitted on a different book "
+            "than the one published now")
 
     for item in problems:
         log.warning("Still missing: %s", item)

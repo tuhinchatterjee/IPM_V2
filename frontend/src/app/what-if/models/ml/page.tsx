@@ -28,7 +28,7 @@ import type { WhatIfExample, WhatIfMlExplain, WhatIfTrainResult } from "@/lib/ap
 import { ApiError, api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { isRetail } from "@/lib/profile";
-import { RetiredScreen } from "@/components/layout/retired-screen";
+import { RetailChallengerPage } from "@/components/whatif/challenger";
 
 /** The Client X example the product asks for, at the values it specifies. */
 const CLIENT_X: Record<string, unknown> = {
@@ -809,14 +809,30 @@ function CorporateMlModelPage() {
 // without this guard a bookmark or a pasted link still opened it, over a book
 // that is retired, above a 503 from an endpoint with nothing behind it.
 export default function MlModelPage() {
+  // The retail installation has its OWN challenger, and it is not this one.
+  //
+  // This used to retire itself here with the sentence "the retail What-If
+  // runs one documented methodology", which stopped being true the moment
+  // the thread started offering Delta, XGBoost or both. Meanwhile the
+  // corporate registry behind the page below answers, correctly, that
+  // Corporate IFRS 9 publishes no periods to train on — so a reader who
+  // reached this route in a retail installation was told the challenger did
+  // not exist, on a page that could not have described it anyway.
   if (isRetail()) {
     return (
-      <RetiredScreen
-        title={"ML Model configuration"}
-        reason={"The ML model is trained on Corporate IFRS 9 outcomes and is not part of this retail installation. The retail What-If runs one documented methodology over the retail book and names its version on every result."}
-        insteadHref={"/what-if"}
-        insteadLabel={"What-If Analysis"}
-      />
+      <div className="p-6">
+        <BackLink href="/what-if" label="What-If Analysis" />
+        <PageHeader
+          title="XGBoost challenger"
+          eyebrow="What-If"
+          description={
+            "The gradient-boosted scenario estimator the retail What-If runs " +
+            "beside the Delta method. Fitted on this book, stored, and " +
+            "stamped with the book it was fitted from."
+          }
+        />
+        <RetailChallengerPage />
+      </div>
     );
   }
   return <CorporateMlModelPage />;

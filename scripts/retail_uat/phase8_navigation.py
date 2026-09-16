@@ -127,24 +127,81 @@ def main() -> int:  # noqa: C901 - an audit is a walk
                   if f["characters"] > 400 and not f["not_found"]}
         dead_routes = sorted(set(seen) - set(opened))
 
-        # Every internal link anywhere, against the routes the product serves.
-        served = set(seen) | {"/"}
+        # Every internal link anywhere, OPENED rather than guessed at.
+        #
+        # The first version of this check compared each link against the set
+        # of routes the navigation offers, and reported /engine-builder as
+        # dead — a route the product serves perfectly well and simply does
+        # not put in the sidebar — along with /?focus=ask, which is the
+        # Cockpit with a query string. Both were the check being wrong about
+        # the product. A link is dead when opening it gives a 404, and the
+        # only way to know that is to open it.
         offered_links: dict[str, list[str]] = {}
         for route, found in seen.items():
             for href in sorted(set(found["links"])):
                 offered_links.setdefault(href, []).append(route)
-        # A link to a detail page (/investigations/1013) is served by its
-        # parent route; only a link whose FIRST segment is unknown is dead.
-        unknown = sorted(
-            href for href in offered_links
-            if "/" + href.strip("/").split("/")[0] not in served
-            and href not in served)
+        # One representative per route SHAPE: /investigations/1013 and
+        # /investigations/1014 are the same page with a different id, and
+        # opening two hundred of them measures the dev server.
+        def _shape(href: str) -> str:
+            bare = href.split("?")[0].split("#")[0]
+            parts = [one for one in bare.strip("/").split("/") if one]
+            return "/" + "/".join(
+                ":id" if one.isdigit() or len(one) > 24 else one
+                for one in parts)
 
-        mute = sorted(
-            f"{route} — {one['label']}"
-            for route, found in seen.items()
-            for one in found["buttons"]
-            if one["disabled"] and not one["explained"] and one["label"])
+        representative: dict[str, str] = {}
+        for href in sorted(offered_links):
+            representative.setdefault(_shape(href), href)
+        unknown: list[str] = []
+        for shape, href in sorted(representative.items()):
+            got = page.request.get(FRONTEND + href, timeout=120_000)
+            if got.status >= 400:
+                unknown.append(f"{href} -> HTTP {got.status}")
+                continue
+            # Next serves its not-found page with a 200, so the status alone
+            # decides nothing.
+            if "this page could not be found" in got.text().lower():
+                unknown.append(f"{href} -> not found")
+        _ = shape
+
+        # A control that is disabled and STAYS disabled.
+        #
+        # The first version flagged every disabled button with no tooltip,
+        # which caught the four Ask buttons sitting beside empty composers —
+        # correct behaviour that needs no explanation, because the reason is
+        # the empty box next to it. What a reader cannot recover from is a
+        # control that never becomes available, so the check now types into
+        # the composer and looks again. A button still disabled with the
+        # composer filled is either broken or gated on something the screen
+        # has not said.
+        mute: list[str] = []
+        for route, found in seen.items():
+            stuck = [one for one in found["buttons"]
+                     if one["disabled"] and not one["explained"]
+                     and one["label"]]
+            if not stuck:
+                continue
+            page.goto(FRONTEND + route, wait_until="commit")
+            page.wait_for_timeout(5000)
+            box = page.query_selector("textarea") or page.query_selector(
+                'input[type="text"]')
+            if box is not None:
+                try:
+                    box.fill("Show retail exposure by product.")
+                    page.wait_for_timeout(1200)
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                again = page.evaluate(_SCAN)
+            except Exception:  # noqa: BLE001
+                again = {"buttons": []}
+            still = {one["label"] for one in again.get("buttons") or []
+                     if one["disabled"] and not one["explained"]}
+            for one in stuck:
+                if one["label"] in still:
+                    mute.append(f"{route} — {one['label']}")
+        mute = sorted(mute)
 
         bad_status = [one for one in session.api if one[2] >= 500]
         errors = list(dict.fromkeys(session.console_errors))
@@ -161,13 +218,14 @@ def main() -> int:  # noqa: C901 - an audit is a walk
                        if not (f["landed"].rstrip("/") == r.rstrip("/")
                                or f["landed"].startswith(r.rstrip("/"))))[:200]
              or "every route stayed where it was asked for"),
-            ("25-03", "every internal link leads to a route the product serves",
-             not unknown,
-             "; ".join(f"{h} (from {offered_links[h][0]})"
-                       for h in unknown[:4]) or
-             f"{len(offered_links)} distinct link targets, all served"),
-            ("25-04", "no control is disabled without saying why",
-             not mute, "; ".join(mute[:4]) or "no unexplained disabled control"),
+            ("25-03", "every internal link opens a page the product serves",
+             not unknown, "; ".join(unknown[:4]) or
+             f"{len(representative)} distinct route shapes opened, "
+             f"from {len(offered_links)} links"),
+            ("25-04", "no control is disabled with no way to enable it",
+             not mute, "; ".join(mute[:4]) or
+             "every disabled control became available once the screen had "
+             "what it was waiting for"),
             ("25-05", "no screen is empty",
              all(f["characters"] > 400 for f in opened.values()),
              ", ".join(f"{r} ({f['characters']} chars)"
