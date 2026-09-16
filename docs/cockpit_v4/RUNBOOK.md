@@ -348,13 +348,24 @@ The bound is on repeating.
 
 Two things worth knowing when reading a trace:
 
-- **"Query validated and bound"** means DuckDB was asked, with the step's own
-  parameters, and answered. It is emitted after the proof, never before.
-- **"did not bind and was not run"** is a different fact from **"failed while
-  running"**. A query that never bound executed nothing, and the trace says
-  which happened. Full detail — the DuckDB exception type, the binder message,
-  the submission number, the SQL and its parameters — is in the operator
-  record.
+- **"Query checked … also bound against the live tables, executing
+  nothing"** means DuckDB was asked, with the step's own parameters, and
+  answered. It is emitted after the proof, never before. The same line
+  states the declared grain and units as DECLARED: they are the analysis's
+  own words, echoed, and nothing has checked them against a result.
+- There are three ways a step can stop, and they are different facts.
+  **"failed while running"** is the only one where the engine executed
+  anything. **"did not bind and was not run"** is the binder's refusal.
+  **"was refused before it ran"** is a check's — a fan-out join, an
+  unavailable sandbox — and it happens before the query reaches the engine
+  at all. The step's `phase` says which (`runtime`, `bind`, `check`, or
+  `not_started` for a step the batch never reached) and `executed` is that
+  same fact, not a second opinion about it.
+- Full detail — the DuckDB exception type, the binder message, the join and
+  the measures a fan-out would double-count, the submission number, the SQL
+  and its parameters — is in the operator record, which every event names
+  as `detail_ref` and which
+  `GET /api/v1/cockpit-v4/runs/{run_id}/details/{detail_ref}` serves.
 
 ## Settings
 

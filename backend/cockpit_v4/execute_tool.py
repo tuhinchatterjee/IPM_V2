@@ -36,8 +36,9 @@ from backend.cockpit_v4.contracts import ExecutionSubmission, Rejection, Step
 from backend.cockpit_v4.provider import code_digest
 from backend.cockpit_v4.sqlbind import (BindFailure, parameter_argument,
                                         placeholders, prove_bindable)
-from backend.cockpit_v4.states import (PYTHON_UNAVAILABLE, SECURITY_DENIED,
-                                       SQL_RUNTIME, SQL_VALIDATION)
+from backend.cockpit_v4.states import (INTERNAL_ERROR, PYTHON_UNAVAILABLE,
+                                       SECURITY_DENIED, SQL_RUNTIME,
+                                       SQL_VALIDATION)
 
 #: Checks are named so a failure says WHICH one refused, not "invalid query".
 CHECK_STRUCTURE = "sql_structure"
@@ -47,6 +48,54 @@ CHECK_GRAIN = "join_grain"
 CHECK_DOMAIN = "domain_authorization"
 CHECK_RUNTIME = "runtime"
 CHECK_SANDBOX = "sandbox"
+#: `failed_check` on a step the batch never reached. Not checks, and not
+#: failures OF the step -- named here so the phase table below can be
+#: exhaustive over every value the field actually takes.
+CHECK_DEPENDENCY = "dependency"
+CHECK_BATCH = "batch"
+
+#: HOW FAR A STEP GOT BEFORE IT STOPPED. A LADDER, NOT A SET OF LABELS.
+#:
+#: "runtime" is the only rung on which the engine executed anything, so
+#: whether a step ran is not a second judgement about its failure -- it is
+#: this one, read again. That matters because the two used to be separate
+#: expressions over the same input, and separate expressions may disagree:
+#: a join-grain refusal was published as `phase="runtime"` AND
+#: `executed=true`, two wrong answers from two unrelated mistakes, about a
+#: batch in which the engine was never asked for anything.
+PHASE_NOT_STARTED = "not_started"
+PHASE_CHECK = "check"
+PHASE_BIND = "bind"
+PHASE_RUNTIME = "runtime"
+
+#: Where each refusal happens. Exhaustive by test: every CHECK_* constant in
+#: this module must appear here, because the cost of an omission is exactly
+#: the defect this table replaces -- `join_grain` and `sandbox` fell through
+#: a two-valued switch and were published as queries that ran.
+PHASE_OF_CHECK: dict[str, str] = {
+    CHECK_STRUCTURE: PHASE_CHECK,
+    CHECK_AUTHORIZATION: PHASE_CHECK,
+    CHECK_DOMAIN: PHASE_CHECK,
+    CHECK_GRAIN: PHASE_CHECK,
+    CHECK_SANDBOX: PHASE_CHECK,
+    CHECK_BIND: PHASE_BIND,
+    CHECK_RUNTIME: PHASE_RUNTIME,
+    CHECK_DEPENDENCY: PHASE_NOT_STARTED,
+    CHECK_BATCH: PHASE_NOT_STARTED,
+}
+
+#: The checks that refuse before the engine is asked for anything.
+REFUSED_BEFORE_EXECUTION: frozenset[str] = frozenset(
+    name for name, phase in PHASE_OF_CHECK.items() if phase != PHASE_RUNTIME)
+
+
+def phase_of(check: str) -> str:
+    """The rung a step reached, from the check that stopped it.
+
+    An unknown check reads as "check", never "runtime": a name this module
+    does not recognise cannot be evidence that a query ran.
+    """
+    return PHASE_OF_CHECK.get(str(check or ""), PHASE_CHECK)
 
 
 def column_units(catalog: Any, columns: list[str],
@@ -158,10 +207,25 @@ class StepResult:
     failed_check: str = ""
     message: str = ""
     elapsed_ms: int = 0
-    #: "bind" or "runtime". A query that never bound did not execute, and
-    #: the trace must not say it did.
+    #: The rung this step reached: "not_started", "check", "bind" or
+    #: "runtime". Empty means "derive it from `failed_check`", which is what
+    #: every caller should let it do. A query that never bound did not
+    #: execute, and the trace must not say it did.
     phase: str = ""
     engine_detail: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def reached_phase(self) -> str:
+        return self.phase or phase_of(self.failed_check)
+
+    @property
+    def ran(self) -> bool:
+        """Whether the engine executed this step's code.
+
+        One fact, read here and by `reached_phase`, so the two can never
+        contradict each other the way they used to.
+        """
+        return self.status == "ok" or self.reached_phase == PHASE_RUNTIME
 
     def to_dict(self) -> dict[str, Any]:
         out = {"step_id": self.step_id, "status": self.status,
@@ -191,11 +255,8 @@ class StepResult:
             out.update({"error_code": self.error_code,
                         "failed_check": self.failed_check,
                         "message": self.message,
-                        "phase": self.phase or ("bind"
-                                                if self.failed_check ==
-                                                CHECK_BIND else "runtime"),
-                        "executed": self.failed_check not in
-                        (CHECK_BIND, CHECK_STRUCTURE, CHECK_AUTHORIZATION)})
+                        "phase": self.reached_phase,
+                        "executed": self.ran})
         if self.warnings:
             out["warnings"] = self.warnings
         return out
@@ -301,6 +362,7 @@ class ExecutionService:
         for step in submission.steps:
             if step.language == "sql":
                 self._validate_sql(step)
+                self._check_join_grain(step)
                 if self._bindable_now(step):
                     self._prove_bindable(step)
                     bound.append(step.step_id)
@@ -309,6 +371,52 @@ class ExecutionService:
             else:
                 self._validate_python(step)
         return {"bound_now": bound, "bound_at_run_time": deferred}
+
+    def _check_join_grain(self, step: Step) -> None:
+        """An additive measure aggregated across a join that repeats it.
+
+        Checked HERE, with the other static checks, and no longer inside
+        `_run_sql`. It is a text-and-catalogue judgement -- no bound
+        parameters, no engine, no earlier artifact -- so there was never a
+        reason for it to wait until the step budget had been spent and the
+        run had publicly announced the very query it refuses.
+
+        Ordered AFTER `_validate_sql`, because it trusts relation names it
+        reads out of the text and must not lecture about join cardinality
+        when the real fault is that the query names the other book's table.
+        Ordered BEFORE `_prove_bindable`, because that one is skipped for
+        steps with dependencies -- putting grain after it would make the
+        refusal depend on whether a step happened to declare one.
+        """
+        if self.session is None:
+            return
+        try:
+            risk = v4_sql.multiplication_risk(step.code, self.session)
+        except Exception as exc:  # noqa: BLE001
+            # A DIAGNOSTIC THAT CANNOT RUN IS NOT AN ALL-CLEAR. This used to
+            # be `except Exception: risk = None`, which turned a broken
+            # check into a clean bill of health -- the one outcome a check
+            # must never produce. It is an operator's problem and is
+            # reported as one, so the reader is pointed at somebody who can
+            # fix it rather than asked to rewrite SQL that is not wrong.
+            raise Rejection(
+                INTERNAL_ERROR,
+                f"step {step.step_id} was not run: the join-grain check "
+                f"could not be completed ({exc}). Nothing was executed and "
+                f"the query was not modified.",
+                field_path=f"steps.{step.step_id}.code",
+                detail={"failed_check": CHECK_GRAIN, "phase": PHASE_CHECK,
+                        "check_completed": False}) from exc
+        if risk is None:
+            return
+        raise Rejection(
+            SQL_VALIDATION,
+            f"step {step.step_id}: {risk}",
+            field_path=f"steps.{step.step_id}.code",
+            detail={"failed_check": CHECK_GRAIN, "phase": PHASE_CHECK,
+                    "category": risk.category, "relation": risk.relation,
+                    "owning_domain": risk.domain_id,
+                    "explanation": risk.detail, **dict(risk.facts)})
 
     @staticmethod
     def _bindable_now(step: Step) -> bool:
@@ -432,7 +540,7 @@ class ExecutionService:
                     step_id=step.step_id, status="not_run",
                     language=step.language, code_digest=code_digest(step.code),
                     purpose=step.purpose, error_code="DEPENDENCY_FAILED",
-                    failed_check="dependency",
+                    failed_check=CHECK_DEPENDENCY,
                     message=(f"not run: it depends on {blocked}, which "
                              f"failed. Earlier successful steps are "
                              f"preserved."))
@@ -454,7 +562,10 @@ class ExecutionService:
                     language=step.language, code_digest=code_digest(step.code),
                     purpose=step.purpose, error_code=exc.code,
                     failed_check=exc.check, message=exc.message,
-                    phase="bind" if exc.check == CHECK_BIND else "runtime",
+                    # `phase` is NOT passed. It is derived from the check,
+                    # in one place, so a check added later cannot land in
+                    # the wrong rung by default -- which is how `join_grain`
+                    # and `sandbox` came to be published as queries that ran.
                     engine_detail=dict(exc.detail))
                 failed.add(step.step_id)
             result.elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -471,7 +582,7 @@ class ExecutionService:
                         language=later.language,
                         code_digest=code_digest(later.code),
                         purpose=later.purpose, error_code="BATCH_STOPPED",
-                        failed_check="batch",
+                        failed_check=CHECK_BATCH,
                         message=("not run: an earlier step in this batch "
                                  "failed.")))
                 break
@@ -501,20 +612,15 @@ class ExecutionService:
             raise StepFailed(SQL_VALIDATION, CHECK_BIND, exc.message,
                              detail=exc.detail()) from exc
 
-        warnings: list[str] = []
-        try:
-            risk = v4_sql.multiplication_risk(step.code, self.session)
-        except v4_sql.SqlRejected as exc:
-            # A demonstrable repetition trap is a refusal, not a warning. The
-            # analyst is told exactly which join and why.
-            raise StepFailed(SQL_VALIDATION, CHECK_GRAIN, str(exc)) from exc
-        except Exception:  # noqa: BLE001
-            risk = None
-        if isinstance(risk, Exception):
-            raise StepFailed(SQL_VALIDATION, CHECK_GRAIN, str(risk))
-        if risk:
-            warnings.append(str(risk))
-
+        # The join-grain check used to sit here, between the bind and the
+        # execution, with three branches around it that could not run: an
+        # `except` for an exception `multiplication_risk` never raises, an
+        # `except Exception: risk = None` that turned a broken diagnostic
+        # into a clean bill of health, and a `warnings.append` the branch
+        # above it had already made unreachable. It is a judgement about the
+        # query TEXT, so it now lives with the other static checks in
+        # `validate_batch` -- where it refuses before the step budget is
+        # spent and before the run announces the query as checked.
         try:
             result = self._execute_sql(step, deadline_seconds=deadline_seconds)
         except v4_sql.SqlRejected as exc:
@@ -537,6 +643,7 @@ class ExecutionService:
             columns=columns, rows=result.rows, code_digest=digest)
         self.artifacts[step.step_id] = artifact_id
 
+        warnings: list[str] = []
         preview_columns = columns[:self.limits.preview_columns]
         if len(columns) > self.limits.preview_columns:
             warnings.append(

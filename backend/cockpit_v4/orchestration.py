@@ -42,6 +42,8 @@ from backend.cockpit_v4.contracts import (BATCHABLE, MAX_BATCHED_READS,
                                           parse_intent,
                                           parse_product_knowledge,
                                           TOOL_PRODUCT, units_display)
+from backend.cockpit_v4 import execute_tool as xt
+from backend.cockpit_v4.run_store import redact as _store_redact
 from backend.cockpit_v4.execute_tool import (ExecutionService,
                                              no_progress_key)
 from backend.cockpit_v4.finalization import Finalizer
@@ -1229,6 +1231,14 @@ class Orchestrator:
             carried=self.intent)
         self._record_intent(submission.intent)
 
+        # Computed before the check, because a submission REFUSED has to be
+        # recorded under the same key as one that failed while running. A
+        # rejection used to be filed with an empty key, so an analyst that
+        # resubmitted a byte-identical query which the checks refuse was not
+        # caught by NO_PROGRESS -- only one that got as far as the engine
+        # was. Moving the join-grain check up into validation is what makes
+        # that hole reachable, so it is closed here.
+        key = no_progress_key(submission, release_id=self.run.release_id)
         try:
             bind_report = self.execution_service.validate_batch(submission)
         except Rejection as rejection:
@@ -1239,7 +1249,7 @@ class Orchestrator:
             submission_id = self.store.record_submission(
                 run_id=self.run.run_id, ordinal=ordinal, round=0,
                 payload=submission.to_dict(), status="rejected",
-                no_progress_key="")
+                no_progress_key=key)
             detail = dict(rejection.detail or {})
             self._remember_failure(
                 stage="validating", code=rejection.code,
@@ -1268,8 +1278,6 @@ class Orchestrator:
                     **detail}))
             raise
         self.ledger.spend_steps(len(submission.steps))
-        key = no_progress_key(submission,
-                              release_id=self.run.release_id)
         try:
             self.ledger.no_progress_check(key)
         except BudgetExceeded as exc:
@@ -1292,18 +1300,65 @@ class Orchestrator:
         self.emitter.append(
             ev.TOOL_VALIDATED, stage="validating", operation=TOOL_EXECUTE,
             status=ev.STATUS_OK, submission=ordinal, round=round_no,
+            # WHAT WAS PROVEN, AND WHAT WAS ONLY STATED.
+            #
+            # This used to read "Query validated and bound: N step(s), X
+            # grain, Y units", which claimed three things it had not earned.
+            # "Bound" is true only of the steps that reached EXPLAIN, and the
+            # grain and the units are the ANALYST'S OWN declared strings --
+            # echoed here, never checked against anything. A reader who is
+            # told the units were validated has been told the server agreed
+            # with a number it has not seen.
             public_message=(
-                f"Query validated and bound: {len(submission.steps)} step(s), "
-                f"{submission.expected_output_grain} grain, "
-                f"{units_display(submission.expected_units)}."
-                + (f" {len(deferred)} step(s) bind against earlier results "
-                   f"and are proven as they run." if deferred else "")),
+                f"Query checked: {len(submission.steps)} step(s) passed the "
+                f"structure, table-access and join-grain checks; {proven} "
+                f"also bound against the live tables, executing nothing."
+                + (f" {len(deferred)} step(s) read an earlier result and are "
+                   f"bound as they run." if deferred else "")
+                + f" Grain and units — {submission.expected_output_grain}, "
+                  f"{units_display(submission.expected_units)} — are as the "
+                  f"analysis declared them and are not proven here."),
             detail_ref=self._detail({
                 "objective": submission.objective,
                 "submission_id": submission_id,
                 "bind_proof": {"method": "DuckDB EXPLAIN, nothing executed",
+                               "covers": ("every relation, column, alias, "
+                                          "function, GROUP BY position and "
+                                          "ORDER BY term, with the step's "
+                                          "own parameter values"),
                                "proven_before_execution": proven,
                                "proven_at_run_time": deferred},
+                # SHORT NAMES, NOT THE CHECK CONSTANTS. Two scanners read
+                # this body as text and both key on the substring
+                # "authorization": the store's redaction, which would
+                # replace the description with "[redacted]", and the
+                # evidence-trace generator, which refuses to publish a file
+                # containing it. `CHECK_AUTHORIZATION` is spelled
+                # "relation_authorization", so naming it here trips both --
+                # and loosening a credential scanner to fit a label is the
+                # wrong way round. The canonical name still travels on a
+                # FAILURE, as `failed_check`; this is the passing side, and
+                # what it owes the reader is English.
+                "checks_passed": {
+                    "structure": ("one SELECT, parsed; no forbidden keyword "
+                                  "or function"),
+                    "relations": ("every FROM/JOIN name is a relation this "
+                                  "domain is allowed to read"),
+                    "join_grain": ("no additive measure is aggregated across "
+                                   "a join the catalogue says repeats the "
+                                   "row carrying it")},
+                "not_proven": [
+                    "that any row exists, that the query completes within "
+                    "its deadline, or how it behaves against resource "
+                    "limits",
+                    f"the declared output grain and units "
+                    f"({submission.expected_output_grain!r}, "
+                    f"{units_display(submission.expected_units)}): the "
+                    f"analysis's own statement, echoed and never checked "
+                    f"against the result",
+                    *([f"steps {deferred} were not bound: they read an "
+                       f"earlier result and are bound as they run."]
+                      if deferred else [])],
                 "steps": [{"step_id": s.step_id, "language": s.language,
                            "purpose": s.purpose, "code": s.code,
                            "parameters": s.parameters}
@@ -1334,37 +1389,51 @@ class Orchestrator:
                         "artifact_id": result.artifact_id,
                         "warnings": result.warnings}))
             elif phase == "failed":
-                bound = result.phase != "bind"
+                # THREE OUTCOMES, BECAUSE THERE ARE THREE. The engine ran it
+                # and it failed; the binder refused it; a check refused it
+                # before either was asked. This used to be a two-way test on
+                # `phase != "bind"`, which called every refusal that was not
+                # the binder's a query that had run.
+                reached, ran = result.reached_phase, result.ran
+                said = {
+                    xt.PHASE_RUNTIME: f"{step.purpose} failed while running.",
+                    xt.PHASE_BIND: (f"{step.purpose} did not bind and was "
+                                    f"not run."),
+                    xt.PHASE_CHECK: (f"{step.purpose} was refused before it "
+                                     f"ran. Nothing was executed."),
+                }.get(reached, f"{step.purpose} was not run.")
+                prefix = {
+                    xt.PHASE_RUNTIME: "failed while running — ",
+                    xt.PHASE_BIND: "did not bind — ",
+                    xt.PHASE_CHECK: "was refused before running — ",
+                }.get(reached, "was not run — ")
                 self._remember_failure(
                     stage="executing", code=result.error_code,
                     summary=(f"step {step.step_id} of submission {ordinal} "
-                             + ("failed while running — "
-                                if bound else "did not bind — ")
-                             + result.message),
-                    detail={"submission": ordinal, "step_id": step.step_id,
-                            "phase": result.phase,
-                            **dict(result.engine_detail or {})})
+                             + prefix + result.message),
+                    # The engine's own diagnostic goes FIRST, so the derived
+                    # facts always win. `BindFailure.detail()` carries its
+                    # own "phase" key and used to overwrite this one -- they
+                    # agree today, and nothing required them to.
+                    detail={**dict(result.engine_detail or {}),
+                            "submission": ordinal, "step_id": step.step_id,
+                            "phase": reached, "executed": ran})
                 self.emitter.append(
                     ev.TOOL_FAILED, stage="executing",
                     operation=step.step_id, status=ev.STATUS_FAILED,
                     submission=ordinal, round=round_no,
-                    # A query that never bound did not run, and the trace
-                    # must not imply that it did.
-                    public_message=(
-                        f"{step.purpose} failed while running."
-                        if bound else
-                        f"{step.purpose} did not bind and was not run."),
+                    public_message=said,
                     detail_ref=self._detail({
+                        **dict(result.engine_detail or {}),
                         "step_id": step.step_id,
-                        "phase": result.phase or "runtime",
-                        "executed": bound,
+                        "phase": reached,
+                        "executed": ran,
                         "failed_check": result.failed_check,
                         "error_code": result.error_code,
                         "message": result.message,
                         "parameters": step.parameters,
                         "submitted_code": step.code,
-                        "failed_code_digest": result.code_digest,
-                        **dict(result.engine_detail or {})}))
+                        "failed_code_digest": result.code_digest}))
 
         batch = self.execution_service.run_batch(
             submission, submission_id=submission_id,
@@ -1732,32 +1801,12 @@ def _mode_label(mode: str) -> str:
             "UNSUPPORTED": "Not supported here"}.get(mode, mode)
 
 
-_SECRET_HINTS = ("api_key", "apikey", "authorization", "cookie", "token",
-                 "secret", "password", "credential")
-
-
-def _redact(body: Any) -> Any:
-    """Strip anything that looks like a secret before it is persisted.
-
-    Operator diagnostics may name a model and a request id. They may never
-    carry a key, a cookie, an authorization header or an environment dump --
-    and this runs on the way IN, so a downloadable trace cannot leak one.
-    """
-    if isinstance(body, dict):
-        out = {}
-        for key, value in body.items():
-            if any(hint in str(key).lower() for hint in _SECRET_HINTS):
-                out[key] = "[redacted]"
-            else:
-                out[key] = _redact(value)
-        return out
-    if isinstance(body, list):
-        return [_redact(v) for v in body]
-    if isinstance(body, str) and len(body) > 20:
-        lowered = body.lower()
-        if lowered.startswith(("sk-", "bearer ")):
-            return "[redacted]"
-    return body
+#: Re-exported from `run_store`, where the redaction now runs: it belongs at
+#: the write, not at one of the writers. Two callers reached `put_detail`
+#: without passing through this, which is how 8 KB of a reader's own question
+#: text got into the details table unfiltered. Kept importable under this
+#: name because it is a named guarantee with its own test.
+_redact = _store_redact
 
 
 __all__ = ["Cancelled", "Orchestrator", "Outcome"]

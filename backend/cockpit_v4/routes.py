@@ -460,6 +460,39 @@ async def read_artifact(run_id: str, artifact_id: str,
             "executed_code_digest": record["code_digest"]}
 
 
+@router.get("/runs/{run_id}/details/{detail_ref}")
+async def read_detail(run_id: str, detail_ref: str,
+                      who: dict[str, Any] = Depends(principal)
+                      ) -> dict[str, Any]:
+    """The operator record an event points at.
+
+    Every process event may carry a `detail_ref` -- which model, which
+    allowance, which check refused and with what evidence. Twenty-odd places
+    write one; until now nothing could read one back, so an operator looking
+    at a failed run saw `dt-3f9a1c…` on screen and had nowhere to take it.
+    The reference was a promise the API did not keep.
+
+    Scoped exactly like a result artifact: the run is authorized first, and
+    then the record's own `run_id` must match. A `detail_ref` is not a
+    bearer token, and one from somebody else's run is NOT FOUND rather than
+    forbidden -- the same refusal `_authorize` gives, for the same reason.
+
+    These bodies are redacted on the way in, at `RunStore.put_detail`. This
+    route reads what was stored; it does not filter afterwards, because a
+    filter applied at read time protects only the readers who go through it.
+    """
+    _authorize(run_id, who)
+    record = _store().get_detail(detail_ref)
+    if record is None or record.get("run_id") != run_id:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such detail record."})
+    return {"run_id": run_id, "detail_ref": detail_ref,
+            "body": record.get("body") or {},
+            "note": ("Operator diagnostics. Public operations and their "
+                     "outcomes -- never a credential, and never the model's "
+                     "private reasoning.")}
+
+
 # ---- the schema, browsable per book -------------------------------------
 
 @router.get("/schema")

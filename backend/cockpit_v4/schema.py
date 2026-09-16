@@ -41,6 +41,37 @@ class UnknownField(LookupError):
     """A column this relation does not define."""
 
 
+#: EVERY UNIT THIS CATALOGUE USES GETS A STATED VERDICT.
+#:
+#: `Field.additive` used to name four units on each side and return
+#: "not_additive" for everything else, so a unit it had never heard of was
+#: indistinguishable from one deliberately judged non-additive. Three of the
+#: eleven units actually in use reached their answer that way, and one of
+#: them was wrong: `notches` is a signed count of rating grades, `display`
+#: already classes it with `count`, and published prose already totals it
+#: ("a net movement of +7 notches"), yet the catalogue said it could not be
+#: added. `test_field_units.py` asserts this pair covers the whole
+#: catalogue, so the next inventively-spelled unit fails a test instead of
+#: quietly becoming something nobody may sum.
+ADDITIVE_UNITS: frozenset[str] = frozenset({
+    "rcy",        # an amount in the release's reporting currency
+    "count",      # a number of things
+    "days",       # already additive before this; left as it was
+    "months",     # likewise
+    "notches",    # rating grades moved -- signed, and summed in reports
+})
+
+#: Stated, not inferred. `''` is every string and categorical column: a
+#: sector name is not a quantity. `percentage points` is a difference of two
+#: percentages and shares their arithmetic. `years` is a tenor -- averaged
+#: across facilities, never totalled.
+NOT_ADDITIVE_UNITS: frozenset[str] = frozenset({
+    "", "percent", "percentage points", "probability_0_1", "fraction_0_1",
+    "fraction", "share", "rate_0_1", "percentage", "pct", "times", "ratio",
+    "multiple", "x", "index", "rank", "years",
+})
+
+
 @dataclass(frozen=True)
 class Field:
     name: str
@@ -72,12 +103,19 @@ class Field:
 
     @property
     def additive(self) -> str:
+        """Whether this column's values may be added up.
+
+        Read from the unit, with an author's explicit `aggregation` winning.
+        Both verdicts are STATED above rather than one being a fallthrough,
+        so "nobody has classified this unit" and "this unit may not be
+        summed" stop being the same answer.
+        """
         if self.aggregation:
             return self.aggregation
-        if self.unit in ("rcy", "count", "days", "months"):
+        if self.unit in ADDITIVE_UNITS:
             return "additive"
-        if self.unit in ("percent", "probability_0_1", "times", "index"):
-            return "not_additive"
+        # Unstated units land here with the safe verdict. `test_field_units`
+        # is what stops one staying unstated.
         return "not_additive"
 
     def to_dict(self) -> dict[str, Any]:

@@ -76,13 +76,21 @@ class SqlRejected(Exception):
 
     def __init__(self, category: str, message: str, *,
                  unresolved: str = "", relation: str = "",
-                 domain_id: str = "", detail: str = "") -> None:
+                 domain_id: str = "", detail: str = "",
+                 facts: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.category = category
         self.unresolved = unresolved
         self.relation = relation
         self.domain_id = domain_id
+        #: Prose, for the person reading the trace.
         self.detail = detail
+        #: The same statement as DATA, for everything that is not a person:
+        #: the two relations, their grains, the key and the measures. The
+        #: prose is assembled by f-string and will be re-worded; a test that
+        #: has to regex an English sentence to learn which measure was at
+        #: risk is a test that passes when the sentence is wrong.
+        self.facts = dict(facts or {})
 
 
 # ------------------------------------------------------------- 1. structure
@@ -223,8 +231,14 @@ _DISTINCTING = re.compile(
     r"\b(distinct|group\s+by|qualify|row_number|partition\s+by)\b", re.I)
 
 #: Units whose values are added up, and therefore double-counted by a join
-#: that repeats the row carrying them.
-_ADDITIVE_UNITS = ("rcy", "count")
+#: that repeats the row carrying them. `notches` belongs here for the same
+#: reason `count` does: a rating movement is a signed integer number of
+#: grade steps, it is summed across a book -- "a net movement of +7
+#: notches" -- and a join that repeats the borrower row inflates that total
+#: exactly as it inflates an exposure. `days` and `months` are deliberately
+#: out: a tenor repeated is wrong arithmetic, but nobody reports a total of
+#: it.
+_ADDITIVE_UNITS = ("rcy", "count", "notches")
 
 
 def additive_measures(domain_id: str, relation: str) -> tuple[str, ...]:
@@ -267,6 +281,16 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
         many, one = str(join["left"]), str(join["right"])
         if many not in named or one not in named:
             continue
+        # A JOIN THE CATALOGUE SAYS REPEATS NOTHING REFUSES NOTHING.
+        #
+        # `retail_behaviour_month -> retail_account_month` is declared "one
+        # behaviour row to one account", and its own note says "this join
+        # repeats nothing" -- yet every pair here was being read as many-to
+        # -one, so summing an account's exposure across it was refused. The
+        # fact was already stated in the catalogue; this check simply was
+        # not reading it.
+        if str(join.get("cardinality", "")).lower().startswith("one "):
+            continue
         # The COARSER side is the one repeated by the join, so its additive
         # measures are the ones a total would count more than once.
         at_risk = [m for m in additive_measures(domain_id, one)
@@ -297,7 +321,11 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
                     f"CreditProbe does not choose the de-duplication: "
                     f"aggregating one side before joining, counting distinct "
                     f"keys, or a window function are all valid and only the "
-                    f"question decides which."))
+                    f"question decides which."),
+            facts={"many_relation": many, "many_grain": many_grain,
+                   "one_relation": one, "one_grain": one_grain,
+                   "join_key": list(join.get("on", ())),
+                   "measures_at_risk": list(at_risk)})
     return None
 
 

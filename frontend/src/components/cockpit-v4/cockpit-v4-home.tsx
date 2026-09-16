@@ -278,7 +278,7 @@ export function CockpitV4Home() {
           >
             Every figure in an answer is bound to a query that actually ran.
             The process panel in the conversation shows each stage as it
-            happens — the metadata read, the query validated and bound, the
+            happens — the metadata read, the query checked and bound, the
             rows returned, any attempt that failed — and each stored result
             can be opened from the answer. Nothing is asserted that has no
             evidence behind it.

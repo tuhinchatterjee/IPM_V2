@@ -16,7 +16,6 @@ import pytest
 from conftest import intent
 
 from backend.cockpit_v4 import precision as prec
-from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.config import STANDARD_LIMITS
 from backend.cockpit_v4.contracts import Rejection, parse_execution
 
@@ -106,19 +105,23 @@ def test_borrower_financials_are_not_multiplied_by_facilities(
                     "parameters": {}, "purpose": "p",
                     "input_artifact_ids": [], "depends_on_step_ids": []}],
          "repair_of_submission_id": ""}, max_steps=6)
-    try:
-        service.validate_batch(submission)
-        inflated = service.run_batch(submission, submission_id="sub-2",
-                                     deadline_seconds=20.0)
-        if inflated.status == "ok":
-            got = rows_of(store_db, inflated)[0]["total"]
-            assert not close(got, expected), (
-                "the joined form should NOT equal the borrower-grain total; "
-                "if it does, this release has one facility per borrower and "
-                "the test proves nothing")
-    except Rejection as exc:
-        # Refusing it outright is the stronger outcome and equally correct.
-        assert exc.code == st.SQL_VALIDATION
+    # WHY THIS ONE IS NOT REFUSED, STATED RATHER THAN TOLERATED.
+    #
+    # This used to sit in a try/except that accepted either outcome -- ran
+    # and inflated, or refused -- which read like a choice and was not one.
+    # The join-grain check is driven by the catalogue's declared joins, and
+    # this fixture is the LEGACY catalogue, which states none. So the check
+    # is silent here and always was, and the test that pins the refusal is
+    # `test_join_grain_refusal.py`, against a book that declares its joins.
+    service.validate_batch(submission)
+    inflated = service.run_batch(submission, submission_id="sub-2",
+                                 deadline_seconds=20.0)
+    assert inflated.status == "ok", inflated.steps[0].message
+    got = rows_of(store_db, inflated)[0]["total"]
+    assert not close(got, expected), (
+        "the joined form should NOT equal the borrower-grain total; if it "
+        "does, this release has one facility per borrower and the test "
+        "proves nothing")
 
 
 def test_shared_collateral_is_counted_at_its_allocated_share(

@@ -854,6 +854,17 @@ class RunStore:
         return int(row["s"])
 
     def put_detail(self, run_id: str, body: dict[str, Any]) -> str:
+        """Write one operator-only record, redacted on the way IN.
+
+        The redaction lives HERE, at the write, and not at the callers. It
+        used to live on the orchestrator's `_detail` helper, and two writers
+        -- the allowance envelope and the question-normalization report,
+        which stores 8 KB of the reader's own text -- reached the table
+        without passing through it. A guarantee that a caller can decline to
+        honour is not a guarantee, and it became a live one the moment a
+        route existed that could read these bodies back.
+        """
+        body = redact(body)
         ref = f"dt-{uuid.uuid4().hex[:16]}"
         with self._tx() as conn:
             conn.execute(
@@ -1448,5 +1459,36 @@ class RunStore:
 
 
 
+
+#: Key names whose value is never persisted, at any depth.
+_SECRET_HINTS = ("api_key", "apikey", "authorization", "cookie", "token",
+                 "secret", "password", "credential")
+
+
+def redact(body: Any) -> Any:
+    """Strip anything that looks like a secret before it is persisted.
+
+    Operator diagnostics may name a model and a request id. They may never
+    carry a key, a cookie, an authorization header or an environment dump --
+    and this runs on the way IN, so a downloadable trace cannot leak one.
+    """
+    if isinstance(body, dict):
+        out = {}
+        for key, value in body.items():
+            if any(hint in str(key).lower() for hint in _SECRET_HINTS):
+                out[key] = "[redacted]"
+            else:
+                out[key] = redact(value)
+        return out
+    if isinstance(body, list):
+        return [redact(v) for v in body]
+    if isinstance(body, str) and len(body) > 20:
+        lowered = body.lower()
+        if lowered.startswith(("sk-", "bearer ")):
+            return "[redacted]"
+    return body
+
+
 __all__ = ["IdempotencyConflict", "LeaseLost", "RunRecord", "RunStore",
-           "SCHEMA_VERSION", "StorageUnavailable", "TerminalAlready"]
+           "SCHEMA_VERSION", "StorageUnavailable", "TerminalAlready",
+           "redact"]

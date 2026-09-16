@@ -209,7 +209,8 @@ the right-side drawer, and Continue where you left off. The reference for the
 layout is `docs/cockpit_v4/evidence/cockpit_v4_landing.png`.
 
 **B.** "What is total exposure at default by sector in the latest quarter?" —
-no clarification asked, the binder proven before "Query validated and bound",
+no clarification asked, the binder proven before the query was announced
+as checked,
 the query executed, the result matching `oracles.ead_by_sector`, and the whole
 run inside the 120-second / $1.50 analytical allowance.
 

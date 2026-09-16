@@ -130,8 +130,13 @@ did not honour.
   unguarded cross join over the whole book returns in about three
   milliseconds.
 - `validate_batch` proves every step that can be bound now, and returns which
-  were proven and which bind against earlier results. The event now reads
-  **"Query validated and bound"**, and it is only emitted after the proof.
+  were proven and which bind against earlier results. The event reads
+  **"Query checked: N step(s) passed the structure, authorization and
+  join-grain checks; M also bound against the live tables, executing
+  nothing"**, and it is only emitted after the proof. It used to say
+  "validated and bound", which claimed the whole batch was bound when only
+  the non-deferred steps were, and printed the declared grain and units as
+  though the server had agreed with them.
 - `_execute_sql` passes the same parameters to the engine, so the contract is
   honoured end to end.
 
