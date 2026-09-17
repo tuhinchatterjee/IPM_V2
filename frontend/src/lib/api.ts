@@ -3270,6 +3270,206 @@ export interface ThreadMessage {
   created_at: string | null;
 }
 
+/* ------------------------------------------------ retail investigations */
+
+/** One of the five prompts above the composer. */
+export interface EpisodeChipRow {
+  step: string;
+  label: string;
+  prompt: string;
+  chart: string;
+  visited: boolean;
+  suggested_next: boolean;
+  scope: string;
+}
+
+/**
+ * A frozen cohort.
+ *
+ * `customer_ids` is deliberately absent unless the caller asked for it: a
+ * banner needs counts and a provenance line, not eleven thousand customer
+ * numbers, and a payload that carries them by habit leaks them by habit.
+ */
+export interface CohortSnapshotView {
+  snapshot_id: string;
+  case_id: string;
+  occurrence_id: string;
+  thread_id: string;
+  step_id: string;
+  source_as_of: string;
+  source_bundle_id: string;
+  dataset_hashes: Record<string, string>;
+  versions: Record<string, string>;
+  metric_definitions: Array<Record<string, unknown>>;
+  root_scope: string;
+  scope: string;
+  root_predicate: Record<string, unknown>;
+  predicate: Record<string, unknown>;
+  customer_count: number;
+  facility_count: number;
+  selection_mode: string;
+  facility_mode: string;
+  restricted_count: number;
+  content_hash: string;
+  parent_snapshot_id: string;
+  visited_steps: string[];
+  purpose: string;
+  totals: Record<string, number>;
+  created_at: string | null;
+  contract_version: string;
+  customer_ids?: string[];
+  facility_ids?: string[];
+}
+
+export interface InvestigationNoteView {
+  note_id: string;
+  version: number;
+  body: string;
+  author: string;
+  author_user_id: number | null;
+  created_at: string | null;
+  /** Always true. A note is content somebody typed, never an instruction. */
+  untrusted_content: boolean;
+  note: string;
+}
+
+/**
+ * The observed default rate on a saved card.
+ *
+ * `state` is "not_yet_observed" where the outcome window has not completed,
+ * and the card shows that rather than a number. A fabricated rate on a card
+ * somebody glances at is worse than no figure, because it will be quoted.
+ */
+export interface SavedOdr {
+  state: "observed" | "not_yet_observed";
+  label: string;
+  value: number | null;
+  numerator: number | null;
+  denominator: number | null;
+  window: string;
+  because?: string;
+  source_snapshot_id?: string;
+  definition?: string;
+}
+
+export interface SavedInvestigationView {
+  saved_id: string;
+  version: number;
+  snapshot_id: string;
+  case_id: string;
+  occurrence_id: string;
+  thread_id: string;
+  source_step: string;
+  title: string;
+  issue: string;
+  segment: string;
+  state: "draft" | "saved";
+  pinned: boolean;
+  noticed_at: string | null;
+  saved_at: string | null;
+  created_at: string | null;
+  customer_count: number;
+  facility_count: number;
+  odr: SavedOdr;
+  totals: Record<string, number>;
+  share_scope: string;
+  notes: InvestigationNoteView[];
+  note_count: number;
+  notes_preview: string;
+  snapshot: CohortSnapshotView | null;
+}
+
+export interface CohortFacilityRow {
+  facility_id: string;
+  product: string;
+  subproduct: string;
+  /** Whether this facility is in the investigation's financial baseline. */
+  included: boolean;
+  included_because: string;
+  stage: number | null;
+  dpd: number | null;
+  gca_sar: number | null;
+  ead_sar: number | null;
+  ecl_sar: number | null;
+  pd_12m: number | null;
+  pd_lifetime: number | null;
+  lgd: number | null;
+  behavioural_score: number | null;
+  application_score: number | null;
+  application_score_band: string;
+  credit_impaired: boolean;
+}
+
+export interface CohortCustomerRow {
+  customer_id: string;
+  issue: string;
+  segment?: string;
+  included_facilities?: number;
+  context_facilities?: number;
+  gca_sar?: number;
+  ead_sar?: number;
+  ecl_sar?: number;
+  worst_stage?: number;
+  max_dpd?: number;
+  behavioural_score?: number | null;
+  application_score?: number | null;
+  /** Says why no single probability is shown, where one would mislead. */
+  pd_12m_basis?: string;
+  pd_12m?: number | null;
+  ews?: {
+    series: Array<{
+      month: string;
+      score: number | null;
+      band: string;
+      state: string;
+    }>;
+    coverage?: Record<string, unknown>;
+  };
+  facilities: CohortFacilityRow[];
+  state: string;
+  because?: string;
+}
+
+export interface CohortCustomerPage {
+  available: boolean;
+  because?: string;
+  snapshot_id?: string;
+  case_id?: string;
+  as_of?: string;
+  issue?: string;
+  rows: CohortCustomerRow[];
+  offset: number;
+  limit: number;
+  total: number;
+  facility_total?: number;
+  pagination_note?: string;
+}
+
+export interface CohortWhatIfView {
+  snapshot_id: string;
+  case_id: string;
+  issue: string;
+  source_step: string;
+  as_of: string;
+  bundle_id: string;
+  current_bundle_id: string;
+  baseline: Record<string, unknown> | null;
+  reconciliation: {
+    reconciled: boolean;
+    available: boolean;
+    differences: Array<Record<string, unknown>>;
+    because?: string;
+    gate?: string;
+  };
+  may_simulate: boolean;
+  bundle_matches?: boolean;
+  stale_bundle?: string;
+  scenario: Record<string, unknown>;
+  return_to: Record<string, string>;
+  versions: Record<string, string>;
+  never: string;
+}
+
 /** An Investigation: a conversation, and what it has settled. */
 export interface Thread {
   id: number;
@@ -7325,6 +7525,103 @@ export const api = {
   // The screen at /borrower-360 reads these. The corporate endpoints it used
   // to read answer 503 on this installation, because the book behind them was
   // retired by the conversion.
+  // ---- retail investigations: cohorts, saved lists and their exports ----
+  /** The five prompts above the composer, with what has been visited. */
+  episodeChips: (caseId: string, visited: string[] = []) =>
+    request<{
+      case_id: string;
+      title: string;
+      countercheck: string;
+      rows: EpisodeChipRow[];
+    }>(
+      `/retail/investigations/chips/${encodeURIComponent(caseId)}` +
+        (visited.length ? `?visited=${encodeURIComponent(visited.join(","))}` : ""),
+    ),
+  /** Freeze one step's customers into an immutable cohort. */
+  cohortFromStep: (body: {
+    case_id: string;
+    step: string;
+    month?: string;
+    thread_id?: string;
+  }) =>
+    request<{
+      snapshot: CohortSnapshotView;
+      saved: SavedInvestigationView;
+      card: Record<string, unknown>;
+    }>("/retail/cohorts/from-step", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  cohort: (snapshotId: string) =>
+    request<{ snapshot: CohortSnapshotView; totals: Record<string, unknown> }>(
+      `/retail/cohorts/${encodeURIComponent(snapshotId)}`,
+    ),
+  cohortCustomers: (snapshotId: string, offset = 0, limit = 50) =>
+    request<CohortCustomerPage>(
+      `/retail/cohorts/${encodeURIComponent(snapshotId)}/customers` +
+        `?offset=${offset}&limit=${limit}`,
+    ),
+  cohortSelect: (
+    snapshotId: string,
+    body: { customer_ids: string[]; facility_mode?: string },
+  ) =>
+    request<{
+      snapshot: CohortSnapshotView;
+      saved: SavedInvestigationView;
+      totals: Record<string, number>;
+    }>(`/retail/cohorts/${encodeURIComponent(snapshotId)}/select`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  cohortWhatIf: (snapshotId: string) =>
+    request<CohortWhatIfView>(
+      `/retail/cohorts/${encodeURIComponent(snapshotId)}/whatif`,
+    ),
+  cohortToWhatIf: (snapshotId: string) =>
+    request<CohortWhatIfView & { selection_id: string }>(
+      `/retail/cohorts/${encodeURIComponent(snapshotId)}/to-whatif`,
+      { method: "POST" },
+    ),
+  retailRecentInvestigations: (limit = 12) =>
+    request<{ rows: SavedInvestigationView[] }>(
+      `/retail/investigations/recent?limit=${limit}`,
+    ),
+  retailReopenInvestigation: (savedId: string, version?: number) =>
+    request<{
+      saved: SavedInvestigationView;
+      versions: Array<{
+        version: number;
+        snapshot_id: string;
+        customer_count: number;
+        created_at: string | null;
+      }>;
+      totals: Record<string, unknown>;
+    }>(
+      `/retail/investigations/${encodeURIComponent(savedId)}` +
+        (version ? `?version=${version}` : ""),
+    ),
+  retailSaveInvestigation: (savedId: string, body: { title?: string; pinned?: boolean }) =>
+    request<{ saved: SavedInvestigationView }>(
+      `/retail/investigations/${encodeURIComponent(savedId)}/save`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  retailRefreshInvestigation: (savedId: string) =>
+    request<{
+      saved: SavedInvestigationView;
+      previous: Record<string, unknown>;
+      note: string;
+    }>(`/retail/investigations/${encodeURIComponent(savedId)}/refresh`, {
+      method: "POST",
+    }),
+  retailAddInvestigationNote: (savedId: string, body: string, subjectId = "") =>
+    request<{ note: InvestigationNoteView }>(
+      `/retail/investigations/${encodeURIComponent(savedId)}/notes`,
+      {
+        method: "POST",
+        body: JSON.stringify({ body, subject_id: subjectId }),
+      },
+    ),
+
   retailCustomers: (q: string, month: string, limit = 25) =>
     request<RetailCustomerSearch>(
       `/retail/customers${qs({ q, month, limit: String(limit) })}`,

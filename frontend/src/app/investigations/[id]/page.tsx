@@ -7,6 +7,7 @@ import { Globe, Pencil, Share2, Sparkles } from "lucide-react";
 import { AnswerBlock, FollowUps } from "@/components/ask/answer";
 import { ShareButton } from "@/components/collaboration/share";
 import { CaseContext } from "@/components/attention/case-context";
+import { EpisodeChips } from "@/components/attention/episode-chips";
 import { BackLink } from "@/components/layout/back-link";
 import { ClarificationCard } from "@/components/ask/clarification";
 import {
@@ -101,6 +102,36 @@ function Thread({ threadId }: { threadId: number }) {
   );
 
   const projectId = thread?.project_id ?? null;
+
+  /**
+   * Which retail story this thread is, and how far through it the reader is.
+   *
+   * Read from the messages rather than kept in component state, because the
+   * thread is the record: a reader who reloads, or who comes back a week
+   * later, has to see the same visited markers as the reader who never left.
+   * Holding it in state would make the markers a property of this browser tab.
+   */
+  const episode = React.useMemo(() => {
+    const seed = (thread?.context?.risk_case ?? null) as
+      | { about?: string; entity_id?: string }
+      | null;
+    if (!seed || seed.about !== "retail_episode" || !seed.entity_id) {
+      return { caseId: "", visited: [] as string[], currentStep: "S0" };
+    }
+    const visited = new Set<string>(["S0"]);
+    for (const message of thread?.messages ?? []) {
+      const payload = message.payload as Record<string, unknown> | undefined;
+      const step = payload?.detail as { step?: string } | undefined;
+      if (step?.step) visited.add(step.step);
+    }
+    const order = ["S0", "S1", "S2", "S3", "S4", "S5"];
+    const reached = order.filter((s) => visited.has(s));
+    return {
+      caseId: seed.entity_id,
+      visited: reached,
+      currentStep: reached[reached.length - 1] ?? "S0",
+    };
+  }, [thread?.context, thread?.messages]);
 
   // §6: a Back that returns you to turn nine of a fourteen-turn thread has to
   // land ON turn nine. The thread is fetched after the navigation completes, so
@@ -270,7 +301,20 @@ function Thread({ threadId }: { threadId: number }) {
       )}
 
       {/* The composer is present after every answer, not only at the start. */}
-      <div className="sticky bottom-0 -mx-10 bg-canvas px-10 pb-6 pt-4">
+      <div className="sticky bottom-0 -mx-10 space-y-3 bg-canvas px-10 pb-6 pt-4">
+        {/* The five prompts and the export, for a thread opened from one of
+            the retail stories. Absent everywhere else, so a thread that is
+            not one of these is the thread it has always been. */}
+        {episode.caseId ? (
+          <EpisodeChips
+            caseId={episode.caseId}
+            threadId={threadId}
+            visited={episode.visited}
+            currentStep={episode.currentStep}
+            onAsk={(prompt) => ask(prompt)}
+            busy={asking}
+          />
+        ) : null}
         <Composer
           value={draft}
           onChange={setDraft}

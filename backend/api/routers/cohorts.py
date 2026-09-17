@@ -453,3 +453,22 @@ def to_whatif(snapshot_id: str, principal: Principal = Caller
         selection = cohort_whatif.to_selection(
             snapshot, created_by=str(principal.user_id or ""))
         return {"selection_id": selection.selection_id, **found}
+
+
+@saved_router.get("/chips/{case_id}", summary="The five prompts for a story")
+def chips(case_id: str, visited: str = "",
+          principal: Principal = Caller) -> dict[str, Any]:
+    """The prompts above the composer, with what has been visited.
+
+    Served rather than hardcoded in the interface for the reason the whole
+    episode config is generated: the prompts are the specification's own
+    sentences, and a second copy of them in TypeScript is a second place for
+    them to stop matching what the backend actually answers.
+    """
+    episode = ep.by_id(case_id.upper())
+    if episode is None:
+        raise _refused(f"No story {case_id!r} is published here.")
+    seen = [s.strip().upper() for s in visited.split(",") if s.strip()]
+    return {"case_id": episode.case_id, "title": episode.title,
+            "countercheck": episode.countercheck,
+            "rows": ea.chips(episode.case_id, seen)}

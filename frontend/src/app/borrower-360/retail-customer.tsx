@@ -28,6 +28,8 @@ import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { BackLink } from "@/components/layout/back-link";
+import { ImportedCohort } from "@/components/borrower-360/imported-cohort";
+import { RecentInvestigations } from "@/components/borrower-360/recent-investigations";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,6 +116,10 @@ export function RetailCustomer360() {
   const [month, setMonth] = React.useState(() => query.get("period") ?? "");
   const [customerId, setCustomerId] = React.useState(
     () => query.get("borrower") ?? query.get("customer") ?? "");
+  //: An investigation handed over an exact cohort. Read once as initial
+  //: state, like every other link parameter on this screen.
+  const [snapshotId, setSnapshotId] = React.useState(
+    () => query.get("snapshot") ?? "");
   const [text, setText] = React.useState("");
   const [results, setResults] = React.useState<RetailCustomerRow[]>([]);
   const [searching, setSearching] = React.useState(false);
@@ -191,6 +197,33 @@ export function RetailCustomer360() {
   const facility = (found?.facilities ?? []).find(
     (f) => String(f.facility_id) === facilityId) as
     Record<string, unknown> | undefined;
+
+  // An imported cohort replaces the search with the investigation's own list.
+  // Standalone searches are untouched: the enrichment belongs in the exported
+  // and saved context and nowhere else.
+  if (snapshotId) {
+    return (
+      <div className="space-y-5" data-testid="retail-customer-360">
+        <BackLink href="/early-warning" label="Early Warning Score" />
+        <PageHeader
+          eyebrow="Intelligence"
+          title="Customer 360 — imported investigation"
+          description={
+            "The exact customers an investigation exported, at the date it "
+            + "was measured. Standalone searches are unchanged; this view "
+            + "appears only for an exported or reopened cohort."
+          }
+        />
+        <ImportedCohort
+          snapshotId={snapshotId}
+          onClear={() => setSnapshotId("")}
+        />
+        <RecentInvestigations
+          onOpen={(snapshot) => setSnapshotId(snapshot)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5" data-testid="retail-customer-360">
@@ -663,6 +696,11 @@ export function RetailCustomer360() {
           </div>
         </>
       )}
+
+      {/* Below the search, on the ordinary screen as well: a reader who
+          arrives here without a cohort still has to be able to get back to one
+          they were working on. */}
+      <RecentInvestigations onOpen={(snapshot) => setSnapshotId(snapshot)} />
     </div>
   );
 }
