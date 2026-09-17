@@ -91,3 +91,4 @@ var/retail/
 !.env.example
 !.env.retail.example
 !.env.anb.example
+!.env.anb2.example

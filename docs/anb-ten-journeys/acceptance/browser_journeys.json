@@ -1,0 +1,1850 @@
+{
+ "base": "http://127.0.0.1:5334",
+ "api": "http://127.0.0.1:8334",
+ "cases": 10,
+ "passed": 10,
+ "checks": 340,
+ "checks_passed": 340,
+ "results": [
+  {
+   "case_id": "C01",
+   "passed": true,
+   "seconds": 47.8,
+   "screenshots": [
+    "C01-01-cockpit.png",
+    "C01-02-thread.png",
+    "C01-03-thread-answered.png",
+    "C01-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2289 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C01"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=47.91"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 14, \"created\": true, \"question\": \"Why has the Credit Card population in 1-29 DPD risen at 2026-08, and where is it concentrated?\", \"case\": {\"id\": 1, \"case_key\": \"rc_3fd98af5e57c\","
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Split 1\u201329 DPD into 1\u20139, 10\u201319 and 20\u201329 days and show the six-month trend. Is this merely short payment timing?\",\"plan"
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Split 1\\u201329 DPD into 1\\u20139, 10\\u201319 and 20\\u201329 days and show the six-month trend. Is this merely short payment timing?\", \"plan\": {\"question\":"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"How have the same 20\u201329 DPD customers\u2019 behavioral scores changed? Keep their original application scores separate.\",\"pl"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"How have the same 20\\u201329 DPD customers\\u2019 behavioral scores changed? Keep their original application scores separate.\", \"plan\": {\"question\": \"How ha"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Could the score fall just be the DPD input? Decompose it by model variable and show which non-arrears changes preceded "
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Could the score fall just be the DPD input? Decompose it by model variable and show which non-arrears changes preceded the missed payment.\", \"plan\": {\"ques"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Where is this stress concentrated by subproduct and original score band, after controlling for vintage and statement cy"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Where is this stress concentrated by subproduct and original score band, after controlling for vintage and statement cycle?\", \"plan\": {\"question\": \"Where i"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C01-S4-202608-5840FED2\",\"case_id\":\"C01\",\"occurrence_id\":\"C01\",\"thread_id\":\"14\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "1251"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\n1-29 DPD account share \u2014 S4\nLeave imported mode\nCase\nC01\nSource step\nS4\nReporting date\n2026-08\nScope\nAlpha Card and 1-29 days past due and utilisation at or above 90% and insid"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 614364 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-7A1E1E3AE5CD\",\"snapshot_id\":\"CPRA-C01-S4-202608-5840FED2\",\"case_id\":\"C01\",\"issue\":\"1-29 DPD account share\",\"source_step\":\"S4\",\"as_of\":\"20"
+    }
+   ]
+  },
+  {
+   "case_id": "C02",
+   "passed": true,
+   "seconds": 27.9,
+   "screenshots": [
+    "C02-01-cockpit.png",
+    "C02-02-thread.png",
+    "C02-03-thread-answered.png",
+    "C02-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2255 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C02"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=8.7589"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 15, \"created\": true, \"question\": \"Personal finance acquisition quality: cumulative default by mob6 at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare booking vintages at exactly month-on-book 6. Split first-default timing into MOB1\u20132 and MOB3\u20136, retaining the o"
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare booking vintages at exactly month-on-book 6. Split first-default timing into MOB1\\u20132 and MOB3\\u20136, retaining the original eligible populatio"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Return to the original application scores and decision-time features for this vintage. Were the customers weak when app"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Return to the original application scores and decision-time features for this vintage. Were the customers weak when approved?\", \"plan\": {\"question\": \"Retur"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Which application scorecard inputs and authorized exception codes explain the weak original profile? Use the model and "
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Which application scorecard inputs and authorized exception codes explain the weak original profile? Use the model and policy versions in force then.\", \"pl"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Within matched vintages, compare channels and exception combinations. Is the short-tenure/high-burden intersection genu"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Within matched vintages, compare channels and exception combinations. Is the short-tenure/high-burden intersection genuinely overrepresented?\", \"plan\": {\"q"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C02-S4-202608-A39BA9BA\",\"case_id\":\"C02\",\"occurrence_id\":\"C02\",\"thread_id\":\"15\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "35"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nCumulative default by MOB6 \u2014 S4\nLeave imported mode\nCase\nC02\nSource step\nS4\nReporting date\n2026-08\nScope\nmatured MOB6 vintage and first default by month-on-book 6 and verificat"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 39967 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-882761EB1818\",\"snapshot_id\":\"CPRA-C02-S4-202608-A39BA9BA\",\"case_id\":\"C02\",\"issue\":\"Cumulative default by MOB6\",\"source_step\":\"S4\",\"as_of\""
+    }
+   ]
+  },
+  {
+   "case_id": "C03",
+   "passed": true,
+   "seconds": 41.1,
+   "screenshots": [
+    "C03-01-cockpit.png",
+    "C03-02-thread.png",
+    "C03-03-thread-answered.png",
+    "C03-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2246 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C03"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=89.2488"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 16, \"created\": true, \"question\": \"Employer payroll interruption: two-cycle apparent payroll shortfall share at 2026-08: break the issue apart and show where it is concentrated.\", "
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Split apparent payroll shortfalls into account switches, calendar/posting effects and verified multi-cycle interruption"
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Split apparent payroll shortfalls into account switches, calendar/posting effects and verified multi-cycle interruptions. Compare matched payroll dates.\", "
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Were these borrowers sound at origination? Compare original application scores with current payroll continuity, liquidi"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Were these borrowers sound at origination? Compare original application scores with current payroll continuity, liquidity and behavioral scores.\", \"plan\": "
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Decompose the behavioral fall and date the payroll and cash-buffer changes before arrears. Which customers have verifie"
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Decompose the behavioral fall and date the payroll and cash-buffer changes before arrears. Which customers have verified alternative salary receipts?\", \"pl"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Rank employer concentrations using affected employees divided by all financed employees. Compare similar employer types"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Rank employer concentrations using affected employees divided by all financed employees. Compare similar employer types and regions.\", \"plan\": {\"question\":"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C03-S4-202608-7345A379\",\"case_id\":\"C03\",\"occurrence_id\":\"C03\",\"thread_id\":\"16\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "845"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nTwo-cycle apparent payroll shortfall share \u2014 S4\nLeave imported mode\nCase\nC03\nSource step\nS4\nReporting date\n2026-08\nScope\nfinanced employees and 2 or more missing payroll cycles"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 423155 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-E9701B121774\",\"snapshot_id\":\"CPRA-C03-S4-202608-7345A379\",\"case_id\":\"C03\",\"issue\":\"Two-cycle apparent payroll shortfall share\",\"source_st"
+    }
+   ]
+  },
+  {
+   "case_id": "C04",
+   "passed": true,
+   "seconds": 40.6,
+   "screenshots": [
+    "C04-01-cockpit.png",
+    "C04-02-thread.png",
+    "C04-03-thread-answered.png",
+    "C04-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2235 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C04"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=88.1197"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 17, \"created\": true, \"question\": \"Top-up debt stacking: verified affordability-stress share at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {\"id\": 4"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Split monthly obligations into this bank, other lenders and verified BNPL installments. Separate real growth from repor"
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Split monthly obligations into this bank, other lenders and verified BNPL installments. Separate real growth from reporting-lag and duplicate-line effects."
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare approval-time affordability and original application inputs with current verified monthly obligations for the s"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare approval-time affordability and original application inputs with current verified monthly obligations for the same customers.\", \"plan\": {\"question\""
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"How much score deterioration comes from new debt and weaker repayments, rather than DPD or refreshed bureau coverage?\","
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"How much score deterioration comes from new debt and weaker repayments, rather than DPD or refreshed bureau coverage?\", \"plan\": {\"question\": \"How much scor"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Is the short interval since the last top-up plus increased external debt more risky than either factor alone? Compare m"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Is the short interval since the last top-up plus increased external debt more risky than either factor alone? Compare matched borrowers.\", \"plan\": {\"questi"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C04-S4-202608-64BCFB7F\",\"case_id\":\"C04\",\"occurrence_id\":\"C04\",\"thread_id\":\"17\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "772"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nVerified affordability-stress share \u2014 S4\nLeave imported mode\nCase\nC04\nSource step\nS4\nReporting date\n2026-08\nScope\ntop-up borrowers and verified obligations at or above 50% of i"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 390673 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-C78B7C758654\",\"snapshot_id\":\"CPRA-C04-S4-202608-64BCFB7F\",\"case_id\":\"C04\",\"issue\":\"Verified affordability-stress share\",\"source_step\":\"S4"
+    }
+   ]
+  },
+  {
+   "case_id": "C05",
+   "passed": true,
+   "seconds": 26.6,
+   "screenshots": [
+    "C05-01-cockpit.png",
+    "C05-02-thread.png",
+    "C05-03-thread-answered.png",
+    "C05-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2249 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C05"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=medium exposure=0.4005"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 18, \"created\": true, \"question\": \"Auto balloon funding cliff: unfunded balloon due within 90 days share at 2026-08: break the issue apart and show where it is concentrated.\", \"cas"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Show 0\u201330, 31\u201360 and 61\u201390 day final-payment ladders with liquid funding, sale plans and actually approved refinancing."
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Show 0\\u201330, 31\\u201360 and 61\\u201390 day final-payment ladders with liquid funding, sale plans and actually approved refinancing.\", \"plan\": {\"question"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Inspect the original balloon-inclusive affordability assessment and compare current liquidity and behavioral scores.\",\""
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Inspect the original balloon-inclusive affordability assessment and compare current liquidity and behavioral scores.\", \"plan\": {\"question\": \"Inspect the or"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Distinguish the contractual final-payment exposure from behavioral-score variables. What evidence supports inability to"
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Distinguish the contractual final-payment exposure from behavioral-score variables. What evidence supports inability to fund it?\", \"plan\": {\"question\": \"Di"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare maturity month, balloon band, liquidity coverage and original LTV. Which intersection has the highest normalize"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare maturity month, balloon band, liquidity coverage and original LTV. Which intersection has the highest normalized shortfall?\", \"plan\": {\"question\": "
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C05-S4-202608-503CC2C3\",\"case_id\":\"C05\",\"occurrence_id\":\"C05\",\"thread_id\":\"18\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "11"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nUnfunded balloon due within 90 days share \u2014 S4\nLeave imported mode\nCase\nC05\nSource step\nS4\nReporting date\n2026-08\nScope\nballoon due within the window and verified coverage belo"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 29370 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-6B093155FE5B\",\"snapshot_id\":\"CPRA-C05-S4-202608-503CC2C3\",\"case_id\":\"C05\",\"issue\":\"Unfunded balloon due within 90 days share\",\"source_ste"
+    }
+   ]
+  },
+  {
+   "case_id": "C06",
+   "passed": true,
+   "seconds": 35.6,
+   "screenshots": [
+    "C06-01-cockpit.png",
+    "C06-02-thread.png",
+    "C06-03-thread-answered.png",
+    "C06-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2275 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C06"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=50.193"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 19, \"created\": true, \"question\": \"Used-auto recovery deterioration: material lgd revision share at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {\"id"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Reconcile ECL change into PD, LGD, EAD, stage, recovery timing and interaction effects. Which component is actually mat"
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Reconcile ECL change into PD, LGD, EAD, stage, recovery timing and interaction effects. Which component is actually material?\", \"plan\": {\"question\": \"Recon"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Show borrower scores and PD as controls. Has default propensity deteriorated enough to explain the ECL movement?\",\"plan"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Show borrower scores and PD as controls. Has default propensity deteriorated enough to explain the ECL movement?\", \"plan\": {\"question\": \"Show borrower scor"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Hold PD/exposure fixed and decompose collateral value, costs and recovery-delay effects. Are any recovery costs or disc"
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Hold PD/exposure fixed and decompose collateral value, costs and recovery-delay effects. Are any recovery costs or discounts counted twice?\", \"plan\": {\"que"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare recovery outcomes by vehicle age, mileage, condition and recovery channel using matched realized cohorts.\",\"pla"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare recovery outcomes by vehicle age, mileage, condition and recovery channel using matched realized cohorts.\", \"plan\": {\"question\": \"Compare recovery "
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C06-S4-202608-DD8A4EB3\",\"case_id\":\"C06\",\"occurrence_id\":\"C06\",\"thread_id\":\"19\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "399"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nMaterial LGD revision share \u2014 S4\nLeave imported mode\nCase\nC06\nSource step\nS4\nReporting date\n2026-08\nScope\nused-vehicle book and expected net proceeds at or below 80% of the val"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 217773 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-72CB65D9A0C0\",\"snapshot_id\":\"CPRA-C06-S4-202608-DD8A4EB3\",\"case_id\":\"C06\",\"issue\":\"Material LGD revision share\",\"source_step\":\"S4\",\"as_of"
+    }
+   ]
+  },
+  {
+   "case_id": "C07",
+   "passed": true,
+   "seconds": 30.3,
+   "screenshots": [
+    "C07-01-cockpit.png",
+    "C07-02-thread.png",
+    "C07-03-thread-answered.png",
+    "C07-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2272 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C07"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=high exposure=114.813"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 20, \"created\": true, \"question\": \"Self-construction cash-flow strain: verified >90-day delay with low buffer share at 2026-08: break the issue apart and show where it is concentra"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Split construction stages and delay bands, then distinguish households paying rent alongside finance from those without"
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Split construction stages and delay bands, then distinguish households paying rent alongside finance from those without overlap.\", \"plan\": {\"question\": \"Sp"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare original underwriting with current household liquidity and behavioral scores. Was the risk weak at inception or"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare original underwriting with current household liquidity and behavioral scores. Was the risk weak at inception or did cash flow change?\", \"plan\": {\"q"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Trace milestone delays, rent-finance overlap and cash-buffer decline in time. Exclude rate repricing where the contract"
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Trace milestone delays, rent-finance overlap and cash-buffer decline in time. Exclude rate repricing where the contract is fixed.\", \"plan\": {\"question\": \"T"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Which project, construction stage and overlap-expense intersection drives the normalized stress and exposure?\",\"plan\":{"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Which project, construction stage and overlap-expense intersection drives the normalized stress and exposure?\", \"plan\": {\"question\": \"Which project, constr"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C07-S4-202608-E14E370F\",\"case_id\":\"C07\",\"occurrence_id\":\"C07\",\"thread_id\":\"20\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "90"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nC07 \u2014 S4\nLeave imported mode\nCase\nC07\nSource step\nS4\nReporting date\n2026-08\nScope\nself-construction book and milestone delay beyond 90 days and under 1 month of buffer and veri"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 69319 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-F116FA6D7E5F\",\"snapshot_id\":\"CPRA-C07-S4-202608-E14E370F\",\"case_id\":\"C07\",\"issue\":\"Verified >90-day delay with low buffer share\",\"source_"
+    }
+   ]
+  },
+  {
+   "case_id": "C08",
+   "passed": true,
+   "seconds": 31.0,
+   "screenshots": [
+    "C08-01-cockpit.png",
+    "C08-02-thread.png",
+    "C08-03-thread-answered.png",
+    "C08-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2279 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C08"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=high exposure=151.4632"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 21, \"created\": true, \"question\": \"Housing-support reconciliation gaps: unmatched expected support-payment share at 2026-08: break the issue apart and show where it is concentrated"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Separate eligibility changes, payable-but-unmatched support, settlement delay and unverified claims; compare one-cycle "
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Separate eligibility changes, payable-but-unmatched support, settlement delay and unverified claims; compare one-cycle and repeated gaps.\", \"plan\": {\"quest"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare customer-funded payments and behavioral scores before and after the gap; separate technical-only from financial"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare customer-funded payments and behavioral scores before and after the gap; separate technical-only from financially stressed customers.\", \"plan\": {\"q"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Reconcile expected support, actual credits and the household-funded shortfall before attributing score deterioration.\","
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Reconcile expected support, actual credits and the household-funded shortfall before attributing score deterioration.\", \"plan\": {\"question\": \"Reconcile exp"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Which reconciliation failure code and verified support arrangement concentrates the unresolved amount and household str"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Which reconciliation failure code and verified support arrangement concentrates the unresolved amount and household strain?\", \"plan\": {\"question\": \"Which r"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C08-S4-202608-F3291242\",\"case_id\":\"C08\",\"occurrence_id\":\"C08\",\"thread_id\":\"21\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "115"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nC08 \u2014 S4\nLeave imported mode\nCase\nC08\nSource step\nS4\nReporting date\n2026-08\nScope\nsupported mortgages and 2 or more unresolved cycles and verification reached verified corrobor"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 81966 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-0D2B9E5AE865\",\"snapshot_id\":\"CPRA-C08-S4-202608-F3291242\",\"case_id\":\"C08\",\"issue\":\"Unmatched expected support-payment share\",\"source_step"
+    }
+   ]
+  },
+  {
+   "case_id": "C09",
+   "passed": true,
+   "seconds": 29.8,
+   "screenshots": [
+    "C09-01-cockpit.png",
+    "C09-02-thread.png",
+    "C09-03-thread-answered.png",
+    "C09-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2299 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C09"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=11.0609"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 22, \"created\": true, \"question\": \"Salary-to-pension affordability: verified pension affordability-gap share at 2026-08: break the issue apart and show where it is concentrated.\", "
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Show the verified transition-date ladder and pension projections; separate contracts with an affordable step-down from "
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Show the verified transition-date ladder and pension projections; separate contracts with an affordable step-down from unchanged payments.\", \"plan\": {\"ques"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Inspect the original salary/pension affordability assumptions and the new documented income, not age as a stand-alone r"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Inspect the original salary/pension affordability assumptions and the new documented income, not age as a stand-alone risk proxy.\", \"plan\": {\"question\": \"I"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Decompose the changed repayment capacity into verified pension, other income, obligations and contract step-down. Which"
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Decompose the changed repayment capacity into verified pension, other income, obligations and contract step-down. Which changes are compulsory versus volun"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare documented transition cohorts by payment profile and replacement-income ratio, excluding already-affordable adj"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare documented transition cohorts by payment profile and replacement-income ratio, excluding already-affordable adjusted contracts.\", \"plan\": {\"questio"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C09-S4-202608-2E911D00\",\"case_id\":\"C09\",\"occurrence_id\":\"C09\",\"thread_id\":\"22\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "124"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nC09 \u2014 S4\nLeave imported mode\nCase\nC09\nSource step\nS4\nReporting date\n2026-08\nScope\ndocumented transition and documented pension replacing 80% or less of verified income and tota"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 84895 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-11E6A4A82D55\",\"snapshot_id\":\"CPRA-C09-S4-202608-2E911D00\",\"case_id\":\"C09\",\"issue\":\"Verified pension affordability-gap share\",\"source_step"
+    }
+   ]
+  },
+  {
+   "case_id": "C10",
+   "passed": true,
+   "seconds": 29.7,
+   "screenshots": [
+    "C10-01-cockpit.png",
+    "C10-02-thread.png",
+    "C10-03-thread-answered.png",
+    "C10-04-borrower-360.png"
+   ],
+   "failures": [],
+   "checks": [
+    {
+     "check": "the Cockpit lists at least ten cases",
+     "passed": true,
+     "detail": "2303 characters on the page"
+    },
+    {
+     "check": "the story has a card on the Cockpit",
+     "passed": true,
+     "detail": "16 cards, none for C10"
+    },
+    {
+     "check": "the card carries severity and exposure",
+     "passed": true,
+     "detail": "severity=critical exposure=20.2085"
+    },
+    {
+     "check": "Investigate opens a thread",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the thread has an id",
+     "passed": true,
+     "detail": "{\"investigation_id\": 23, \"created\": true, \"question\": \"Restructure redefault and cure governance: six-month post-restructure redefault rate at 2026-08: break the issue apart and show where it is conce"
+    },
+    {
+     "check": "the thread opens on the carried case context",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "all five prompt chips are on screen",
+     "passed": true,
+     "detail": "5 of 5 chips located"
+    },
+    {
+     "check": "the export sits beside them",
+     "passed": true,
+     "detail": "no export control in the thread toolbar"
+    },
+    {
+     "check": "S1 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Match restructures at six months of observation, then split redefaults by payment holiday, installment relief and cure "
+    },
+    {
+     "check": "S1 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Match restructures at six months of observation, then split redefaults by payment holiday, installment relief and cure evidence.\", \"plan\": {\"question\": \"Ma"
+    },
+    {
+     "check": "S2 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Compare original underwriting, restructure-time affordability and subsequent behavior. What evidence justified the cure"
+    },
+    {
+     "check": "S2 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Compare original underwriting, restructure-time affordability and subsequent behavior. What evidence justified the cure or stage decision?\", \"plan\": {\"ques"
+    },
+    {
+     "check": "S3 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Trace holiday expiry, residual budgets and broken commitments before redefault; evaluate the cure decision against the "
+    },
+    {
+     "check": "S3 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Trace holiday expiry, residual budgets and broken commitments before redefault; evaluate the cure decision against the policy then in force.\", \"plan\": {\"qu"
+    },
+    {
+     "check": "S4 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"Which restructure strategy and approval exception produces excess redefault after matching distressed vintages and init"
+    },
+    {
+     "check": "S4 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"Which restructure strategy and approval exception produces excess redefault after matching distressed vintages and initial severity?\", \"plan\": {\"question\":"
+    },
+    {
+     "check": "S5 answers",
+     "passed": true,
+     "detail": "HTTP 200 {\"status\":\"succeeded\",\"run\":{\"question\":\"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\",\"plan\":{\"question\":\"What"
+    },
+    {
+     "check": "S5 is computed, not a decline",
+     "passed": true,
+     "detail": "{\"status\": \"succeeded\", \"run\": {\"question\": \"What should we do next? Give a sequenced action plan linked to the applicable policy clauses.\", \"plan\": {\"question\": \"What should we do next? Give a sequen"
+    },
+    {
+     "check": "the answered thread still offers its prompts",
+     "passed": true,
+     "detail": "the prompt row is gone after answering"
+    },
+    {
+     "check": "the answers are on the page",
+     "passed": true,
+     "detail": "CreditProbeAI\nGOVERNED LOCAL READER\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy works"
+    },
+    {
+     "check": "the cohort exports from a step",
+     "passed": true,
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C10-S4-202608-AB0EF5C1\",\"case_id\":\"C10\",\"occurrence_id\":\"C10\",\"thread_id\":\"23\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+    },
+    {
+     "check": "the export carries customers",
+     "passed": true,
+     "detail": "162"
+    },
+    {
+     "check": "the export is capped at the visited steps",
+     "passed": true,
+     "detail": "['S0', 'S1', 'S2', 'S3', 'S4']"
+    },
+    {
+     "check": "Borrower 360 opens in imported mode",
+     "passed": true,
+     "detail": "no imported-cohort banner on the page"
+    },
+    {
+     "check": "the imported list names its scope, date and snapshot",
+     "passed": true,
+     "detail": "IMPORTED INVESTIGATION\n\nC10 \u2014 S4\nLeave imported mode\nCase\nC10\nSource step\nS4\nReporting date\n2026-08\nScope\nmatured arrangements and redefaulted within six months and verification reached verified corro"
+    },
+    {
+     "check": "the customer rows are on screen",
+     "passed": true,
+     "detail": "no customer rows rendered"
+    },
+    {
+     "check": "the recent-investigation cards are below it",
+     "passed": true,
+     "detail": "no recent cards"
+    },
+    {
+     "check": "the investigation saves",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the saved investigation reopens",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the workbook downloads",
+     "passed": true,
+     "detail": "HTTP 200 95002 bytes"
+    },
+    {
+     "check": "the workbook is capped at the visited steps",
+     "passed": true,
+     "detail": "S0,S1,S2,S3,S4"
+    },
+    {
+     "check": "the What-If scope loads",
+     "passed": true,
+     "detail": "HTTP 200"
+    },
+    {
+     "check": "the What-If baseline reconciles",
+     "passed": true,
+     "detail": "[]"
+    },
+    {
+     "check": "the scope hands over to What-If",
+     "passed": true,
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-CE4E422A4EE5\",\"snapshot_id\":\"CPRA-C10-S4-202608-AB0EF5C1\",\"case_id\":\"C10\",\"issue\":\"Six-month post-restructure redefault rate\",\"source_ste"
+    }
+   ]
+  }
+ ]
+}
