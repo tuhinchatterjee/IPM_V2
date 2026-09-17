@@ -28,6 +28,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { RetiredScreen } from "@/components/layout/retired-screen";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RetailChallengerPage } from "@/components/whatif/challenger";
+import { api } from "@/lib/api";
 import { isRetail } from "@/lib/profile";
 
 /** The methods the retail engine runs, keyed as the API keys them. */
@@ -98,6 +99,33 @@ export default function RetailMethodPage() {
   }
   if (!method) return notFound();
 
+  return <MethodPage methodKey={key} title={method.title} blurb={method.blurb} />;
+}
+
+function MethodPage({ methodKey, title, blurb }: {
+  methodKey: string; title: string; blurb: string;
+}) {
+  // The version that actually produced this method's numbers, read from the
+  // endpoint that owns it rather than written on the page. A version typed
+  // into a screen goes stale the first time the model is refitted — which is
+  // exactly what happened to the challenger, where a stale copy in one table
+  // disagreed with the artifact on disk.
+  const [version, setVersion] = React.useState<string>("");
+  React.useEffect(() => {
+    let alive = true;
+    api.retailMethodologies().then(
+      (got) => {
+        if (!alive) return;
+        const one = (got.methods ?? []).find((m) => m.key === methodKey);
+        setVersion(one?.version ?? "");
+      },
+      () => undefined,
+    );
+    return () => { alive = false; };
+  }, [methodKey]);
+  const key = methodKey;
+  const method = { title, blurb };
+
   return (
     <div className="p-6">
       {/* Back to the What-If screen the reader came from. The browser's own
@@ -108,6 +136,12 @@ export default function RetailMethodPage() {
         eyebrow="What-If"
         description={method.blurb}
       />
+      <p className="mb-4 text-[11.5px] text-text-muted">
+        Methodology version{" "}
+        <code data-testid="retail-method-version">{version || "…"}</code>
+        {" "}— the one that produced this method&rsquo;s figures, read from the
+        engine rather than written on the page.
+      </p>
       {key === "xgboost" ? <RetailChallengerPage /> : <DeltaMethod />}
 
       <p className="mt-6 text-[11.5px] text-text-muted">

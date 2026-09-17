@@ -30,6 +30,16 @@ from backend.retail.config import load_config
 DELTA = "delta"
 CHALLENGER = "xgboost"
 
+def _challenger_version() -> str:
+    """The stored challenger's version, from the registry that owns it."""
+    try:
+        from backend.retail.challenger_registry import CHALLENGER_VERSION
+
+        return CHALLENGER_VERSION
+    except Exception:  # noqa: BLE001 - a method list must not fail to build
+        return "unavailable"
+
+
 METHODS: dict[str, dict[str, str]] = {
     DELTA: {
         "key": DELTA,
@@ -44,7 +54,15 @@ METHODS: dict[str, dict[str, str]] = {
     CHALLENGER: {
         "key": CHALLENGER,
         "name": "XGBoost challenger",
-        "version": "retail-whatif-challenger-1.1.0",
+        # Read from the registry, not held here.
+        #
+        # This said 1.1.0 while the stored artifact said 2.0.0, so a single
+        # challenger result carried BOTH: `version` from this table and
+        # `model_version` from the card it actually scored with. A reader
+        # asking which version produced a number got a different answer
+        # depending on which field they read, and the wrong one was the
+        # copy that no longer matched any model on disk.
+        "version": _challenger_version(),
         "what": ("A gradient-boosted scenario estimator fitted on the book's "
                  "own relationship between risk parameters and loss. It "
                  "answers the same question by a different route. The result "

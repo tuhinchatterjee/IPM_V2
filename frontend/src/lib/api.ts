@@ -7788,6 +7788,16 @@ export const api = {
     ),
 
   // ---- the What-If challenger's model page (§10.2) ----
+  /** The retail What-If's methods, each with the version that produced it. */
+  retailMethodologies: () =>
+    request<{
+      methodology_version: string;
+      supported: string[];
+      staging_modes: string[];
+      methods: { key: string; name: string; version: string; what: string;
+                 authority: string }[];
+      disclosure?: string;
+    }>("/retail/whatif/methodologies"),
   retailChallenger: () =>
     request<ChallengerModel>("/retail/whatif/models/challenger",
                              { timeoutMs: LAKE_TIMEOUT_MS }),

@@ -1544,10 +1544,16 @@ class ScenarioIn(BaseModel):
 
 @router.get("/whatif/methodologies", summary="What the retail What-If supports")
 def methodologies() -> dict:
+    from backend.retail import whatif_cohort as cohort
+
     return {
         "methodology_version": wif.METHODOLOGY_VERSION,
         "supported": wif.SUPPORTED_METHODOLOGIES,
         "staging_modes": [wif.FROZEN_STAGE, wif.REEVALUATE_STAGE],
+        # Each method with the version that actually produced its numbers.
+        # The method page has to name a version, and the only defensible
+        # place to read it from is the module that owns the model.
+        "methods": list(cohort.METHODS.values()),
         "disclosure": SYNTHETIC_DISCLOSURE,
     }
 

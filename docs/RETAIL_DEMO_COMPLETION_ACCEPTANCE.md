@@ -185,8 +185,8 @@ commit:
 
 | ID | Gate | How it was decided | Status |
 |---|---|---|---|
-| MODEL-01 | Clickable Delta model page | `/what-if/models/delta` opens and documents the identity it recalculates | PASS |
-| MODEL-02 | The Delta page names its version | `retail-whatif-1.0.0`, on the page and on every result | PASS |
+| MODEL-01 | Clickable Delta model page | **The route in this row was wrong.** `/what-if/models/delta` is a CORPORATE route and retires itself in a retail installation, so this gate was recorded against a page a retail reader cannot open. The retail Delta page is `/what-if/methods/delta`, opened in a browser by `phase9_method_routes.py` check C-01, which reads "calculation of record" off it | PASS |
+| MODEL-02 | The Delta page names its version | **Not satisfied when first recorded**: the retail method page named no version at all. It now reads it from `/retail/whatif/methodologies`, the endpoint that owns it, rather than carrying a copy — `retail-whatif-1.0.0` for Delta and `retail-whatif-challenger-2.0.0` for the challenger, both confirmed on screen | PASS |
 | MODEL-03 | Clickable XGBoost page | `/what-if/models/ml` renders the retail challenger. Previously it retired itself with a claim that had stopped being true | PASS |
 | MODEL-04 | Six tabs | model card, features, performance, artifact, worked example, rebuild — each opened and its content read | PASS |
 | MODEL-05 | A persisted artifact | one directory per book holding the estimator, the feature list in training order, the library and the metrics | PASS |
@@ -316,6 +316,8 @@ only ever says PASS teaches nobody anything about how much to trust it.
 | CONTENT-02 | 200 investigations | 200 was a page of 50 misread; the real figure was 1,005, of which 633 were repeats left by acceptance runs | counted from the database; 148 seeded, 370 total after the tidy |
 | CONTENT-07 | corporate analyses and empty investigations removed | a thread created by a suite has messages, so the rule kept all 857 of them | widened to unfiled duplicate questions, keeping the most recent of each |
 | NAV-05 | character count per route | an error boundary is not an empty screen | unchanged, but marked as weak, with the check that actually covers it named |
+| MODEL-01 | a route that opens | the route named is corporate and retires itself in retail; a retail reader could never have opened it | the retail route, opened in a browser |
+| MODEL-02 | a version string quoted from the code | the page did not display it, and a second copy of the challenger version had gone stale against the artifact on disk | the page reads it from the owning endpoint; both versions confirmed on screen |
 
 One regression was introduced during this work and is recorded here because
 the release smoke is what caught it. The §27 startup warm-up swept every
