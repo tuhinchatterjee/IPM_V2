@@ -146,18 +146,33 @@ def test_a_join_across_two_builds_is_refused():
 def test_a_failed_publication_leaves_the_previous_bundle_readable(tmp_path):
     """Proved by running the publisher against a tree it must reject.
 
-    The staging tree here holds only the canonical book, so the completeness
-    check fails before any swap. What matters is the state afterwards: the
-    previously published tree still there, still complete, still described by
-    its own catalogue.
+    The rejection has to come from a REAL check. An earlier version of this
+    gate staged a tree holding only the canonical book and expected the
+    completeness check to refuse it — and it did refuse, but for the wrong
+    reason: the publisher was reading a manifest out of the metadata directory
+    and the fixture had none, so it died on a missing file before validating
+    anything. The moment the manifest was measured from the tree instead, the
+    publisher built the derived datasets into that staging tree, the
+    completeness check was satisfied, and the publication went through.
+
+    So the tree staged here is complete and WRONG: its latest month carries a
+    duplicated facility. That fails "a facility-month is unique", which is the
+    check that exists because every total in the product is a sum over that
+    grain. What matters afterwards is the state: the previously published tree
+    still there, still complete, still described by its own catalogue.
     """
     import shutil
     import subprocess
     import sys
+
+    import pandas as pd
+
     from backend.config import settings
 
     live = Path(settings.analytics_dir)
-    if not (live / "retail_facility_month").exists():
+    source = live / "retail_facility_month" / "reporting_month=2026-08" \
+        / "data.parquet"
+    if not source.exists():
         pytest.skip("Nothing is published to protect.")
 
     analytics = tmp_path / "analytics"
@@ -173,15 +188,16 @@ def test_a_failed_publication_leaves_the_previous_bundle_readable(tmp_path):
     for marker in (analytics, metadata):
         (marker / ".retail-installation").write_text("test fixture")
 
-    # The staging tree: the book alone, so the completeness check refuses it.
+    # The staging tree: every month of the real book, with one facility
+    # duplicated in the latest month.
     staged = tmp_path / "staged"
-    (staged / "retail_facility_month" / "reporting_month=2026-08").mkdir(
-        parents=True)
-    shutil.copy(
-        live / "retail_facility_month" / "reporting_month=2026-08"
-        / "data.parquet",
-        staged / "retail_facility_month" / "reporting_month=2026-08"
-        / "data.parquet")
+    shutil.copytree(live / "retail_facility_month",
+                    staged / "retail_facility_month")
+    latest = staged / "retail_facility_month" / "reporting_month=2026-08" \
+        / "data.parquet"
+    frame = pd.read_parquet(latest)
+    pd.concat([frame, frame.iloc[[0]]], ignore_index=True).to_parquet(
+        latest, index=False)
 
     result = subprocess.run(
         [sys.executable, "scripts/publish_retail_bundle.py",
@@ -191,11 +207,17 @@ def test_a_failed_publication_leaves_the_previous_bundle_readable(tmp_path):
         env={**__import__("os").environ, "PYTHONPATH": str(Path.cwd())})
 
     assert result.returncode == 1, (
-        f"An incomplete bundle was published.\n{result.stdout}\n{result.stderr}")
+        f"A book with a duplicated facility-month was published.\n"
+        f"{result.stdout[-2000:]}\n{result.stderr[-2000:]}")
     assert "NOT PUBLISHED" in (result.stdout + result.stderr)
+    assert "facility-month is unique" in (result.stdout + result.stderr), (
+        "The publication failed for some other reason, so this gate is not "
+        "testing what it says it is.")
     for dataset in bnd.REQUIRED:
         kept = (analytics / dataset / "reporting_month=2026-08"
                 / "data.parquet")
         assert kept.exists(), f"{dataset} was lost by a failed publication"
+        assert kept.read_bytes() == b"previous", (
+            f"{dataset} was REPLACED by a publication that failed")
     assert json.loads((metadata / "catalog.json").read_text())["datasets"] \
         == [{"name": "keep"}], "the previous catalogue was overwritten"
