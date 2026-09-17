@@ -60,7 +60,11 @@ from backend.retail import bundle as bnd  # noqa: E402
 from backend.retail import catalogue as cat  # noqa: E402
 from backend.retail import guard  # noqa: E402
 from backend.retail.config import load_config  # noqa: E402
-from backend.retail.generate import PERIOD_FIELD, build  # noqa: E402
+from backend.retail.generate import (  # noqa: E402
+    PERIOD_FIELD,
+    build,
+    manifest_from_tree,
+)
 
 DEFAULT_ANALYTICS = ROOT / "data" / "retail" / "analytics"
 DEFAULT_METADATA = ROOT / "metadata" / "retail"
@@ -95,7 +99,8 @@ def _read_month(root: Path, dataset: str, month: str,
     return pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
 
 
-def validate(root: Path, *, checks: list[dict]) -> None:
+def validate(root: Path, *, checks: list[dict],
+             checks_manifest: dict | None = None) -> None:
     """Everything that must be true before a bundle replaces another one."""
     from backend.retail import episodes as ep
 
@@ -122,7 +127,7 @@ def validate(root: Path, *, checks: list[dict]) -> None:
     # -- every pocket exists in BOTH modules at that month -----------------
     book = _read_month(root, bnd.CANONICAL, as_of, columns=[
         "facility_id", "customer_id", "product_code", "product_subsegment",
-        "episode_code", "ecl_weighted_sar"])
+        "episode_code", "ecl_weighted_sar", "ecl_final_sar"])
     score_months = _months_of(root, "retail_ews_score")
     if as_of not in score_months:
         record("Early Warning score covers the reporting month", False,
@@ -164,6 +169,27 @@ def validate(root: Path, *, checks: list[dict]) -> None:
     # -- identity ----------------------------------------------------------
     record("a facility-month is unique", book["facility_id"].is_unique,
            f"{len(book)} rows, {book['facility_id'].nunique()} facilities")
+
+    # -- the manifest describes THIS tree ----------------------------------
+    #
+    # A manifest carried over from the previous build has the same month
+    # names, the same dataset version and different numbers, so nothing about
+    # it looks wrong. Checked against the files rather than trusted.
+    full = book
+    stated = next((m for m in (checks_manifest or {}).get("months", [])
+                   if m["reporting_month"] == as_of), None)
+    if stated is None:
+        record("the manifest describes this tree", False,
+               f"the manifest has no {as_of}")
+    else:
+        rows_agree = int(stated["rows"]) == len(full)
+        loss_agree = abs(float(stated["ecl_final_sar"])
+                         - float(full["ecl_final_sar"].sum())) < 1.0
+        record("the manifest describes this tree", rows_agree and loss_agree,
+               f"manifest says {stated['rows']:,} rows and SAR "
+               f"{stated['ecl_final_sar']:,.0f}; the tree holds "
+               f"{len(full):,} rows and SAR "
+               f"{full['ecl_final_sar'].sum():,.0f}")
 
 
 #: The catalogue files a publication replaces, kept aside until it succeeds.
@@ -246,8 +272,14 @@ def main() -> int:
         if args.staged_from:
             log.info("Staging from %s", args.staged_from)
             shutil.copytree(args.staged_from, staging)
-            manifest = json.loads(
-                (metadata / cat.MANIFEST_FILENAME).read_text())
+            # MEASURED from the staged tree, never read out of the metadata
+            # directory. The manifest lying there describes the book that is
+            # about to be replaced, and publishing it beside the new one is
+            # how a tree of 59,416 facilities carrying SAR 110.9m came to be
+            # described as 59,412 carrying SAR 70.4m — with every check that
+            # reads the manifest rather than the parquet agreeing.
+            log.info("Measuring the staged tree")
+            manifest = manifest_from_tree(cfg, staging)
         else:
             log.info("Building the canonical book into %s", staging.name)
             guard.mark(staging)
@@ -272,7 +304,7 @@ def main() -> int:
 
         # -- 3. validate the whole thing before anything is swapped -------
         log.info("Validating the staged bundle")
-        validate(staging, checks=checks)
+        validate(staging, checks=checks, checks_manifest=manifest)
         for check in checks:
             log.info("  ok  %s — %s", check["check"], check["detail"])
 

@@ -2438,6 +2438,95 @@ def _content_hash(df: pd.DataFrame) -> str:
     return h.hexdigest()
 
 
+def manifest_from_tree(
+    cfg: RetailDemoConfig, analytics_dir: Path, *,
+    dataset_name: str = "retail_facility_month",
+) -> dict[str, Any]:
+    """The manifest a published tree deserves, measured from the tree itself.
+
+    `build` writes one as it generates. A publication that STAGES FROM an
+    already-built tree does not run the generator, and reusing the manifest
+    that happens to be lying in the metadata directory publishes a description
+    of the PREVIOUS book beside the new one: the same month names, the same
+    dataset version, and row counts and totals from a build that is no longer
+    on disk.
+
+    That is not an abstract risk. It happened here: a tree of 59,416
+    facilities carrying SAR 110.9m of loss was published under a manifest
+    saying 59,412 and SAR 70.4m, and every check that reads the manifest
+    rather than the parquet — the readiness gate, the launcher, the
+    catalogue's monthly members — would have agreed with it.
+
+    So the manifest is measured, here, from the files. The same arithmetic as
+    `build`'s, over the tree as it stands.
+    """
+    import pandas as pd
+
+    root = Path(analytics_dir) / dataset_name
+    if not root.exists():
+        raise FileNotFoundError(f"{root} does not exist")
+
+    months: list[dict[str, Any]] = []
+    total_rows = 0
+    customers_seen: set[str] = set()
+    facilities_seen: set[str] = set()
+    column_count = 0
+
+    for directory in sorted(p for p in root.iterdir()
+                            if p.is_dir()
+                            and p.name.startswith(f"{PERIOD_FIELD}=")):
+        reporting_month = directory.name.split("=", 1)[1]
+        parts = sorted(directory.glob("*.parquet"))
+        if not parts:
+            continue
+        frame = pd.concat([pd.read_parquet(p) for p in parts],
+                          ignore_index=True) if len(parts) > 1 \
+            else pd.read_parquet(parts[0])
+        column_count = len(frame.columns)
+        total_rows += len(frame)
+        customers_seen.update(frame["customer_id"].tolist())
+        facilities_seen.update(frame["facility_id"].tolist())
+        snapshot = str(frame["snapshot_date"].iloc[0])[:10] \
+            if "snapshot_date" in frame else ""
+        months.append({
+            "reporting_month": reporting_month,
+            "snapshot_date": snapshot,
+            "rows": int(len(frame)),
+            "distinct_customers": int(frame["customer_id"].nunique()),
+            "distinct_facilities": int(frame["facility_id"].nunique()),
+            "products": sorted(frame["product_code"].unique().tolist()),
+            "gross_carrying_amount_sar": float(
+                frame["gross_carrying_amount_sar"].sum()),
+            "ecl_final_sar": float(frame["ecl_final_sar"].sum()),
+            "content_hash": _content_hash(frame),
+            "validation_status": "PASSED",
+        })
+        del frame
+
+    manifest = {
+        **cfg.to_manifest(),
+        "dataset_name": dataset_name,
+        "dataset_version": f"{cfg.generator_version}+{cfg.seed}",
+        "column_count": int(column_count),
+        "total_rows": total_rows,
+        "distinct_customers_all_months": len(customers_seen),
+        "distinct_facilities_all_months": len(facilities_seen),
+        "months": months,
+        "policy": {
+            "staging_policy_version": STAGING_POLICY.version,
+            "cutoff_policy_version": CUTOFF_POLICY.version,
+            "recovery_policy_version": RECOVERY_POLICY.version,
+            "affordability_policy_version": AFFORDABILITY_POLICY.version,
+        },
+        "lifetime_horizon_cap_months": ecl_mod.LIFETIME_HORIZON_CAP_MONTHS,
+        "measured_from": "the published tree, not a previous build's manifest",
+    }
+    manifest["manifest_hash"] = hashlib.sha256(
+        json.dumps(manifest, sort_keys=True, default=str).encode()
+    ).hexdigest()
+    return manifest
+
+
 def build(
     cfg: RetailDemoConfig,
     analytics_dir: Path,
