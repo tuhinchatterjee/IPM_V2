@@ -79,13 +79,96 @@ def test_the_analyst_still_reads_only_a_few_turns(store_db):
     assert len(store_db.thread_turns(thread_id)) == 12
 
 
-def test_the_transcript_says_what_its_numbers_mean(client, store_db,
-                                                   release_id):
+def test_the_transcript_says_what_its_numbers_mean(client, store_db):
+    """THE BOOK THIS THREAD IS HELD IN, not the process's configured one.
+
+    This assertion used to read the configured release out of the fixture,
+    and passed because the header was built from the same place. It was
+    wrong twice over: a thread's answers are computed against the release
+    its DOMAIN publishes, and on a deployment whose configured release is
+    not published at all the transcript named a release that does not exist
+    there. A live trace reported `v4-saudi-20q-v1` for a run accepted
+    against `v4-saudi-corporate-20q-v3`.
+    """
+    from backend.cockpit_v4 import domains as dom_mod
+
     thread_id = _thread_with(store_db, ["Total EAD?"])
     body = client.get(f"{P}/threads/{thread_id}").json()
-    assert body["release"]["release_id"] == release_id
+    expected = dom_mod.DEFAULT_RELEASES[body["domain_id"]]
+    assert body["release"]["release_id"] == expected
     assert body["release"]["reporting_currency"] == "SAR"
     assert len(body["release"]["release_fingerprint"]) == 64
+
+
+@pytest.mark.parametrize("domain_id", ["corporate", "retail"])
+def test_the_transcript_never_names_two_different_books(client, store_db,
+                                                        domain_id):
+    """One payload, one answer to "which release?".
+
+    `release_id` came from the thread's PIN and `release` was built from the
+    process's configuration, so a single response could state two different
+    releases and a reader had no way to tell which one the numbers came
+    from. Pinned explicitly, and in both books, because the configured
+    release can coincide with one of them by accident.
+    """
+    from backend.cockpit_v4 import domains as dom_mod
+
+    pinned = dom_mod.DEFAULT_RELEASES[domain_id]
+    thread_id = store_db.create_thread(
+        tenant_id="demo-tenant", principal_id="u1",
+        domain_id=domain_id, release_id=pinned)
+    store_db.append_turn(thread_id=thread_id, run_id="run-0",
+                         question="Total EAD?",
+                         answer={"narrative": "A", "disposition": "answer",
+                                 "tables": [], "charts": [],
+                                 "suggested_questions": []})
+
+    body = client.get(f"{P}/threads/{thread_id}").json()
+    assert body["release_id"] == pinned
+    assert body["release"]["release_id"] == pinned, (
+        f"the transcript names {body['release_id']} in one field and "
+        f"{body['release']['release_id']} in another")
+
+
+def test_a_trace_names_the_release_its_run_was_accepted_in(client, store_db,
+                                                           runtime):
+    """And not whichever release this process happens to be pointed at.
+
+    The live case exactly: a run accepted against
+    `v4-saudi-corporate-20q-v3` whose trace reported `v4-saudi-20q-v1`, the
+    configured release -- which on that machine was not published at all.
+    """
+    from backend.cockpit_v4 import domains as dom_mod
+
+    accepted = dom_mod.DEFAULT_RELEASES[dom_mod.CORPORATE]
+    assert accepted != str(runtime.cfg.release_id), (
+        "this test needs the configured and accepted releases to differ")
+
+    thread_id = store_db.create_thread(tenant_id="demo-tenant",
+                                       principal_id="u1")
+    record, _ = store_db.accept_run(
+        thread_id=thread_id, tenant_id="demo-tenant", principal_id="u1",
+        question="Total EAD?", mode="standard", release_id=accepted,
+        ui_filters={}, idempotency_key="", body_digest="",
+        startup_sha="testsha", deadline_at="")
+
+    body = client.get(f"{P}/runs/{record.run_id}/trace").json()
+    assert body["release"]["release_id"] == accepted
+    assert body["release"]["release_id"] != str(runtime.cfg.release_id)
+
+
+def test_a_trace_of_an_unopenable_book_states_the_id_and_claims_nothing(
+        client, make_run, runtime):
+    """A release that belongs to neither book opens nothing.
+
+    The honest answer is the id the run was accepted against and no
+    currency, scale or fingerprint -- those would be read from a book that
+    was never opened. Not the configured release, and not silence either:
+    a reader asking "which release?" of a run that HAS one deserves it.
+    """
+    record = make_run("Total EAD?")
+    body = client.get(f"{P}/runs/{record.run_id}/trace").json()
+    assert body["release"] == {"release_id": str(runtime.cfg.release_id)}
 
 
 # ---- the title ---------------------------------------------------------

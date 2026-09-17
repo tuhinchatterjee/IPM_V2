@@ -400,9 +400,13 @@ class ExecutionService:
         reason for it to wait until the step budget had been spent and the
         run had publicly announced the very query it refuses.
 
-        Ordered AFTER `_validate_sql`, because it trusts relation names it
-        reads out of the text and must not lecture about join cardinality
-        when the real fault is that the query names the other book's table.
+        Ordered AFTER `_validate_sql`, because it must not lecture about
+        join cardinality when the real fault is that the query names the
+        other book's table. That order also means the statement has already
+        been proven to parse by the time the grain check parses it again:
+        if `multiplication_risk` cannot parse what `_validate_sql` could,
+        the two disagree, and that is exactly the operator's problem the
+        arm below reports rather than an analyst's syntax error.
         Ordered BEFORE `_prove_bindable`, because that one is skipped for
         steps with dependencies -- putting grain after it would make the
         refusal depend on whether a step happened to declare one.
@@ -633,7 +637,7 @@ class ExecutionService:
 
         # The join-grain check used to sit here, between the bind and the
         # execution, with three branches around it that could not run: an
-        # `except` for an exception `multiplication_risk` never raises, an
+        # `except` for an exception the check did not then raise, an
         # `except Exception: risk = None` that turned a broken diagnostic
         # into a clean bill of health, and a `warnings.append` the branch
         # above it had already made unreachable. It is a judgement about the

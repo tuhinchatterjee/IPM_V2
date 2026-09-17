@@ -40,6 +40,7 @@ lives in `catalog.open_session`. Everything here runs inside that box.
 
 from __future__ import annotations
 
+import json
 import re
 import threading
 import time
@@ -226,9 +227,168 @@ def authorize(sql: str, session: Any, *,
 
 # ------------------------------------------------------- 3. join multiplicity
 
-_AGGREGATE = re.compile(r"\b(sum|avg|mean|total)\s*\(", re.I)
-_DISTINCTING = re.compile(
-    r"\b(distinct|group\s+by|qualify|row_number|partition\s+by)\b", re.I)
+#: Aggregates that a repeated row corrupts. `count` is included because a
+#: fan-out inflates a count exactly as it inflates a total; `min`/`max` are
+#: not, because repetition does not move an extreme.
+_SUMMING = frozenset({"sum", "avg", "mean", "total", "count",
+                      "sum_no_overflow", "fsum"})
+
+#: One parser, reused. Parsing needs no catalogue and no data, so this is a
+#: bare in-memory connection: the analyst's text is passed as a PARAMETER and
+#: never concatenated, never executed, and it never touches the session that
+#: holds the book.
+_PARSER_LOCK = threading.Lock()
+_PARSER: Any = None
+
+
+def _parse(sql: str) -> dict[str, Any]:
+    """The statement's parse tree, as DuckDB itself reads it.
+
+    THE LOCK COVERS THE FETCH, not just the connect. A DuckDB connection
+    carries ONE pending result, so `execute` and `fetchone` are two steps
+    another thread can get between -- and two runs validating at the same
+    moment would then read each other's parse trees, refusing, or failing
+    to refuse, on the wrong query. Parsing takes about a millisecond, so
+    serializing it costs nothing worth measuring.
+    """
+    global _PARSER
+    with _PARSER_LOCK:
+        if _PARSER is None:
+            _PARSER = duckdb.connect()
+        raw = _PARSER.execute("SELECT json_serialize_sql(?)",
+                              [str(sql)]).fetchone()[0]
+    return json.loads(raw)
+
+
+@dataclass(frozen=True)
+class _Scope:
+    """One query scope: what it reads FROM, and what it aggregates.
+
+    A scope is the unit the multiplicity question is actually about. Two
+    relations only repeat each other's rows if they are joined TO EACH OTHER
+    in the same scope; a relation read inside a scalar subquery is a separate
+    result that is substituted in, and it repeats nothing.
+    """
+
+    tables: frozenset[str]
+    #: (function name, is DISTINCT, the column names it reads)
+    aggregates: tuple[tuple[str, bool, frozenset[str]], ...]
+
+
+#: The node classes that aggregate. `WINDOW` is here because a windowed
+#: total is a total: `SUM(x) OVER (PARTITION BY ...)` adds up the same
+#: repeated rows, and reading only `FUNCTION` would have quietly stopped
+#: refusing a case the text check did refuse.
+_AGGREGATING = frozenset({"FUNCTION", "WINDOW"})
+
+
+def _column_names(node: Any, out: set[str]) -> None:
+    if isinstance(node, dict):
+        for name in (node.get("column_names") or []):
+            out.add(str(name).lower())
+        for value in node.values():
+            _column_names(value, out)
+    elif isinstance(node, list):
+        for value in node:
+            _column_names(value, out)
+
+
+def _arguments(part: dict[str, Any]) -> frozenset[str]:
+    """The columns an aggregate ADDS UP, and not the ones it is framed by.
+
+    `children` holds the arguments for both a plain aggregate and a window
+    aggregate. A window's `partitions` and `orders` are read, not summed, so
+    a measure appearing only there is not at risk and must not be reported
+    as if it were.
+    """
+    columns: set[str] = set()
+    _column_names(part.get("children"), columns)
+    return frozenset(columns)
+
+
+def _scopes(sql: str) -> tuple[_Scope, ...]:
+    """Every query scope in this statement, from DuckDB's own parser.
+
+    THE DEFECT THIS REPLACES. The check used to decide which relations a
+    query joined by asking whether their NAMES appeared anywhere in the
+    text: `name in lowered`, over the whole flattened statement. That is
+    not a join graph, and a live run proved it -- a four-step analysis whose
+    fourth step read two relations through independent scalar subqueries,
+    with no JOIN keyword anywhere in it, was refused for "aggregating across
+    the join between corp_covenant_quarter and corp_facility_quarter". The
+    refusal quoted a join key the query never mentioned, because the key was
+    read out of the catalogue rather than out of the query. The figures were
+    correct to the last decimal.
+
+    It cut the other way too: the escape hatch looked for the word
+    "distinct" anywhere in the text, so a query that genuinely did
+    double-count was excused by a comment that happened to contain it.
+
+    Parsing costs about a millisecond and answers both.
+    """
+    doc = _parse(sql)
+    if doc.get("error"):
+        raise SqlRejected(
+            SYNTAX_ERROR,
+            f"The SQL could not be parsed for the grain check: "
+            f"{doc.get('error_message') or 'unknown parse error'}")
+
+    found: list[_Scope] = []
+
+    def select_node(node: dict[str, Any]) -> None:
+        tables: set[str] = set()
+        aggregates: list[tuple[str, bool, frozenset[str]]] = []
+
+        def from_table(part: Any) -> None:
+            if not isinstance(part, dict):
+                return
+            kind = part.get("type")
+            if kind == "BASE_TABLE":
+                tables.add(str(part.get("table_name") or "").lower())
+            elif kind == "JOIN":
+                from_table(part.get("left"))
+                from_table(part.get("right"))
+            else:
+                # A SUBQUERY, a derived table, a table function: its own
+                # scope, and its rows are not this scope's rows.
+                descend(part)
+
+        def expression(part: Any) -> None:
+            if isinstance(part, dict):
+                if part.get("type") == "SELECT_NODE":
+                    select_node(part)
+                    return
+                if part.get("class") in _AGGREGATING:
+                    aggregates.append((
+                        str(part.get("function_name") or "").lower(),
+                        bool(part.get("distinct")), _arguments(part)))
+                for key, value in part.items():
+                    if key != "from_table":
+                        expression(value)
+            elif isinstance(part, list):
+                for value in part:
+                    expression(value)
+
+        from_table(node.get("from_table"))
+        for key, value in node.items():
+            if key != "from_table":
+                expression(value)
+        found.append(_Scope(frozenset(tables), tuple(aggregates)))
+
+    def descend(part: Any) -> None:
+        if isinstance(part, dict):
+            if part.get("type") == "SELECT_NODE":
+                select_node(part)
+                return
+            for value in part.values():
+                descend(value)
+        elif isinstance(part, list):
+            for value in part:
+                descend(value)
+
+    descend(doc)
+    return tuple(found)
+
 
 #: Units whose values are added up, and therefore double-counted by a join
 #: that repeats the row carrying them. `notches` belongs here for the same
@@ -261,15 +421,11 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
 
     The join pairs and the additive measures are read from the session's own
     catalogue, so the diagnostic is as alive in the Retail book as in the
-    Corporate one.
+    Corporate one. WHICH relations are joined, and whether the aggregate
+    de-duplicates, are read from `_scopes` -- the query's own parse -- and
+    never from its text; see that function for what the text scan cost.
     """
-    lowered = " ".join(str(sql).lower().split())
-    if not _AGGREGATE.search(lowered):
-        return None
-    named = [r for r in session.relations if r.lower() in lowered]
-    if len(named) < 2:
-        return None
-
+    named = {r.lower() for r in session.relations}
     domain_id = _domain_of(session)
     joins = getattr(session.catalog, "joins", None)
     if not domain_id or not callable(joins):
@@ -277,9 +433,11 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
         # nothing here to check them against. Silence, not a false all-clear:
         # `execute_tool` still runs V3's own diagnostic on a V3 session.
         return None
+
+    here = _scopes(sql)
     for join in joins():
         many, one = str(join["left"]), str(join["right"])
-        if many not in named or one not in named:
+        if many.lower() not in named or one.lower() not in named:
             continue
         # A JOIN THE CATALOGUE SAYS REPEATS NOTHING REFUSES NOTHING.
         #
@@ -293,39 +451,50 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
             continue
         # The COARSER side is the one repeated by the join, so its additive
         # measures are the ones a total would count more than once.
-        at_risk = [m for m in additive_measures(domain_id, one)
-                   if re.search(rf"\b(sum|avg|mean|total)\s*\(\s*"
-                                rf"(distinct\s+)?[\w.]*{re.escape(m)}\b",
-                                lowered)]
-        if not at_risk:
+        measures = additive_measures(domain_id, one)
+        if not measures:
             continue
-        # An explicit de-duplication is the author saying they know. Take
-        # their word for it: the alternative is refusing correct queries.
-        if _DISTINCTING.search(lowered) and "distinct" in lowered:
-            continue
-        try:
-            many_grain = schema_mod.relation(domain_id, many).grain
-            one_grain = schema_mod.relation(domain_id, one).grain
-        except Exception:  # noqa: BLE001
-            many_grain = one_grain = "unknown"
-        return SqlRejected(
-            JOIN_MULTIPLICITY_RISK,
-            f"This query aggregates {', '.join(at_risk)} across the join "
-            f"between {many} and {one}, which repeats every {one} row once "
-            f"per matching {many} row: {join.get('note', '')} The total "
-            f"would count the same amount more than once.",
-            relation=one, domain_id=domain_id,
-            detail=(f"{many} grain: {many_grain}. {one} grain: {one_grain}. "
-                    f"Join key: {', '.join(join.get('on', ()))}. "
-                    f"Measures at risk: {', '.join(at_risk)}. "
-                    f"CreditProbe does not choose the de-duplication: "
-                    f"aggregating one side before joining, counting distinct "
-                    f"keys, or a window function are all valid and only the "
-                    f"question decides which."),
-            facts={"many_relation": many, "many_grain": many_grain,
-                   "one_relation": one, "one_grain": one_grain,
-                   "join_key": list(join.get("on", ())),
-                   "measures_at_risk": list(at_risk)})
+        for scope in here:
+            # BOTH RELATIONS, JOINED TO EACH OTHER, IN THIS SCOPE. A relation
+            # read through a scalar subquery is in a scope of its own and
+            # repeats nothing, which is the whole of the live false positive.
+            if not {many.lower(), one.lower()} <= scope.tables:
+                continue
+            at_risk = sorted({
+                m for m in measures
+                for name, is_distinct, columns in scope.aggregates
+                # An explicit DISTINCT is the author saying they know the
+                # rows repeat and have taken the repetition out. Read off
+                # the aggregate itself, not off the word appearing
+                # somewhere in the text -- which a comment used to satisfy.
+                if name in _SUMMING and not is_distinct and m in columns})
+            if not at_risk:
+                continue
+            try:
+                many_grain = schema_mod.relation(domain_id, many).grain
+                one_grain = schema_mod.relation(domain_id, one).grain
+            except Exception:  # noqa: BLE001
+                many_grain = one_grain = "unknown"
+            return SqlRejected(
+                JOIN_MULTIPLICITY_RISK,
+                f"This query aggregates {', '.join(at_risk)} across the join "
+                f"between {many} and {one}, which repeats every {one} row "
+                f"once per matching {many} row: {join.get('note', '')} The "
+                f"total would count the same amount more than once.",
+                relation=one, domain_id=domain_id,
+                detail=(f"{many} grain: {many_grain}. {one} grain: "
+                        f"{one_grain}. "
+                        f"Join key: {', '.join(join.get('on', ()))}. "
+                        f"Measures at risk: {', '.join(at_risk)}. "
+                        f"CreditProbe does not choose the de-duplication: "
+                        f"aggregating one side before joining, counting "
+                        f"distinct keys, or a window function are all valid "
+                        f"and only the question decides which."),
+                facts={"many_relation": many, "many_grain": many_grain,
+                       "one_relation": one, "one_grain": one_grain,
+                       "join_key": list(join.get("on", ())),
+                       "measures_at_risk": at_risk,
+                       "joined_in_one_scope": sorted(scope.tables)})
     return None
 
 

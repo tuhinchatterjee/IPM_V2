@@ -1254,7 +1254,10 @@ async def read_thread(thread_id: str,
             # transcript and the thread opens on them.
             "opening_questions": _opening_questions(context, turns,
                                                     domain_id),
-            "release": _release_header()}
+            # The SAME book `release_id` two fields up names. These two were
+            # computed from different sources and could disagree.
+            "release": _release_header_for_pin(
+                {**pinned, "domain_id": domain_id})}
 
 
 #: Deterministic openers for a thread that was not seeded from a card, and
@@ -1364,17 +1367,57 @@ def _release_header_for(record: Any):
         return None
 
 
-def _release_header() -> dict[str, Any]:
-    """What the numbers in this thread mean. Travels with the transcript."""
+def _run_release_block(record: Any) -> dict[str, Any]:
+    """The release a trace states, as a dict.
+
+    Three answers, in order of what can actually be established:
+
+      * the run's book opens -> its full header;
+      * it does not open (a legacy release, or one rebuilt underneath the
+        run) -> the release id the run was ACCEPTED against, and nothing
+        else, because currency, scale and fingerprint would be guesses;
+      * the run records no release at all -> an empty block.
+
+    What it never does is fall back to the release this PROCESS is
+    configured with. That fallback is what let a trace report
+    `v4-saudi-20q-v1` for a run accepted against
+    `v4-saudi-corporate-20q-v3` -- on a machine where the former was not
+    published at all.
+    """
+    header = _release_header_for(record)
+    if header is not None:
+        return header.to_dict()
+    accepted = str(getattr(record, "release_id", "") or "")
+    return {"release_id": accepted} if accepted else {}
+
+
+def _release_header_for_pin(pinned: dict[str, Any]) -> dict[str, Any]:
+    """The header of the book a THREAD was pinned to, as a dict.
+
+    A transcript already reports `release_id` from its pin. It also carried a
+    `release` block built from whichever release this process is configured
+    with, so a single response could name two different books -- and on a
+    machine whose configured release is not even published, the block named a
+    release that does not exist there.
+
+    `for_domain` refuses rather than substituting when the pinned release was
+    rebuilt underneath the thread, and an empty block is the honest answer to
+    "which book is this?" when the book cannot be opened. Falling back to the
+    configured release is what produced the mismatch.
+    """
+    from backend.cockpit_v4 import analytical_runtime as arun_mod
     from backend.cockpit_v4 import release as release_mod
 
-    runtime = _STATE.get("runtime")
-    if runtime is None:
+    try:
+        runtime = arun_mod.for_domain(
+            str(pinned.get("domain_id") or ""),
+            release_id=str(pinned.get("release_id") or ""),
+            release_fingerprint=str(pinned.get("release_fingerprint") or ""))
+        return release_mod.header(
+            release_id=runtime.release_id, catalog=runtime.catalog,
+            release_summary=runtime.release_summary()).to_dict()
+    except Exception:  # noqa: BLE001 - an unopenable book stamps nothing
         return {}
-    return release_mod.header(
-        release_id=str(_config().release_id),
-        catalog=getattr(runtime, "catalog", None),
-        release_summary=getattr(runtime, "release_summary", None)).to_dict()
 
 
 class RenameThread(BaseModel):
@@ -1743,7 +1786,12 @@ async def read_trace(run_id: str,
         "created_at": record.created_at,
         "events": events,
         "budget": record.budget or {},
-        "release": _release_header(),
+        # THE BOOK THIS RUN WAS ACCEPTED IN. This used to be the process's
+        # configured release, so a trace could name a release the run was
+        # never run against -- and, where the configured release is not
+        # published on that machine, one that does not exist there. The
+        # record is already in hand, twenty lines up.
+        "release": _run_release_block(record),
     }
 
 

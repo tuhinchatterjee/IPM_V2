@@ -12,12 +12,29 @@ failure, and an `executed` exclusion tuple that named three checks out of
 nine.
 
 Underneath was a placement bug. `multiplication_risk` is a judgement about
-the query TEXT -- a regex plus a catalogue read, no engine, no parameters,
-no earlier artifact -- yet it ran inside `_run_sql`, so the fan-out refusal
-fired after the step budget was spent and after the run had publicly
-announced the very query it refuses. Three of the four branches around it
-could not execute, and the fourth turned a broken diagnostic into a clean
-bill of health.
+the query TEXT -- a catalogue read and, now, a parse, no engine, no
+parameters, no earlier artifact -- yet it ran inside `_run_sql`, so the
+fan-out refusal fired after the step budget was spent and after the run had
+publicly announced the very query it refuses. Three of the four branches
+around it could not execute, and the fourth turned a broken diagnostic into
+a clean bill of health.
+
+Then a live run showed the judgement itself was wrong. The check decided
+which relations a query joined by asking whether their NAMES appeared
+anywhere in the flattened text, and read the join key out of the CATALOGUE
+rather than out of the query. A four-step Corporate analysis whose fourth
+step reached two relations through independent correlated scalar
+subqueries -- no JOIN token anywhere in it -- was refused for "aggregating
+across the join between corp_covenant_quarter and corp_facility_quarter",
+quoting a key the query never mentions. Its figures were correct.
+
+The same text scan failed in the other direction: the escape hatch looked
+for the word "distinct" anywhere in the statement, so a query that really
+did double-count was excused by a COMMENT containing it.
+
+Both are gone. The check now reads DuckDB's own parse of the statement, so
+"joined" means joined to each other in one query scope and "de-duplicated"
+means the aggregate itself carries DISTINCT.
 
 What is pinned here:
 
@@ -25,7 +42,14 @@ What is pinned here:
   the check runs before anything   -> refused above TOOL_VALIDATED
   the refusal carries its evidence -> facts, not a sentence to regex
   a one-to-one join repeats nothing -> and is no longer refused
+  a scalar subquery repeats nothing -> the live submission, verbatim
+  a comment does not de-duplicate  -> the aggregate does
   a query that really ran          -> still says so
+
+Recorded, not fixed: a join inside a CTE whose RAW rows are selected out and
+summed in the outer query is not refused -- the outer aggregate's operand is
+the CTE alias, and the joining scope aggregates nothing. The text check
+allowed this too, so it is a standing gap and not a regression.
 """
 
 from __future__ import annotations
@@ -62,6 +86,59 @@ RETAIL_ONE_TO_ONE = (
     "FROM retail_behaviour_month b "
     "JOIN retail_account_month a ON a.account_id = b.account_id "
     "AND a.reporting_month = b.reporting_month")
+
+#: THE EXACT SUBMISSION THAT WAS WRONGLY REFUSED, character for character
+#: from the stored submission record of the live run. Not re-indented, not
+#: re-spelled, not shortened: a rewritten equivalent would prove that some
+#: query like it is accepted, which is not the claim.
+#:
+#: It contains no JOIN. `corp_covenant_quarter` and `corp_borrower_quarter`
+#: are each read by an independent correlated scalar subquery, whose result
+#: is one value substituted into the row -- it repeats nothing. The check
+#: refused it anyway, because both names appear in the text.
+LIVE_SUBMISSION_S4 = """SELECT f.reporting_quarter,
+       SUM(f.sicr_flag) AS sicr_flags,
+       SUM(f.default_flag) AS default_flags,
+       AVG(f.pd_pit_12m) AS avg_pd,
+       SUM(CASE WHEN f.dpd_days>30 THEN 1 ELSE 0 END) AS facs_dpd30,
+       (SELECT COUNT(*)
+          FROM corp_covenant_quarter c
+         WHERE c.reporting_quarter=f.reporting_quarter
+           AND c.breach_flag=1) AS covenant_breaches,
+       (SELECT COUNT(*)
+          FROM corp_borrower_quarter b
+         WHERE b.reporting_quarter=f.reporting_quarter
+           AND b.rating_migration='DOWNGRADE') AS downgrades
+FROM corp_facility_quarter f
+WHERE f.reporting_quarter IN ('2026Q1','2026Q2')
+GROUP BY f.reporting_quarter
+ORDER BY f.reporting_quarter;"""
+
+#: The same query with both subqueries removed. If the subqueries had
+#: multiplied facility rows, the facility figures would differ between the
+#: two. They do not, and that is the positive proof the refusal was false.
+LIVE_SUBMISSION_S4_WITHOUT_SUBQUERIES = """SELECT f.reporting_quarter,
+       SUM(f.sicr_flag) AS sicr_flags,
+       SUM(f.default_flag) AS default_flags,
+       AVG(f.pd_pit_12m) AS avg_pd,
+       SUM(CASE WHEN f.dpd_days>30 THEN 1 ELSE 0 END) AS facs_dpd30
+FROM corp_facility_quarter f
+WHERE f.reporting_quarter IN ('2026Q1','2026Q2')
+GROUP BY f.reporting_quarter
+ORDER BY f.reporting_quarter;"""
+
+#: The fan-out, unchanged, with the word "distinct" in a COMMENT. Nothing is
+#: de-duplicated; the old escape hatch searched the statement for the word.
+FAN_OUT_WITH_DISTINCT_IN_A_COMMENT = (
+    "-- one row per borrower, distinct by construction\n" + CORPORATE_FAN_OUT)
+
+#: The fan-out with DISTINCT on the aggregate itself. This one really does
+#: take the repetition out, and is the case the hatch was written for.
+FAN_OUT_WITH_A_DISTINCT_AGGREGATE = (
+    "SELECT b.sector, SUM(DISTINCT b.total_debt_sar_mn) AS debt "
+    "FROM corp_facility_quarter f "
+    "JOIN corp_borrower_quarter b ON b.borrower_id = f.borrower_id "
+    "GROUP BY 1")
 
 #: Binds, and then fails in the engine: the cast is legal to plan and
 #: impossible to evaluate. The no-regression case.
@@ -481,24 +558,200 @@ def test_the_validation_message_does_not_claim_the_declared_grain_was_proven(
     assert "never checked" in not_proven
 
 
-# ---- a known limitation, recorded rather than hidden --------------------
+# ---- the join graph is parsed, not spelled ------------------------------
 
-def test_the_check_reads_names_and_an_aggregate_and_nothing_finer(book):
-    """Recorded, not fixed.
+def test_a_subquery_that_repeats_nothing_is_not_refused(book):
+    """Was a recorded limitation; is now a fixed defect.
 
-    `multiplication_risk` needs two relation names in the text and an
-    aggregate over an additive measure. A subquery that repeats nothing but
-    mentions both relations is refused. Moving the check earlier makes that
-    louder rather than causing it, and the honest thing is to say so here
-    rather than let the next reader discover it as a surprise.
+    The check needed only two relation names somewhere in the text and an
+    aggregate over an additive measure, so a subquery that repeats nothing
+    was refused for a join it does not contain. `corp_facility_quarter` here
+    supplies a membership test and contributes no rows to the total.
     """
     service = book(dom.CORPORATE)
     repeats_nothing = (
         "SELECT SUM(b.total_debt_sar_mn) AS debt FROM corp_borrower_quarter b "
         "WHERE b.borrower_id IN (SELECT borrower_id FROM "
         "corp_facility_quarter)")
-    with pytest.raises(Rejection):
-        service.validate_batch(submission(step(repeats_nothing)))
+    service.validate_batch(submission(step(repeats_nothing)))
+
+
+def test_the_exact_live_submission_is_no_longer_refused(book):
+    """The run that produced this change, replayed verbatim.
+
+    Not an authored equivalent: the constant is the stored submission body,
+    character for character. It was refused for "aggregating across the join
+    between corp_covenant_quarter and corp_facility_quarter", and the join
+    key the refusal quoted -- facility_id, reporting_quarter -- appears
+    nowhere in it. Nor does the token JOIN.
+    """
+    assert "join" not in LIVE_SUBMISSION_S4.lower(), (
+        "the fixture has been edited; it must contain no join")
+    service = book(dom.CORPORATE)
+    service.validate_batch(submission(step(LIVE_SUBMISSION_S4)))
+
+
+def test_the_live_submission_executes_and_multiplies_nothing(book):
+    """Unrefused is not the claim. The claim is that it was CORRECT.
+
+    A check that stops refusing a query has proved nothing about the query.
+    So: run it, run it again with both subqueries removed, and compare the
+    facility figures. A subquery that fanned facility rows out would move
+    every one of them.
+    """
+    from backend.cockpit_v4 import sql as v4_sql
+
+    service = book(dom.CORPORATE)
+    service.validate_batch(submission(step(LIVE_SUBMISSION_S4)))
+    full = v4_sql.execute(LIVE_SUBMISSION_S4, service.session,
+                          deadline_seconds=60.0)
+    control = v4_sql.execute(LIVE_SUBMISSION_S4_WITHOUT_SUBQUERIES,
+                             service.session, deadline_seconds=60.0)
+
+    assert full.row_count == 2, full.rows
+    facility_columns = ("sicr_flags", "default_flags", "avg_pd", "facs_dpd30")
+    for row, bare in zip(full.rows, control.rows, strict=True):
+        assert row["reporting_quarter"] == bare["reporting_quarter"]
+        for column in facility_columns:
+            assert row[column] == bare[column], (
+                f"{column} moved when the subqueries were removed: "
+                f"{row[column]} vs {bare[column]} -- the subqueries DO "
+                f"multiply facility rows and the refusal was right")
+        # And the subqueries returned something, so the comparison above is
+        # not vacuously true of a query that read nothing.
+        assert row["covenant_breaches"] > 0
+        assert row["downgrades"] > 0
+
+
+def test_the_word_distinct_in_a_comment_does_not_de_duplicate_anything(book):
+    """The hatch, closed from the other side.
+
+    The escape from a fan-out refusal used to be the word "distinct"
+    anywhere in the statement. A comment satisfied it, and a genuinely
+    double-counted total was published. DISTINCT is now read off the
+    aggregate node, where it is either present or not.
+    """
+    service = book(dom.CORPORATE)
+    with pytest.raises(Rejection) as caught:
+        service.validate_batch(
+            submission(step(FAN_OUT_WITH_DISTINCT_IN_A_COMMENT)))
+    assert caught.value.detail["failed_check"] == xt.CHECK_GRAIN
+
+
+def test_a_distinct_aggregate_is_still_taken_at_its_word(book):
+    """And the hatch still opens for the case it was written for."""
+    service = book(dom.CORPORATE)
+    service.validate_batch(
+        submission(step(FAN_OUT_WITH_A_DISTINCT_AGGREGATE)))
+
+
+def test_the_refusal_names_the_scope_it_judged(book):
+    """Which scope, not merely which relations.
+
+    A statement has several scopes and the judgement is about one of them.
+    Reporting the tables that were joined TO EACH OTHER is what lets a
+    reader check the refusal instead of believing it.
+    """
+    service = book(dom.CORPORATE)
+    with pytest.raises(Rejection) as caught:
+        service.validate_batch(submission(step(CORPORATE_FAN_OUT)))
+    assert caught.value.detail["joined_in_one_scope"] == [
+        "corp_borrower_quarter", "corp_facility_quarter"]
+
+
+def test_a_comma_join_is_a_join(book):
+    """No JOIN keyword, the same cross product, the same double count."""
+    service = book(dom.CORPORATE)
+    comma = ("SELECT b.sector, SUM(b.total_debt_sar_mn) AS debt "
+             "FROM corp_facility_quarter f, corp_borrower_quarter b "
+             "WHERE b.borrower_id = f.borrower_id GROUP BY 1")
+    with pytest.raises(Rejection) as caught:
+        service.validate_batch(submission(step(comma)))
+    assert caught.value.detail["failed_check"] == xt.CHECK_GRAIN
+
+
+def test_a_count_over_a_fan_out_is_refused_like_a_total(book):
+    """A repeated row inflates a count exactly as it inflates a sum."""
+    service = book(dom.CORPORATE)
+    counted = ("SELECT COUNT(b.total_debt_sar_mn) AS n "
+               "FROM corp_facility_quarter f "
+               "JOIN corp_borrower_quarter b ON b.borrower_id = f.borrower_id")
+    with pytest.raises(Rejection) as caught:
+        service.validate_batch(submission(step(counted)))
+    assert caught.value.detail["failed_check"] == xt.CHECK_GRAIN
+
+
+def test_two_runs_parsing_at_once_do_not_read_each_other_s_query(book):
+    """One connection, one pending result.
+
+    The parse is `execute` then `fetchone` on a shared connection. Without a
+    lock around BOTH, two runs validating at the same moment can pick up
+    each other's parse tree -- and a refusal or an all-clear then belongs to
+    somebody else's query. Verdicts under concurrency must be the verdicts
+    under isolation, every time.
+    """
+    import threading
+
+    service = book(dom.CORPORATE)
+    wrong: list[tuple[str, bool]] = []
+
+    def hammer(code: str, refused: bool) -> None:
+        for _ in range(40):
+            try:
+                service.validate_batch(submission(step(code)))
+                seen = False
+            except Rejection:
+                seen = True
+            if seen != refused:
+                wrong.append((code[:24], seen))
+
+    threads = [threading.Thread(target=hammer, args=args)
+               for args in [(LIVE_SUBMISSION_S4, False),
+                            (CORPORATE_FAN_OUT, True)] * 4]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert not wrong, f"verdicts crossed between queries: {wrong[:4]}"
+
+
+def test_a_windowed_total_is_a_total(book):
+    """`SUM(x) OVER (...)` adds up the same repeated rows.
+
+    Reading only plain aggregates out of the parse would have quietly
+    stopped refusing a case the text scan did refuse -- a fix that trades
+    one false negative for another is not a fix.
+    """
+    service = book(dom.CORPORATE)
+    windowed = (
+        "SELECT f.facility_id, "
+        "SUM(b.total_debt_sar_mn) OVER (PARTITION BY b.sector) AS debt "
+        "FROM corp_facility_quarter f "
+        "JOIN corp_borrower_quarter b ON b.borrower_id = f.borrower_id")
+    with pytest.raises(Rejection) as caught:
+        service.validate_batch(submission(step(windowed)))
+    assert caught.value.detail["failed_check"] == xt.CHECK_GRAIN
+    assert "total_debt_sar_mn" in caught.value.detail["measures_at_risk"]
+
+
+def test_a_measure_a_window_is_only_framed_BY_is_not_at_risk(book):
+    """Partitioned by, not summed. Nothing is added up more than once."""
+    service = book(dom.CORPORATE)
+    framed = (
+        "SELECT COUNT(f.facility_id) OVER (PARTITION BY b.total_debt_sar_mn) "
+        "AS n FROM corp_facility_quarter f "
+        "JOIN corp_borrower_quarter b ON b.borrower_id = f.borrower_id")
+    service.validate_batch(submission(step(framed)))
+
+
+def test_the_relations_are_read_from_the_parse_and_not_from_a_comment(book):
+    """A name in a comment is not a table this query reads."""
+    service = book(dom.CORPORATE)
+    mentioned_only = (
+        "-- compare against corp_facility_quarter in a later step\n"
+        "SELECT sector, SUM(total_debt_sar_mn) AS debt "
+        "FROM corp_borrower_quarter GROUP BY 1")
+    service.validate_batch(submission(step(mentioned_only)))
 
 
 # ---- the repair: refused, corrected, completed --------------------------

@@ -52,6 +52,17 @@ facility, a shared collateral asset counted whole per allocation) and warns
 where static analysis cannot prove correctness — it never silently removes a
 join.
 
+The V4 grain check PARSES the submitted statement to decide which relations
+are joined to each other and whether an aggregate de-duplicates. That parse
+runs on a separate, empty in-memory connection that holds no book: the only
+statement ever executed on it is `SELECT json_serialize_sql(?)`, with the
+analyst's text as a bound PARAMETER. The text is never concatenated into
+SQL and is never executed — `json_serialize_sql` returns the parse tree of
+its argument and evaluates nothing. Deciding this from the text instead is
+what refused a correct live query for a join it did not contain, and
+excused a double-counting one because a comment contained the word
+"distinct".
+
 ## Python
 
 `pyrunner.probe()` reports the capability honestly and runs an escape
