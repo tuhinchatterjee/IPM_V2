@@ -56,7 +56,7 @@ def helped() -> dict:
 def test_the_three_named_families_carry_the_allowances_the_spec_names():
     wanted = {
         env.PRODUCT_HELP_STANDARD: (60.0, 1.00),
-        env.DATA_ANALYSIS_STANDARD: (120.0, 1.50),
+        env.DATA_ANALYSIS_STANDARD: (180.0, 1.50),
         env.DATA_ANALYSIS_DEEP: (240.0, 3.00),
     }
     for family, (seconds, dollars) in wanted.items():
@@ -92,7 +92,7 @@ def test_the_live_question_is_analytical_on_its_own_words():
     verdict = env.classify(question=THE_LIVE_QUESTION)
     assert verdict.analytical is True
     assert verdict.family == env.DATA_ANALYSIS_STANDARD
-    assert verdict.limits.deadline_seconds == 120.0
+    assert verdict.limits.deadline_seconds == env.limits_for_family(env.DATA_ANALYSIS_STANDARD).deadline_seconds
     assert verdict.reason
 
 
@@ -158,7 +158,7 @@ def test_a_product_question_that_also_names_a_figure_is_analytical():
 def test_questions_about_the_book_get_the_analysis_allowance(question):
     verdict = env.classify(question=question)
     assert verdict.analytical is True, verdict.reason
-    assert verdict.limits.deadline_seconds == 120.0
+    assert verdict.limits.deadline_seconds == env.limits_for_family(env.DATA_ANALYSIS_STANDARD).deadline_seconds
 
 
 def test_deep_mode_doubles_the_analysis_allowance():
@@ -185,7 +185,7 @@ def test_the_verdict_is_serialisable_for_the_trace():
     body = env.classify(question=THE_LIVE_QUESTION).to_dict()
     assert body["family"] == env.DATA_ANALYSIS_STANDARD
     assert body["analytical"] is True
-    assert body["deadline_seconds"] == 120.0
+    assert body["deadline_seconds"] == env.limits_for_family(env.DATA_ANALYSIS_STANDARD).deadline_seconds
     assert isinstance(body["signals"], list)
 
 
@@ -271,12 +271,15 @@ def settle(store_db, run_id: str) -> None:
 
 def test_the_route_stamps_the_analysis_deadline_on_an_analytical_question(
         client, store_db):
-    """§9. The run is given 120 seconds at ACCEPT, not after a generation."""
+    """§9. The run is given the ANALYSIS clock at ACCEPT, not after a
+    generation has been spent declaring that it needs one."""
     response = client.post(f"{P}/runs", json={"question": THE_LIVE_QUESTION,
                                               "mode": "standard"})
     assert response.status_code == 202, response.text
     run_id = response.json()["run_id"]
-    assert 110 <= seconds_of(store_db, run_id) <= 125
+    wanted = env.limits_for_family(
+        env.DATA_ANALYSIS_STANDARD).deadline_seconds
+    assert wanted - 10 <= seconds_of(store_db, run_id) <= wanted + 5
     settle(store_db, run_id)
 
 
@@ -308,7 +311,11 @@ def test_a_follow_up_in_an_analysed_thread_is_accepted_on_the_wide_clock(
         "question": "and within prject finance?", "mode": "standard",
         "thread_id": thread_id})
     assert follow.status_code == 202, follow.text
-    assert 110 <= seconds_of(store_db, follow.json()["run_id"]) <= 125
+    wanted = env.limits_for_family(
+        env.DATA_ANALYSIS_STANDARD).deadline_seconds
+    assert (wanted - 10
+            <= seconds_of(store_db, follow.json()["run_id"])
+            <= wanted + 5)
     settle(store_db, follow.json()["run_id"])
 
 
@@ -329,7 +336,8 @@ def test_diagnostics_name_the_three_policy_families(client):
     for family in ("product_help.standard", "data_analysis.standard",
                    "data_analysis.deep"):
         assert family in families, sorted(families)
-    assert families["data_analysis.standard"]["deadline_seconds"] == 120.0
+    assert (families["data_analysis.standard"]["deadline_seconds"]
+            == env.limits_for_family(env.DATA_ANALYSIS_STANDARD).deadline_seconds)
     assert families["data_analysis.standard"]["spend_ceiling_usd"] == 1.50
     assert families["data_analysis.deep"]["deadline_seconds"] == 240.0
     assert families["data_analysis.deep"]["spend_ceiling_usd"] == 3.00
@@ -360,7 +368,8 @@ def test_the_ledger_never_narrows_an_allowance_it_already_has(capability,
                     capability=capability, store=store_db, run_id="r1",
                     started_monotonic=0.0)
     report = ledger.adopt(config_mod.STANDARD_LIMITS)
-    assert ledger.limits.deadline_seconds == 120.0, (
+    assert ledger.limits.deadline_seconds == (
+        config_mod.ANALYTICAL_STANDARD_LIMITS.deadline_seconds), (
         "adopting the tighter allowance must not shorten a run that already "
         "holds the wider one")
     assert report["changed"] is False

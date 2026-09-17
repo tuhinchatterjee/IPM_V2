@@ -233,13 +233,42 @@ def test_a_stop_never_settles_as_failed_while_carrying_a_result(
     for code, reason in orch._RESULT_ONLY_REASON.items():
         assert code in st.ERROR_CODES, code
         assert reason.strip().endswith("."), (code, reason)
-    # A REJECTED answer is not one of them: the analyst did write one, and
-    # what that run settles into is not this channel's business.
-    assert st.ANSWER_VALIDATION not in orch._RESULT_ONLY_REASON
 
 
-def test_a_rejected_answer_is_left_exactly_as_it_was(drive, release_id):
-    """The one neighbouring failure mode this must not have moved."""
+def test_the_supervisor_and_the_orchestrator_read_one_table(release_id):
+    """Two components publish this way, and must agree on when and why.
+
+    The orchestrator publishes when its own budget check stops the run;
+    the SUPERVISOR publishes when it settles a run whose worker is blocked
+    on a socket. Two tables of the same sentences are two tables that can
+    disagree, and the reader would then be told different things about the
+    same failure depending on which component happened to win a race.
+    """
+    from backend.cockpit_v4 import finalization as fin
+    from backend.cockpit_v4 import orchestration as orch
+    from backend.cockpit_v4 import supervisor as sup
+
+    assert orch._RESULT_ONLY_REASON is fin.RESULT_ONLY_REASON
+    assert sup._RESULT_REASON is fin.RESULT_ONLY_REASON
+
+
+def test_a_rejected_answer_publishes_its_rows_and_none_of_its_prose(
+        drive, release_id):
+    """Recorded reversal.
+
+    This test previously asserted the opposite -- `FAILED`, `response is
+    None` -- and was named "the one neighbouring failure mode this must
+    not have moved". That was a scope boundary for the round that built
+    this channel, not a finding about what a reader should see.
+
+    It does not survive contact with one. The query ran, the rows are
+    stored and correct, and the only thing that failed is the write-up.
+    The stated ground for excluding it -- that the analyst DID write an
+    answer -- argues for discarding that answer, which this channel does:
+    it publishes no narrative and no claims, only server-rendered tables
+    under a server-written caveat. The reader was being shown a red box
+    over their own correct result.
+    """
     from test_orchestration_recovery import _bad_answer
 
     quarter = oracles.latest_quarter(release_id)
@@ -247,9 +276,16 @@ def test_a_rejected_answer_is_left_exactly_as_it_was(drive, release_id):
         "What is total exposure at default by sector in the latest quarter?",
         [ScriptedResult(tool_calls=[_ead_call(quarter)]),
          _bad_answer, _bad_answer, _bad_answer])
-    assert outcome.state == st.FAILED
     assert outcome.error_code == st.ANSWER_VALIDATION
-    assert outcome.response is None
+    assert outcome.state == st.PARTIAL
+
+    published = outcome.response or {}
+    assert published.get("result_only") is True
+    assert published["tables"], "the rows the query returned"
+    # What failed, failed closed.
+    assert published["numeric_claims"] == []
+    assert published["evidence_bound"] is False
+    assert "could not be reconciled" in " ".join(published["limitations"])
 
 
 def test_a_successful_answer_is_not_overwritten_by_a_later_stop(

@@ -39,9 +39,59 @@ from backend.cockpit_v4 import derivation as deriv
 from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4.contracts import (DATA_ANALYSIS, FinalResponse,
                                           NumericClaim, Rejection)
-from backend.cockpit_v4.states import ANSWER_VALIDATION
+from backend.cockpit_v4.states import (ACTION_FORMAT_EXHAUSTED,
+                                       ANSWER_FORMAT_EXHAUSTED,
+                                       ANSWER_VALIDATION, CALL_LIMIT,
+                                       COST_LIMIT, DEADLINE_EXPIRED,
+                                       EXECUTION_LIMIT, OUTPUT_LIMIT,
+                                       ROUND_LIMIT)
 
 PLACEHOLDER = re.compile(r"\{\{claim\.([A-Za-z0-9_.:-]{1,64})\}\}")
+
+#: WHY the written answer never arrived, in one sentence a reader can act
+#: on. The rows are published either way; this says what is missing from
+#: them and, where the reader can do something about it, what.
+#:
+#: It lives HERE, beside `result_only_response`, because two components
+#: publish this way: the orchestrator, when its own budget check stops the
+#: run, and the SUPERVISOR, when it settles a run whose worker is blocked.
+#: Keyed by the error code either of them is settling under. Membership is
+#: also the eligibility list -- a code that is not here does not publish a
+#: result-only answer.
+RESULT_ONLY_REASON: dict[str, str] = {
+    ANSWER_FORMAT_EXHAUSTED: (
+        "Every attempt at the written answer was cut off before it was "
+        "complete, so none of them was published. A narrower question "
+        "usually produces one."),
+    ACTION_FORMAT_EXHAUSTED: (
+        "The analysis could not be carried further after this result."),
+    OUTPUT_LIMIT: (
+        "The written answer was longer than this run could publish."),
+    DEADLINE_EXPIRED: (
+        "The run reached its time allowance before the answer was written."),
+    COST_LIMIT: (
+        "The run reached its cost ceiling before the answer was written."),
+    CALL_LIMIT: (
+        "The run used its model-call allowance before the answer was "
+        "written."),
+    EXECUTION_LIMIT: (
+        "The run used its execution allowance before the answer was "
+        "written."),
+    ROUND_LIMIT: (
+        "The run used its analysis rounds before the answer was written."),
+    # A WRITTEN ANSWER THAT FAILED ITS CHECKS IS STILL NOT A REASON TO
+    # WITHHOLD THE ROWS. This was deliberately excluded once, on the ground
+    # that the analyst HAD written an answer and what that run settles into
+    # was not this channel's business. The distinction does not survive
+    # contact with a reader: the rejected narrative is discarded either way,
+    # what publishes here is the stored result with a server-written caveat
+    # and no narrative at all, and the alternative on offer is a red box
+    # over a query that ran correctly.
+    ANSWER_VALIDATION: (
+        "The written answer could not be reconciled with the evidence, and "
+        "the one correction this run allows was already used. The rows "
+        "below are the query's own output and were not affected."),
+}
 
 #: A bare number in narrative prose. Used to WARN, never to reject prose --
 #: "20 quarters", "IFRS 9" and "12-month" are legitimate and are not
@@ -55,6 +105,83 @@ _ALLOWED_BARE = {"9", "12", "20", "19", "1", "2", "3", "4", "5", "10", "15",
 _SUPERLATIVE = re.compile(
     r"\b(top|largest|biggest|highest|greatest|smallest|lowest|"
     r"rank(?:ed|ing)?|leading|worst|best|most)\b")
+
+
+def _affix_before(token: str) -> re.Pattern[str]:
+    """A unit token sitting immediately in front of a placeholder."""
+    edge = r"\b" if token[-1:].isalnum() else ""
+    return re.compile(rf"(?i){edge}{re.escape(token)}\s*$")
+
+
+def _affix_after(token: str) -> re.Pattern[str]:
+    """A unit token sitting immediately after a placeholder."""
+    edge = r"\b" if token[-1:].isalnum() else ""
+    return re.compile(rf"(?i)^\s*{re.escape(token)}{edge}")
+
+
+def substitute(narrative: str, values: dict[str, str],
+               units: dict[str, str]) -> tuple[str, list[str]]:
+    """Put each claim's published text into the prose, ONCE, with ONE unit.
+
+    `format_value` writes the unit into the string -- `SAR 78 million`,
+    `48.31%`, `446 accounts`. An analyst writing prose naturally writes it
+    too, and the result reached readers:
+
+        "SAR SAR 78 million million across 446 accounts accounts"
+        "an overall coverage of 48.31%%"
+
+    The prose is not wrong about the unit; it is right about it twice. So
+    the duplicate is TAKEN OUT here rather than sent back: CreditProbe owns
+    the numeric string, this is the moment that string is written, and a
+    re-ask would spend a model turn and a slice of the deadline to correct
+    a presentation detail the server can settle itself.
+
+    Only a token `format_value` is about to emit for THAT claim's unit is
+    removed, and only where it touches the placeholder. A sentence that
+    mentions millions elsewhere keeps its word, and `SAR {{claim.x}}` whose
+    claim is a percentage keeps its `SAR` -- that is a claim carrying the
+    wrong unit, which is a different fault and not one to paper over.
+
+    Returns the rendered prose and one note per repair.
+    """
+    from backend.cockpit_v4 import display as disp
+
+    out: list[str] = []
+    notes: list[str] = []
+    cursor = 0
+    for match in PLACEHOLDER.finditer(narrative):
+        claim_id = match.group(1)
+        head = narrative[cursor:match.start()]
+        cursor = match.end()
+        if claim_id not in values:
+            out.append(head)
+            out.append(match.group(0))
+            continue
+
+        prefixes, suffixes = disp.written_affixes(units.get(claim_id, ""))
+        for token in prefixes:
+            trimmed = _affix_before(token).sub("", head)
+            if trimmed != head:
+                head, _ = trimmed, notes.append(
+                    f"the narrative wrote {token.upper()!r} in front of "
+                    f"{{{{claim.{claim_id}}}}}, which already publishes it; "
+                    f"the duplicate was removed.")
+                break
+        out.append(head)
+        out.append(values[claim_id])
+
+        rest = narrative[cursor:]
+        for token in suffixes:
+            trimmed = _affix_after(token).sub("", rest)
+            if trimmed != rest:
+                cursor += len(rest) - len(trimmed)
+                notes.append(
+                    f"the narrative wrote {token!r} after "
+                    f"{{{{claim.{claim_id}}}}}, which already publishes it; "
+                    f"the duplicate was removed.")
+                break
+    out.append(narrative[cursor:])
+    return "".join(out), notes
 
 
 @dataclass
@@ -217,8 +344,13 @@ class Finalizer:
 
         rendered = final.narrative
         if not problems:
-            rendered = PLACEHOLDER.sub(
-                lambda m: values.get(m.group(1), m.group(0)), final.narrative)
+            # A unit the analyst typed beside a placeholder is removed here,
+            # not sent back: the server writes the numeric string, so the
+            # server settles how many times its unit appears in it.
+            rendered, repairs = substitute(
+                final.narrative, values,
+                {c.claim_id: c.unit for c in final.numeric_claims})
+            warnings.extend(repairs)
 
         return ValidationReport(
             ok=not problems, rendered_narrative=rendered, problems=problems,

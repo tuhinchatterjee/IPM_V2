@@ -46,7 +46,7 @@ from backend.cockpit_v4 import execute_tool as xt
 from backend.cockpit_v4.run_store import redact as _store_redact
 from backend.cockpit_v4.execute_tool import (ExecutionService,
                                              no_progress_key)
-from backend.cockpit_v4.finalization import Finalizer
+from backend.cockpit_v4.finalization import RESULT_ONLY_REASON, Finalizer
 from backend.cockpit_v4.provider import (Analyst, InputTooLarge,
                                          OutputTruncated, ProviderFailure)
 from backend.cockpit_v4.run_store import (LeaseLost, StorageUnavailable,
@@ -97,31 +97,10 @@ _PURPOSE_MESSAGE: dict[str, str] = {
 }
 
 
-#: WHY the written answer never arrived, in one sentence a reader can act
-#: on. The rows are published either way; this says what is missing from
-#: them and, where the reader can do something about it, what.
-_RESULT_ONLY_REASON: dict[str, str] = {
-    st.ANSWER_FORMAT_EXHAUSTED: (
-        "Every attempt at the written answer was cut off before it was "
-        "complete, so none of them was published. A narrower question "
-        "usually produces one."),
-    st.ACTION_FORMAT_EXHAUSTED: (
-        "The analysis could not be carried further after this result."),
-    st.OUTPUT_LIMIT: (
-        "The written answer was longer than this run could publish."),
-    st.DEADLINE_EXPIRED: (
-        "The run reached its time allowance before the answer was written."),
-    st.COST_LIMIT: (
-        "The run reached its cost ceiling before the answer was written."),
-    st.CALL_LIMIT: (
-        "The run used its model-call allowance before the answer was "
-        "written."),
-    st.EXECUTION_LIMIT: (
-        "The run used its execution allowance before the answer was "
-        "written."),
-    st.ROUND_LIMIT: (
-        "The run used its analysis rounds before the answer was written."),
-}
+#: WHY the written answer never arrived. Lives with `result_only_response`,
+#: because the SUPERVISOR publishes the same way for the same reasons and
+#: two tables of the same sentences are two tables that can disagree.
+_RESULT_ONLY_REASON = RESULT_ONLY_REASON
 
 
 #: Which disposition settles into which terminal state.
@@ -490,10 +469,11 @@ class Orchestrator:
             return None
         reason = _RESULT_ONLY_REASON.get(code, "")
         if not reason:
-            # Only the codes that mean "the analysis worked and the writing
-            # did not". A REJECTED answer is a different case -- the analyst
-            # did write one and it failed its checks -- and what that run
-            # settles into is not this channel's business.
+            # The codes that mean "the analysis worked and the writing did
+            # not", which now includes an answer REJECTED twice by its own
+            # evidence check. Everything published here is read back out of
+            # the artifact store; the narrative the analyst wrote is
+            # discarded whether or not the rows go out with it.
             return None
         try:
             body = self.finalizer.result_only_response(
@@ -1532,8 +1512,17 @@ class Orchestrator:
                 # event says which half stopped, and names the artifact that
                 # survived so the work can be inspected.
                 self._preserve_analysis("answer_correction_exhausted")
+                # AND THE RESULT IS PUBLISHED, not merely preserved. Naming
+                # the surviving artifact in an event tells an OPERATOR the
+                # SQL was fine; it does not put a single row in front of the
+                # reader, who asked a question and is looking at a red box
+                # over a query that ran correctly. Same channel, same
+                # server-written caveat, no narrative -- the rejected one is
+                # discarded here exactly as it was before.
+                published = self._result_only_response(st.ANSWER_VALIDATION)
                 return Outcome(
-                    st.FAILED, error_code=st.ANSWER_VALIDATION,
+                    st.PARTIAL if published else st.FAILED,
+                    error_code=st.ANSWER_VALIDATION, response=published,
                     message=(
                         ("The analysis completed and its result is stored, "
                          "but the written answer could not be validated "

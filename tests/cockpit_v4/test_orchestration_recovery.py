@@ -199,13 +199,34 @@ def test_a_second_truncated_action_still_fails_closed(drive, release_id):
 
 
 def test_a_second_invalid_answer_still_fails_closed(drive, release_id):
+    """Neither invalid narrative is published. The ROWS are.
+
+    Failing closed is a statement about the NARRATIVE: an answer that
+    cannot be reconciled with its evidence must never reach a reader, and
+    after the one correction it does not. That has not moved, and is
+    asserted below.
+
+    What moved is what happens to the result. The query ran, its rows are
+    stored and correct, and a reader used to be shown a red box over them.
+    They now go out through the result-only channel -- server-rendered
+    tables, a server-written caveat, no narrative and no claims -- so
+    nothing the analyst wrote survives either way.
+    """
     quarter = oracles.latest_quarter(release_id)
     outcome, _, _ = drive(
         "What is total exposure at default by sector in the latest quarter?",
         [ScriptedResult(tool_calls=[_ead_call(quarter)]),
          _bad_answer, _bad_answer, _good_answer])
-    assert outcome.state == st.FAILED
     assert outcome.error_code == st.ANSWER_VALIDATION
+    assert outcome.state == st.PARTIAL
+
+    published = outcome.response or {}
+    assert published.get("result_only") is True
+    assert published["disposition"] == "partial_answer"
+    # THE NARRATIVE FAILED CLOSED. Nothing the analyst wrote is in here.
+    assert published["numeric_claims"] == []
+    assert published["tables"], "the rows the query returned"
+    assert "could not write" in published["narrative"]
 
 
 def test_a_truncated_action_never_executes_partial_arguments(drive,

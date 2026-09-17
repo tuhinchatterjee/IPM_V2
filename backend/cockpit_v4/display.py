@@ -334,6 +334,66 @@ def format_value(canonical: Decimal, unit: str,
     return f"{body} {word}".strip()
 
 
+#: Other spellings of a suffix this module writes. `format_value` emits one
+#: of them; a person writing prose reaches for any of them, and the point of
+#: `written_affixes` is to recognise what a person wrote.
+_SUFFIX_ALIASES: dict[str, tuple[str, ...]] = {
+    "%": ("%", "percent", "per cent", "pct"),
+    "pp": ("pp", "percentage point", "percentage points", "ppt"),
+    "x": ("x", "times"),
+    "million": ("million", "millions", "mn", "m"),
+    "billion": ("billion", "billions", "bn", "b"),
+    "thousand": ("thousand", "thousands", "k"),
+}
+
+
+def written_affixes(unit: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """What `format_value` puts around the number, and how a person spells it.
+
+    THE UNIT IS WRITTEN TWICE OR NOT AT ALL. `format_value` writes the unit
+    INTO the string it returns -- `SAR 78 million`, `48.31%`, `446 accounts`.
+    So an analyst who also types the unit beside the placeholder, as anyone
+    writing prose naturally does, publishes it twice:
+
+        "SAR {{claim.ead}} million"  ->  "SAR SAR 78 million million"
+        "{{claim.coverage}}%"        ->  "48.31%%"
+        "{{claim.n}} accounts"       ->  "446 accounts accounts"
+
+    All three were live. This names the tokens so the substitution can take
+    the duplicate out rather than publish it.
+
+    The primary spelling is DERIVED from `format_value` rather than listed
+    here: it formats a sentinel and reads off what surrounds the digits. A
+    unit whose rendering changes cannot leave this function stale, which a
+    second hand-maintained table would not survive. The aliases are the only
+    hand-written part, and they are additions to a derived truth rather than
+    a restatement of it.
+
+    Returns `(prefixes, suffixes)`, both lower-cased, either possibly empty.
+    """
+    sentinel = Decimal(0)
+    rendered = format_value(sentinel, unit)
+    body = f"{display_value(sentinel, unit):,}"
+    head, found, tail = rendered.partition(body)
+    if not found:
+        return (), ()
+
+    prefixes = tuple(x for x in (head.strip().lower(),) if x)
+    suffix = tail.strip().lower()
+    suffixes: tuple[str, ...] = _SUFFIX_ALIASES.get(suffix, (suffix,) if suffix
+                                                    else ())
+    # A money unit's own scale token, when the release spells it short. The
+    # release says "USD bn"; `format_value` writes "billion"; the analyst
+    # writes whichever they read. Both are the same scale and both are a
+    # duplicate.
+    match = _MONEY.match(str(unit or "").strip().lower())
+    if match and match.group("scale"):
+        raw = match.group("scale").lower()
+        if raw not in suffixes:
+            suffixes = (*suffixes, raw)
+    return prefixes, suffixes
+
+
 def format_unitless(value: Decimal) -> str:
     """A number whose unit nothing could name, written for a person anyway.
 
@@ -390,4 +450,4 @@ __all__ = ["CATALOG_UNITS", "CATEGORICAL", "COUNT", "DECIMALS",
            "classify", "decimals", "display_value", "format_unitless",
            "format_value", "governed",
            "money_unit", "permitted", "plain", "quantize",
-           "resolve_decimals", "unit_for_field"]
+           "resolve_decimals", "unit_for_field", "written_affixes"]

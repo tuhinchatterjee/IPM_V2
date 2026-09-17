@@ -268,7 +268,8 @@ def test_failure_3_the_follow_up_is_on_the_analysis_clock_from_the_start(
 def test_failure_3_the_question_is_analytical_on_its_own_words(client):
     verdict = env.classify(question=THE_QUESTION)
     assert verdict.analytical is True
-    assert verdict.limits.deadline_seconds == 120.0
+    analysis = env.limits_for_family(env.DATA_ANALYSIS_STANDARD)
+    assert verdict.limits.deadline_seconds == analysis.deadline_seconds
     assert float(verdict.limits.spend_ceiling_usd) == 1.50
 
 
@@ -277,7 +278,9 @@ def test_failure_3_the_three_policy_families_are_published(client):
                 client.get(f"{P}/diagnostics").json()["budget_policy"][
                     "families"]}
     assert families["product_help.standard"]["deadline_seconds"] == 60.0
-    assert families["data_analysis.standard"]["deadline_seconds"] == 120.0
+    assert (families["data_analysis.standard"]["deadline_seconds"]
+            == env.limits_for_family(
+                env.DATA_ANALYSIS_STANDARD).deadline_seconds)
     assert families["data_analysis.deep"]["deadline_seconds"] == 240.0
 
 

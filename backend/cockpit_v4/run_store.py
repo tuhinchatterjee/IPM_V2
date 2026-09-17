@@ -27,7 +27,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -792,14 +792,35 @@ class RunStore:
                     out.append(record)
         return out
 
-    def expiring_runs(self) -> list[RunRecord]:
-        now = _now()
+    def expiring_runs(self, *, grace_seconds: float = 0.0) -> list[RunRecord]:
+        """Runs past their deadline by more than `grace_seconds`.
+
+        THE GRACE IS WHAT MAKES THE WATCHDOG A WATCHDOG. Two components
+        enforce this deadline: the worker's own ledger, which raises inside
+        the loop and settles the run by PUBLISHING the rows it already
+        computed, and this, which settles it from outside and cannot publish
+        anything the worker knows. They used to race on the same instant --
+        a 2-second settlement margin against a 2-second poll -- and the
+        watchdog won routinely, turning a recoverable partial answer into a
+        bare "This request ran out of time" while the rows sat in the
+        artifact table.
+
+        They are not equals and must not race. The worker settles the
+        ordinary case; the watchdog exists for a worker that is blocked on a
+        socket or gone. Holding it back by a margin larger than a clean
+        settlement takes gives the worker the ordinary case, and costs a
+        genuinely lost run only the few seconds before its browser stops
+        spinning.
+        """
         conn = self._connect()
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(seconds=max(0.0, grace_seconds))
+                  ).isoformat(timespec="milliseconds")
         rows = conn.execute(
             "SELECT run_id FROM runs WHERE deadline_at != '' AND "
             f"deadline_at < ? AND state NOT IN "
             f"({','.join('?' * len(TERMINAL_STATES))})",
-            (now, *TERMINAL_STATES)).fetchall()
+            (cutoff, *TERMINAL_STATES)).fetchall()
         return [r for r in (self._read_run(conn, x["run_id"]) for x in rows)
                 if r is not None]
 
@@ -921,6 +942,25 @@ class RunStore:
                  json.dumps(rows, ensure_ascii=False, default=str),
                  code_digest, _now()))
         return artifact_id
+
+    def artifact_ids_for_run(self, run_id: str, *,
+                             tenant_id: str) -> list[str]:
+        """Every result this run stored, oldest first.
+
+        The orchestrator tracks these in memory as it creates them, which
+        serves it well and serves nobody else. The SUPERVISOR settles a run
+        whose worker is blocked or gone and has no such memory, so without
+        this it can only discard rows that were computed, stored and
+        individually serveable -- which is exactly what a reader saw when a
+        wall clock passed mid-generation.
+
+        Tenant-checked like `get_artifact`, for the same reason.
+        """
+        rows = self._connect().execute(
+            "SELECT artifact_id FROM artifacts WHERE run_id=? AND "
+            "tenant_id=? ORDER BY created_at, artifact_id",
+            (run_id, tenant_id)).fetchall()
+        return [str(r["artifact_id"]) for r in rows]
 
     def get_artifact(self, artifact_id: str, *,
                      tenant_id: str) -> dict[str, Any] | None:

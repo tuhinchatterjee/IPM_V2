@@ -214,6 +214,20 @@ Leave `decimal_value` and `display_precision` out. Write
 `{{claim.total_ead}}` and the reader sees `SAR 40,599 million`; write
 `{{claim.top4_share}}` and the reader sees `61.24%`.
 
+**Do not write the unit beside the placeholder either.** The placeholder
+already carries the currency, the scale, the `%` and the counted noun, so a
+unit you add is published twice:
+
+| you write | the reader gets |
+|---|---|
+| `SAR {{claim.ead}} million` | `SAR SAR 78 million million` |
+| `{{claim.coverage}}%` | `48.31%%` |
+| `{{claim.accounts}} accounts` | `446 accounts accounts` |
+
+Write `{{claim.ead}}`, `{{claim.coverage}}` and `{{claim.accounts}}` on
+their own. Name the unit in prose only where no placeholder is doing it —
+"balances are in millions of riyals" is fine.
+
 ### How a claim is built
 
 These are the validator's own rules. A claim that breaks one is refused, so

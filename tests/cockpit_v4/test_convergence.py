@@ -204,9 +204,10 @@ def test_the_budgets_are_declared_separately_and_neither_is_zero():
 
 
 def test_the_analytical_allowances_are_the_ones_the_round_specifies():
-    """§31. 120s standard, 240s deep."""
+    """§31. The analysis allowance, standard and deep."""
     assert config_mod.analytical_limits_for(
-        "standard").deadline_seconds == 120.0
+        "standard").deadline_seconds == (
+        config_mod.ANALYTICAL_STANDARD_LIMITS.deadline_seconds)
     assert config_mod.analytical_limits_for("deep").deadline_seconds == 240.0
     # And the tight product-help allowance is unchanged: widening everything
     # would be the opposite of the point.

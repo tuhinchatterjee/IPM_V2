@@ -227,8 +227,21 @@ DEEP_LIMITS = Limits(
 #: actual usage. $1.50 covers the common three-generation path with the
 #: reservation headroom the ledger needs; Deep's $3.00 covers the four-
 #: generation path with a repair.
+#: 120 seconds was measured against a run that writes ONE query and ONE
+#: answer. Two live runs on a real book spent 25s, 21s and 52s on three
+#: generations -- reading the question, authoring a repaired submission, and
+#: writing the answer -- before the answer correction had even started, and
+#: both were reaped mid-sentence. The failure mode was the defect and is
+#: fixed elsewhere in this change: the run now settles cooperatively and
+#: publishes its rows. This is the other half. A question that needs a
+#: repair and a correction is an ordinary analytical question, not an abuse
+#: of the allowance, and 180 seconds is what one costs.
+#:
+#: The cost ceiling is unchanged. Time was the bound that bit; spend was
+#: nowhere near $1.50 in either run, and raising a ceiling nothing reached
+#: would only weaken it.
 ANALYTICAL_STANDARD_LIMITS = replace(
-    STANDARD_LIMITS, deadline_seconds=120.0, spend_ceiling_usd=1.50)
+    STANDARD_LIMITS, deadline_seconds=180.0, spend_ceiling_usd=1.50)
 
 ANALYTICAL_DEEP_LIMITS = replace(
     DEEP_LIMITS, deadline_seconds=240.0, spend_ceiling_usd=3.00)

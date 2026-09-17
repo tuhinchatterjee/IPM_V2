@@ -279,8 +279,11 @@ def test_the_allowance_widens_before_the_query_runs(drive, store_db,
         f"allowance at {allowance_at}, execution requested at "
         f"{requested_at}. Operations: {order}")
     stated = events[allowance_at].public_message
-    assert "120s" in stated and "$1.50" in stated, stated
-    assert store_db.get_run(record.run_id).budget["deadline_seconds"] == 120.0
+    wanted = config_mod.ANALYTICAL_STANDARD_LIMITS
+    assert (f"{wanted.deadline_seconds:.0f}s" in stated
+            and f"${wanted.spend_ceiling_usd:.2f}" in stated), stated
+    assert (store_db.get_run(record.run_id).budget["deadline_seconds"]
+            == wanted.deadline_seconds)
     # And none of it waited on a parsed intent.
     assert allowance_at < order.index("intent"), (
         "the allowance still waits on a parsed intent")

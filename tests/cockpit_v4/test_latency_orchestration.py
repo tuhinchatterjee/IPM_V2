@@ -26,6 +26,7 @@ import oracles
 import pytest
 from conftest import ScriptedResult, final, intent, tool_call
 
+from backend.cockpit_v4 import config as config_mod
 from backend.cockpit_v4 import states as st
 from test_orchestration_recovery import (_ead_call, _execution_result,
                                          _good_answer)
@@ -49,6 +50,27 @@ _LEDGER: list = []
 def _advance(seconds: float) -> None:
     for ledger in _LEDGER:
         ledger.started_monotonic -= seconds
+
+
+#: The allowance these timings are expressed against.
+ALLOWANCE = config_mod.ANALYTICAL_STANDARD_LIMITS.deadline_seconds
+
+
+def _burn(fraction: float) -> None:
+    """Spend a FRACTION of the analysis allowance, not a count of seconds.
+
+    These timings were absolute -- 55s of 120s, 45s then 72s -- and each one
+    encoded the allowance twice: once in the number, once in the intent
+    ("two turns and there is no room for a third"). Raising the allowance to
+    180s turned every one of them into a run that finishes comfortably, and
+    the suite reported a preserved-analysis path as COMPLETED rather than
+    reporting that its own arithmetic had gone stale.
+
+    A fraction says the intent directly and survives the next tuning. One of
+    these tests already carried the instruction in an assertion message:
+    retune it rather than letting the path go unchecked.
+    """
+    _advance(fraction * ALLOWANCE)
 
 
 @pytest.fixture
@@ -80,7 +102,7 @@ def slow_drive(store_db, runtime, make_run, monkeypatch):
 
 def test_a_simple_analysis_finishes_well_inside_the_standard_deadline(
         slow_drive, release_id):
-    """Two turns at live-like latency, inside 120 seconds."""
+    """Two turns at live-like latency, inside the allowance."""
     quarter = oracles.latest_quarter(release_id)
     outcome, provider, _ = slow_drive(
         "What is total exposure at default by sector in the latest quarter?",
@@ -89,18 +111,19 @@ def test_a_simple_analysis_finishes_well_inside_the_standard_deadline(
     assert outcome.state == st.COMPLETED, outcome.message
     assert len(provider.sent) == 2
     assert _LEDGER, "the ledger was never constructed"
-    assert _LEDGER[0].elapsed_seconds < 120.0, (
-        f"the run took {_LEDGER[0].elapsed_seconds:.0f}s of a 120s allowance")
+    assert _LEDGER[0].elapsed_seconds < ALLOWANCE, (
+        f"the run took {_LEDGER[0].elapsed_seconds:.0f}s of a "
+        f"{ALLOWANCE:.0f}s allowance")
 
 
 def test_a_run_with_a_recovery_still_fits(slow_drive, release_id):
-    """Truncated action at 20s, retry at 25s, answer at 20s: 65s of 120."""
+    """A truncated action, a retry and an answer still fit."""
     from backend.cockpit_v4.provider import OutputTruncated
 
     quarter = oracles.latest_quarter(release_id)
 
     def truncate(messages):
-        _advance(20.0)
+        _burn(0.1667)
         return OutputTruncated("cut off", limit=4096)
 
     outcome, provider, _ = slow_drive(
@@ -109,7 +132,7 @@ def test_a_run_with_a_recovery_still_fits(slow_drive, release_id):
          Slow(25.0, ScriptedResult(tool_calls=[_ead_call(quarter)])),
          Slow(20.0, _good_answer)])
     assert outcome.state == st.COMPLETED, outcome.message
-    assert _LEDGER[0].elapsed_seconds < 120.0
+    assert _LEDGER[0].elapsed_seconds < ALLOWANCE
 
 
 # ---- and the guard fires when it should not fit -----------------------
@@ -127,7 +150,7 @@ def test_no_further_action_is_started_once_the_reserve_is_all_that_is_left(
     quarter = oracles.latest_quarter(release_id)
 
     def glacial(messages):
-        _advance(55.0)
+        _burn(0.4583)
         return ScriptedResult(tool_calls=[tool_call(
             "inspect_catalog",
             {"relations": ["cockpit_facility_quarter"], "detail": ["fields"],
@@ -163,11 +186,11 @@ def test_the_last_seconds_are_spent_writing_the_answer_not_discovering_none(
     quarter = oracles.latest_quarter(release_id)
 
     def slow_action(messages):
-        _advance(50.0)
+        _burn(0.4167)
         return ScriptedResult(tool_calls=[_ead_call(quarter)])
 
     def nearly_out(messages):
-        _advance(55.0)
+        _burn(0.4583)
         return ScriptedResult(tool_calls=[tool_call(
             "inspect_catalog",
             {"relations": ["cockpit_facility_quarter"], "detail": ["fields"],
@@ -203,7 +226,7 @@ def test_the_answer_turn_may_spend_the_reserve_the_actions_could_not(
     def slow_action(messages):
         # Inside the 60s the run starts on; the analytical allowance widens
         # to 120s once this action declares the turn analytical.
-        _advance(45.0)
+        _burn(0.375)
         return ScriptedResult(tool_calls=[_ead_call(quarter)])
 
     outcome, provider, _ = slow_drive(
@@ -224,14 +247,14 @@ def test_a_successful_analysis_is_preserved_when_time_runs_out(
     from test_orchestration_recovery import _bad_answer
 
     def slow_action(messages):
-        _advance(45.0)
+        _burn(0.375)
         return ScriptedResult(tool_calls=[_ead_call(quarter)])
 
     def slow_invalid_answer(messages):
         # The analysis has succeeded and the written answer does not bind.
         # A correction is allowed -- but by now there is no time to make
         # one, so the run stops with a stored result and no answer.
-        _advance(72.0)
+        _burn(0.6)
         return _bad_answer(messages)
 
     outcome, provider, record = slow_drive(

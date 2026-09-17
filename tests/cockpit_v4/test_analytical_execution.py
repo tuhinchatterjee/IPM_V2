@@ -379,13 +379,19 @@ def test_an_analytical_question_runs_on_the_analysis_allowance(drive,
                                                                store_db):
     """§9. A question that names a measure is on the analysis clock from its
     first second, not once the analyst has spent a generation saying so."""
+    allowance = config_mod.ANALYTICAL_STANDARD_LIMITS
     _outcome, _provider, record = drive("EAD by sector", [_declares_analysis])
     budget = store_db.get_run(record.run_id).budget
-    assert budget["deadline_seconds"] == 120.0
-    assert budget["spend_ceiling_usd"] == 1.50
+    # READ FROM THE CONSTANT, not repeated as a literal. The claim is that
+    # the run is on the ANALYSIS allowance; which number that is belongs to
+    # `test_the_analytical_limits_are_deliberate_values` and nowhere else.
+    assert budget["deadline_seconds"] == allowance.deadline_seconds
+    assert budget["spend_ceiling_usd"] == allowance.spend_ceiling_usd
     messages = [e.public_message
                 for e in store_db.events_since(record.run_id)]
-    assert any("Allowance: 120s, $1.50" in m for m in messages), messages
+    wanted = (f"Allowance: {allowance.deadline_seconds:.0f}s, "
+              f"${allowance.spend_ceiling_usd:.2f}")
+    assert any(wanted in m for m in messages), messages
 
 
 def test_a_declared_analysis_still_widens_a_run_that_started_narrow(
@@ -393,13 +399,16 @@ def test_a_declared_analysis_still_widens_a_run_that_started_narrow(
     """The widening path is the fallback, and it is still load-bearing: a
     question the envelope could not read as analytical, whose analyst then
     declares one, gets the analysis allowance on the declaration."""
+    allowance = config_mod.ANALYTICAL_STANDARD_LIMITS
     _outcome, _provider, record = drive("Tell me more", [_declares_analysis])
     budget = store_db.get_run(record.run_id).budget
-    assert budget["deadline_seconds"] == 120.0
-    assert budget["spend_ceiling_usd"] == 1.50
+    assert budget["deadline_seconds"] == allowance.deadline_seconds
+    assert budget["spend_ceiling_usd"] == allowance.spend_ceiling_usd
     events = store_db.events_since(record.run_id)
     messages = [e.public_message for e in events]
-    assert any("Analysis allowance: 120s, $1.50" in m for m in messages), (
+    wanted = (f"Analysis allowance: {allowance.deadline_seconds:.0f}s, "
+              f"${allowance.spend_ceiling_usd:.2f}")
+    assert any(wanted in m for m in messages), (
         f"the run must widen on the declaration; messages were {messages}")
     assert "budget" in [e.operation for e in events]
 
@@ -434,8 +443,12 @@ def test_the_stored_watchdog_deadline_moves_with_the_allowance(drive,
 def test_the_analytical_limits_are_deliberate_values():
     standard = config_mod.analytical_limits_for("standard")
     deep = config_mod.analytical_limits_for("deep")
+    # THE ONE PLACE THE NUMBER IS WRITTEN DOWN. 120 was measured against a
+    # run that writes one query and one answer; two live runs spent 25s, 21s
+    # and 52s on three generations before the answer correction had even
+    # started, and both were reaped mid-sentence.
     assert (standard.deadline_seconds, standard.spend_ceiling_usd) == (
-        120.0, 1.50)
+        180.0, 1.50)
     assert (deep.deadline_seconds, deep.spend_ceiling_usd) == (240.0, 3.00)
     # Nothing else moved: this is a time and money change, not a quiet
     # loosening of how much work a run may do.
