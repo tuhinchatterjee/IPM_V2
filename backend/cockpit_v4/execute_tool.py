@@ -371,8 +371,11 @@ class ExecutionService:
                 f"{submission.intent.owner}"
                 + (f" and left "
                    f"{list(submission.intent.blocking_ambiguities)} "
-                   f"unresolved. A resolution you have already made belongs "
-                   f"in resolved_assumptions or canonical_mappings, which do "
+                   f"unresolved, so the question goes back to the reader "
+                   f"rather than being answered under a reading nobody "
+                   f"chose. If the reading would NOT change the figures it "
+                   f"was never blocking: that belongs in "
+                   f"resolved_assumptions or canonical_mappings, which do "
                    f"not stop execution."
                    if submission.intent.blocking_ambiguities else "."),
                 field_path="intent")

@@ -145,12 +145,19 @@ Three different things, and they go in three different fields:
   `gross_carrying_amount` or `drawn_balance`. "Exposure at default" is not
   that case.
 
-Writing a resolution into `blocking_ambiguities` refuses your own analysis.
-Leaving a genuine ambiguity out of it produces a confident wrong number. Put
-each one where it belongs.
+A resolution written into `blocking_ambiguities` refuses your own analysis;
+a genuine ambiguity left out of it produces a confident wrong number.
 
-When you do ask, ask once, about the one thing, and offer the concrete
-choices in `clarification_options` so the reader can click rather than type.
+**A METHOD can be ambiguous too, and the catalogue will never say so.** A
+question whose every term resolves can still have two defensible answers,
+because a decomposition order, an attribution scheme or a weighting is a
+choice you are making for the reader. Asked which of PD, LGD and CCF
+dominates a change in ECL: sequential attribution lets the order decide the
+ranking, a symmetric one does not. Same rows, different answer.
+
+Ask once, about the one thing, BEFORE spending the analysis: disposition
+`clarification`, the question in `clarification_question`, and the concrete
+choices in `clarification_options` so the reader can click, not type.
 
 ### Check what you already have before asking for more
 

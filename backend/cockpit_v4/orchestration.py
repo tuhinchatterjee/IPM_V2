@@ -203,6 +203,13 @@ class Orchestrator:
     first_failure: dict[str, Any] | None = None
     #: Consecutive inspect_catalog calls that added nothing.
     barren_catalog_calls: int = 0
+    #: Set when a submission is refused for a blocking ambiguity the ANALYST
+    #: declared. The run then stops being offered `execute_analysis` and can
+    #: only publish -- which is the one state a clarification is reachable
+    #: from. Without it the gate required execution, the refusal advised
+    #: moving the doubt into `resolved_assumptions`, and the only move left
+    #: was to guess. See `action_state.NEEDS_CLARIFICATION`.
+    must_clarify: bool = False
     _version: int = 0
 
     # -- helpers ---------------------------------------------------------
@@ -485,6 +492,17 @@ class Orchestrator:
             return None
         if not body:
             return None
+        # WHAT WENT WRONG, WHERE THE READER IS. The first analytical failure
+        # is already kept so a later stop cannot bury it, and `_stop` puts it
+        # in the run's message -- which a reader does not see next to the
+        # rows. A live run whose first submission failed to parse published
+        # its result with no hint that anything had; the reason sat in the
+        # process panel, one click away, for whoever thought to look.
+        if self.first_failure:
+            summary = str(self.first_failure.get("summary") or "").strip()
+            if summary:
+                body.setdefault("limitations", []).append(
+                    f"The first thing that went wrong in this run: {summary}")
         count = len(body.get("tables") or [])
         self.emitter.append(
             ev.ANSWER_VALIDATED, stage="publishing",
@@ -590,7 +608,18 @@ class Orchestrator:
                "to state. Do not invent one and do not describe a query you "
                "did not run. Say what the question was understood to mean, "
                "what would answer it, and that this run stopped before it "
-               "could be answered. Use the `cannot_answer` disposition."))
+               "could be answered. Use the `cannot_answer` disposition.\n\n"
+               # A RUN THAT GOT NOWHERE OFTEN KNOWS WHY. Where the reason
+               # is that the question admits two readings, "this stopped
+               # before it could be answered" wastes what the run learned:
+               # the reader is told nothing and must guess what to change.
+               # One question with concrete options is a better use of the
+               # same sentence, and the next run starts from an answer.
+               "If the reason you got no further is that the question has "
+               "two defensible readings, ask instead of reporting a dead "
+               "end: use the `clarification` disposition, put the one "
+               "question in `clarification_question`, and give the concrete "
+               "choices in `clarification_options`."))
 
     # -- generation ------------------------------------------------------
 
@@ -623,7 +652,8 @@ class Orchestrator:
         decision = acts.decide(
             executed=self.executed, answer_only=self.answer_only,
             analytical=self.analytical, readiness=self.readiness,
-            product_tool_withheld=withheld)
+            product_tool_withheld=withheld,
+            must_clarify=self.must_clarify)
         if self.catalog_answered:
             decision = acts.after_catalog(decision, self.readiness)
         if recovering:
@@ -1239,13 +1269,40 @@ class Orchestrator:
             # own business and the check already said it -- a grain refusal
             # names the join, both grains, the measures at risk and the
             # three de-duplications that would be valid.
-            rejection.detail.setdefault("note", (
-                "Nothing was executed and nothing was repaired: this "
-                "submission was refused before any step ran, so no step "
-                "budget was spent and no result exists to reconcile. Author "
-                "the corrected code yourself and submit again, or finalize "
-                "a supported partial answer. CreditProbe will not rewrite a "
-                "query, drop a step or compute a substitute."))
+            # A BLOCKING AMBIGUITY IS NOT A CODE DEFECT AND HAS NO REPAIR.
+            #
+            # The analyst said it cannot choose between two readings. The
+            # standing note tells it to author corrected code and submit
+            # again, the gate then required `execute_analysis`, and the
+            # refusal itself advised moving the doubt into
+            # `resolved_assumptions`, "which do not stop execution". Every
+            # road led back to guessing, and a live run took it: "Assumed:
+            # attribution is sequential (PD first, then LGD, then EAD)" --
+            # a choice that changes every number in the answer, made
+            # silently because the run had no way to ask.
+            if getattr(submission.intent, "blocking_ambiguities", ()):
+                self.must_clarify = True
+                rejection.detail.setdefault("note", (
+                    "Nothing was executed. This is not a defect in the code "
+                    "and there is nothing to repair: you declared a reading "
+                    "you cannot choose between, and choosing one silently is "
+                    "the outcome this refusal exists to prevent. Put the "
+                    "question to the reader instead -- call finalize_response "
+                    "with disposition \"clarification\", the one question you "
+                    "need answered, and the concrete choices in "
+                    "clarification_options so it can be clicked rather than "
+                    "typed. If on reflection the reading does NOT change the "
+                    "figures, it was never blocking: say so in "
+                    "resolved_assumptions and submit again."))
+            else:
+                rejection.detail.setdefault("note", (
+                    "Nothing was executed and nothing was repaired: this "
+                    "submission was refused before any step ran, so no step "
+                    "budget was spent and no result exists to reconcile. "
+                    "Author the corrected code yourself and submit again, or "
+                    "finalize a supported partial answer. CreditProbe will "
+                    "not rewrite a query, drop a step or compute a "
+                    "substitute."))
             # A submission refused at the binder is still a numbered
             # submission, and its exact SQL is still on file. "Which query, on
             # which attempt" has to be answerable for the one that never ran,

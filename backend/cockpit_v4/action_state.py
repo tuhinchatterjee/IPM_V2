@@ -64,8 +64,28 @@ READY_FOR_EXECUTION = "READY_FOR_EXECUTION"
 RESULT_READY = "RESULT_READY"
 #: Not an analytical turn at all.
 PRODUCT_HELP = "PRODUCT_HELP"
+#: THE ANALYST SAID IT CANNOT CHOOSE, AND WAS NOT ALLOWED TO SAY SO.
+#:
+#: `blocking_ambiguities` stops execution -- and nothing else. A submission
+#: carrying one is refused, the run is still READY_FOR_EXECUTION, and that
+#: state offers `execute_analysis` and REQUIRES it. So the next turn is
+#: compelled to submit again, and the refusal it just read told it that a
+#: resolution "belongs in resolved_assumptions, which do not stop
+#: execution". The only move the gate left open was to downgrade the doubt
+#: and guess.
+#:
+#: It did. A live run asked to attribute an ECL change across PD, LGD and
+#: CCF recorded "Assumed: attribution is sequential (PD first, then LGD,
+#: then EAD)" -- a methodology choice that changes every number in the
+#: answer -- and proceeded. The reader was never asked.
+#:
+#: So a declared blocking ambiguity now has somewhere to go. The run stops
+#: being able to execute and can only publish, which is the one state in
+#: which `disposition: "clarification"` is reachable.
+NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
 
-STATES = (NEEDS_METADATA, READY_FOR_EXECUTION, RESULT_READY, PRODUCT_HELP)
+STATES = (NEEDS_METADATA, READY_FOR_EXECUTION, RESULT_READY, PRODUCT_HELP,
+          NEEDS_CLARIFICATION)
 
 #: What a reader is told each state is doing. No internals.
 PUBLIC: dict[str, str] = {
@@ -73,6 +93,7 @@ PUBLIC: dict[str, str] = {
     READY_FOR_EXECUTION: "Preparing the query",
     RESULT_READY: "Writing the answer from the result",
     PRODUCT_HELP: "Answering from CreditProbe's product knowledge",
+    NEEDS_CLARIFICATION: "Putting one question back to the reader",
 }
 
 
@@ -120,15 +141,31 @@ class Decision:
 
 def decide(*, executed: bool, answer_only: bool, analytical: bool,
            readiness: dict[str, Any] | None,
-           product_tool_withheld: bool = False) -> Decision:
+           product_tool_withheld: bool = False,
+           must_clarify: bool = False) -> Decision:
     """The state this run is in, and the one action it may take.
 
     `readiness` is `semantics.readiness`: a deterministic, server-side
     statement about whether the governed metadata for THIS question is
     already in the packet. It is computed before any model call and it
     names no method.
+
+    `must_clarify` is set once a submission has been refused for a blocking
+    ambiguity the ANALYST declared. Nothing here decides that a question is
+    ambiguous -- that judgement is the analyst's and arrives in the intent
+    it authored. What this decides is that a run which has said it cannot
+    choose must stop being asked to execute.
     """
     ready = dict(readiness or {})
+    # BEFORE `executed`: a run cannot both hold an unresolved ambiguity and
+    # a result, because the ambiguity is what stopped the result existing.
+    if must_clarify and not executed:
+        return Decision(
+            state=NEEDS_CLARIFICATION, tools=(TOOL_FINALIZE,),
+            require=TOOL_FINALIZE,
+            because=("the analyst declared a reading it cannot choose "
+                     "between, so the question goes back to the reader"))
+
     if executed or answer_only:
         return Decision(
             state=RESULT_READY, tools=(TOOL_FINALIZE,),
