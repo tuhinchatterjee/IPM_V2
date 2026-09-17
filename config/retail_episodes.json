@@ -1,0 +1,3578 @@
+{
+ "config_version": "retail-episodes-1.0.0",
+ "generated_from": {
+  "specification": "docs/anb-ten-journeys/SPECIFICATION.txt",
+  "workbook": "docs/anb-ten-journeys/CreditProbe_10_Saudi_Retail_Worked_Cases.xlsx",
+  "script": "scripts/build_episode_config.py"
+ },
+ "disclosure": "Every customer, employer, project, score, rate, exposure and policy clause here is synthetic. Nothing represents Arab National Bank data, actual distress or approved policy.",
+ "reference_as_of": "2026-08-31",
+ "episodes": [
+  {
+   "title": "Alpha Card early arrears",
+   "card_measure": "1-29 DPD account share",
+   "severity": "CRITICAL",
+   "product_family": "CREDIT_CARD",
+   "pocket_label": "Alpha Card / internal application band 580-619",
+   "policy_id": "DEMO-CC-01",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R03",
+    "R07"
+   ],
+   "case_id": "C01",
+   "countercheck": "A shared statement cycle can concentrate DPD. It does not establish stress alone; corroborate funding and repayments before intervention.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 15,
+     "fixture_expectation": "Alpha Card early arrears: 15 of 100 eligible observations meet the issue rule, versus 6 of 100 in the comparator (2.50×; +9.0 percentage points). Affected gross exposure is SAR 359,462. For the same current issue customers, published synthetic ECL moves from SAR 7,512 to SAR 42,519. Comparable forward PD rises from 3.5% to 10.5% on 15 non-impaired issue customers. Behavioral score moves from 660.0 to 490.0; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C01-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Split 1–29 DPD into 1–9, 10–19 and 20–29 days and show the six-month trend. Is this merely short payment timing?",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "1–9: 2 customers; 10–19: 1; 20–29: 12. The comparator has 2, 1 and 3 respectively. Deep early arrears therefore rise from 3 to 12 accounts: fourfold and 80% of current 1–29 cases. A shared statement cycle can concentrate DPD. It does not establish stress alone; corroborate funding and repayments before intervention.",
+     "fixture_snapshot_id": "CPRA-C01-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "How have the same 20–29 DPD customers’ behavioral scores changed? Keep their original application scores separate.",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "Keep the S1 set of 12 IDs fixed. The demonstration behavioral-score change is 170 adverse points, while their original application values do not change. The pocket’s original internal score is around 604; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C01-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Could the score fall just be the DPD input? Decompose it by model variable and show which non-arrears changes preceded the missed payment.",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "For corroborated accounts, utilization increases from 41.5% to 97.4% while repayment proportion falls from 28% to 5.5%. Utilization and repayments contribute 120 of 170 adverse score points. They are distinct from DPD, not proof of statistical independence or causation. Verify the pre-arrears time sequence.",
+     "fixture_snapshot_id": "CPRA-C01-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Where is this stress concentrated by subproduct and original score band, after controlling for vintage and statement cycle?",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "The named pocket contains 28 of 100 eligible observations (28%) and 13 of 15 issue cases (86.7%). Its issue incidence is 46.4%, versus 2.8% outside, a 16.71× rate ratio. Narrow the corroborated list to 11 policy-review customers. Use Alpha versus Standard/Premium and 580–589, 590–599, 600–619, 620+ internal bands. Show affected / eligible rates, not raw counts. These are internal demo scores, not a claimed SIMAH scale.",
+     "fixture_snapshot_id": "CPRA-C01-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "1. Existing accounts: within one business day assign confidential early-arrears contact, verify cash flow and pause discretionary limit increases only where policy/terms permit. 2. NEW originations: test 20,000→17,000 SAR at 600–619, 15,000→12,000 at 590–599 and 10,000→7,500 at 580–589. These are trial assumptions, not approved or optimized reductions. 3. Credit policy owner reviews the controlled expansion, not all cards. Approval is required; measure cure, 30+ roll rate and complaints after intervention. Existing drawn debt is unchanged by a limit cut. Recompute EAD = drawn + CCF × unused headroom. Separate NEW-book limit proposals from existing-account contractual changes; keep PD unchanged unless independently modeled.",
+     "fixture_snapshot_id": "CPRA-C01-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Existing accounts: within one business day assign confidential early-arrears contact, verify cash flow and pause discretionary limit increases only where policy/terms permit.",
+     "owner": "Servicing / investigation owner",
+     "timing": "1 business day (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "NEW originations: test 20,000→17,000 SAR at 600–619, 15,000→12,000 at 590–599 and 10,000→7,500 at 580–589. These are trial assumptions, not approved or optimized reductions.",
+     "owner": "Credit / operations / model owner",
+     "timing": "Before new limit approval (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Credit policy owner reviews the controlled expansion, not all cards. Approval is required; measure cure, 30+ roll rate and complaints after intervention.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Next policy review, within 30 days (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 6,
+      "current": 15,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.03500000000000002,
+      "current": 0.105,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 660,
+      "current": 490,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 615.4666666666667,
+      "current": 615.4666666666667,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 7511.862949434746,
+      "current": 42519.1470398415,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 301697.45,
+      "current": 359462.4,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.6799999999999998,
+      "current": 0.6999999999999998,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 15,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Utilization",
+      "points": -70,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Repayment proportion",
+      "points": -50,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -35,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -15,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 28,
+      "issue": 13,
+      "incidence": 0.4642857142857143
+     },
+     "Other": {
+      "eligible": 72,
+      "issue": 2,
+      "incidence": 0.027777777777777776
+     }
+    },
+    "feature_line": "Utilization: 41.5% → 97.4% (ratio). Payment / statement balance: 28.0% → 5.5% (ratio). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 6,
+      "rate": 0.06,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 6,
+      "rate": 0.06,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 6,
+      "rate": 0.06,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 15,
+      "rate": 0.15,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 659.455,
+      "feature_1": 0.415,
+      "unit_1": "ratio",
+      "feature_2": 0.28,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 639.055,
+      "feature_1": 0.48207999999999995,
+      "unit_1": "ratio",
+      "feature_2": 0.253,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "May",
+      "behaviour_score": 611.855,
+      "feature_1": 0.57152,
+      "unit_1": "ratio",
+      "feature_2": 0.21700000000000003,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 577.855,
+      "feature_1": 0.6833199999999999,
+      "unit_1": "ratio",
+      "feature_2": 0.17200000000000001,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 537.055,
+      "feature_1": 0.81748,
+      "unit_1": "ratio",
+      "feature_2": 0.11800000000000002,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 489.455,
+      "feature_1": 0.974,
+      "unit_1": "ratio",
+      "feature_2": 0.05499999999999999,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     }
+    ]
+   }
+  },
+  {
+   "title": "Personal finance acquisition quality",
+   "card_measure": "Cumulative default by MOB6",
+   "severity": "CRITICAL",
+   "product_family": "PERSONAL_FINANCE",
+   "pocket_label": "Digital channel B / short employment tenure / approved exceptions",
+   "policy_id": "DEMO-PF-02",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R02",
+    "R07"
+   ],
+   "case_id": "C02",
+   "countercheck": "Book growth and differing months-on-book can imitate deterioration. Match vintage age and risk mix before judging the acquisition channel.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "Personal finance acquisition quality: 16 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.20×; +11.0 percentage points). Affected gross exposure is SAR 2,113,638. For the same current issue customers, published synthetic ECL moves from SAR 288,960 to SAR 1,428,290. All issue customers are already credit-impaired: a forward PD comparison for that issue cohort is not applicable; show stage/default and recovery instead. Behavioral score moves from 654.1 to 549.1; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C02-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Compare booking vintages at exactly month-on-book 6. Split first-default timing into MOB1–2 and MOB3–6, retaining the original eligible population.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "The current mature vintage has 16 defaults out of 100 versus 5/100 for its historical mature comparator. Three first defaults occur at MOB1–2; thirteen at MOB3–6. Do not compare immature vintages or omit closed loans. Book growth and differing months-on-book can imitate deterioration. Match vintage age and risk mix before judging the acquisition channel.",
+     "fixture_snapshot_id": "CPRA-C02-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Return to the original application scores and decision-time features for this vintage. Were the customers weak when approved?",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 105 adverse points, while their original application values do not change. The pocket’s original internal score is around 610; compare its distribution with the matched controls near 690. Here the application evidence, rather than a monthly change in the original score, is the main diagnostic evidence.",
+     "fixture_snapshot_id": "CPRA-C02-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Which application scorecard inputs and authorized exception codes explain the weak original profile? Use the model and policy versions in force then.",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "The internal application benchmark is 700; debt burden −45, employer tenure −30 and documented credit history −15 produce 610. Original burden is 54% and tenure three months. These values are immutable historical inputs, not reconstructed from current defaults. Apply the correct affordability rules before calling an exception a breach.",
+     "fixture_snapshot_id": "CPRA-C02-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Within matched vintages, compare channels and exception combinations. Is the short-tenure/high-burden intersection genuinely overrepresented?",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "The named pocket contains 30 of 100 eligible observations (30%) and 12 of 16 issue cases (75.0%). Its issue incidence is 40.0%, versus 5.7% outside, a 7.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Focus on the channel/exception intersection, with within-channel denominators and matched controls. Do not blame every digital-originated loan.",
+     "fixture_snapshot_id": "CPRA-C02-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "1. Underwriting owner reviews the relevant historical exception approvals and verifies whether each was authorized; separate policy design from policy non-compliance. 2. NEW lending: place only the evidenced exception route on second-level approval pending review; refresh verified obligations and residual-income assessment. 3. Use the applicable policy ceiling and residual-income requirement to calculate affordable principal and tenor. Track MOB3/MOB6 performance; do not retroactively apply today’s rules to old decisions. Test future-book affordable principal from a supported payment budget and contractual cash flows. For current defaults, model sustainable recovery/collection separately; no artificial balance deletion.",
+     "fixture_snapshot_id": "CPRA-C02-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Underwriting owner reviews the relevant historical exception approvals and verifies whether each was authorized; separate policy design from policy non-compliance.",
+     "owner": "Servicing / investigation owner",
+     "timing": "2 business days (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "NEW lending: place only the evidenced exception route on second-level approval pending review; refresh verified obligations and residual-income assessment.",
+     "owner": "Credit / operations / model owner",
+     "timing": "Before next exception approval (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Use the applicable policy ceiling and residual-income requirement to calculate affordable principal and tenor. Track MOB3/MOB6 performance; do not retroactively apply today’s rules to old decisions.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "At MOB3 and MOB6 review (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 5,
+      "current": 16,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": "N/A",
+      "current": "N/A",
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 654.0625,
+      "current": 549.0625,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 629.0625,
+      "current": 629.0625,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 288959.6203107511,
+      "current": 1428289.826610902,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 2145825,
+      "current": 2113637.62,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.6199999999999999,
+      "current": 0.6500000000000001,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": 0.05,
+      "current": 0.16,
+      "meaning": "MOB6 first default / original cohort"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Application debt-burden points",
+      "points": -45,
+      "model": "Application"
+     },
+     {
+      "driver": "Application tenure points",
+      "points": -30,
+      "model": "Application"
+     },
+     {
+      "driver": "Application credit-history points",
+      "points": -15,
+      "model": "Application"
+     },
+     {
+      "driver": "Benchmark intercept",
+      "points": 700,
+      "model": "Application"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 30,
+      "issue": 12,
+      "incidence": 0.4
+     },
+     "Other": {
+      "eligible": 70,
+      "issue": 4,
+      "incidence": 0.05714285714285714
+     }
+    },
+    "feature_line": "Debt burden at origination: 54.0% → 54.0% (ratio; frozen). Employer tenure at origination: 3 → 3 (months; frozen). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 16,
+      "rate": 0.16,
+      "basis": "Matched mature-vintage outcome"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 654.25,
+      "feature_1": 0.54,
+      "unit_1": "ratio; frozen",
+      "feature_2": 3,
+      "unit_2": "months; frozen",
+      "cohort_n": 12
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 641.65,
+      "feature_1": 0.54,
+      "unit_1": "ratio; frozen",
+      "feature_2": 3,
+      "unit_2": "months; frozen",
+      "cohort_n": 12
+     },
+     {
+      "month": "May",
+      "behaviour_score": 624.85,
+      "feature_1": 0.54,
+      "unit_1": "ratio; frozen",
+      "feature_2": 3,
+      "unit_2": "months; frozen",
+      "cohort_n": 12
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 603.85,
+      "feature_1": 0.54,
+      "unit_1": "ratio; frozen",
+      "feature_2": 3,
+      "unit_2": "months; frozen",
+      "cohort_n": 12
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 578.65,
+      "feature_1": 0.54,
+      "unit_1": "ratio; frozen",
+      "feature_2": 3,
+      "unit_2": "months; frozen",
+      "cohort_n": 12
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 549.25,
+      "feature_1": 0.54,
+      "unit_1": "ratio; frozen",
+      "feature_2": 3,
+      "unit_2": "months; frozen",
+      "cohort_n": 12
+     }
+    ]
+   }
+  },
+  {
+   "title": "Employer payroll interruption",
+   "card_measure": "Two-cycle apparent payroll shortfall share",
+   "severity": "CRITICAL",
+   "product_family": "PERSONAL_FINANCE",
+   "pocket_label": "DEMO Employer A / private facilities services / Eastern Province",
+   "policy_id": "DEMO-EMP-03",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R03",
+    "R07"
+   ],
+   "case_id": "C03",
+   "countercheck": "One missed credit can be an account switch or holiday shift. Obtain permitted evidence before inferring employer distress.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 22,
+     "fixture_expectation": "Employer payroll interruption: 22 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (5.50×; +18.0 percentage points). Affected gross exposure is SAR 2,264,490. For the same current issue customers, published synthetic ECL moves from SAR 34,277 to SAR 309,191. Comparable forward PD rises from 2.5% to 11.0% on 22 non-impaired issue customers. Behavioral score moves from 684.3 to 544.3; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C03-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Split apparent payroll shortfalls into account switches, calendar/posting effects and verified multi-cycle interruptions. Compare matched payroll dates.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 18,
+     "fixture_expectation": "Twenty-two alerts include four timing/switch explanations and eighteen requiring verified payroll follow-up. Sixteen have corroborating household liquidity evidence. Missing salary credit alone is not proven loss of income. One missed credit can be an account switch or holiday shift. Obtain permitted evidence before inferring employer distress.",
+     "fixture_snapshot_id": "CPRA-C03-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Were these borrowers sound at origination? Compare original application scores with current payroll continuity, liquidity and behavioral scores.",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 18,
+     "fixture_expectation": "Keep the S1 set of 18 IDs fixed. The demonstration behavioral-score change is 140 adverse points, while their original application values do not change. The pocket’s original internal score is around 692; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C03-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Decompose the behavioral fall and date the payroll and cash-buffer changes before arrears. Which customers have verified alternative salary receipts?",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "Original applications were relatively strong. In the evidenced pocket, payroll credits fall from SAR 9,000 to SAR 4,200 and buffers from 2.3 to 0.25 months. Exclude confirmed bank-account switches; uncertain external income remains unverified, not zero.",
+     "fixture_snapshot_id": "CPRA-C03-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Rank employer concentrations using affected employees divided by all financed employees. Compare similar employer types and regions.",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "The named pocket contains 25 of 100 eligible observations (25%) and 18 of 22 issue cases (81.8%). Its issue incidence is 72.0%, versus 5.3% outside, a 13.50× rate ratio. Narrow the corroborated list to 16 policy-review customers. DEMO Employer A is fictitious. An employer-level cluster is an investigation lead, not authority to penalize every employee or disclose employee debts to the employer.",
+     "fixture_snapshot_id": "CPRA-C03-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "1. Servicing owner performs confidential customer contact and verifies the documented income interruption and alternative resources. 2. Assess the applicable response to changed circumstances under current collections rules and the bank’s hardship policy; no automatic new borrowing to cover missed payments. 3. NEW verified payroll-linked exposure to the affected employer may go to manual review, subject to policy approval. Track restored payroll and sustainable arrangements weekly. Test documented, eligible payment accommodation or rescheduling with customer consent. Longer duration may increase ECL; preserve contractual rights and correct modification accounting.",
+     "fixture_snapshot_id": "CPRA-C03-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Servicing owner performs confidential customer contact and verifies the documented income interruption and alternative resources.",
+     "owner": "Servicing / investigation owner",
+     "timing": "1 business day (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Assess the applicable response to changed circumstances under current collections rules and the bank’s hardship policy; no automatic new borrowing to cover missed payments.",
+     "owner": "Credit / operations / model owner",
+     "timing": "Applicable hardship deadline, sooner if required (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "NEW verified payroll-linked exposure to the affected employer may go to manual review, subject to policy approval. Track restored payroll and sustainable arrangements weekly.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Weekly while payroll unresolved (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 4,
+      "current": 22,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.02500000000000001,
+      "current": 0.11000000000000001,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 684.3181818181819,
+      "current": 544.3181818181819,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 690.9545454545455,
+      "current": 690.9545454545455,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 34276.54647569444,
+      "current": 309190.686683381,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 2298975,
+      "current": 2264490.38,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.58,
+      "current": 0.6099999999999999,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 17,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Payroll continuity",
+      "points": -70,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Cash buffer",
+      "points": -40,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -20,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -10,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 25,
+      "issue": 18,
+      "incidence": 0.72
+     },
+     "Other": {
+      "eligible": 75,
+      "issue": 4,
+      "incidence": 0.05333333333333334
+     }
+    },
+    "feature_line": "Verified monthly payroll credit: 9,000 → 4,200 (SAR). Cash buffer / essential outgoings: 2.3 → 0.25 (months). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 22,
+      "rate": 0.22,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 684.625,
+      "feature_1": 9000,
+      "unit_1": "SAR",
+      "feature_2": 2.3,
+      "unit_2": "months",
+      "cohort_n": 16
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 667.825,
+      "feature_1": 8424,
+      "unit_1": "SAR",
+      "feature_2": 2.054,
+      "unit_2": "months",
+      "cohort_n": 16
+     },
+     {
+      "month": "May",
+      "behaviour_score": 645.425,
+      "feature_1": 7656,
+      "unit_1": "SAR",
+      "feature_2": 1.726,
+      "unit_2": "months",
+      "cohort_n": 16
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 617.425,
+      "feature_1": 6696,
+      "unit_1": "SAR",
+      "feature_2": 1.3159999999999998,
+      "unit_2": "months",
+      "cohort_n": 16
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 583.825,
+      "feature_1": 5544,
+      "unit_1": "SAR",
+      "feature_2": 0.8240000000000001,
+      "unit_2": "months",
+      "cohort_n": 16
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 544.625,
+      "feature_1": 4200,
+      "unit_1": "SAR",
+      "feature_2": 0.25,
+      "unit_2": "months",
+      "cohort_n": 16
+     }
+    ]
+   }
+  },
+  {
+   "title": "Top-up debt stacking",
+   "card_measure": "Verified affordability-stress share",
+   "severity": "HIGH",
+   "product_family": "PERSONAL_FINANCE",
+   "pocket_label": "Repeat top-up within six months / new verified external obligations",
+   "policy_id": "DEMO-TOPUP-04",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R02",
+    "R06",
+    "R07"
+   ],
+   "case_id": "C04",
+   "countercheck": "A better bureau feed can make liabilities look new. Reconcile reporting dates and deduplicate before claiming debt growth.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 19,
+     "fixture_expectation": "Top-up debt stacking: 19 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.80×; +14.0 percentage points). Affected gross exposure is SAR 3,082,287. For the same current issue customers, published synthetic ECL moves from SAR 91,817 to SAR 529,074. Comparable forward PD rises from 4.5% to 13.5% on 19 non-impaired issue customers. Behavioral score moves from 669.7 to 549.7; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C04-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Split monthly obligations into this bank, other lenders and verified BNPL installments. Separate real growth from reporting-lag and duplicate-line effects.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "Nineteen alerts include three reporting/verification exceptions. Sixteen show comparable obligation growth and fourteen also have a materially depleted residual-income buffer. A better bureau feed can make liabilities look new. Reconcile reporting dates and deduplicate before claiming debt growth.",
+     "fixture_snapshot_id": "CPRA-C04-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Compare approval-time affordability and original application inputs with current verified monthly obligations for the same customers.",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "Keep the S1 set of 16 IDs fixed. The demonstration behavioral-score change is 120 adverse points, while their original application values do not change. The pocket’s original internal score is around 655; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C04-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "How much score deterioration comes from new debt and weaker repayments, rather than DPD or refreshed bureau coverage?",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 14,
+     "fixture_expectation": "Verified obligations rise from 39% to 59% of income and residual funds fall from SAR 2,400 to SAR 350. BNPL account count alone is not risk; use supported monthly commitments and consented evidence. Determine the applicable income/product rules individually.",
+     "fixture_snapshot_id": "CPRA-C04-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Is the short interval since the last top-up plus increased external debt more risky than either factor alone? Compare matched borrowers.",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 14,
+     "fixture_expectation": "The named pocket contains 30 of 100 eligible observations (30%) and 15 of 19 issue cases (78.9%). Its issue incidence is 50.0%, versus 5.7% outside, a 8.75× rate ratio. Narrow the corroborated list to 14 policy-review customers. Focus on repeat top-up timing and verified monthly burden, not all top-up or BNPL users. Separate approval-time omissions from subsequent borrowing.",
+     "fixture_snapshot_id": "CPRA-C04-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 14,
+     "fixture_expectation": "1. Stop discretionary new top-up offers to the corroborated cohort pending refreshed obligations and affordability, within approved marketing/policy controls. 2. Validate genuine debt settlement and a sustainable customer budget; avoid additional finance that only masks arrears. 3. For NEW top-ups, require fresh consented credit evidence and residual-income checks under the applicable policy. Monitor reborrowing and net monthly commitments. Compare no-new-top-up exposure and sustainable repayment schedules. Include fees, tenor, modification and ECL tradeoffs; do not equate consolidation with eliminated debt.",
+     "fixture_snapshot_id": "CPRA-C04-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Stop discretionary new top-up offers to the corroborated cohort pending refreshed obligations and affordability, within approved marketing/policy controls.",
+     "owner": "Servicing / investigation owner",
+     "timing": "1 business day (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R06",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Validate genuine debt settlement and a sustainable customer budget; avoid additional finance that only masks arrears.",
+     "owner": "Credit / operations / model owner",
+     "timing": "2 business days to verify (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R06",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "For NEW top-ups, require fresh consented credit evidence and residual-income checks under the applicable policy. Monitor reborrowing and net monthly commitments.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Before any new top-up offer (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R06",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 5,
+      "current": 19,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.04500000000000001,
+      "current": 0.13499999999999998,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 669.6842105263158,
+      "current": 549.6842105263158,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 662.0526315789474,
+      "current": 662.0526315789474,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 91816.62902752291,
+      "current": 529073.6817140363,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 3129225,
+      "current": 3082286.63,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.6400000000000001,
+      "current": 0.66,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 15,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "New verified obligations",
+      "points": -60,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Repayment proportion",
+      "points": -35,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -20,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -5,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 30,
+      "issue": 15,
+      "incidence": 0.5
+     },
+     "Other": {
+      "eligible": 70,
+      "issue": 4,
+      "incidence": 0.05714285714285714
+     }
+    },
+    "feature_line": "Verified obligations / income: 39.0% → 59.0% (ratio). Residual income after essentials: 2,400 → 350 (SAR). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 19,
+      "rate": 0.19,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 669.571,
+      "feature_1": 0.39,
+      "unit_1": "ratio",
+      "feature_2": 2400,
+      "unit_2": "SAR",
+      "cohort_n": 14
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 655.171,
+      "feature_1": 0.41400000000000003,
+      "unit_1": "ratio",
+      "feature_2": 2154,
+      "unit_2": "SAR",
+      "cohort_n": 14
+     },
+     {
+      "month": "May",
+      "behaviour_score": 635.971,
+      "feature_1": 0.446,
+      "unit_1": "ratio",
+      "feature_2": 1826,
+      "unit_2": "SAR",
+      "cohort_n": 14
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 611.971,
+      "feature_1": 0.486,
+      "unit_1": "ratio",
+      "feature_2": 1416,
+      "unit_2": "SAR",
+      "cohort_n": 14
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 583.171,
+      "feature_1": 0.534,
+      "unit_1": "ratio",
+      "feature_2": 924,
+      "unit_2": "SAR",
+      "cohort_n": 14
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 549.571,
+      "feature_1": 0.59,
+      "unit_1": "ratio",
+      "feature_2": 350,
+      "unit_2": "SAR",
+      "cohort_n": 14
+     }
+    ]
+   }
+  },
+  {
+   "title": "Auto balloon funding cliff",
+   "card_measure": "Unfunded balloon due within 90 days share",
+   "severity": "HIGH",
+   "product_family": "AUTO_FINANCE",
+   "pocket_label": "Balloon ≥35% of original price / verified coverage <25%",
+   "policy_id": "DEMO-AUTO-05",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R02",
+    "R04",
+    "R07"
+   ],
+   "case_id": "C05",
+   "countercheck": "Large balloons can be planned for. Verify the actual funding plan and approved refinancing rather than assuming default.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 16,
+     "fixture_expectation": "Auto balloon funding cliff: 16 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (4.00×; +12.0 percentage points). Affected gross exposure is SAR 1,427,708. For the same current issue customers, published synthetic ECL moves from SAR 14,374 to SAR 107,898. Comparable forward PD rises from 3.0% to 12.0% on 16 non-impaired issue customers. Behavioral score moves from 678.9 to 588.9; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C05-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Show 0–30, 31–60 and 61–90 day final-payment ladders with liquid funding, sale plans and actually approved refinancing.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "Sixteen near-term maturity alerts include three without sufficient funding evidence. Thirteen are verified funding gaps; twelve have corroborating behavioral strain. A refinancing option is not approved funding. Large balloons can be planned for. Verify the actual funding plan and approved refinancing rather than assuming default.",
+     "fixture_snapshot_id": "CPRA-C05-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Inspect the original balloon-inclusive affordability assessment and compare current liquidity and behavioral scores.",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 90 adverse points, while their original application values do not change. The pocket’s original internal score is around 638; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C05-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Distinguish the contractual final-payment exposure from behavioral-score variables. What evidence supports inability to fund it?",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "The contractual final payment remains 40% of original price while liquid coverage falls from 55% to 15%. Cash buffers and other borrowing drive the behavioral deterioration; do not pretend balloon size is a scorecard input unless the actual model contains it.",
+     "fixture_snapshot_id": "CPRA-C05-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Compare maturity month, balloon band, liquidity coverage and original LTV. Which intersection has the highest normalized shortfall?",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "The named pocket contains 25 of 100 eligible observations (25%) and 13 of 16 issue cases (81.2%). Its issue incidence is 52.0%, versus 4.0% outside, a 13.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Use contract structure and verified resources, with residual-asset value as a control. Do not blame a named dealer without real file evidence.",
+     "fixture_snapshot_id": "CPRA-C05-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "1. Begin maturity contact and funding verification at the policy-defined lead time; prioritize unresolved 30-day maturities. 2. Document permissible sale, settlement or refinancing options without guaranteeing eligibility or approval. 3. NEW leases: test reducing a 40% maximum balloon to 30%, subject to a full monthly-payment affordability recheck because ordinary installments rise. Rebuild amortization and balloon cash flows explicitly. Show payment change, final balance, EAD and ECL; a smaller final payment is not a free exposure reduction.",
+     "fixture_snapshot_id": "CPRA-C05-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Begin maturity contact and funding verification at the policy-defined lead time; prioritize unresolved 30-day maturities.",
+     "owner": "Servicing / investigation owner",
+     "timing": "Start at 90 days before maturity (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R04",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Document permissible sale, settlement or refinancing options without guaranteeing eligibility or approval.",
+     "owner": "Credit / operations / model owner",
+     "timing": "Escalate unresolved 30-day maturities (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R04",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "NEW leases: test reducing a 40% maximum balloon to 30%, subject to a full monthly-payment affordability recheck because ordinary installments rise.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Before any new origination (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R04",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 4,
+      "current": 16,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.030000000000000013,
+      "current": 0.12000000000000005,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 678.875,
+      "current": 588.875,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 646.625,
+      "current": 646.625,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 14374.229358139535,
+      "current": 107898.14757023774,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 1449450,
+      "current": 1427708.25,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.32,
+      "current": 0.38999999999999996,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 16,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Cash-buffer behavior",
+      "points": -40,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other revolving exposure",
+      "points": -25,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -15,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -10,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 25,
+      "issue": 13,
+      "incidence": 0.52
+     },
+     "Other": {
+      "eligible": 75,
+      "issue": 3,
+      "incidence": 0.04
+     }
+    },
+    "feature_line": "Contractual balloon / original price: 40.0% → 40.0% (ratio; frozen). Liquid funding / final payment: 55.0% → 15.0% (ratio). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 16,
+      "rate": 0.16,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 679.25,
+      "feature_1": 0.4,
+      "unit_1": "ratio; frozen",
+      "feature_2": 0.55,
+      "unit_2": "ratio",
+      "cohort_n": 12
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 668.45,
+      "feature_1": 0.4,
+      "unit_1": "ratio; frozen",
+      "feature_2": 0.502,
+      "unit_2": "ratio",
+      "cohort_n": 12
+     },
+     {
+      "month": "May",
+      "behaviour_score": 654.05,
+      "feature_1": 0.4,
+      "unit_1": "ratio; frozen",
+      "feature_2": 0.43800000000000006,
+      "unit_2": "ratio",
+      "cohort_n": 12
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 636.05,
+      "feature_1": 0.4,
+      "unit_1": "ratio; frozen",
+      "feature_2": 0.35800000000000004,
+      "unit_2": "ratio",
+      "cohort_n": 12
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 614.45,
+      "feature_1": 0.4,
+      "unit_1": "ratio; frozen",
+      "feature_2": 0.26200000000000007,
+      "unit_2": "ratio",
+      "cohort_n": 12
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 589.25,
+      "feature_1": 0.4,
+      "unit_1": "ratio; frozen",
+      "feature_2": 0.15000000000000002,
+      "unit_2": "ratio",
+      "cohort_n": 12
+     }
+    ]
+   }
+  },
+  {
+   "title": "Used-auto recovery deterioration",
+   "card_measure": "Material LGD revision share",
+   "severity": "HIGH",
+   "product_family": "AUTO_FINANCE",
+   "pocket_label": "Vehicle age >5 years / mileage >150,000 km / weak recovery channel",
+   "policy_id": "DEMO-RECOVERY-06",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R04",
+    "R07"
+   ],
+   "case_id": "C06",
+   "countercheck": "A stale valuation batch or duplicated recovery costs can imitate a loss increase. Validate evidence before changing LGD.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 15,
+     "fixture_expectation": "Used-auto recovery deterioration: 15 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (3.75×; +11.0 percentage points). Affected gross exposure is SAR 1,139,005. For the same current issue customers, published synthetic ECL moves from SAR 95,494 to SAR 164,742. Comparable PD is almost stable at 5.0%→5.1%; do not portray an unchanged borrower profile as a score-driven default shock. Behavioral score moves from 673.8 to 670.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C06-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Reconcile ECL change into PD, LGD, EAD, stage, recovery timing and interaction effects. Which component is actually material?",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "Fifteen valuation alerts include three stale/incomplete observations. Twelve have validated recovery revisions and eleven have independent supporting recovery evidence. Separate current defaults from performing collateral reviews. A stale valuation batch or duplicated recovery costs can imitate a loss increase. Validate evidence before changing LGD.",
+     "fixture_snapshot_id": "CPRA-C06-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Show borrower scores and PD as controls. Has default propensity deteriorated enough to explain the ECL movement?",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "Keep the S1 set of 12 IDs fixed. The demonstration behavioral-score change is 3 adverse points, while their original application values do not change. The pocket’s original internal score is around 666; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C06-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Hold PD/exposure fixed and decompose collateral value, costs and recovery-delay effects. Are any recovery costs or discounts counted twice?",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "PD barely moves from 5.0% to 5.1% and the behavioral score changes only three points. Expected net proceeds fall from SAR 56,000 to SAR 37,000 while recovery time doubles. The serious issue is loss severity, not manufactured borrower-risk deterioration.",
+     "fixture_snapshot_id": "CPRA-C06-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Compare recovery outcomes by vehicle age, mileage, condition and recovery channel using matched realized cohorts.",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "The named pocket contains 30 of 100 eligible observations (30%) and 12 of 15 issue cases (80.0%). Its issue incidence is 40.0%, versus 4.3% outside, a 9.33× rate ratio. Narrow the corroborated list to 11 policy-review customers. Do not claim a Saudi used-car market crash or name a real dealer. Analyze the evidenced asset/recovery intersection, not a protected customer characteristic.",
+     "fixture_snapshot_id": "CPRA-C06-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "1. Recovery/model owners validate updated net proceeds and independent valuations, including costs and timing. 2. Update LGD only through model/finance governance; prioritize lawful efficient recovery handling rather than unapproved repossession. 3. NEW used-vehicle lending: test LTV 80%→70% for the evidenced pocket subject to commercial/affordability review. Track realized recovery and vendor performance. Hold PD constant; simulate validated recovery values and timing. Honest provisioning can rise. EWS may be a contextual operational/recovery warning, not a calibrated default probability.",
+     "fixture_snapshot_id": "CPRA-C06-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Recovery/model owners validate updated net proceeds and independent valuations, including costs and timing.",
+     "owner": "Servicing / investigation owner",
+     "timing": "5 business days for evidence (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R04",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Update LGD only through model/finance governance; prioritize lawful efficient recovery handling rather than unapproved repossession.",
+     "owner": "Credit / operations / model owner",
+     "timing": "10 business days for model review (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R04",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "NEW used-vehicle lending: test LTV 80%→70% for the evidenced pocket subject to commercial/affordability review. Track realized recovery and vendor performance.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Before new pocket originations (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R04",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 4,
+      "current": 15,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.049999999999999996,
+      "current": 0.05100000000000001,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 673.8,
+      "current": 670.8,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 669.6,
+      "current": 669.6,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 95493.55367541156,
+      "current": 164741.9179990645,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 1156350,
+      "current": 1139004.75,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.29999999999999993,
+      "current": 0.5,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 12,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Utilization behavior",
+      "points": 0,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Repayment behavior",
+      "points": -2,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": 0,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -1,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 30,
+      "issue": 12,
+      "incidence": 0.4
+     },
+     "Other": {
+      "eligible": 70,
+      "issue": 3,
+      "incidence": 0.04285714285714286
+     }
+    },
+    "feature_line": "Expected net collateral proceeds: 56,000 → 37,000 (SAR). Expected recovery delay: 6 → 12 (months). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 15,
+      "rate": 0.15,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 674.455,
+      "feature_1": 56000,
+      "unit_1": "SAR",
+      "feature_2": 6,
+      "unit_2": "months",
+      "cohort_n": 11
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 674.095,
+      "feature_1": 53720,
+      "unit_1": "SAR",
+      "feature_2": 6.72,
+      "unit_2": "months",
+      "cohort_n": 11
+     },
+     {
+      "month": "May",
+      "behaviour_score": 673.615,
+      "feature_1": 50680,
+      "unit_1": "SAR",
+      "feature_2": 7.68,
+      "unit_2": "months",
+      "cohort_n": 11
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 673.015,
+      "feature_1": 46880,
+      "unit_1": "SAR",
+      "feature_2": 8.879999999999999,
+      "unit_2": "months",
+      "cohort_n": 11
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 672.295,
+      "feature_1": 42320,
+      "unit_1": "SAR",
+      "feature_2": 10.32,
+      "unit_2": "months",
+      "cohort_n": 11
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 671.455,
+      "feature_1": 37000,
+      "unit_1": "SAR",
+      "feature_2": 12,
+      "unit_2": "months",
+      "cohort_n": 11
+     }
+    ]
+   }
+  },
+  {
+   "title": "Self-construction cash-flow strain",
+   "card_measure": "Verified >90-day delay with low buffer share",
+   "severity": "HIGH",
+   "product_family": "HOME_FINANCE",
+   "pocket_label": "DEMO Housing Project C / delayed milestone / rent-finance overlap",
+   "policy_id": "DEMO-HOME-07",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R05",
+    "R07"
+   ],
+   "case_id": "C07",
+   "countercheck": "Construction delay alone is not household distress. Confirm the overlap expense and depleted resources before a credit conclusion.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "Self-construction cash-flow strain: 13 of 100 eligible observations meet the issue rule, versus 3 of 100 in the comparator (4.33×; +10.0 percentage points). Affected gross exposure is SAR 10,330,483. For the same current issue customers, published synthetic ECL moves from SAR 35,768 to SAR 485,704. Comparable forward PD rises from 1.8% to 7.5% on 13 non-impaired issue customers. Behavioral score moves from 708.8 to 588.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C07-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Split construction stages and delay bands, then distinguish households paying rent alongside finance from those without overlap.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "Thirteen alerts include two requiring additional milestone evidence. Eleven have verified delays and ten show corresponding budget strain. Compare planned and actual milestones, permitted extensions and disbursement status. Construction delay alone is not household distress. Confirm the overlap expense and depleted resources before a credit conclusion.",
+     "fixture_snapshot_id": "CPRA-C07-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Compare original underwriting with current household liquidity and behavioral scores. Was the risk weak at inception or did cash flow change?",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "Keep the S1 set of 11 IDs fixed. The demonstration behavioral-score change is 120 adverse points, while their original application values do not change. The pocket’s original internal score is around 702; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C07-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Trace milestone delays, rent-finance overlap and cash-buffer decline in time. Exclude rate repricing where the contract is fixed.",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 10,
+     "fixture_expectation": "The demonstrated delay grows from 20 to 125 days and housing outgoings rise from 33% to 57% of verified income. Project progress is supporting evidence, not automatically a model feature. The original application score was sound.",
+     "fixture_snapshot_id": "CPRA-C07-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Which project, construction stage and overlap-expense intersection drives the normalized stress and exposure?",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 10,
+     "fixture_expectation": "The named pocket contains 20 of 100 eligible observations (20%) and 11 of 13 issue cases (84.6%). Its issue incidence is 55.0%, versus 2.5% outside, a 22.00× rate ratio. Narrow the corroborated list to 10 policy-review customers. Use a fictitious project and matched non-delayed developments. Region is context, not a reason to classify all city residents as risky.",
+     "fixture_snapshot_id": "CPRA-C07-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 10,
+     "fixture_expectation": "1. Obtain authorized surveyor/progress evidence and reconcile the contractual undrawn commitment and permitted milestones. 2. Assess individual sustainable support and resolve administrative delays; any draw suspension requires contractual and legal justification. 3. For NEW cases, review contingency buffers and monitoring around the demonstrated stage. Track completion dates, overlap costs and customer outcomes. Simulate actual draw timing and permitted payment accommodation. Preserve committed-but-undrawn exposure and contractual obligations.",
+     "fixture_snapshot_id": "CPRA-C07-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Obtain authorized surveyor/progress evidence and reconcile the contractual undrawn commitment and permitted milestones.",
+     "owner": "Servicing / investigation owner",
+     "timing": "5 business days for survey (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R05",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Assess individual sustainable support and resolve administrative delays; any draw suspension requires contractual and legal justification.",
+     "owner": "Credit / operations / model owner",
+     "timing": "2 business days for hardship triage (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R05",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "For NEW cases, review contingency buffers and monitoring around the demonstrated stage. Track completion dates, overlap costs and customer outcomes.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Weekly project review (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R05",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 3,
+      "current": 13,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.017999999999999995,
+      "current": 0.07499999999999998,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 708.8461538461538,
+      "current": 588.8461538461538,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 699,
+      "current": 699,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 35768.07029004739,
+      "current": 485703.84501155093,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 10487800,
+      "current": 10330483,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.18,
+      "current": 0.24000000000000007,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 9,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Cash buffer",
+      "points": -50,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Payment burden",
+      "points": -40,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -20,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -10,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 20,
+      "issue": 11,
+      "incidence": 0.55
+     },
+     "Other": {
+      "eligible": 80,
+      "issue": 2,
+      "incidence": 0.025
+     }
+    },
+    "feature_line": "Verified milestone delay: 20 → 125 (days). Housing outgoings / income: 33.0% → 57.0% (ratio). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 13,
+      "rate": 0.13,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 710,
+      "feature_1": 20,
+      "unit_1": "days",
+      "feature_2": 0.33,
+      "unit_2": "ratio",
+      "cohort_n": 10
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 695.6,
+      "feature_1": 32.6,
+      "unit_1": "days",
+      "feature_2": 0.3588,
+      "unit_2": "ratio",
+      "cohort_n": 10
+     },
+     {
+      "month": "May",
+      "behaviour_score": 676.4,
+      "feature_1": 49.400000000000006,
+      "unit_1": "days",
+      "feature_2": 0.3972,
+      "unit_2": "ratio",
+      "cohort_n": 10
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 652.4,
+      "feature_1": 70.4,
+      "unit_1": "days",
+      "feature_2": 0.4452,
+      "unit_2": "ratio",
+      "cohort_n": 10
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 623.6,
+      "feature_1": 95.6,
+      "unit_1": "days",
+      "feature_2": 0.5027999999999999,
+      "unit_2": "ratio",
+      "cohort_n": 10
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 590,
+      "feature_1": 125,
+      "unit_1": "days",
+      "feature_2": 0.57,
+      "unit_2": "ratio",
+      "cohort_n": 10
+     }
+    ]
+   }
+  },
+  {
+   "title": "Housing-support reconciliation gaps",
+   "card_measure": "Unmatched expected support-payment share",
+   "severity": "HIGH",
+   "product_family": "HOME_FINANCE",
+   "pocket_label": "Repeated unresolved support posting / low own-cash buffer",
+   "policy_id": "DEMO-SUPPORT-08",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R02",
+    "R03",
+    "R05",
+    "R07"
+   ],
+   "case_id": "C08",
+   "countercheck": "This can be a bank reconciliation fault. Do not claim the programme has withdrawn support or penalize customers for a posting error.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "Housing-support reconciliation gaps: 12 of 100 eligible observations meet the issue rule, versus 2 of 100 in the comparator (6.00×; +10.0 percentage points). Affected gross exposure is SAR 8,709,862. For the same current issue customers, published synthetic ECL moves from SAR 29,869 to SAR 218,435. Comparable forward PD rises from 2.0% to 5.5% on 12 non-impaired issue customers. Behavioral score moves from 704.2 to 654.2; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C08-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Separate eligibility changes, payable-but-unmatched support, settlement delay and unverified claims; compare one-cycle and repeated gaps.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 10,
+     "fixture_expectation": "Twelve mismatches include two single-cycle or documentary exceptions. Ten recur over two cycles; eight also show verified low household buffers. Do not equate all posting exceptions with credit weakness. This can be a bank reconciliation fault. Do not claim the programme has withdrawn support or penalize customers for a posting error.",
+     "fixture_snapshot_id": "CPRA-C08-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Compare customer-funded payments and behavioral scores before and after the gap; separate technical-only from financially stressed customers.",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 10,
+     "fixture_expectation": "Keep the S1 set of 10 IDs fixed. The demonstration behavioral-score change is 50 adverse points, while their original application values do not change. The pocket’s original internal score is around 700; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C08-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Reconcile expected support, actual credits and the household-funded shortfall before attributing score deterioration.",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 8,
+     "fixture_expectation": "Expected support is absent in the demonstration’s unresolved repeated-gap pocket, while own-cash buffers decline from 1.5 to 0.4 months. Remedy the verified operating problem first; the credit action cohort includes only corroborated household stress.",
+     "fixture_snapshot_id": "CPRA-C08-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Which reconciliation failure code and verified support arrangement concentrates the unresolved amount and household strain?",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 8,
+     "fixture_expectation": "The named pocket contains 20 of 100 eligible observations (20%) and 10 of 12 issue cases (83.3%). Its issue incidence is 50.0%, versus 2.5% outside, a 20.00× rate ratio. Narrow the corroborated list to 8 policy-review customers. Trace contract, eligibility, support ledger and customer account with the same facility ID; no inference about an actual government programme’s reliability.",
+     "fixture_snapshot_id": "CPRA-C08-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 8,
+     "fixture_expectation": "1. Operations owns prompt reconciliation of verified payable exceptions and customer communication, with a dated resolution target. 2. Correct erroneous customer treatment under approved bank policy; assess sustainable temporary support for genuinely stressed households. 3. Credit and compliance review repeated gaps only after eligibility/funding evidence. No automatic adverse bureau report or blanket limit cut based on a missing posting. Compare support restored versus delayed only where eligibility is verified. Separate operating correction from modeled credit-risk change; PD does not become zero.",
+     "fixture_snapshot_id": "CPRA-C08-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Operations owns prompt reconciliation of verified payable exceptions and customer communication, with a dated resolution target.",
+     "owner": "Servicing / investigation owner",
+     "timing": "1 business day to reconcile (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R03",
+      "R05",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Correct erroneous customer treatment under approved bank policy; assess sustainable temporary support for genuinely stressed households.",
+     "owner": "Credit / operations / model owner",
+     "timing": "2 business days for correction triage (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R03",
+      "R05",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Credit and compliance review repeated gaps only after eligibility/funding evidence. No automatic adverse bureau report or blanket limit cut based on a missing posting.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Weekly until resolved (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R03",
+      "R05",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 2,
+      "current": 12,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.019999999999999997,
+      "current": 0.055000000000000014,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 704.25,
+      "current": 654.25,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 697.5833333333334,
+      "current": 697.5833333333334,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 29869.49429657794,
+      "current": 218434.9024858659,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 8842500,
+      "current": 8709862.5,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.15999999999999998,
+      "current": 0.16999999999999996,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 12,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Cash buffer",
+      "points": -25,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Repayment behavior",
+      "points": -10,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -15,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": 0,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 20,
+      "issue": 10,
+      "incidence": 0.5
+     },
+     "Other": {
+      "eligible": 80,
+      "issue": 2,
+      "incidence": 0.025
+     }
+    },
+    "feature_line": "Verified support received / expected: 100.0% → 0.0% (ratio). Own-funds cash buffer: 1.5 → 0.4 (months). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 1,
+      "rate": 0.01,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 1,
+      "rate": 0.01,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 12,
+      "rate": 0.12,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 703.875,
+      "feature_1": 1,
+      "unit_1": "ratio",
+      "feature_2": 1.5,
+      "unit_2": "months",
+      "cohort_n": 8
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 697.875,
+      "feature_1": 0.88,
+      "unit_1": "ratio",
+      "feature_2": 1.3679999999999999,
+      "unit_2": "months",
+      "cohort_n": 8
+     },
+     {
+      "month": "May",
+      "behaviour_score": 689.875,
+      "feature_1": 0.72,
+      "unit_1": "ratio",
+      "feature_2": 1.192,
+      "unit_2": "months",
+      "cohort_n": 8
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 679.875,
+      "feature_1": 0.52,
+      "unit_1": "ratio",
+      "feature_2": 0.972,
+      "unit_2": "months",
+      "cohort_n": 8
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 667.875,
+      "feature_1": 0.28,
+      "unit_1": "ratio",
+      "feature_2": 0.708,
+      "unit_2": "months",
+      "cohort_n": 8
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 653.875,
+      "feature_1": 0,
+      "unit_1": "ratio",
+      "feature_2": 0.3999999999999999,
+      "unit_2": "months",
+      "cohort_n": 8
+     }
+    ]
+   }
+  },
+  {
+   "title": "Salary-to-pension affordability",
+   "card_measure": "Verified pension affordability-gap share",
+   "severity": "HIGH",
+   "product_family": "PERSONAL_FINANCE",
+   "pocket_label": "Documented pension transition / unchanged scheduled payment",
+   "policy_id": "DEMO-RETIRE-09",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R02",
+    "R03",
+    "R07"
+   ],
+   "case_id": "C09",
+   "countercheck": "Age is not the mechanism. Verify the actual pension amount, other income and existing payment-step-down provisions first.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 15,
+     "fixture_expectation": "Salary-to-pension affordability: 15 of 100 eligible observations meet the issue rule, versus 3 of 100 in the comparator (5.00×; +12.0 percentage points). Affected gross exposure is SAR 2,295,469. For the same current issue customers, published synthetic ECL moves from SAR 34,146 to SAR 264,800. Comparable forward PD rises from 2.5% to 9.5% on 15 non-impaired issue customers. Behavioral score moves from 678.8 to 538.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C09-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Show the verified transition-date ladder and pension projections; separate contracts with an affordable step-down from unchanged payments.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "Fifteen potential gaps include two unverified pension projections. Thirteen have documented amounts; eleven also lack an adequate contractual step-down or alternative verified resources. Age is not the mechanism. Verify the actual pension amount, other income and existing payment-step-down provisions first.",
+     "fixture_snapshot_id": "CPRA-C09-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Inspect the original salary/pension affordability assumptions and the new documented income, not age as a stand-alone risk proxy.",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 13,
+     "fixture_expectation": "Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 140 adverse points, while their original application values do not change. The pocket’s original internal score is around 687; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C09-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Decompose the changed repayment capacity into verified pension, other income, obligations and contract step-down. Which changes are compulsory versus voluntary?",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "Recurring income changes from SAR 12,000 to SAR 7,600 while the scheduled SAR 3,600 payment is unchanged: about 47.4% of income. Apply the specific pension and affordability rules; do not characterize all pensioners as high risk.",
+     "fixture_snapshot_id": "CPRA-C09-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Compare documented transition cohorts by payment profile and replacement-income ratio, excluding already-affordable adjusted contracts.",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "The named pocket contains 25 of 100 eligible observations (25%) and 12 of 15 issue cases (80.0%). Its issue incidence is 48.0%, versus 4.0% outside, a 12.00× rate ratio. Narrow the corroborated list to 11 policy-review customers. The actionable pocket is a verified cash-flow mismatch, not a demographic label. Keep the policy’s effective dates and contractual rights visible.",
+     "fixture_snapshot_id": "CPRA-C09-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 11,
+     "fixture_expectation": "1. Servicing validates the documented transition and any contractual step-down before the first pension payment cycle. 2. Assess the applicable changed-circumstances and affordability rules; offer permitted sustainable arrangements with required customer choice/consent. 3. NEW lending must assess documented transition cash flows across the term, not current salary alone. Track the first pension payment cycles and arrangement sustainability. Rebuild permitted installment/tenor schedules using documented pension income. Include modification accounting and duration effects; no automatic cure assumption.",
+     "fixture_snapshot_id": "CPRA-C09-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Servicing validates the documented transition and any contractual step-down before the first pension payment cycle.",
+     "owner": "Servicing / investigation owner",
+     "timing": "Before the first pension cycle (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Assess the applicable changed-circumstances and affordability rules; offer permitted sustainable arrangements with required customer choice/consent.",
+     "owner": "Credit / operations / model owner",
+     "timing": "Applicable hardship/contract deadline (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "NEW lending must assess documented transition cash flows across the term, not current salary alone. Track the first pension payment cycles and arrangement sustainability.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Before new origination (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R02",
+      "R03",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 3,
+      "current": 15,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": 0.025000000000000005,
+      "current": 0.09499999999999999,
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 678.8,
+      "current": 538.8,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 686.4,
+      "current": 686.4,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 34146.39047743055,
+      "current": 264800.4990573536,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 2330425,
+      "current": 2295468.62,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.5700000000000001,
+      "current": 0.5999999999999999,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "New impaired this month / prior non-impaired"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 11,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Verified income",
+      "points": -70,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Obligation burden",
+      "points": -40,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -20,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -10,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 25,
+      "issue": 12,
+      "incidence": 0.48
+     },
+     "Other": {
+      "eligible": 75,
+      "issue": 3,
+      "incidence": 0.04
+     }
+    },
+    "feature_line": "Verified recurring income: 12,000 → 7,600 (SAR). Scheduled installment / income: 30.0% → 47.4% (ratio). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 2,
+      "rate": 0.02,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 3,
+      "rate": 0.03,
+      "basis": "Monthly issue indicator"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 15,
+      "rate": 0.15,
+      "basis": "Monthly issue indicator"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 679.455,
+      "feature_1": 12000,
+      "unit_1": "SAR",
+      "feature_2": 0.3,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 662.655,
+      "feature_1": 11472,
+      "unit_1": "SAR",
+      "feature_2": 0.3208421052631579,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "May",
+      "behaviour_score": 640.255,
+      "feature_1": 10768,
+      "unit_1": "SAR",
+      "feature_2": 0.3486315789473684,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 612.255,
+      "feature_1": 9888,
+      "unit_1": "SAR",
+      "feature_2": 0.3833684210526316,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 578.655,
+      "feature_1": 8832,
+      "unit_1": "SAR",
+      "feature_2": 0.42505263157894735,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 539.455,
+      "feature_1": 7600,
+      "unit_1": "SAR",
+      "feature_2": 0.47368421052631576,
+      "unit_2": "ratio",
+      "cohort_n": 11
+     }
+    ]
+   }
+  },
+  {
+   "title": "Restructure redefault and cure governance",
+   "card_measure": "Six-month post-restructure redefault rate",
+   "severity": "CRITICAL",
+   "product_family": "PERSONAL_FINANCE",
+   "pocket_label": "Payment-holiday expiry / unsupported sustainable-cure decision",
+   "policy_id": "DEMO-CURE-10",
+   "policy_version": "v1",
+   "policy_clauses": [
+    "1.1",
+    "2.1",
+    "3.1"
+   ],
+   "research": [
+    "R01",
+    "R03",
+    "R07"
+   ],
+   "case_id": "C10",
+   "countercheck": "Different observation windows or prematurely changed stage labels can distort the result. Validate actual cash payments and maturity first.",
+   "steps": [
+    {
+     "step": "S0",
+     "chip_label": "Open card",
+     "prompt": "Open card / carried context",
+     "scope_label": "Current issue predicate",
+     "chart": "Issue trend + score and ECL panels",
+     "metric_ids": [
+      "affected_population",
+      "concentration",
+      "pd_12m",
+      "behaviour_score",
+      "application_score",
+      "ecl",
+      "ead",
+      "current_bad",
+      "forward_risk",
+      "severity",
+      "missingness"
+     ],
+     "fixture_customer_n": 17,
+     "fixture_expectation": "Restructure redefault and cure governance: 17 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.40×; +12.0 percentage points). Affected gross exposure is SAR 2,118,981. For the same current issue customers, published synthetic ECL moves from SAR 219,503 to SAR 1,531,407. All issue customers are already credit-impaired: a forward PD comparison for that issue cohort is not applicable; show stage/default and recovery instead. Behavioral score moves from 649.1 to 519.1; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.",
+     "fixture_snapshot_id": "CPRA-C10-S0-20260831-v1"
+    },
+    {
+     "step": "S1",
+     "chip_label": "Break the issue apart",
+     "prompt": "Match restructures at six months of observation, then split redefaults by payment holiday, installment relief and cure evidence.",
+     "scope_label": "Detailed evidence subgroup",
+     "chart": "Disaggregation table + comparable trend or maturity ladder",
+     "metric_ids": [
+      "affected_population",
+      "roll_rate",
+      "observed_default_rate",
+      "missingness"
+     ],
+     "fixture_customer_n": 14,
+     "fixture_expectation": "Seventeen redefaults out of 100 mature arrangements compare with five in the reference window. Fourteen follow the payment-holiday strategy; twelve lack credible sustained-affordability evidence. Exclude immature arrangements. Different observation windows or prematurely changed stage labels can distort the result. Validate actual cash payments and maturity first.",
+     "fixture_snapshot_id": "CPRA-C10-S1-20260831-v1"
+    },
+    {
+     "step": "S2",
+     "chip_label": "Connect customer characteristics",
+     "prompt": "Compare original underwriting, restructure-time affordability and subsequent behavior. What evidence justified the cure or stage decision?",
+     "scope_label": "Same S1 IDs; historical match",
+     "chart": "Matched score distribution + transition/trajectory chart",
+     "metric_ids": [
+      "behaviour_score",
+      "application_score",
+      "missingness"
+     ],
+     "fixture_customer_n": 14,
+     "fixture_expectation": "Keep the S1 set of 14 IDs fixed. The demonstration behavioral-score change is 130 adverse points, while their original application values do not change. The pocket’s original internal score is around 672; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.",
+     "fixture_snapshot_id": "CPRA-C10-S2-20260831-v1"
+    },
+    {
+     "step": "S3",
+     "chip_label": "Challenge and decompose",
+     "prompt": "Trace holiday expiry, residual budgets and broken commitments before redefault; evaluate the cure decision against the policy then in force.",
+     "scope_label": "Corroborated evidence subgroup",
+     "chart": "Variable point waterfall / ECL driver bridge + feature timelines",
+     "metric_ids": [
+      "behaviour_score",
+      "ecl",
+      "ead",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "Only one of three scheduled payments is met and residual funds fall from SAR 1,700 to SAR 150 in the demonstrated pocket. A restructure is not automatically a cure. The bank’s observation/cure rules apply; no universal IFRS9 three-payment probation is invented.",
+     "fixture_snapshot_id": "CPRA-C10-S3-20260831-v1"
+    },
+    {
+     "step": "S4",
+     "chip_label": "Locate the responsible pocket",
+     "prompt": "Which restructure strategy and approval exception produces excess redefault after matching distressed vintages and initial severity?",
+     "scope_label": "Corroborated AND named pocket",
+     "chart": "Normalized pocket incidence + within-pocket score/feature bands",
+     "metric_ids": [
+      "concentration",
+      "affected_population",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "The named pocket contains 25 of 100 eligible observations (25%) and 14 of 17 issue cases (82.4%). Its issue incidence is 56.0%, versus 4.0% outside, a 14.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Use documented sustainability and strategy rather than forcing a subproduct story. Current defaults must remain distinct from still-performing forward risk.",
+     "fixture_snapshot_id": "CPRA-C10-S4-20260831-v1"
+    },
+    {
+     "step": "S5",
+     "chip_label": "Sequence policy actions",
+     "prompt": "What should we do next? Give a sequenced action plan linked to the applicable policy clauses.",
+     "scope_label": "Same S4 policy-review scope",
+     "chart": "Policy action table + scenario inputs and tradeoffs",
+     "metric_ids": [
+      "ead",
+      "ecl",
+      "pd_12m",
+      "missingness"
+     ],
+     "fixture_customer_n": 12,
+     "fixture_expectation": "1. Credit/finance owners review cure and stage decisions, preserving the historical audit trail and assessing necessary corrections. 2. Consider sustainable individual arrangements and hardship treatment; do not grant another top-up merely to erase arrears. 3. Policy committee reviews cure evidence and monitoring requirements. Track sustained contractual performance and redefault; any allowance correction may increase ECL. Compare current booked allowance with policy-compliant staging/cash-flow corrections and sustainable arrangements. Show provisioning uplift honestly; never force every action to reduce loss.",
+     "fixture_snapshot_id": "CPRA-C10-S5-20260831-v1"
+    }
+   ],
+   "policy_actions": [
+    {
+     "clause": "1.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Credit/finance owners review cure and stage decisions, preserving the historical audit trail and assessing necessary corrections.",
+     "owner": "Servicing / investigation owner",
+     "timing": "2 business days for cure review (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "2.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Consider sustainable individual arrangements and hardship treatment; do not grant another top-up merely to erase arrears.",
+     "owner": "Credit / operations / model owner",
+     "timing": "5 business days for case plan (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    },
+    {
+     "clause": "3.1",
+     "status": "DEMO_DRAFT - NOT BANK APPROVED",
+     "effective_from": "2026-01-01",
+     "action": "Policy committee reviews cure evidence and monitoring requirements. Track sustained contractual performance and redefault; any allowance correction may increase ECL.",
+     "owner": "Policy committee / delegated authority",
+     "timing": "Monthly governance review (demo target; applicable earlier requirement prevails)",
+     "safeguard": "Human approval; applicability and contract checks; no automatic execution",
+     "research": [
+      "R01",
+      "R03",
+      "R07"
+     ]
+    }
+   ],
+   "fixture": {
+    "note": "A 100-observation engineering example. Used to check that the generated book reproduces these relationships; never rendered to a reader.",
+    "eligible": 100,
+    "drawer": {
+     "Issue count": {
+      "comparator": 5,
+      "current": 17,
+      "meaning": "Out of 100; case-specific grain"
+     },
+     "PD12, non-impaired": {
+      "comparator": "N/A",
+      "current": "N/A",
+      "meaning": "Matched eligible issue cohort; Jul→Aug"
+     },
+     "Behavioral score": {
+      "comparator": 649.1176470588235,
+      "current": 519.1176470588235,
+      "meaning": "Same current issue cohort; Mar→Aug"
+     },
+     "Original application score": {
+      "comparator": 674.2941176470588,
+      "current": 674.2941176470588,
+      "meaning": "Fixed origination value, not rescored"
+     },
+     "Affected ECL (SAR)": {
+      "comparator": 219503.39826336148,
+      "current": 1531407.4356187466,
+      "meaning": "Same current issue IDs; Jul→Aug"
+     },
+     "Affected GCA (SAR)": {
+      "comparator": 2151250,
+      "current": 2118981.25,
+      "meaning": "Same issue IDs; Jul→Aug"
+     },
+     "LGD": {
+      "comparator": 0.6500000000000001,
+      "current": 0.6999999999999998,
+      "meaning": "Conditional model assumption; Jul→Aug"
+     },
+     "ODR / redefault": {
+      "comparator": 0.05,
+      "current": 0.17,
+      "meaning": "Six-month redefault / mature restructures"
+     },
+     "Forward-risk customers": {
+      "comparator": "Not used",
+      "current": 0,
+      "meaning": "High/Critical and not current bad"
+     }
+    },
+    "score_drivers": [
+     {
+      "driver": "Residual affordability",
+      "points": -45,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Broken payment commitments",
+      "points": -35,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Arrears input",
+      "points": -40,
+      "model": "Behavior"
+     },
+     {
+      "driver": "Other model inputs",
+      "points": -10,
+      "model": "Behavior"
+     }
+    ],
+    "pocket": {
+     "Pocket": {
+      "eligible": 25,
+      "issue": 14,
+      "incidence": 0.56
+     },
+     "Other": {
+      "eligible": 75,
+      "issue": 3,
+      "incidence": 0.04
+     }
+    },
+    "feature_line": "Successful payments / last three due: 100.0% → 33.3% (ratio). Residual income after essentials: 1,700 → 150 (SAR). Feature reference Mar 2026; current Aug. Synthetic inputs.",
+    "events": [
+     {
+      "window": "Mar",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Apr",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "May",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Jun",
+      "eligible": 100,
+      "events": 4,
+      "rate": 0.04,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Jul",
+      "eligible": 100,
+      "events": 5,
+      "rate": 0.05,
+      "basis": "Matched mature-vintage outcome"
+     },
+     {
+      "window": "Aug",
+      "eligible": 100,
+      "events": 17,
+      "rate": 0.17,
+      "basis": "Matched mature-vintage outcome"
+     }
+    ],
+    "feature_history": [
+     {
+      "month": "Mar",
+      "behaviour_score": 649.25,
+      "feature_1": 1,
+      "unit_1": "ratio",
+      "feature_2": 1700,
+      "unit_2": "SAR",
+      "cohort_n": 12
+     },
+     {
+      "month": "Apr",
+      "behaviour_score": 633.65,
+      "feature_1": 0.92,
+      "unit_1": "ratio",
+      "feature_2": 1514,
+      "unit_2": "SAR",
+      "cohort_n": 12
+     },
+     {
+      "month": "May",
+      "behaviour_score": 612.85,
+      "feature_1": 0.8133333333333332,
+      "unit_1": "ratio",
+      "feature_2": 1266,
+      "unit_2": "SAR",
+      "cohort_n": 12
+     },
+     {
+      "month": "Jun",
+      "behaviour_score": 586.85,
+      "feature_1": 0.6799999999999999,
+      "unit_1": "ratio",
+      "feature_2": 956,
+      "unit_2": "SAR",
+      "cohort_n": 12
+     },
+     {
+      "month": "Jul",
+      "behaviour_score": 555.65,
+      "feature_1": 0.52,
+      "unit_1": "ratio",
+      "feature_2": 584,
+      "unit_2": "SAR",
+      "cohort_n": 12
+     },
+     {
+      "month": "Aug",
+      "behaviour_score": 519.25,
+      "feature_1": 0.33333333333333326,
+      "unit_1": "ratio",
+      "feature_2": 150,
+      "unit_2": "SAR",
+      "cohort_n": 12
+     }
+    ]
+   }
+  }
+ ]
+}

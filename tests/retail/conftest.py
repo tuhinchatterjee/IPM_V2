@@ -122,3 +122,36 @@ def shipped_catalog() -> dict:
         pytest.skip("The shipped retail catalogue has not been written.")
     import json
     return json.loads(path.read_text())
+
+
+@pytest.fixture()
+def db_session():
+    """A transactional session that is always rolled back.
+
+    The cohort gates write real rows, because the thing under test is a table
+    with unique constraints and defaults on it, and a fake session would only
+    prove the dataclass works. Rolling back rather than deleting is what makes
+    the gates safe to run against any configured database: a suite pointed at a
+    demonstration installation by accident leaves nothing behind, which is not
+    the outcome an earlier run of this work achieved.
+    """
+    from tests.conftest import database_available
+
+    if not database_available():
+        pytest.skip(
+            "These gates need PostgreSQL. They write a cohort snapshot and "
+            "roll it back; there is no in-memory substitute for a unique "
+            "constraint.")
+
+    from backend.db.engine import engine
+    from sqlalchemy.orm import Session
+
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = Session(bind=connection)
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()

@@ -11,7 +11,7 @@ so a reader never has to trust a claim that is not beside the work.
 | Phase | Name | State |
 |-------|------|-------|
 | P0  | Baseline audit and isolation            | COMPLETE |
-| P1  | Identity, metric and cohort contracts   | NOT STARTED |
+| P1  | Identity, metric and cohort contracts   | COMPLETE |
 | P2  | Ten coherent synthetic episodes         | NOT STARTED |
 | P3  | Atomic Cockpit/EWS publication          | NOT STARTED |
 | P4  | Ten evidence-driven cards and drawers   | NOT STARTED |
@@ -133,3 +133,77 @@ The report's twenty attributed retail failures are not restated here as fact.
 They are a claim to be re-proved against this same environment and the same
 data in P10, where the specification requires attribution rather than a
 green-suite assertion.
+
+---
+
+## P1 — Identity, metric and cohort contracts
+
+### The three things added
+
+**A published dictionary** (`backend/retail/metrics_contract.py`). Sixteen
+measures, each with its grain, its denominator, its window and — as part of
+the definition rather than beside it — the inference it does not support. Four
+of them are routinely mistaken for each other: the *share* of the book in
+1-29 DPD, the *rate at which facilities rolled* into it, the *observed default
+rate* of a vintage over a matured window, and the model's *probability* over
+the next twelve months. A figure with no entry here cannot be quoted:
+`definition()` raises rather than returning a blank.
+
+Missing data is four states, not a boolean — unavailable, stale, unverified,
+inapplicable — because a coverage gap rendered as a zero is an assertion that
+nothing is wrong.
+
+**A cohort object** (`backend/retail/cohort.py`, migration `0043`). Every
+handoff used to be a predicate that each module re-ran; when the book moved
+beneath them the four modules resolved differently and nothing could see it.
+Now the identifiers are written once and the link carries an opaque id. There
+is no update path at all: narrowing writes a child that is *checked to be a
+subset*, selecting writes a subset cohort, switching from flagged facilities
+to all of a customer's facilities writes a new snapshot with recomputed
+counts. `visited_steps` caps what an export may contain, so a workbook taken
+at S1 cannot hold S5's policy actions. Authorisation is rechecked at read,
+share, reopen and export, and a refusal is worded identically to an absence so
+that asking cannot confirm somebody else's cohort exists.
+
+**A story registry** (`backend/retail/episodes.py`,
+`config/retail_episodes.json`). Each of the ten names the *columns* that carry
+its pocket, the evidence columns its S1 and S3 decompose, which scoring model
+its diagnosis rests on, and its grain. The config is generated from the two
+attachments by `scripts/build_episode_config.py`, so it cannot drift from
+them; the dimension mapping is in code, because which column means which thing
+is an engineering decision about the installed book rather than a quotation.
+
+### Files
+
+| Added | |
+|---|---|
+| `backend/retail/metrics_contract.py` | sixteen measures and the coverage states |
+| `backend/retail/cohort.py` | the CohortSnapshot service |
+| `backend/retail/episodes.py` | the ten stories as dimensions |
+| `config/retail_episodes.json` | generated structure of the ten stories |
+| `scripts/build_episode_config.py` | the generator, so the config is checkable |
+| `alembic/versions/0043_cohort_snapshot.py` | three tables |
+| `tests/retail/test_ret_cpra_p1_contracts.py` | 34 gates |
+
+| Changed | |
+|---|---|
+| `backend/models/platform.py` | `CohortSnapshot`, `SavedInvestigation`, `InvestigationNote` |
+| `tests/retail/conftest.py` | a rolled-back `db_session` fixture |
+
+### Migrations
+
+`0042 -> 0043`. Applied to `creditprobe_anb_v2` and to `creditprobe_test`. The
+accepted demo's database was not touched.
+
+### Tests
+
+`tests/retail/test_ret_cpra_p1_contracts.py`: **34 passed, 0 skipped**. The
+book-level invariants read the shipped 59,412-facility lake, not a temporary
+build: unique facility-month, a grain-safe Early Warning join that leaves total
+ECL unchanged to the cent, an original application score that has not moved in
+25 months, identity coverage in every month, and a reachable denominator for
+every rate.
+
+### Blockers
+
+None.

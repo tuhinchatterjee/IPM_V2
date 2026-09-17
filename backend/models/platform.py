@@ -5549,3 +5549,291 @@ class MetricVerification(Base):
     __table_args__ = (
         Index("ix_metric_verifications_metric", "metric_id", "created_at"),
     )
+
+
+# =========================================================== investigation
+#
+# The cohort handoff spine. Three tables, and the reason there are three is
+# that a cohort, a saved investigation and a note have different lifetimes.
+#
+# A CohortSnapshot is immutable the moment it is written: it is the answer to
+# "which customers was the reader actually looking at". A saved investigation
+# points at one and adds the human layer — a name, a pin, a version. Notes
+# outlive individual versions and carry their own history, because "who wrote
+# this and when" is the part somebody will be asked about later.
+#
+# None of these tables holds a credit figure that was decided here. The counts
+# and totals on a snapshot are the totals AS MEASURED at the source step, kept
+# so that a later reconciliation can prove the cohort did not drift, not so
+# that a reader can be shown a number without going back to the book.
+
+
+class CohortSnapshot(Base):
+    """The exact customers and facilities behind one step, frozen.
+
+    Why this exists at all
+    ----------------------
+    Every handoff in this product used to be a *filter*: the Cockpit knew a
+    predicate, What-If knew a predicate, and the two agreed as long as the book
+    underneath them did not move. The moment it moved — a rebuild, a new month,
+    a corrected row — the two resolved differently and nobody could see that
+    they had. Worse, the honest fix (put the identifiers in the URL) does not
+    survive a cohort of eleven thousand customers and puts customer
+    identifiers into browser history and server logs.
+
+    So a cohort is written here, once, with its identifiers, and everything
+    downstream carries an opaque id. The predicate is stored too, but as
+    evidence of how the set was chosen — never as the thing that is re-run.
+
+    Immutability is the whole contract
+    ----------------------------------
+    There is no update path. A different scope is a different snapshot with a
+    different id, which is why `refresh to latest` on a saved investigation
+    creates a new version rather than editing one: the figures somebody saved
+    have to stay the figures somebody saved.
+
+    Authorisation is rechecked, not inherited
+    -----------------------------------------
+    Knowing an id is not permission to read one. `owner_user_id`, `team_id`,
+    `purpose` and `permitted_fields` are stored so the check can be made again
+    at read, share, reopen and export — four separate moments, because a
+    person's access can be withdrawn between any two of them.
+    """
+
+    __tablename__ = "cohort_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    # -- identity ---------------------------------------------------------
+    #: The opaque public id. This, and only this, travels in a URL.
+    snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             unique=True, index=True)
+    #: The story this came from — C01..C10 — and which occurrence of it.
+    case_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    occurrence_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    #: The thread and the step inside it. S0..S5, or "" when a cohort was made
+    #: somewhere other than a thread.
+    thread_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    step_id: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    #: The reporting date the cohort was measured at — NOT the creation time.
+    source_as_of: Mapped[str] = mapped_column(String(16), nullable=False,
+                                              default="")
+
+    # -- version ----------------------------------------------------------
+    #: Which build of the book this was measured on. A snapshot from one bundle
+    #: may not be joined to figures from another; the mismatch is an error, not
+    #: a rounding difference.
+    source_bundle_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                  default="")
+    #: {dataset: content_hash} for every dataset read.
+    dataset_hashes: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                 default=dict)
+    #: Model, rule and policy versions in force when this was measured.
+    versions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The metric_ids from backend/retail/metrics_contract.py that this scope
+    #: was defined by, so a later reader can look up what was counted.
+    metric_definition_ids: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                        default=list)
+
+    # -- scope ------------------------------------------------------------
+    #: The predicate the CASE opened with, and the predicate THIS step narrowed
+    #: to. Both, because a breadcrumb that only shows the current filter cannot
+    #: tell a reader how far they have travelled.
+    root_predicate: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                 default=dict)
+    predicate: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    customer_ids: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                               default=list)
+    facility_ids: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                               default=list)
+    customer_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+    facility_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+
+    # -- selection --------------------------------------------------------
+    #: all_matched | selected_subset. A subset the reader ticked is a different
+    #: cohort from everything that matched, and conflating them is how an
+    #: export silently grows.
+    selection_mode: Mapped[str] = mapped_column(String(24), nullable=False,
+                                                default="all_matched")
+    #: flagged_only | all_authorised_facilities. Switching creates a new
+    #: snapshot; it never edits this one.
+    facility_mode: Mapped[str] = mapped_column(String(32), nullable=False,
+                                               default="flagged_only")
+    #: How many identifiers the reader could NOT see. Shown as a count so a
+    #: redacted row is visible as a redaction rather than as an absence.
+    restricted_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                  default=0)
+
+    # -- integrity --------------------------------------------------------
+    #: SHA-256 over the sorted identifiers, the date, the predicates and the
+    #: bundle. Two snapshots with the same hash are the same cohort.
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="", index=True)
+    #: The snapshot this was narrowed from, if any.
+    parent_snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                    default="")
+    #: The furthest step whose conclusions this snapshot is allowed to carry.
+    #: An export at S1 may not contain S4's pocket or S5's actions.
+    visited_steps: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                default=list)
+
+    # -- authorisation ----------------------------------------------------
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"),
+                                                      nullable=True)
+    team_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    #: Why this cohort was assembled. Purpose limitation is the basis on which
+    #: a customer list may be held at all.
+    purpose: Mapped[str] = mapped_column(String(120), nullable=False,
+                                         default="")
+    permitted_fields: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                   default=list)
+    #: Consent or evidence references, where the underlying data needs one.
+    evidence_refs: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                default=list)
+    #: When this may be deleted. Null means the installation default applies.
+    retain_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    #: The measured totals at creation, for reconciliation only.
+    totals: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_cohort_snapshots_case", "case_id", "source_as_of"),
+        Index("ix_cohort_snapshots_thread", "thread_id", "step_id"),
+        Index("ix_cohort_snapshots_owner", "owner_user_id", "created_at"),
+    )
+
+
+class SavedInvestigation(Base):
+    """A cohort somebody kept, and what they wrote on it.
+
+    Every import into Borrower 360 writes one of these as a DRAFT before the
+    reader does anything, because the failure it prevents is specific: a reader
+    exports a list, spends twenty minutes on it, exports an Excel file, closes
+    the tab, and the list is gone. Save then means *name and pin this*, not
+    *begin persisting*.
+
+    A version is immutable in the same way a snapshot is. Refreshing against a
+    newer book is an explicit action that writes version n+1 and leaves n
+    exactly as it was, so the question "what did this say when I saved it" has
+    an answer forever.
+    """
+
+    __tablename__ = "saved_investigations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    saved_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    #: The snapshot this version is pinned to.
+    snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             index=True)
+    case_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    occurrence_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    thread_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    source_step: Mapped[str] = mapped_column(String(16), nullable=False,
+                                             default="")
+
+    title: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    #: The exact issue, in the case's own words.
+    issue: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    segment: Mapped[str] = mapped_column(String(160), nullable=False,
+                                         default="")
+
+    #: draft | saved. A draft is real and reopenable; it simply has no name.
+    state: Mapped[str] = mapped_column(String(16), nullable=False,
+                                       default="draft")
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    #: When the finding was raised, and when the person kept it. Two different
+    #: facts, and the card shows both.
+    noticed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    saved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    customer_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+    facility_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+
+    #: The observed default rate as it stood when saved, with its numerator,
+    #: denominator, window and source snapshot — or the explicit
+    #: "not yet observed" state. Never a bare percentage.
+    odr: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The measured totals at save time, for the reconciliation sheet.
+    totals: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"),
+                                                      nullable=True)
+    team_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    #: private | team. Sharing widens who may read, never what may be read.
+    share_scope: Mapped[str] = mapped_column(String(16), nullable=False,
+                                             default="private")
+
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("saved_id", "version",
+                         name="uq_saved_investigation_version"),
+        Index("ix_saved_investigations_owner", "owner_user_id", "created_at"),
+        Index("ix_saved_investigations_case", "case_id", "created_at"),
+    )
+
+
+class InvestigationNote(Base):
+    """One note on a saved investigation, with who wrote it and when.
+
+    Append-only by version. Editing a note writes a new row rather than
+    overwriting the old one, because the previous wording is the part that
+    matters in a dispute about what somebody was told.
+
+    A note is DATA. It is written by a person into a field, it can contain
+    anything, and nothing in it may be read as an instruction to this product
+    or as a change to a policy definition. The surfaces that render it escape
+    it; the surfaces that hand it to a model label it as untrusted content.
+    """
+
+    __tablename__ = "investigation_notes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    note_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                         index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    saved_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                          index=True)
+    snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                             default="")
+    #: Optional: a note about one customer rather than the whole cohort.
+    subject_id: Mapped[str] = mapped_column(String(64), nullable=False,
+                                            default="")
+
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    author_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"),
+                                                       nullable=True)
+    author_name: Mapped[str] = mapped_column(String(160), nullable=False,
+                                             default="")
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("note_id", "version", name="uq_investigation_note_version"),
+        Index("ix_investigation_notes_saved", "saved_id", "created_at"),
+    )
