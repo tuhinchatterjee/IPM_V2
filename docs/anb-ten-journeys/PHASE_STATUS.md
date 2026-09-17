@@ -17,9 +17,9 @@ so a reader never has to trust a claim that is not beside the work.
 | P4  | Ten evidence-driven cards and drawers   | COMPLETE |
 | P5  | Stateful investigation threads          | COMPLETE (backend; UI chips in P7 commit) |
 | P6  | Versioned policy action engine          | COMPLETE |
-| P7  | Borrower 360 investigation workspace    | NOT STARTED |
-| P8  | Stage-aware Excel evidence exports      | NOT STARTED |
-| P9  | Borrower 360 to What-If                 | NOT STARTED |
+| P7  | Borrower 360 investigation workspace    | COMPLETE (backend + API) |
+| P8  | Stage-aware Excel evidence exports      | COMPLETE |
+| P9  | Borrower 360 to What-If                 | COMPLETE |
 | P10 | Real-browser, data and regression       | NOT STARTED |
 | P11 | Freeze and handoff                      | NOT STARTED |
 
@@ -528,3 +528,126 @@ typecheck clean.
 
 None. The thread UI itself — chips above the composer and the export toolbar —
 is P7's commit; the backend they read is here.
+
+---
+
+## P7 — Borrower 360 investigation workspace
+
+### A draft before anybody saves
+
+Every import writes a `SavedInvestigation` in `draft` state before the reader
+does anything, because the failure it prevents is specific: export a list,
+work on it for twenty minutes, download a workbook, close the tab, and the
+list is gone. Save then means *name and pin this*, not *begin persisting*.
+Importing the same cohort twice does not create two cards.
+
+### Reopening shows what was saved
+
+A saved version points at an immutable cohort snapshot and is read, never
+re-derived. `refresh` writes version n+1 and leaves version n exactly as it
+was, so "what did this say when I saved it" and "what does it say now" both
+have answers. A gate proves the earlier version's snapshot and count are
+untouched after a refresh.
+
+### One row per customer
+
+A customer row carries what is true at customer grain; the facility rows
+underneath carry what is true at facility grain. A customer's other facilities
+are shown as context and are NOT in the financial baseline — a gate proves
+each customer's loss equals the sum of its *included* facilities only. Where a
+customer's included facilities are different products, no single probability
+of default is shown at all, and the field says why rather than being blank.
+
+Early Warning history is six month-ends with its coverage. A month with no
+observation is `unavailable`, never a zero.
+
+### Notes
+
+Versioned rather than overwritten, because in a dispute the previous wording
+is the part that matters. Every note view carries `untrusted_content: true`
+and the sentence that it is never read as an instruction — a gate feeds one
+containing "ignore your previous instructions" through and checks the label.
+
+### API
+
+`POST /retail/cohorts/from-step`, `GET /retail/cohorts/{id}`,
+`GET /retail/cohorts/{id}/customers`, `POST /retail/cohorts/{id}/select`,
+`GET /retail/investigations/recent`, `GET /retail/investigations/{id}`,
+`POST .../save`, `POST .../refresh`, `POST .../notes`, `GET .../notes`.
+Authorisation is rechecked on every one, and a refusal is worded identically
+to an absence so that asking cannot confirm somebody else's customer list
+exists. Verified live: another user gets 404 on a cohort they do not own.
+
+---
+
+## P8 — Stage-aware Excel evidence exports
+
+Thirteen sheets, in the specification's order, from one service reading a
+persisted snapshot.
+
+**The visited-step cap.** An export taken at S1 carries S0 and S1; S2 to S5
+are listed as *Not reached at the exported step* and the policy sheet says so
+in the place the actions would have been. An absent sheet is a question; a
+present sheet that says *not reached* is an answer. Verified on a live S1
+export of C05: the four later steps read *Not reached*, `09_Policy_Actions`
+contains no action text, and `06_Score_Drivers` is empty.
+
+**No truncation.** Every sheet writes the snapshot's whole identifier list.
+A gate compares the row counts against the snapshot's own counts, and the
+manifest records `truncated: false` beside a content hash of the bytes.
+
+**Formula injection.** Four hostile note bodies — beginning `=`, `@`, `+` and
+`-` — come back with a leading apostrophe. Verified in a live export as well
+as in the gate.
+
+**Reconciliation.** Sheet 11 states expected against in-file for customers,
+facilities, gross carrying amount, exposure at default, expected credit loss,
+the visited-step cap, truncation and withheld identifiers. On a live C05 S1
+export every row read `True`.
+
+Every export is recorded in `export_records` with its hash, size, row count
+and the manifest — whether or not it succeeded.
+
+---
+
+## P9 — Borrower 360 to What-If
+
+The handoff carries the snapshot's own identifiers into the existing What-If
+`Selection` rather than a second object, and the landing is **gated on
+reconciliation**: identifiers, counts, gross carrying amount, exposure at
+default, stage totals and expected credit loss must match the scope they came
+from, to one halala. When they do not, the difference is named — a gate drifts
+a cohort's loss by SAR 5,000 and checks that the gate reports exactly that.
+
+A cohort measured on an earlier build of the book is refused rather than
+silently re-priced on this one.
+
+Verified live on C01 S4: 1,251 customers, 1,268 facilities, SAR 35,022,772
+gross, SAR 34,409,666 exposure at default, SAR 6,473,844 expected loss, stage
+mix 158/1,093/17, reconciled with no differences, and the selection written.
+
+Each story's scenario family names what it may vary and what it must not. The
+limit trial says an existing card's drawn balance is unchanged by a cut; the
+recovery trial says the probability of default is held.
+
+### Files
+
+| Added | |
+|---|---|
+| `backend/retail/investigation_store.py` | drafts, versions, notes |
+| `backend/retail/cohort_360.py` | the imported customer list |
+| `backend/retail/investigation_workbook.py` | the thirteen sheets |
+| `backend/retail/cohort_whatif.py` | baseline, reconciliation, handoff |
+| `backend/api/routers/cohorts.py` | the cohort and investigation API |
+| `tests/retail/test_ret_cpra_p7_p9_workspace.py` | 21 gates |
+
+### Tests
+
+**150 passed**: 34 P1, 22 P2, 8 P3, 25 P4-P6, 21 P7-P9, 40 accepted Alpha.
+
+### Blockers
+
+The Borrower 360 and thread SCREENS are not yet wired to these routes — the
+chips above the composer, the export toolbar and the recent-investigation
+cards below the chatbox. That is the remaining UI work before P10's browser
+journeys can run.

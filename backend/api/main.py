@@ -33,6 +33,7 @@ from backend.api.routers import ask as ask_router
 from backend.api.routers import assurance as assurance_router
 from backend.api.routers import brain as brain_router
 from backend.api.routers import cases as cases_router
+from backend.api.routers import cohorts as cohorts_router
 from backend.api.routers import (
     continuous_learning as continuous_learning_router,
 )
@@ -446,6 +447,8 @@ def create_app() -> FastAPI:
     app.include_router(assurance_router.dimensions_router,
                        prefix=API_PREFIX)
     app.include_router(cases_router.router, prefix=API_PREFIX)
+    app.include_router(cohorts_router.router, prefix=API_PREFIX)
+    app.include_router(cohorts_router.saved_router, prefix=API_PREFIX)
     # Answer feedback: §148 requires it on every response, so the POST
     # is open to every signed-in role. Reading the queue and
     # adjudicating are not.
