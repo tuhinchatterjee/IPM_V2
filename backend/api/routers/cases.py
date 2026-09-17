@@ -330,6 +330,16 @@ def _seed_for(case: Any) -> dict[str, Any]:
         "risk_case": {
             "id": case.id, "key": case.case_key, "title": case.title,
             "level": case.level, "entity": case.entity,
+            # The entity IDENTIFIER, not only its label.
+            #
+            # A segment case's `entity` is a human phrase — "DEMO Employer A /
+            # private facilities services / Eastern Province" — and the retail
+            # investigations are routed by the case's own identifier. Without
+            # this the thread knows which KIND of finding it is and not WHICH
+            # one, so the five prompts cannot be built and every one of them
+            # falls through to the planner.
+            "entity_id": case.entity_id or "",
+            "entity_kind": case.entity_kind or "",
             # What KIND of finding this is. A route that answers a question
             # differently inside this investigation than outside it needs to
             # know which investigation it is in, and the case's own `about` is
@@ -357,6 +367,12 @@ def _question_for(case: Any) -> str:
     if (case.about or "") == "retail_early_delinquency":
         return (f"Why has the {case.entity} population in 1-29 DPD risen at "
                 f"{case.period}, and where is it concentrated?")
+    # One of the ten retail stories. The generic segment question — "something
+    # seems wrong with X" — throws away everything the card just established,
+    # and these cards establish a rate, a comparator and a named pocket.
+    if (case.about or "") == "retail_episode":
+        return (f"{case.title} at {case.period}: break the issue apart and "
+                f"show where it is concentrated.")
     if case.level == cases.BORROWER:
         return (f"What is driving the deterioration at {case.entity} "
                 f"in {case.period}?")

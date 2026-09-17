@@ -756,7 +756,8 @@ def _s2_characteristics(case_id: str, at: str, reading: Reading) -> Any:
 #: manufacturing points for a feature that does not exist.
 _S3_FEATURES: dict[str, tuple[tuple[str, str, str], ...]] = {
     "C01": (("utilisation_ratio", "Utilisation", "ratio"),
-            ("payment_to_statement_ratio", "Payment to statement", "ratio")),
+            ("payment_to_due_ratio_3m", "Payment to amount due, 3-month",
+             "ratio")),
     "C02": (("origination_dbr_ratio", "Debt burden at approval", "ratio"),
             ("origination_employment_tenure_months",
              "Employment tenure at approval", "months")),
@@ -805,15 +806,25 @@ def _s3_decompose(case_id: str, at: str, reading: Reading) -> Any:
         rows = earlier[earlier["facility_id"].astype(str).isin(ids)]
         entry: dict[str, Any] = {"Month": month}
         for column, label, _unit in features:
-            values = pd.to_numeric(rows.get(column), errors="coerce").dropna()
+            if column not in rows.columns:
+                # `pd.to_numeric(None)` returns a scalar, not a Series, and
+                # the next line then raises on a book that simply does not
+                # carry this column. Named as unavailable instead: the reader
+                # is told which driver is missing rather than shown a file
+                # that failed to build for no stated reason.
+                entry[label] = None
+                continue
+            values = pd.to_numeric(rows[column], errors="coerce").dropna()
             entry[label] = round(float(values.median()), 4) if len(values) else None
-        dpd = pd.to_numeric(rows.get("dpd"), errors="coerce")
+        dpd = pd.to_numeric(rows["dpd"], errors="coerce") \
+            if "dpd" in rows.columns else pd.Series(dtype="float64")
         entry["Share in arrears (%)"] = (
             round(float((dpd > 0).mean() * 100), 1) if len(dpd) else None)
+        scores = (pd.to_numeric(rows["behavioural_score"], errors="coerce")
+                  .dropna() if "behavioural_score" in rows.columns
+                  else pd.Series(dtype="float64"))
         entry["Behavioural score, median"] = (
-            round(float(pd.to_numeric(rows.get("behavioural_score"),
-                                      errors="coerce").dropna().median()), 1)
-            if len(rows) else None)
+            round(float(scores.median()), 1) if len(scores) else None)
         timeline.append(entry)
 
     first, last = (timeline[0], timeline[-1]) if timeline else ({}, {})

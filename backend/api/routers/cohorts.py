@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/retail/cohorts", tags=["retail cohorts"])
 saved_router = APIRouter(prefix="/retail/investigations",
                          tags=["retail investigations"])
+# The prompts live under their own prefix, not under /retail/investigations.
+#
+# They were there first, and `/retail/investigations/{saved_id}` is declared
+# above them — so FastAPI matched "chips" as a saved-investigation id and
+# answered 404 for every request. The page then rendered with no prompt chips
+# at all and nothing anywhere said why, which is precisely the failure a
+# browser run exists to catch and an API test would not have.
+episodes_router = APIRouter(prefix="/retail/episodes",
+                            tags=["retail investigations"])
 
 Caller = Depends(current_principal)
 
@@ -455,7 +464,7 @@ def to_whatif(snapshot_id: str, principal: Principal = Caller
         return {"selection_id": selection.selection_id, **found}
 
 
-@saved_router.get("/chips/{case_id}", summary="The five prompts for a story")
+@episodes_router.get("/{case_id}/chips", summary="The five prompts for a story")
 def chips(case_id: str, visited: str = "",
           principal: Principal = Caller) -> dict[str, Any]:
     """The prompts above the composer, with what has been visited.

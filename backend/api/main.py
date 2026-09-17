@@ -449,6 +449,7 @@ def create_app() -> FastAPI:
     app.include_router(cases_router.router, prefix=API_PREFIX)
     app.include_router(cohorts_router.router, prefix=API_PREFIX)
     app.include_router(cohorts_router.saved_router, prefix=API_PREFIX)
+    app.include_router(cohorts_router.episodes_router, prefix=API_PREFIX)
     # Answer feedback: §148 requires it on every response, so the POST
     # is open to every signed-in role. Reading the queue and
     # adjudicating are not.

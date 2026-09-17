@@ -115,7 +115,17 @@ function Thread({ threadId }: { threadId: number }) {
     const seed = (thread?.context?.risk_case ?? null) as
       | { about?: string; entity_id?: string }
       | null;
-    if (!seed || seed.about !== "retail_episode" || !seed.entity_id) {
+    // Alpha's card is raised by the accepted early-delinquency rule and says
+    // so, but the five questions on its thread are C01's own and are answered
+    // by its own route. A reader there has no reason to be offered fewer
+    // controls than a reader on the other nine.
+    const caseId =
+      seed?.about === "retail_episode"
+        ? (seed.entity_id ?? "")
+        : seed?.about === "retail_early_delinquency"
+          ? "C01"
+          : "";
+    if (!caseId) {
       return { caseId: "", visited: [] as string[], currentStep: "S0" };
     }
     const visited = new Set<string>(["S0"]);
@@ -127,7 +137,7 @@ function Thread({ threadId }: { threadId: number }) {
     const order = ["S0", "S1", "S2", "S3", "S4", "S5"];
     const reached = order.filter((s) => visited.has(s));
     return {
-      caseId: seed.entity_id,
+      caseId,
       visited: reached,
       currentStep: reached[reached.length - 1] ?? "S0",
     };

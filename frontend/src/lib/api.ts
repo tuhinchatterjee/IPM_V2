@@ -7534,7 +7534,7 @@ export const api = {
       countercheck: string;
       rows: EpisodeChipRow[];
     }>(
-      `/retail/investigations/chips/${encodeURIComponent(caseId)}` +
+      `/retail/episodes/${encodeURIComponent(caseId)}/chips` +
         (visited.length ? `?visited=${encodeURIComponent(visited.join(","))}` : ""),
     ),
   /** Freeze one step's customers into an immutable cohort. */
