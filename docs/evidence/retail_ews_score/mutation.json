@@ -51,9 +51,9 @@
  },
  "aggregate": {
   "product": "CREDIT_CARD",
-  "before": 35.89,
-  "after": 35.9,
+  "before": 36.02,
+  "after": 36.03,
   "changed": true
  },
- "others_unchanged": 59408
+ "others_unchanged": 59412
 }
