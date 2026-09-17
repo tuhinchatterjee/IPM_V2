@@ -14,9 +14,9 @@ so a reader never has to trust a claim that is not beside the work.
 | P1  | Identity, metric and cohort contracts   | COMPLETE |
 | P2  | Ten coherent synthetic episodes         | COMPLETE |
 | P3  | Atomic Cockpit/EWS publication          | COMPLETE |
-| P4  | Ten evidence-driven cards and drawers   | NOT STARTED |
-| P5  | Stateful investigation threads          | NOT STARTED |
-| P6  | Versioned policy action engine          | NOT STARTED |
+| P4  | Ten evidence-driven cards and drawers   | COMPLETE |
+| P5  | Stateful investigation threads          | COMPLETE (backend; UI chips in P7 commit) |
+| P6  | Versioned policy action engine          | COMPLETE |
 | P7  | Borrower 360 investigation workspace    | NOT STARTED |
 | P8  | Stage-aware Excel evidence exports      | NOT STARTED |
 | P9  | Borrower 360 to What-If                 | NOT STARTED |
@@ -374,3 +374,157 @@ including a join to a figure that does not record its provenance at all.
 ### Blockers
 
 None.
+
+---
+
+## P4 — Ten evidence-driven cards and drawers
+
+### One adapter, not nine templates
+
+`backend/retail/episode_cases.py` reads a story's measured populations out of
+`episode_measures` and writes a Risk Case Draft from them. There is no
+per-story card text: a conclusion is assembled from the figures it quotes, so
+it cannot disagree with them, and a story whose numbers move produces a card
+whose words move with them.
+
+### Severity is arithmetic
+
+Five governed components, each carrying the raw figure behind it: materiality
+(affected against eligible, and the exposure), magnitude (the multiple over
+the comparator), concentration (the pocket's share of the cases), persistence
+(rising month-ends) and data confidence (the corroborated share). A gate
+recomputes the band from the components at the published precision.
+
+Measured on the shipped book:
+
+| Case | Band | Score | Exposure |
+|---|---|---|---|
+| C02 | critical | 0.829 | SAR 8.8m |
+| C03 | critical | 0.900 | SAR 89.2m |
+| C04 | critical | 0.833 | SAR 88.1m |
+| C05 | **medium** | 0.550 | SAR 0.4m |
+| C06 | critical | 0.813 | SAR 50.2m |
+| C07 | **high** | 0.678 | SAR 114.8m |
+| C08 | **high** | 0.674 | SAR 151.5m |
+| C09 | critical | 0.848 | SAR 11.1m |
+| C10 | critical | 0.845 | SAR 20.2m |
+
+Three different bands from one formula. No threshold was moved to make a
+demonstration look worse, and a gate fails if every story comes out the same.
+
+A review against the demonstration database opened **16 cases**: the nine
+here, Alpha from the accepted early-delinquency rule, and the six the
+deterioration and impairment rules already raised.
+
+### A hole the gates found
+
+`draft()` would return a card for C01 if asked directly, duplicating the Alpha
+finding — and `dedupe_key` would not have caught it, because the two carry
+different `about` values and are therefore different findings as far as the
+Risk Case store is concerned. The refusal now lives in `draft()` rather than in
+the loop above it.
+
+### The drawer (U02)
+
+`frontend/src/components/attention/episode-panels.tsx` renders six stacked
+panels, each carrying its own denominator, comparator and coverage: affected
+population, normalised pocket, probability of default and loss, scores, the
+rule that was evaluated, and sources. Where a figure does not apply — a
+forward probability of default for a cohort that has already defaulted — the
+panel says so in the place the figure would have been. Cases that carry no
+episode drawer render nothing, so the drawer a signed-off demonstration opens
+on is unchanged.
+
+---
+
+## P5 — Stateful investigation threads
+
+### Reading
+
+`episode_answers.read()` matches a chip click on the whole configured prompt
+first, then five paraphrase patterns written about the SHAPE of each question
+rather than any one story's vocabulary. Gated on the thread: the five
+questions do not name their own subject, so outside an investigation whose
+Risk Case says which story it is, `read` returns nothing and the planner
+answers. "What should we do next?" reaching a payroll recommendation in a
+conversation about mortgages is the failure this closes.
+
+Routed in `orchestrator.py` beside the accepted Alpha route, with the same
+never-raises contract.
+
+### Narrowing
+
+| Step | Cohort |
+|---|---|
+| S0 | the issue population |
+| S1 | alerts whose evidence reached VERIFIED_DETAIL |
+| S2 | the same identifiers as S1, held fixed |
+| S3 | corroborated evidence |
+| S4 | corroborated AND inside the named pocket |
+| S5 | exactly S4's scope |
+
+A gate proves every step is a subset of the one before it across all nine
+stories. Measured customer counts, S1 through S5:
+
+| Case | S1 | S2 | S3 | S4 | S5 |
+|---|---|---|---|---|---|
+| C02 | 56 | 56 | 50 | 35 | 35 |
+| C03 | 1,141 | 1,141 | 1,010 | 845 | 845 |
+| C04 | 1,045 | 1,045 | 918 | 772 | 772 |
+| C05 | 27 | 27 | 25 | 11 | 11 |
+| C06 | 536 | 536 | 492 | 399 | 399 |
+| C07 | 147 | 147 | 136 | 90 | 90 |
+| C08 | 189 | 189 | 146 | 115 | 115 |
+| C09 | 188 | 188 | 150 | 124 | 124 |
+| C10 | 197 | 197 | 174 | 162 | 162 |
+
+All 45 steps answer. Each carries its scope line, two to five evidence
+observations, the story's own countercheck as the counterargument, the
+recommended next question, a Trace, and `execution="analysis"` so the Trace
+consistency contract knows a computation ran.
+
+---
+
+## P6 — Versioned policy action engine
+
+Thirty clauses, effective-dated, every one `DEMO_DRAFT - NOT BANK APPROVED`.
+`claims_compliance()` returns False for all of them, `executed` is False on
+every action, and an S5 answer leads with the draft status rather than
+footnoting it — a recommendation that reads as compliant when it is not is the
+most expensive sentence this product could produce.
+
+A clause outside its effective dates produces an action marked unsupported
+with the reason, not an action with a caveat.
+
+Each story's What-If trial names its family, what it affects, what it must not
+do and what it does not model. The limit trial says a cut does not repay a
+drawing; the recovery trial says the probability of default is held. Without an
+approved exposure budget nothing is solved for, so the percentages are trials
+and are labelled as such.
+
+### Files
+
+| Added | |
+|---|---|
+| `backend/retail/episode_cases.py` | the nine cards |
+| `backend/retail/episode_answers.py` | reading and answering the six steps |
+| `backend/retail/episode_policy.py` | effective-dated draft clauses and scenario families |
+| `frontend/src/components/attention/episode-panels.tsx` | the stacked drawer panels |
+| `tests/retail/test_ret_cpra_p4_p6_cards_threads.py` | 25 gates |
+
+| Changed | |
+|---|---|
+| `backend/retail/review.py` | the nine adapters in the review loop |
+| `backend/orchestration/orchestrator.py` | the episode investigation route |
+| `backend/retail/episode_measures.py` | trend, risk, scores and the assembled drawer |
+| `frontend/src/components/attention/case-drawer.tsx` | renders the panels |
+
+### Tests
+
+**129 passed**: 34 P1, 22 P2, 8 P3, 25 P4-P6, 40 accepted Alpha. Frontend
+typecheck clean.
+
+### Blockers
+
+None. The thread UI itself — chips above the composer and the export toolbar —
+is P7's commit; the backend they read is here.

@@ -212,6 +212,22 @@ class EpisodeOverlay:
         self.start: dict[str, int] = {}
         self.behaviour_start: dict[str, int] = {}
 
+        # A stable per-facility deviate.
+        #
+        # Without it every unpressed facility carries the same healthy value —
+        # coverage exactly 0.55, a delay of exactly 20 days, exactly zero
+        # missed payroll cycles — and the case rule fires for nobody outside
+        # the pressed set. The six-window trend is then five zeroes and a
+        # spike, and the comparator is zero, which makes every rate ratio
+        # infinite and every chart a step function.
+        #
+        # That is not a presentational problem. A book in which NOBODY outside
+        # one cohort ever has a low buffer or a late milestone is a book whose
+        # baseline rate is a claim nobody could believe, and the first
+        # question a credit officer asks a card is what the normal rate is.
+        self.scatter = np.random.default_rng(
+            int(self.cfg.seed) + 0x5CA77E4).normal(0.0, 1.0, size=self.n)
+
     # -- membership -------------------------------------------------------
 
     def assign(self) -> None:
@@ -758,10 +774,19 @@ class EpisodeOverlay:
             case.eligible, np.where(case.pressed, value, payroll_from),
             self.payroll_credit)
         in_window = t >= self.start[case.case_id]
+        # Everybody else's payroll behaves like the book says it does: the
+        # simulation already records whether this customer's salary landed,
+        # and a few of them have missed two in a row without an employer
+        # failing. That is the baseline the card is measured against.
+        ci = sim.fac.customer_index
+        missed_now = sim.h_salary_missed[ci, -1] > 0
+        natural = np.where(missed_now, self.payroll_missing + 1, 0)
         self.payroll_missing = np.where(
-            case.pressed & in_window,
-            np.minimum(self.payroll_missing + 1, 6),
-            np.where(case.eligible, 0, self.payroll_missing)).astype("int64")
+            case.eligible,
+            np.where(case.pressed & in_window,
+                     np.minimum(self.payroll_missing + 1, 6),
+                     np.minimum(natural, 6)),
+            self.payroll_missing).astype("int64")
         # The real lever: the customer's own account balance, which is what the
         # behavioural buffer feature is computed from.
         if case.pressed.any():
@@ -778,9 +803,10 @@ class EpisodeOverlay:
         sim, opts = self.sim, case.opts
         frm, to = (float(opts["obligations_to_income_from"]),
                    float(opts["obligations_to_income_to"]))
+        healthy = np.clip(frm + 0.045 * self.scatter, 0.10, 0.95)
         self.obligations_ratio = np.where(
             case.eligible,
-            np.where(case.pressed, frm + (to - frm) * ramp, frm),
+            np.where(case.pressed, healthy + (to - frm) * ramp, healthy),
             self.obligations_ratio)
         self.bnpl = np.where(
             case.eligible,
@@ -797,9 +823,10 @@ class EpisodeOverlay:
         """Liquid coverage of a contractual balloon falls. The balloon does not."""
         opts = case.opts
         frm, to = float(opts["coverage_from"]), float(opts["coverage_to"])
+        healthy = np.clip(frm + 0.16 * self.scatter, 0.02, 1.4)
         self.balloon_coverage = np.where(
             case.eligible,
-            np.where(case.pressed, frm + (to - frm) * ramp, frm),
+            np.where(case.pressed, healthy + (to - frm) * ramp, healthy),
             self.balloon_coverage)
 
     def _month_c06(self, case: _Case, t: int, ramp: np.ndarray) -> None:
@@ -813,9 +840,11 @@ class EpisodeOverlay:
         sim, opts = self.sim, case.opts
         frm, to = (float(opts["net_proceeds_from_sar"]),
                    float(opts["net_proceeds_to_sar"]))
+        healthy = np.clip(frm * (1.0 + 0.065 * self.scatter), frm * 0.55,
+                          frm * 1.5)
         self.net_proceeds = np.where(
             case.eligible,
-            np.where(case.pressed, frm + (to - frm) * ramp, frm),
+            np.where(case.pressed, healthy + (to - frm) * ramp, healthy),
             self.net_proceeds)
         dfrm, dto = (float(opts["recovery_delay_from_months"]),
                      float(opts["recovery_delay_to_months"]))
@@ -835,9 +864,11 @@ class EpisodeOverlay:
         """Milestones slip and housing outgoings rise against verified income."""
         sim, opts = self.sim, case.opts
         dfrm, dto = float(opts["delay_from_days"]), float(opts["delay_to_days"])
+        healthy_delay = np.clip(dfrm + 28.0 * self.scatter, 0.0, 200.0)
         self.milestone_delay = np.where(
             case.eligible,
-            np.where(case.pressed, dfrm + (dto - dfrm) * ramp, dfrm),
+            np.where(case.pressed, healthy_delay + (dto - dfrm) * ramp,
+                     healthy_delay),
             self.milestone_delay)
         ofrm, oto = float(opts["outgoings_from"]), float(opts["outgoings_to"])
         self.outgoings_ratio = np.where(
@@ -860,10 +891,15 @@ class EpisodeOverlay:
             case.eligible,
             np.where(case.pressed & in_window, 0.0, expected),
             self.support_received)
+        # A reconciliation that fails occasionally for everybody is the
+        # baseline; the finding is that for one pocket it keeps failing.
+        stumble = (self.scatter > 1.85) & ((t + self.sim.fac.customer_index) % 7 == 0)
         self.support_gap = np.where(
-            case.pressed & in_window,
-            np.minimum(self.support_gap + 1, 6),
-            np.where(case.eligible, 0, self.support_gap)).astype("int64")
+            case.eligible,
+            np.where(case.pressed & in_window,
+                     np.minimum(self.support_gap + 1, 6),
+                     np.where(stumble, np.minimum(self.support_gap + 1, 2), 0)),
+            self.support_gap).astype("int64")
         if case.pressed.any() and in_window:
             ci = sim.fac.customer_index[case.pressed]
             np.subtract.at(sim.cust_bank_balance, ci, expected * 0.55)
@@ -885,9 +921,12 @@ class EpisodeOverlay:
         ci = sim.fac.customer_index
         growth = (1.0 + 0.0022) ** t
         own = (sim.cust.base_salary_sar[ci] + sim.cust.other_income_sar[ci]) * growth
-        stepped = own * (1.0 - (1.0 - replacement) * ramp)
+        # A documented transition that HAS a contractual step-down still
+        # replaces less than the salary did, by a varying amount.
+        healthy = own * np.clip(1.0 - 0.06 * np.abs(self.scatter), 0.72, 1.0)
+        stepped = healthy * (1.0 - (1.0 - replacement) * ramp)
         self.pension_income = np.where(
-            case.eligible, np.where(case.pressed, stepped, own),
+            case.eligible, np.where(case.pressed, stepped, healthy),
             self.pension_income)
         if case.pressed.any() and float(np.max(ramp)) > 0:
             ci = sim.fac.customer_index[case.pressed]

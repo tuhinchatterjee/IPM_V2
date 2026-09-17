@@ -1,19 +1,19 @@
 {
   "schema": "retail-bundle-1.0.0",
-  "bundle_id": "RB-E7BA202A45842B71",
-  "created_at": "2026-09-17T11:47:29+00:00",
+  "bundle_id": "RB-0E277E3A36345B43",
+  "created_at": "2026-09-17T12:46:43+00:00",
   "as_of": "2026-08",
   "config_version": "1.0.0",
   "generator_version": "retail-gen-1.2.0",
   "episode_config_version": "retail-episodes-1.0.0",
   "seed": 20260910,
   "dataset_hashes": {
-    "retail_facility_month": "e150a921cb911d3c626ca45818df9d9b95d2de44831de7e9b6b2e016365c4a37",
-    "retail_ews_panel": "5e77f9af2f05baa71bc565868a03faf470fb26023f9f174054a8c4a4f3c86992",
-    "retail_ews_score": "4a9eec31e8eb00be9910fe643aac0a2a60fb41d35445fab6e3c8cc8aa37db17d",
-    "retail_early_warning": "b28a4dc16b7814d1091fc74c991812148876f03506a77301bba569697c9924b0",
-    "retail_credit_scorecard": "de7996a3fa28a7ff173aea87a0b68357a22b4285d01466d692012f1caab5451b",
-    "retail_whatif": "fc534411094589dab86dfff68b8474911b275125a3629b800930a0fcccba4709"
+    "retail_facility_month": "f8d959638a7239f241a8118e777b2c6f9513c8e1b4c111b8b6398aba69dc49a3",
+    "retail_ews_panel": "4b0c6128d38ed271ba3a89daf0026e75f9f195cb6c60a86b6db933658a6b8c12",
+    "retail_ews_score": "12342815b023028d0be429d8847abeb014fe82746481e6843279da2ebe769c7a",
+    "retail_early_warning": "44083b28f22313b5032926a1ea30f4268da208a8b4478faa739c4a05585a5b51",
+    "retail_credit_scorecard": "0738074af01006b2347d4b98c82601df1e3f9778f74f6f6d54a9b5c033eb2341",
+    "retail_whatif": "cf4f73543fd1ecc16aac6314978d90f4cf56c01996e6ca6d7e67f61a65bad981"
   },
   "dataset_periods": {
     "retail_facility_month": 25,
@@ -42,7 +42,7 @@
     {
       "check": "the Early Warning join is grain-safe",
       "passed": true,
-      "detail": "total ECL 110922285.79 before the join and 110922285.79 after"
+      "detail": "total ECL 110924404.87 before the join and 110924404.87 after"
     },
     {
       "check": "a facility-month is unique",

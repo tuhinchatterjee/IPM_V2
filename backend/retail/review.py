@@ -50,6 +50,7 @@ from typing import Any
 
 from backend.agentic import cases as rc
 from backend.agentic import severity as sv
+from backend.retail import episode_cases
 
 logger = logging.getLogger(__name__)
 
@@ -594,6 +595,28 @@ def run(session: Any, *, period: str = "", actor: str = REVIEWER,
                 out.refreshed += 1
             else:
                 out.opened += 1
+
+    # The nine episode stories. One adapter rather than nine rules, because
+    # each of them answers the same six questions of a different pocket, and
+    # nine functions that differed only in their wording would be nine places
+    # for the wording to stop matching the figures.
+    #
+    # A story that does not reach its raising thresholds returns nothing and
+    # no card appears. That path is not decorative: two of the nine sit close
+    # to the thresholds, and a demonstration where every card always appears
+    # whatever the book says is a demonstration of nothing.
+    for draft in episode_cases.rule(out.period):
+        name = f"episode_{(draft.entity_id or '').lower()}"
+        out.rules[name] = out.rules.get(name, 0) + 1
+        out.qualified += 1
+        existing = _existing(session, draft)
+        case = rc.upsert(session, draft, actor_agent=actor)
+        out.case_ids.append(int(case.id))
+        out.bands[case.severity] = out.bands.get(case.severity, 0) + 1
+        if existing:
+            out.refreshed += 1
+        else:
+            out.opened += 1
 
     for series in history:
         for rule in RULES:

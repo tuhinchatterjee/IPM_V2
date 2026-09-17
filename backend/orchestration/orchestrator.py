@@ -383,6 +383,17 @@ def answer(question: str, *, context: Any = None,
         if found is not None:
             return found
 
+    # The nine other retail investigations. Gated the same way and for the
+    # same reason: "what should we do next?" names nothing, so it is answered
+    # only inside a thread whose Risk Case says which story it is.
+    episode_reading = _reads_episode_investigation(original, state=state,
+                                                  memory=memory)
+    if episode_reading is not None:
+        found = _from_episode_investigation(original, question, episode_reading,
+                                            fixed, started, period=period)
+        if found is not None:
+            return found
+
     # A HYPOTHETICAL is not a question about the book as it is, and the
     # analytical planner has no way to express one: "what happens if every BBB
     # borrower is downgraded two notches" has no rows to select, because the
@@ -1472,6 +1483,74 @@ def _from_card_investigation(original: str, question: str, reading: Any,
             because=("the question continues the card investigation"
                      if reading.from_thread else
                      "the question names the card cohort itself")),
+        decision=rt.decide(question, deterministic=True),
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
+    answered.result = result
+    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    return answered
+
+
+def _reads_episode_investigation(question: str, *, state: Any = None,
+                                 memory: Any = None) -> Any:
+    """Whether this is one of the nine stories' five questions.
+
+    Never raises and never guesses. A retail module missing from a partial
+    deployment, a book built before the episodes existed, a sentence that
+    matches nothing: all of them mean the ordinary planner answers.
+    """
+    try:
+        from backend.retail import episode_answers
+        from backend.retail.profile import is_retail
+
+        if not is_retail():
+            return None
+        context = getattr(state, "thread_context", None) or {}
+        return episode_answers.read(question, context=context,
+                                    state=state, memory=memory)
+    except Exception as e:  # noqa: BLE001 - the planner answers instead
+        logger.debug("the episode investigation route could not read %r: %s",
+                     question, e)
+        return None
+
+
+def _from_episode_investigation(original: str, question: str, reading: Any,
+                                fixed: Any, started: float,
+                                period: tuple[str, str] | None = None
+                                ) -> Answered | None:
+    """One step of one story, computed from the published book.
+
+    Returns None rather than an empty answer where the figures are not there.
+    A deterministic route that returns a confident empty table is worse than
+    one that steps aside.
+    """
+    from backend.retail import episode_answers
+
+    at = period[1] if period else ""
+    result = episode_answers.answer(reading, period=at)
+    if result is None:
+        return None
+
+    read = cap.Reading(
+        intent=cap.Capability.ANALYSIS,
+        objective=result.title or f"{reading.case_id} {reading.step}",
+        # CONTINUE: this is the same investigation carrying on. Marking it
+        # NEW_REQUEST would tell the conversation state that the reader had
+        # changed the subject in the middle of the one question sequence the
+        # thread exists for.
+        conversation_action=cv.CONTINUE,
+        operation="aggregate",
+        confidence=1.0,
+        reasoning=(f"step {reading.step} of the {reading.case_id} retail "
+                   f"investigation, computed from the published book"),
+        source="retail_episode_investigation",
+    )
+    answered = Answered(
+        question=original, reading=read,
+        continuation=cv.Continuation(
+            action=cv.CONTINUE,
+            because=(f"the question continues the {reading.case_id} "
+                     f"investigation at step {reading.step}")),
         decision=rt.decide(question, deterministic=True),
         read_as=fixed.text if fixed.changes else "",
         corrections=list(fixed.changes))

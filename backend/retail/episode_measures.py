@@ -489,3 +489,269 @@ def headline(month: str = "", case_id: str = "") -> dict[str, Any]:
         "headline_metric": mc.definition(episode.headline_metric),
         "disclosure": ep.disclosure(),
     }
+
+
+# ---------------------------------------------------------------------------
+# The drawer
+# ---------------------------------------------------------------------------
+#
+# Everything U02 asks for, computed once. Each panel carries its own
+# denominator, its own comparator and its own coverage, because a figure whose
+# denominator is on a different screen is a figure nobody checks.
+
+
+#: How many month-ends the issue trend shows.
+TREND_WINDOWS = 6
+
+
+def trend(month: str = "", case_id: str = "",
+          windows: int = TREND_WINDOWS) -> dict[str, Any]:
+    """The issue rate over the last few month-ends, on its own denominator.
+
+    Recomputed at each month rather than carried forward, so a month in which
+    the eligible population grew cannot read as a month in which the rate fell.
+    """
+    at = resolve(month)
+    if not at:
+        return {"available": False, "because": "no published book"}
+    published = months()
+    window = [m for m in published if m <= at][-windows:]
+    rows = []
+    for each in window:
+        data = frame(each)
+        if data.empty:
+            continue
+        eligible = eligible_mask(data, case_id)
+        issue = issue_mask(data, case_id) & eligible
+        rows.append({
+            "month": each,
+            "eligible": int(eligible.sum()),
+            "issue": int(issue.sum()),
+            "rate_pct": round(_rate(int(issue.sum()),
+                                    int(eligible.sum())) * 100, 4)
+            if eligible.any() else None,
+        })
+    episode = ep.by_id(case_id)
+    return {
+        "available": bool(rows),
+        "title": f"{episode.card_measure if episode else case_id}, by month",
+        "unit": "% of eligible observations",
+        "denominator": ("the case's own eligible population at each "
+                        "month-end, recomputed rather than carried forward"),
+        "rows": rows,
+        "months": [r["month"] for r in rows],
+    }
+
+
+def _same_cohort(case_id: str, at: str, before: str) -> tuple[Any, Any, Any]:
+    """The issue facilities now, and those same facilities a month earlier.
+
+    The comparison the drawer's ECL, PD and score panels are built on. Not
+    "the issue population then", which is a different set of customers and
+    would mix a change in the book with a change in the cohort.
+    """
+    now = frame(at)
+    issue = issue_mask(now, case_id) & eligible_mask(now, case_id)
+    rows_now = now.loc[issue]
+    ids = set(rows_now["facility_id"].astype(str))
+    earlier = frame(before) if before else pd.DataFrame()
+    rows_before = (earlier[earlier["facility_id"].astype(str).isin(ids)]
+                   if not earlier.empty else pd.DataFrame())
+    return rows_now, rows_before, ids
+
+
+def risk(month: str = "", case_id: str = "") -> dict[str, Any]:
+    """PD, LGD, stage and ECL for the issue cohort, then and now.
+
+    Forward PD is reported ONLY over the non-impaired part of the cohort, and
+    the impaired part is shown separately with its stage rather than folded in.
+    An account that has already defaulted is not a prediction about whether it
+    will.
+    """
+    at = resolve(month)
+    if not at:
+        return {"available": False, "because": "no published book"}
+    before = previous_month(at)
+    now, earlier, ids = _same_cohort(case_id, at, before)
+    if now.empty:
+        return {"available": False,
+                "because": f"{case_id} has no issue population at {at}"}
+
+    impaired_now = now["credit_impaired_flag"].fillna(False).to_numpy()
+    comparable = ~impaired_now
+    comparable_ids = set(now.loc[comparable, "facility_id"].astype(str))
+    earlier_comparable = (
+        earlier[earlier["facility_id"].astype(str).isin(comparable_ids)]
+        if not earlier.empty else pd.DataFrame())
+
+    def stage_mix(rows: Any) -> dict[str, int]:
+        if rows is None or rows.empty:
+            return {}
+        counts = rows["ifrs9_stage"].value_counts().to_dict()
+        return {f"stage_{int(k)}": int(v) for k, v in sorted(counts.items())}
+
+    forward_applies = bool(comparable.any())
+    return {
+        "available": True,
+        "as_of": at,
+        "previous": before,
+        "cohort": len(ids),
+        "comparable_cohort": int(comparable.sum()),
+        "impaired_now": int(impaired_now.sum()),
+        "forward_pd_applies": forward_applies,
+        "forward_pd_note": (
+            "" if forward_applies else
+            "Every facility in this cohort is already credit-impaired, so a "
+            "comparable forward probability of default does not apply. Stage "
+            "and recovery are shown instead."),
+        "pd_12m": {
+            "now": _weighted(now.loc[comparable], "pd_pit_12m_base"),
+            "before": _weighted(earlier_comparable, "pd_pit_12m_base"),
+            "basis": "point-in-time, base scenario, EAD-weighted",
+            "cohort": int(comparable.sum()),
+            "definition": mc.definition("pd_12m"),
+        },
+        "pd_lifetime": {
+            "now": _weighted(now.loc[comparable], "pd_pit_lifetime_base"),
+            "before": _weighted(earlier_comparable, "pd_pit_lifetime_base"),
+            "basis": "remaining contractual or behavioural life, base scenario",
+            "definition": mc.definition("pd_lifetime"),
+        },
+        "lgd": {
+            "now": _weighted(now, "lgd_base"),
+            "before": _weighted(earlier, "lgd_base"),
+            "basis": "conditional on default, EAD-weighted",
+        },
+        "ecl": {
+            "now": _totals(now, np.ones(len(now), dtype=bool))["ecl_sar"],
+            "before": (_totals(earlier, np.ones(len(earlier), dtype=bool))
+                       ["ecl_sar"] if not earlier.empty else None),
+            "same_ids": True,
+            "definition": mc.definition("ecl"),
+        },
+        "gca": {
+            "now": _totals(now, np.ones(len(now), dtype=bool))["gca_sar"],
+            "before": (_totals(earlier, np.ones(len(earlier), dtype=bool))
+                       ["gca_sar"] if not earlier.empty else None),
+        },
+        "ead": {
+            "now": _totals(now, np.ones(len(now), dtype=bool))["ead_sar"],
+            "definition": mc.definition("ead"),
+        },
+        "stage": {"now": stage_mix(now), "before": stage_mix(earlier)},
+        "coverage": mc.coverage(
+            covered=int(len(earlier)), eligible=int(len(now)),
+            missing={mc.UNAVAILABLE: max(len(now) - len(earlier), 0)}),
+    }
+
+
+def scores(month: str = "", case_id: str = "") -> dict[str, Any]:
+    """The two score panels, and why they are two.
+
+    The behavioural score is the same facilities observed through time. The
+    original application score is fixed at each decision and never moves, so
+    it is shown as a DISTRIBUTION against the matched population outside the
+    pocket rather than as a movement — an average that changed would be the
+    population changing, not a customer being rescored.
+    """
+    at = resolve(month)
+    if not at:
+        return {"available": False, "because": "no published book"}
+    episode = ep.by_id(case_id)
+    data = frame(at)
+    eligible = eligible_mask(data, case_id)
+    issue = issue_mask(data, case_id) & eligible
+    pocket = pocket_mask(data, case_id, eligible)
+    outside = eligible & ~pocket
+
+    reference = months()[max(len(months()) - TREND_WINDOWS, 0)]
+    _, earlier, _ = _same_cohort(case_id, at, reference)
+
+    def median(rows: Any, column: str) -> float | None:
+        if rows is None or rows.empty or column not in rows.columns:
+            return None
+        values = pd.to_numeric(rows[column], errors="coerce").dropna()
+        return round(float(values.median()), 2) if len(values) else None
+
+    now = data.loc[issue]
+    behaviour_now = median(now, "behavioural_score")
+    behaviour_before = median(earlier, "behavioural_score")
+    return {
+        "available": True,
+        "as_of": at,
+        "diagnosis_model": episode.diagnosis_model if episode else "behaviour",
+        "behaviour": {
+            "reference_month": reference,
+            "now": behaviour_now,
+            "before": behaviour_before,
+            "change": (round(behaviour_now - behaviour_before, 2)
+                       if behaviour_now is not None
+                       and behaviour_before is not None else None),
+            "cohort": int(issue.sum()),
+            "same_facilities": True,
+            "definition": mc.definition("behaviour_score"),
+            "coverage": mc.coverage(
+                covered=int(pd.to_numeric(
+                    now.get("behavioural_score"), errors="coerce").notna().sum()),
+                eligible=int(issue.sum()),
+                missing={mc.UNAVAILABLE: int(issue.sum()) - int(pd.to_numeric(
+                    now.get("behavioural_score"),
+                    errors="coerce").notna().sum())}),
+        },
+        "application": {
+            "pocket": median(data.loc[pocket], "app_score_value"),
+            "outside": median(data.loc[outside], "app_score_value"),
+            "issue": median(now, "app_score_value"),
+            "immutable": True,
+            "note": ("Fixed at each decision. A change in this average is a "
+                     "change in which customers are in the population, never "
+                     "a customer being rescored."),
+            "definition": mc.definition("application_score"),
+        },
+    }
+
+
+def drawer(month: str = "", case_id: str = "") -> dict[str, Any]:
+    """Everything the right-hand drawer shows, in one read.
+
+    Assembled here rather than by the screen so that the card's headline, the
+    drawer's panels, the thread's carried context and the exported workbook
+    are four renderings of one computation instead of four computations that
+    agree today.
+    """
+    at = resolve(month)
+    episode = ep.by_id(case_id)
+    if not at or episode is None:
+        return {"available": False, "because": "no published book"}
+    card = headline(at, case_id)
+    if not card.get("available"):
+        return card
+    return {
+        **card,
+        "observation_or_hypothesis": "observation",
+        "observation_note": (
+            "Measured at the reporting date from the published book. What "
+            "caused it is a hypothesis this investigation is for."),
+        "trend": trend(at, case_id),
+        "concentration": concentration(at, case_id),
+        "risk": risk(at, case_id),
+        "scores": scores(at, case_id),
+        "predicate": ep.predicate(case_id),
+        "thresholds": ep.predicate_thresholds(),
+        "countercheck": episode.countercheck,
+        "policy": {
+            "policy_id": episode.policy_id,
+            "version": episode.policy_version,
+            "clauses": list(episode.policy_clauses),
+            "status": "DEMO_DRAFT - NOT BANK APPROVED",
+        },
+        "research": list(episode.research),
+        "definitions": [mc.definition(m) for m in
+                        episode.step_by_id("S0").metric_ids],
+        "sources": {
+            "dataset": BOOK,
+            "as_of": at,
+            "comparator_basis": COMPARATOR_BASIS.get(case_id),
+            "episode_config_version": ep.config_version(),
+        },
+    }

@@ -21,6 +21,7 @@ import { api, type RiskCase } from "@/lib/api";
 import { technical } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import { EpisodePanels } from "./episode-panels";
 import {
   LEVEL_LABEL,
   SEVERITY_LABEL,
@@ -206,6 +207,11 @@ export function CaseDrawer({
               </Section>
 
               <BucketTrend found={found} />
+
+              {/* The stacked evidence panels, for a case that carries them.
+                  Absent on the cases that do not, so the drawer a signed-off
+                  demonstration opens on is unchanged. */}
+              <EpisodePanels found={found} />
 
               {found.signals.length > 0 && (
                 <Section title="Signals">
