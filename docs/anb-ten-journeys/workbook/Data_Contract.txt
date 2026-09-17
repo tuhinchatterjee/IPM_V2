@@ -1,0 +1,19 @@
+Canonical data-domain contracts
+
+Read with the Word prompt; no implementation phase may silently omit a mapped requirement.
+
+Domain | Grain / key | Fields / meaning | Time / version | Invariant
+customer_dim | customer_id | Identity, authorized label, employment type, employer_id, region, permitted data sources | Effective-dated identity; no invented nationality/sex/religion risk rule | Distinct customers, not count of joined facility rows
+facility_dim | facility_id | customer_id, product_id, subproduct_id, contract, origination, maturity, payment structure | Effective-dated product mapping and contractual changes | Canonical Alpha and all other pockets across every domain
+origination_snapshot | facility_id + decision_id | Original application model/version, score, feature points, verified income, obligations, tenure, exception and policy decision | Immutable at origination; no reconstruction from today’s values | Show fixed-cohort original values separately from changing book composition
+facility_month | facility_id + as_of + bundle_id | DPD, stage/default/forbearance, GCA, limit, undrawn, CCF, PD12/lifetime, LGD, EAD, ECL, EIR, term | Monthly snapshot and explicit calculation/model versions | Primary balance and impairment facts; retain input/output lineage
+behavior_features | facility_id + as_of + model_version | Score, calibration link, features, point/SHAP contributions, benchmark and residual, missingness | Same-cohort longitudinal features; no future leakage | Reconcile contributions in their own units; no causal proof from correlation
+ews_customer_product_month | customer_id + product_id + as_of + bundle_id | EWS score/band/reasons, model/rules, current_bad, forward_risk, trend and coverage | Customer-product grain; subproduct/customer-facility bridge | EWS joining to several facilities must not multiply ECL
+episode_evidence | evidence_id + as_of | Payroll, bureau obligations, balloon resources, recovery, milestones, support ledger, pension and cure evidence | Source/authority/date/coverage/confidence recorded | Missing, zero, unverified and inapplicable are different states
+policy_clause | policy_id + version + clause_id | Clause, effective dates, approved/draft status, product scope, owner, expression, exception and authority | Retain decision-time and current policy versions | Draft demo clauses cannot be presented as approved bank policy
+risk_case | case_id + occurrence_id | Rule, episode, root snapshot, scope, as-of, notified timestamp, severity calculation and evidence | Idempotent per episode/scope/period/bundle | Deduplicate repeated findings without removing distinct stories
+investigation_step | thread_id + step_id + version | Question, result, chart specs, metrics, input/output snapshot, visited steps and policy links | Completed step immutable; regenerate explicitly as new version | Exports include only steps actually visited at the selected point
+cohort_snapshot | snapshot_id | Customer/facility IDs, predicate AST, date, bundle, metric definitions, authorization and hash | Server-persisted immutable ID set and scope | Same object travels Cockpit→EWS→360→What-If
+saved_investigation | saved_id + version | Source case/thread/step, snapshot, issue, notice/save times, note history, selection, owner/share scope | Server-side persistence; retention and refresh explicit | Recent cards restore exact saved detail, not a silently newer population
+whatif_scenario | scenario_id + version | Source snapshot, baseline, parameters, selected facilities, results, assumptions and approvals | Scenario separate from published actual data | Return-to-source link and baseline reconciliation mandatory
+export_manifest | export_id | User, timestamp, source step, bundle/hash, row counts, columns allowed, file checksum | Immutable audit; governed storage/expiry | No silent truncation, unauthorized PII, external spreadsheet links or future-step leakage

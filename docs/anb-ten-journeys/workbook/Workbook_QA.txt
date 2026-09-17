@@ -1,0 +1,21 @@
+Workbook fixture reconciliation
+
+These are workbook checks only. Tests sheet lists application checks still to be executed.
+
+Case | Actual issue N | Expected issue N | Actual final N | Expected final N | Published issue ECL | Case-sheet ECL | Status
+C01 | 15 | 15 | 11 | 11 | 42519.1470398415 | 42519.1470398415 | PASS
+C02 | 16 | 16 | 12 | 12 | 1428289.826610902 | 1428289.826610902 | PASS
+C03 | 22 | 22 | 16 | 16 | 309190.686683381 | 309190.686683381 | PASS
+C04 | 19 | 19 | 14 | 14 | 529073.6817140363 | 529073.6817140363 | PASS
+C05 | 16 | 16 | 12 | 12 | 107898.14757023774 | 107898.14757023774 | PASS
+C06 | 15 | 15 | 11 | 11 | 164741.9179990645 | 164741.9179990645 | PASS
+C07 | 13 | 13 | 10 | 10 | 485703.84501155093 | 485703.84501155093 | PASS
+C08 | 12 | 12 | 8 | 8 | 218434.9024858659 | 218434.9024858659 | PASS
+C09 | 15 | 15 | 11 | 11 | 264800.4990573536 | 264800.4990573536 | PASS
+C10 | 17 | 17 | 12 | 12 | 1531407.4356187466 | 1531407.4356187466 | PASS
+
+
+Scenario weights | 1
+Maximum proof residual SAR | 7.275957614183426e-12
+Unique customer IDs (Python verified) | 1000
+Fixture rows | 1000

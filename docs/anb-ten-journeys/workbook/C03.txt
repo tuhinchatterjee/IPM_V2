@@ -1,0 +1,122 @@
+C03 | Employer payroll interruption
+
+
+SYNTHETIC ADVERSE FIXTURE • PERSONAL_FINANCE • CRITICAL • DEMO Employer A / private facilities services / Eastern Province
+
+
+Drawer measure |  |  |  | Comparator |  | Current |  | Meaning / date
+Issue count |  |  |  | 4 |  | 22 |  | Out of 100; case-specific grain
+PD12, non-impaired |  |  |  | 0.02500000000000001 |  | 0.11000000000000001 |  | Matched eligible issue cohort; Jul→Aug
+Behavioral score |  |  |  | 684.3181818181819 |  | 544.3181818181819 |  | Same current issue cohort; Mar→Aug
+Original application score |  |  |  | 690.9545454545455 |  | 690.9545454545455 |  | Fixed origination value, not rescored
+Affected ECL (SAR) |  |  |  | 34276.54647569444 |  | 309190.686683381 |  | Same current issue IDs; Jul→Aug
+Affected GCA (SAR) |  |  |  | 2298975 |  | 2264490.38 |  | Same issue IDs; Jul→Aug
+LGD |  |  |  | 0.58 |  | 0.6099999999999999 |  | Conditional model assumption; Jul→Aug
+ODR / redefault |  |  |  | Not used |  | 0 |  | New impaired this month / prior non-impaired
+Forward-risk customers |  |  |  | Not used |  | 17 |  | High/Critical and not current bad
+
+Verified monthly payroll credit: 9,000 → 4,200 (SAR). Cash buffer / essential outgoings: 2.3 → 0.25 (months). Feature reference Mar 2026; current Aug. Synthetic inputs.
+
+
+
+Window | Eligible | Events | Rate |  |  | Population | Eligible | Issue | Incidence
+Mar | 100 | 3 | 0.03 |  |  | Pocket | 25 | 18 | 0.72
+Apr | 100 | 4 | 0.04 |  |  | Other | 75 | 4 | 0.05333333333333334
+May | 100 | 4 | 0.04
+Jun | 100 | 3 | 0.03 |  |  | Month | Behavior
+Jul | 100 | 4 | 0.04 |  |  | Mar | 684.625
+Aug | 100 | 22 | 0.22 |  |  | Apr | 667.825
+ |  |  |  |  |  | May | 645.425
+ |  |  |  |  |  | Jun | 617.425
+ |  |  |  |  |  | Jul | 583.825
+ |  |  |  |  |  | Aug | 544.625
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ |  |  |  |  |  | Driver | Point effect | Type | Source
+ |  |  |  |  |  | Payroll continuity | -70 | Behavior | SYN
+ |  |  |  |  |  | Cash buffer | -40 | Behavior | SYN
+ |  |  |  |  |  | Arrears input | -20 | Behavior | SYN
+ |  |  |  |  |  | Other model inputs | -10 | Behavior | SYN
+
+
+ |  |  |  |  |  | Alternative explanation: One missed credit can be an account switch or holiday shift. Obtain permitted evidence before inferring employer distress.
+
+These charts illustrate the reference fixture. The live thread must compute every answer/chart from its active snapshot and must expose model/coverage limitations.
+
+
+
+
+
+
+
+
+
+S0 | DRAWER / THREAD CONTEXT
+Employer payroll interruption: 22 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (5.50×; +18.0 percentage points). Affected gross exposure is SAR 2,264,490. For the same current issue customers, published synthetic ECL moves from SAR 34,277 to SAR 309,191. Comparable forward PD rises from 2.5% to 11.0% on 22 non-impaired issue customers. Behavioral score moves from 684.3 to 544.3; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+
+VISUAL + EXPORT CONTRACT
+Issue trend + score and ECL panels. Scope: Current issue predicate; 22 current matched customers. Export to Borrower 360 uses CPRA-C03-S0-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S1 | TYPE / CLICK PROMPT
+Split apparent payroll shortfalls into account switches, calendar/posting effects and verified multi-cycle interruptions. Compare matched payroll dates.
+
+EXPECTED CREDITPROBE RESPONSE
+Twenty-two alerts include four timing/switch explanations and eighteen requiring verified payroll follow-up. Sixteen have corroborating household liquidity evidence. Missing salary credit alone is not proven loss of income. One missed credit can be an account switch or holiday shift. Obtain permitted evidence before inferring employer distress.
+
+VISUAL + EXPORT CONTRACT
+Disaggregation table + comparable trend or maturity ladder. Scope: Detailed evidence subgroup; 18 current matched customers. Export to Borrower 360 uses CPRA-C03-S1-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S2 | TYPE / CLICK PROMPT
+Were these borrowers sound at origination? Compare original application scores with current payroll continuity, liquidity and behavioral scores.
+
+EXPECTED CREDITPROBE RESPONSE
+Keep the S1 set of 18 IDs fixed. The demonstration behavioral-score change is 140 adverse points, while their original application values do not change. The pocket’s original internal score is around 692; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+
+VISUAL + EXPORT CONTRACT
+Matched score distribution + transition/trajectory chart. Scope: Same S1 IDs; historical match; 18 current matched customers. Export to Borrower 360 uses CPRA-C03-S2-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S3 | TYPE / CLICK PROMPT
+Decompose the behavioral fall and date the payroll and cash-buffer changes before arrears. Which customers have verified alternative salary receipts?
+
+EXPECTED CREDITPROBE RESPONSE
+Original applications were relatively strong. In the evidenced pocket, payroll credits fall from SAR 9,000 to SAR 4,200 and buffers from 2.3 to 0.25 months. Exclude confirmed bank-account switches; uncertain external income remains unverified, not zero.
+
+VISUAL + EXPORT CONTRACT
+Variable point waterfall / ECL driver bridge + feature timelines. Scope: Corroborated evidence subgroup; 16 current matched customers. Export to Borrower 360 uses CPRA-C03-S3-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S4 | TYPE / CLICK PROMPT
+Rank employer concentrations using affected employees divided by all financed employees. Compare similar employer types and regions.
+
+EXPECTED CREDITPROBE RESPONSE
+The named pocket contains 25 of 100 eligible observations (25%) and 18 of 22 issue cases (81.8%). Its issue incidence is 72.0%, versus 5.3% outside, a 13.50× rate ratio. Narrow the corroborated list to 16 policy-review customers. DEMO Employer A is fictitious. An employer-level cluster is an investigation lead, not authority to penalize every employee or disclose employee debts to the employer.
+
+VISUAL + EXPORT CONTRACT
+Normalized pocket incidence + within-pocket score/feature bands. Scope: Corroborated AND named pocket; 16 current matched customers. Export to Borrower 360 uses CPRA-C03-S4-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S5 | TYPE / CLICK PROMPT
+What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+
+EXPECTED CREDITPROBE RESPONSE
+1. Servicing owner performs confidential customer contact and verifies the documented income interruption and alternative resources. 2. Assess the applicable response to changed circumstances under current collections rules and the bank’s hardship policy; no automatic new borrowing to cover missed payments. 3. NEW verified payroll-linked exposure to the affected employer may go to manual review, subject to policy approval. Track restored payroll and sustainable arrangements weekly. Test documented, eligible payment accommodation or rescheduling with customer consent. Longer duration may increase ECL; preserve contractual rights and correct modification accounting.
+
+VISUAL + EXPORT CONTRACT
+Policy action table + scenario inputs and tradeoffs. Scope: Same S4 policy-review scope; 16 current matched customers. Export to Borrower 360 uses CPRA-C03-S5-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+POLICY / WHAT-IF / SOURCE
+DEMO-EMP-03 v1 clauses 1.1, 2.1, 3.1 are DEMO_DRAFT, not ANB policy. Test documented, eligible payment accommodation or rescheduling with customer consent. Longer duration may increase ECL; preserve contractual rights and correct modification accounting. Public context: R01,R03,R07. Customer facts: SYN.

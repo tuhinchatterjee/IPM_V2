@@ -1,0 +1,19 @@
+Definitions before narrative
+
+Read with the Word prompt; no implementation phase may silently omit a mapped requirement.
+
+Measure | Definition | Prohibited inference
+Affected population | Evaluate the case predicate at the declared date, count facilities or distinct customers according to case grain. Show eligible count as denominator. | Stock is not migration; a stock rise alone cannot identify current→arrears flows.
+Roll rate | Same-facility transition from beginning bucket to ending bucket divided by eligible starting-bucket facilities, excluding/labeling closures and new entrants. | Do not infer from the difference between two stock percentages.
+ODR | Observed first default events over a named matured window / original at-risk population. C02 uses MOB6 cumulative first default; C10 uses six-month redefault. | This is not PD, EWS or a 1–29 stock rate; windows are not interchangeable.
+PD12 / lifetime PD | Approved model, horizon, point-in-time/through-cycle and scenario basis explicit. Compare the same eligible non-impaired cohort, preferably EAD-weighted. | Already-impaired accounts are not new forward-risk predictions. Show their stage separately and N/A where a comparable forward PD does not apply.
+Application score | Immutable original score, input features, decision policy/model and original date. | A change in portfolio average can be mix change; do not call it the same customer’s original score deterioration.
+Behavioral score | Longitudinal same-customer observations under comparable model versions; lower/worse convention stated. | Separate the DPD input from other drivers and verify temporal ordering.
+EWS | Governed score/band/reasons at customer-product grain and declared date. Expose model coverage and risk horizon if validated. | High EWS is elevated risk, not certainty of default or automatically DPD 0.
+Current bad / forward risk | Use the approved rule definitions. This fixture uses 30+ DPD for current bad and High/Critical outside that state for forward risk. | Do not subtract inconsistent card counts and call the remainder all DPD-0 customers.
+ECL | Approved stage-aware, probability-weighted discounted loss with appropriate term/cash-flow data. | A three-factor one-period proxy is not a universal IFRS9 calculation.
+EAD | Drawn exposure plus eligible expected future drawings under CCF/behavioral exposure assumptions. | A limit cut does not repay existing drawn principal.
+Concentration | Show share of eligible book, share of cases, within-pocket incidence and outside-pocket incidence; include sample size. | Large population count alone does not imply high risk; control for age/vintage and confounding.
+Severity | Existing governed materiality plus persistence/excess-risk and confidence rules; retain the arithmetic in Trace. | No threshold change merely to turn a demo card red; no repeated duplicate cases to reach ten.
+Recent-card ODR | Store value, numerator, denominator, horizon and source snapshot in the saved investigation. | For an early case with no completed outcome window, show Not yet observed rather than fabricate a default rate.
+Missingness | Coverage count and explicit reason for unavailable, stale, unverified or inapplicable data. | Do not fill missing income, EWS or PD with zero or reuse an unrelated cohort.

@@ -1,0 +1,122 @@
+C02 | Personal finance acquisition quality
+
+
+SYNTHETIC ADVERSE FIXTURE • PERSONAL_FINANCE • CRITICAL • Digital channel B / short employment tenure / approved exceptions
+
+
+Drawer measure |  |  |  | Comparator |  | Current |  | Meaning / date
+Issue count |  |  |  | 5 |  | 16 |  | Out of 100; case-specific grain
+PD12, non-impaired |  |  |  | N/A |  | N/A |  | Matched eligible issue cohort; Jul→Aug
+Behavioral score |  |  |  | 654.0625 |  | 549.0625 |  | Same current issue cohort; Mar→Aug
+Original application score |  |  |  | 629.0625 |  | 629.0625 |  | Fixed origination value, not rescored
+Affected ECL (SAR) |  |  |  | 288959.6203107511 |  | 1428289.826610902 |  | Same current issue IDs; Jul→Aug
+Affected GCA (SAR) |  |  |  | 2145825 |  | 2113637.62 |  | Same issue IDs; Jul→Aug
+LGD |  |  |  | 0.6199999999999999 |  | 0.6500000000000001 |  | Conditional model assumption; Jul→Aug
+ODR / redefault |  |  |  | 0.05 |  | 0.16 |  | MOB6 first default / original cohort
+Forward-risk customers |  |  |  | Not used |  | 0 |  | High/Critical and not current bad
+
+Debt burden at origination: 54.0% → 54.0% (ratio; frozen). Employer tenure at origination: 3 → 3 (months; frozen). Feature reference Mar 2026; current Aug. Synthetic inputs.
+
+
+
+Window | Eligible | Events | Rate |  |  | Population | Eligible | Issue | Incidence
+Mar | 100 | 4 | 0.04 |  |  | Pocket | 30 | 12 | 0.4
+Apr | 100 | 5 | 0.05 |  |  | Other | 70 | 4 | 0.05714285714285714
+May | 100 | 5 | 0.05
+Jun | 100 | 4 | 0.04 |  |  | Month | Behavior
+Jul | 100 | 5 | 0.05 |  |  | Mar | 654.25
+Aug | 100 | 16 | 0.16 |  |  | Apr | 641.65
+ |  |  |  |  |  | May | 624.85
+ |  |  |  |  |  | Jun | 603.85
+ |  |  |  |  |  | Jul | 578.65
+ |  |  |  |  |  | Aug | 549.25
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ |  |  |  |  |  | Driver | Point effect | Type | Source
+ |  |  |  |  |  | Application debt-burden points | -45 | Application | SYN
+ |  |  |  |  |  | Application tenure points | -30 | Application | SYN
+ |  |  |  |  |  | Application credit-history points | -15 | Application | SYN
+ |  |  |  |  |  | Benchmark intercept | 700 | Application | SYN
+
+
+ |  |  |  |  |  | Alternative explanation: Book growth and differing months-on-book can imitate deterioration. Match vintage age and risk mix before judging the acquisition channel.
+
+These charts illustrate the reference fixture. The live thread must compute every answer/chart from its active snapshot and must expose model/coverage limitations.
+
+
+
+
+
+
+
+
+
+S0 | DRAWER / THREAD CONTEXT
+Personal finance acquisition quality: 16 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.20×; +11.0 percentage points). Affected gross exposure is SAR 2,113,638. For the same current issue customers, published synthetic ECL moves from SAR 288,960 to SAR 1,428,290. All issue customers are already credit-impaired: a forward PD comparison for that issue cohort is not applicable; show stage/default and recovery instead. Behavioral score moves from 654.1 to 549.1; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+
+VISUAL + EXPORT CONTRACT
+Issue trend + score and ECL panels. Scope: Current issue predicate; 16 current matched customers. Export to Borrower 360 uses CPRA-C02-S0-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S1 | TYPE / CLICK PROMPT
+Compare booking vintages at exactly month-on-book 6. Split first-default timing into MOB1–2 and MOB3–6, retaining the original eligible population.
+
+EXPECTED CREDITPROBE RESPONSE
+The current mature vintage has 16 defaults out of 100 versus 5/100 for its historical mature comparator. Three first defaults occur at MOB1–2; thirteen at MOB3–6. Do not compare immature vintages or omit closed loans. Book growth and differing months-on-book can imitate deterioration. Match vintage age and risk mix before judging the acquisition channel.
+
+VISUAL + EXPORT CONTRACT
+Disaggregation table + comparable trend or maturity ladder. Scope: Detailed evidence subgroup; 13 current matched customers. Export to Borrower 360 uses CPRA-C02-S1-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S2 | TYPE / CLICK PROMPT
+Return to the original application scores and decision-time features for this vintage. Were the customers weak when approved?
+
+EXPECTED CREDITPROBE RESPONSE
+Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 105 adverse points, while their original application values do not change. The pocket’s original internal score is around 610; compare its distribution with the matched controls near 690. Here the application evidence, rather than a monthly change in the original score, is the main diagnostic evidence.
+
+VISUAL + EXPORT CONTRACT
+Matched score distribution + transition/trajectory chart. Scope: Same S1 IDs; historical match; 13 current matched customers. Export to Borrower 360 uses CPRA-C02-S2-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S3 | TYPE / CLICK PROMPT
+Which application scorecard inputs and authorized exception codes explain the weak original profile? Use the model and policy versions in force then.
+
+EXPECTED CREDITPROBE RESPONSE
+The internal application benchmark is 700; debt burden −45, employer tenure −30 and documented credit history −15 produce 610. Original burden is 54% and tenure three months. These values are immutable historical inputs, not reconstructed from current defaults. Apply the correct affordability rules before calling an exception a breach.
+
+VISUAL + EXPORT CONTRACT
+Variable point waterfall / ECL driver bridge + feature timelines. Scope: Corroborated evidence subgroup; 12 current matched customers. Export to Borrower 360 uses CPRA-C02-S3-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S4 | TYPE / CLICK PROMPT
+Within matched vintages, compare channels and exception combinations. Is the short-tenure/high-burden intersection genuinely overrepresented?
+
+EXPECTED CREDITPROBE RESPONSE
+The named pocket contains 30 of 100 eligible observations (30%) and 12 of 16 issue cases (75.0%). Its issue incidence is 40.0%, versus 5.7% outside, a 7.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Focus on the channel/exception intersection, with within-channel denominators and matched controls. Do not blame every digital-originated loan.
+
+VISUAL + EXPORT CONTRACT
+Normalized pocket incidence + within-pocket score/feature bands. Scope: Corroborated AND named pocket; 12 current matched customers. Export to Borrower 360 uses CPRA-C02-S4-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S5 | TYPE / CLICK PROMPT
+What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+
+EXPECTED CREDITPROBE RESPONSE
+1. Underwriting owner reviews the relevant historical exception approvals and verifies whether each was authorized; separate policy design from policy non-compliance. 2. NEW lending: place only the evidenced exception route on second-level approval pending review; refresh verified obligations and residual-income assessment. 3. Use the applicable policy ceiling and residual-income requirement to calculate affordable principal and tenor. Track MOB3/MOB6 performance; do not retroactively apply today’s rules to old decisions. Test future-book affordable principal from a supported payment budget and contractual cash flows. For current defaults, model sustainable recovery/collection separately; no artificial balance deletion.
+
+VISUAL + EXPORT CONTRACT
+Policy action table + scenario inputs and tradeoffs. Scope: Same S4 policy-review scope; 12 current matched customers. Export to Borrower 360 uses CPRA-C02-S5-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+POLICY / WHAT-IF / SOURCE
+DEMO-PF-02 v1 clauses 1.1, 2.1, 3.1 are DEMO_DRAFT, not ANB policy. Test future-book affordable principal from a supported payment budget and contractual cash flows. For current defaults, model sustainable recovery/collection separately; no artificial balance deletion. Public context: R01,R02,R07. Customer facts: SYN.

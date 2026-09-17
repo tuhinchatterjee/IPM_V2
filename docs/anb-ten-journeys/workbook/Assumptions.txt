@@ -1,0 +1,19 @@
+Explicit assumptions
+
+Editable illustrative inputs, not market-calibrated or bank-approved parameters. All scenario weights must sum to one.
+
+Parameter | Value | Source
+Base scenario weight | 0.6 | SYN
+Upside weight | 0.15 | SYN
+Downside weight | 0.25 | SYN
+Base PD factor | 1 | SYN
+Upside PD factor | 0.8 | SYN
+Downside PD factor | 1.4 | SYN
+Base LGD factor | 1 | SYN
+Upside LGD factor | 0.9 | SYN
+Downside LGD factor | 1.15 | SYN
+Upside net recovery factor | 1.1 | SYN
+Downside net recovery factor | 0.8 | SYN
+High EWS threshold | 25 | SYN
+Critical EWS threshold | 35 | SYN
+Reconciliation tolerance SAR | 0.01 | SYN

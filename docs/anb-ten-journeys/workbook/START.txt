@@ -1,0 +1,32 @@
+CreditProbe AI | 10 Saudi retail investigations
+
+
+READ FIRST
+Implementation workbook, not a report on Arab National Bank. All customer records, employers, projects, rates, scores and draft policy clauses are synthetic engineering fixtures. Public research informs the mechanisms and safeguards only.
+
+HOW TO USE
+Attach this workbook with CreditProbe_10_Investigations_Claude_Prompt.docx. C01–C10 contain the complete drawer, five questions, expected answers, counterchecks, chart requirements and policy actions. Step_Catalogue is the machine-readable interaction specification.
+
+WHAT IS WORKED
+1,000 distinct synthetic customers / facilities (100 per miniature case), six EWS observations per customer, current and historical financial/score outputs, 60 step snapshots, 30 illustrative ECL formula proofs and 90 acceptance checks. This is a compact adverse calibration fixture, not a production statistical sample.
+
+DATA AND DATES
+Financial previous = July 2026, current = August 2026. Behavioral/feature reference = March 2026; their six-month trajectories are in Feature_History. C02/C10 comparator outcome windows are mature historical cohorts, not the same borrowers rewound in time. Every current case count derives from Customer_Facts.
+
+NUMBERS AND POLICIES
+Source observations/model outputs are immutable fixture inputs. Aggregate rates and totals are formulas. ECL_Proof can recalculate selected examples under editable assumptions; production must use the full approved IFRS9 engine. DEMO_DRAFT clauses are not the bank’s policy.
+
+PRESERVE THE ACCEPTED DEMO
+The attached branch report says Alpha already achieves 4.01x deep-early-arrears vs baseline and 40/40 local gates, but reports 20 remaining attributed baseline failures. Audit the actual latest SHA, preserve the calibrated case and rebuild all derived domains atomically; do not silently revert to the older local build.
+
+CASE INDEX • Every case includes S0 and five complete investigation steps
+C01 | Alpha Card early arrears | CREDIT_CARD
+C02 | Personal finance acquisition quality | PERSONAL_FINANCE
+C03 | Employer payroll interruption | PERSONAL_FINANCE
+C04 | Top-up debt stacking | PERSONAL_FINANCE
+C05 | Auto balloon funding cliff | AUTO_FINANCE
+C06 | Used-auto recovery deterioration | AUTO_FINANCE
+C07 | Self-construction cash-flow strain | HOME_FINANCE
+C08 | Housing-support reconciliation gaps | HOME_FINANCE
+C09 | Salary-to-pension affordability | PERSONAL_FINANCE
+C10 | Restructure redefault and cure governance | PERSONAL_FINANCE

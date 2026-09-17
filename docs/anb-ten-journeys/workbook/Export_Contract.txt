@@ -1,0 +1,18 @@
+Application workbook export contract
+
+Read with the Word prompt; no implementation phase may silently omit a mapped requirement.
+
+Sheet | Required contents
+00_Readme | Purpose, synthetic/real classification, export time, user and field permissions
+01_Snapshot | Case/thread/step/bundle/snapshot hashes, filters, date, denominator definitions and selection scope
+02_Customers | One row per selected customer; segment, issue, scores, EWS, status and included facility count
+03_Facilities_IFRS9 | Every included facility: GCA, stage/DPD, PD12/lifetime, LGD, EAD/CCF/undrawn, EIR, term, ECL and changes
+04_ECL_Term_Scenarios | Scenario weights, survival/marginal PD, exposure path, LGD, discount, cash recoveries and weighted loss
+05_Diagnosis_Visited | Each completed question and answer up to the export step, scope, calculations, counterchecks and evidence
+06_Score_Drivers | Original and behavioral model versions, inputs, contributions, benchmark/residual and dates
+07_EWS_History | Customer-product history, reasons, eligibility and coverage; unavailable is not zero
+08_Charts_Data | Native charts with their exact underlying series, units and denominator definitions
+09_Policy_Actions | Only actions reached so far; clauses, draft/approved status, sequence, owner, timing and constraints
+10_Notes | Authorized notes with author/timestamp/version, linked to saved investigation
+11_Reconciliation | IDs, counts, stage/GCA/EAD/ECL totals, scenario sums, visited-step cap and permission checks
+12_Sources | Customer-evidence lineage, bank-policy sources and research context kept distinct

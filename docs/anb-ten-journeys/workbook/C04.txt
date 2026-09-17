@@ -1,0 +1,122 @@
+C04 | Top-up debt stacking
+
+
+SYNTHETIC ADVERSE FIXTURE • PERSONAL_FINANCE • HIGH • Repeat top-up within six months / new verified external obligations
+
+
+Drawer measure |  |  |  | Comparator |  | Current |  | Meaning / date
+Issue count |  |  |  | 5 |  | 19 |  | Out of 100; case-specific grain
+PD12, non-impaired |  |  |  | 0.04500000000000001 |  | 0.13499999999999998 |  | Matched eligible issue cohort; Jul→Aug
+Behavioral score |  |  |  | 669.6842105263158 |  | 549.6842105263158 |  | Same current issue cohort; Mar→Aug
+Original application score |  |  |  | 662.0526315789474 |  | 662.0526315789474 |  | Fixed origination value, not rescored
+Affected ECL (SAR) |  |  |  | 91816.62902752291 |  | 529073.6817140363 |  | Same current issue IDs; Jul→Aug
+Affected GCA (SAR) |  |  |  | 3129225 |  | 3082286.63 |  | Same issue IDs; Jul→Aug
+LGD |  |  |  | 0.6400000000000001 |  | 0.66 |  | Conditional model assumption; Jul→Aug
+ODR / redefault |  |  |  | Not used |  | 0 |  | New impaired this month / prior non-impaired
+Forward-risk customers |  |  |  | Not used |  | 15 |  | High/Critical and not current bad
+
+Verified obligations / income: 39.0% → 59.0% (ratio). Residual income after essentials: 2,400 → 350 (SAR). Feature reference Mar 2026; current Aug. Synthetic inputs.
+
+
+
+Window | Eligible | Events | Rate |  |  | Population | Eligible | Issue | Incidence
+Mar | 100 | 4 | 0.04 |  |  | Pocket | 30 | 15 | 0.5
+Apr | 100 | 5 | 0.05 |  |  | Other | 70 | 4 | 0.05714285714285714
+May | 100 | 5 | 0.05
+Jun | 100 | 4 | 0.04 |  |  | Month | Behavior
+Jul | 100 | 5 | 0.05 |  |  | Mar | 669.571
+Aug | 100 | 19 | 0.19 |  |  | Apr | 655.171
+ |  |  |  |  |  | May | 635.971
+ |  |  |  |  |  | Jun | 611.971
+ |  |  |  |  |  | Jul | 583.171
+ |  |  |  |  |  | Aug | 549.571
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ |  |  |  |  |  | Driver | Point effect | Type | Source
+ |  |  |  |  |  | New verified obligations | -60 | Behavior | SYN
+ |  |  |  |  |  | Repayment proportion | -35 | Behavior | SYN
+ |  |  |  |  |  | Arrears input | -20 | Behavior | SYN
+ |  |  |  |  |  | Other model inputs | -5 | Behavior | SYN
+
+
+ |  |  |  |  |  | Alternative explanation: A better bureau feed can make liabilities look new. Reconcile reporting dates and deduplicate before claiming debt growth.
+
+These charts illustrate the reference fixture. The live thread must compute every answer/chart from its active snapshot and must expose model/coverage limitations.
+
+
+
+
+
+
+
+
+
+S0 | DRAWER / THREAD CONTEXT
+Top-up debt stacking: 19 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.80×; +14.0 percentage points). Affected gross exposure is SAR 3,082,287. For the same current issue customers, published synthetic ECL moves from SAR 91,817 to SAR 529,074. Comparable forward PD rises from 4.5% to 13.5% on 19 non-impaired issue customers. Behavioral score moves from 669.7 to 549.7; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+
+VISUAL + EXPORT CONTRACT
+Issue trend + score and ECL panels. Scope: Current issue predicate; 19 current matched customers. Export to Borrower 360 uses CPRA-C04-S0-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S1 | TYPE / CLICK PROMPT
+Split monthly obligations into this bank, other lenders and verified BNPL installments. Separate real growth from reporting-lag and duplicate-line effects.
+
+EXPECTED CREDITPROBE RESPONSE
+Nineteen alerts include three reporting/verification exceptions. Sixteen show comparable obligation growth and fourteen also have a materially depleted residual-income buffer. A better bureau feed can make liabilities look new. Reconcile reporting dates and deduplicate before claiming debt growth.
+
+VISUAL + EXPORT CONTRACT
+Disaggregation table + comparable trend or maturity ladder. Scope: Detailed evidence subgroup; 16 current matched customers. Export to Borrower 360 uses CPRA-C04-S1-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S2 | TYPE / CLICK PROMPT
+Compare approval-time affordability and original application inputs with current verified monthly obligations for the same customers.
+
+EXPECTED CREDITPROBE RESPONSE
+Keep the S1 set of 16 IDs fixed. The demonstration behavioral-score change is 120 adverse points, while their original application values do not change. The pocket’s original internal score is around 655; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+
+VISUAL + EXPORT CONTRACT
+Matched score distribution + transition/trajectory chart. Scope: Same S1 IDs; historical match; 16 current matched customers. Export to Borrower 360 uses CPRA-C04-S2-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S3 | TYPE / CLICK PROMPT
+How much score deterioration comes from new debt and weaker repayments, rather than DPD or refreshed bureau coverage?
+
+EXPECTED CREDITPROBE RESPONSE
+Verified obligations rise from 39% to 59% of income and residual funds fall from SAR 2,400 to SAR 350. BNPL account count alone is not risk; use supported monthly commitments and consented evidence. Determine the applicable income/product rules individually.
+
+VISUAL + EXPORT CONTRACT
+Variable point waterfall / ECL driver bridge + feature timelines. Scope: Corroborated evidence subgroup; 14 current matched customers. Export to Borrower 360 uses CPRA-C04-S3-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S4 | TYPE / CLICK PROMPT
+Is the short interval since the last top-up plus increased external debt more risky than either factor alone? Compare matched borrowers.
+
+EXPECTED CREDITPROBE RESPONSE
+The named pocket contains 30 of 100 eligible observations (30%) and 15 of 19 issue cases (78.9%). Its issue incidence is 50.0%, versus 5.7% outside, a 8.75× rate ratio. Narrow the corroborated list to 14 policy-review customers. Focus on repeat top-up timing and verified monthly burden, not all top-up or BNPL users. Separate approval-time omissions from subsequent borrowing.
+
+VISUAL + EXPORT CONTRACT
+Normalized pocket incidence + within-pocket score/feature bands. Scope: Corroborated AND named pocket; 14 current matched customers. Export to Borrower 360 uses CPRA-C04-S4-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S5 | TYPE / CLICK PROMPT
+What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+
+EXPECTED CREDITPROBE RESPONSE
+1. Stop discretionary new top-up offers to the corroborated cohort pending refreshed obligations and affordability, within approved marketing/policy controls. 2. Validate genuine debt settlement and a sustainable customer budget; avoid additional finance that only masks arrears. 3. For NEW top-ups, require fresh consented credit evidence and residual-income checks under the applicable policy. Monitor reborrowing and net monthly commitments. Compare no-new-top-up exposure and sustainable repayment schedules. Include fees, tenor, modification and ECL tradeoffs; do not equate consolidation with eliminated debt.
+
+VISUAL + EXPORT CONTRACT
+Policy action table + scenario inputs and tradeoffs. Scope: Same S4 policy-review scope; 14 current matched customers. Export to Borrower 360 uses CPRA-C04-S5-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+POLICY / WHAT-IF / SOURCE
+DEMO-TOPUP-04 v1 clauses 1.1, 2.1, 3.1 are DEMO_DRAFT, not ANB policy. Compare no-new-top-up exposure and sustainable repayment schedules. Include fees, tenor, modification and ECL tradeoffs; do not equate consolidation with eliminated debt. Public context: R01,R02,R06,R07. Customer facts: SYN.

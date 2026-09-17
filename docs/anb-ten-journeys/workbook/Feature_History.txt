@@ -1,0 +1,65 @@
+Pre-episode behavioral and feature trajectories
+
+Synthetic corroborated-cohort feature trajectories, March–August. C01 non-arrears features change before August missed-cycle arrears. Actual deployment must compute histories from dated observations.
+
+Case | Month | Behavior score | Feature 1 | Unit 1 | Feature 2 | Unit 2 | Cohort N | Scope | Source
+C01 | Mar | 659.455 | 0.415 | ratio | 0.28 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C01 | Apr | 639.055 | 0.48207999999999995 | ratio | 0.253 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C01 | May | 611.855 | 0.57152 | ratio | 0.21700000000000003 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C01 | Jun | 577.855 | 0.6833199999999999 | ratio | 0.17200000000000001 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C01 | Jul | 537.055 | 0.81748 | ratio | 0.11800000000000002 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C01 | Aug | 489.455 | 0.974 | ratio | 0.05499999999999999 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C02 | Mar | 654.25 | 0.54 | ratio; frozen | 3 | months; frozen | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C02 | Apr | 641.65 | 0.54 | ratio; frozen | 3 | months; frozen | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C02 | May | 624.85 | 0.54 | ratio; frozen | 3 | months; frozen | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C02 | Jun | 603.85 | 0.54 | ratio; frozen | 3 | months; frozen | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C02 | Jul | 578.65 | 0.54 | ratio; frozen | 3 | months; frozen | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C02 | Aug | 549.25 | 0.54 | ratio; frozen | 3 | months; frozen | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C03 | Mar | 684.625 | 9000 | SAR | 2.3 | months | 16 | Same corroborated cohort; synthetic trajectory | SYN
+C03 | Apr | 667.825 | 8424 | SAR | 2.054 | months | 16 | Same corroborated cohort; synthetic trajectory | SYN
+C03 | May | 645.425 | 7656 | SAR | 1.726 | months | 16 | Same corroborated cohort; synthetic trajectory | SYN
+C03 | Jun | 617.425 | 6696 | SAR | 1.3159999999999998 | months | 16 | Same corroborated cohort; synthetic trajectory | SYN
+C03 | Jul | 583.825 | 5544 | SAR | 0.8240000000000001 | months | 16 | Same corroborated cohort; synthetic trajectory | SYN
+C03 | Aug | 544.625 | 4200 | SAR | 0.25 | months | 16 | Same corroborated cohort; synthetic trajectory | SYN
+C04 | Mar | 669.571 | 0.39 | ratio | 2400 | SAR | 14 | Same corroborated cohort; synthetic trajectory | SYN
+C04 | Apr | 655.171 | 0.41400000000000003 | ratio | 2154 | SAR | 14 | Same corroborated cohort; synthetic trajectory | SYN
+C04 | May | 635.971 | 0.446 | ratio | 1826 | SAR | 14 | Same corroborated cohort; synthetic trajectory | SYN
+C04 | Jun | 611.971 | 0.486 | ratio | 1416 | SAR | 14 | Same corroborated cohort; synthetic trajectory | SYN
+C04 | Jul | 583.171 | 0.534 | ratio | 924 | SAR | 14 | Same corroborated cohort; synthetic trajectory | SYN
+C04 | Aug | 549.571 | 0.59 | ratio | 350 | SAR | 14 | Same corroborated cohort; synthetic trajectory | SYN
+C05 | Mar | 679.25 | 0.4 | ratio; frozen | 0.55 | ratio | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C05 | Apr | 668.45 | 0.4 | ratio; frozen | 0.502 | ratio | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C05 | May | 654.05 | 0.4 | ratio; frozen | 0.43800000000000006 | ratio | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C05 | Jun | 636.05 | 0.4 | ratio; frozen | 0.35800000000000004 | ratio | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C05 | Jul | 614.45 | 0.4 | ratio; frozen | 0.26200000000000007 | ratio | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C05 | Aug | 589.25 | 0.4 | ratio; frozen | 0.15000000000000002 | ratio | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C06 | Mar | 674.455 | 56000 | SAR | 6 | months | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C06 | Apr | 674.095 | 53720 | SAR | 6.72 | months | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C06 | May | 673.615 | 50680 | SAR | 7.68 | months | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C06 | Jun | 673.015 | 46880 | SAR | 8.879999999999999 | months | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C06 | Jul | 672.295 | 42320 | SAR | 10.32 | months | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C06 | Aug | 671.455 | 37000 | SAR | 12 | months | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C07 | Mar | 710 | 20 | days | 0.33 | ratio | 10 | Same corroborated cohort; synthetic trajectory | SYN
+C07 | Apr | 695.6 | 32.6 | days | 0.3588 | ratio | 10 | Same corroborated cohort; synthetic trajectory | SYN
+C07 | May | 676.4 | 49.400000000000006 | days | 0.3972 | ratio | 10 | Same corroborated cohort; synthetic trajectory | SYN
+C07 | Jun | 652.4 | 70.4 | days | 0.4452 | ratio | 10 | Same corroborated cohort; synthetic trajectory | SYN
+C07 | Jul | 623.6 | 95.6 | days | 0.5027999999999999 | ratio | 10 | Same corroborated cohort; synthetic trajectory | SYN
+C07 | Aug | 590 | 125 | days | 0.57 | ratio | 10 | Same corroborated cohort; synthetic trajectory | SYN
+C08 | Mar | 703.875 | 1 | ratio | 1.5 | months | 8 | Same corroborated cohort; synthetic trajectory | SYN
+C08 | Apr | 697.875 | 0.88 | ratio | 1.3679999999999999 | months | 8 | Same corroborated cohort; synthetic trajectory | SYN
+C08 | May | 689.875 | 0.72 | ratio | 1.192 | months | 8 | Same corroborated cohort; synthetic trajectory | SYN
+C08 | Jun | 679.875 | 0.52 | ratio | 0.972 | months | 8 | Same corroborated cohort; synthetic trajectory | SYN
+C08 | Jul | 667.875 | 0.28 | ratio | 0.708 | months | 8 | Same corroborated cohort; synthetic trajectory | SYN
+C08 | Aug | 653.875 | 0 | ratio | 0.3999999999999999 | months | 8 | Same corroborated cohort; synthetic trajectory | SYN
+C09 | Mar | 679.455 | 12000 | SAR | 0.3 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C09 | Apr | 662.655 | 11472 | SAR | 0.3208421052631579 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C09 | May | 640.255 | 10768 | SAR | 0.3486315789473684 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C09 | Jun | 612.255 | 9888 | SAR | 0.3833684210526316 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C09 | Jul | 578.655 | 8832 | SAR | 0.42505263157894735 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C09 | Aug | 539.455 | 7600 | SAR | 0.47368421052631576 | ratio | 11 | Same corroborated cohort; synthetic trajectory | SYN
+C10 | Mar | 649.25 | 1 | ratio | 1700 | SAR | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C10 | Apr | 633.65 | 0.92 | ratio | 1514 | SAR | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C10 | May | 612.85 | 0.8133333333333332 | ratio | 1266 | SAR | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C10 | Jun | 586.85 | 0.6799999999999999 | ratio | 956 | SAR | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C10 | Jul | 555.65 | 0.52 | ratio | 584 | SAR | 12 | Same corroborated cohort; synthetic trajectory | SYN
+C10 | Aug | 519.25 | 0.33333333333333326 | ratio | 150 | SAR | 12 | Same corroborated cohort; synthetic trajectory | SYN

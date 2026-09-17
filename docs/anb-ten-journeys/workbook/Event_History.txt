@@ -1,0 +1,65 @@
+Comparable event histories
+
+C02/C10 are different historical mature-vintage windows. Others are six monthly indicator snapshots. Rates are calculated, not input labels.
+
+Case | Window | Eligible | Events | Rate | Basis | Source
+C01 | Mar | 100 | 5 | 0.05 | Monthly issue indicator | SYN
+C01 | Apr | 100 | 6 | 0.06 | Monthly issue indicator | SYN
+C01 | May | 100 | 6 | 0.06 | Monthly issue indicator | SYN
+C01 | Jun | 100 | 5 | 0.05 | Monthly issue indicator | SYN
+C01 | Jul | 100 | 6 | 0.06 | Monthly issue indicator | SYN
+C01 | Aug | 100 | 15 | 0.15 | Monthly issue indicator | SYN
+C02 | Mar | 100 | 4 | 0.04 | Matched mature-vintage outcome | SYN
+C02 | Apr | 100 | 5 | 0.05 | Matched mature-vintage outcome | SYN
+C02 | May | 100 | 5 | 0.05 | Matched mature-vintage outcome | SYN
+C02 | Jun | 100 | 4 | 0.04 | Matched mature-vintage outcome | SYN
+C02 | Jul | 100 | 5 | 0.05 | Matched mature-vintage outcome | SYN
+C02 | Aug | 100 | 16 | 0.16 | Matched mature-vintage outcome | SYN
+C03 | Mar | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C03 | Apr | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C03 | May | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C03 | Jun | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C03 | Jul | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C03 | Aug | 100 | 22 | 0.22 | Monthly issue indicator | SYN
+C04 | Mar | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C04 | Apr | 100 | 5 | 0.05 | Monthly issue indicator | SYN
+C04 | May | 100 | 5 | 0.05 | Monthly issue indicator | SYN
+C04 | Jun | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C04 | Jul | 100 | 5 | 0.05 | Monthly issue indicator | SYN
+C04 | Aug | 100 | 19 | 0.19 | Monthly issue indicator | SYN
+C05 | Mar | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C05 | Apr | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C05 | May | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C05 | Jun | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C05 | Jul | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C05 | Aug | 100 | 16 | 0.16 | Monthly issue indicator | SYN
+C06 | Mar | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C06 | Apr | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C06 | May | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C06 | Jun | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C06 | Jul | 100 | 4 | 0.04 | Monthly issue indicator | SYN
+C06 | Aug | 100 | 15 | 0.15 | Monthly issue indicator | SYN
+C07 | Mar | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C07 | Apr | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C07 | May | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C07 | Jun | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C07 | Jul | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C07 | Aug | 100 | 13 | 0.13 | Monthly issue indicator | SYN
+C08 | Mar | 100 | 1 | 0.01 | Monthly issue indicator | SYN
+C08 | Apr | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C08 | May | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C08 | Jun | 100 | 1 | 0.01 | Monthly issue indicator | SYN
+C08 | Jul | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C08 | Aug | 100 | 12 | 0.12 | Monthly issue indicator | SYN
+C09 | Mar | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C09 | Apr | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C09 | May | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C09 | Jun | 100 | 2 | 0.02 | Monthly issue indicator | SYN
+C09 | Jul | 100 | 3 | 0.03 | Monthly issue indicator | SYN
+C09 | Aug | 100 | 15 | 0.15 | Monthly issue indicator | SYN
+C10 | Mar | 100 | 4 | 0.04 | Matched mature-vintage outcome | SYN
+C10 | Apr | 100 | 5 | 0.05 | Matched mature-vintage outcome | SYN
+C10 | May | 100 | 5 | 0.05 | Matched mature-vintage outcome | SYN
+C10 | Jun | 100 | 4 | 0.04 | Matched mature-vintage outcome | SYN
+C10 | Jul | 100 | 5 | 0.05 | Matched mature-vintage outcome | SYN
+C10 | Aug | 100 | 17 | 0.17 | Matched mature-vintage outcome | SYN

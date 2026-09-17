@@ -1,0 +1,17 @@
+All twelve user requirements
+
+Read with the Word prompt; no implementation phase may silently omit a mapped requirement.
+
+User item | Requirement | Phases | Where specified
+1 | Rich drawer with PD, scores, ECL | P1,P4 | U02; all case sheets
+2 | Logical next prompts above chatbox | P5 | U03–U05; 50 step records
+3 | Behavior/application feature diagnosis | P1,P2,P5 | C01–C10; Score/Proof
+4 | Different Saudi-relevant pockets | P2,P4 | Ten independent cases and source register
+5 | Sequenced bank-policy actions | P6 | Policy_Actions and approval gates
+6 | At least ten complete attention cards | P4,P10 | Card count + end-to-end browser gates
+7 | Cockpit/EWS segment parity | P1,P3 | Shared bundle, IDs, product mapping
+8 | Export 360, EWS, notes and recent cards | P7,P8 | U05–U08; persisted snapshots
+9 | 360 selection to What-If | P9 | U09; exact ECL baseline
+10 | Full stage-specific workbook export | P8 | Export_Contract; 60 export tests
+11 | Worked Excel examples | P2 | Ten case sheets + complete synthetic fixture
+12 | Explicit UI/data/phase implementation | P0–P11 | UI_Contract, Data_Contract and Tests

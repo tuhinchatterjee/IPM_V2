@@ -1,0 +1,752 @@
+
+CreditProbe AI
+Ten complete Saudi retail
+investigation journeys
+Phased implementation prompt for Claude Code
+Cockpit → Investigation → Borrower 360 → What-If
+Attach this document and CreditProbe_10_Saudi_Retail_Worked_Cases.xlsx to the same Claude Code task. The document is the implementation contract; the workbook is the worked example, interaction and data specification. Neither artifact claims that the new features are already installed.
+Scope: Ten evidence-driven Requires Attention cases, rich drawers, guided investigations, shared Cockpit/EWS segments, persistent Borrower 360 investigation lists, stage-aware Excel exports and selected-cohort ECL simulation.
+Reference date: 31 August 2026 synthetic book; research reviewed 17 September 2026. Financial previous-month values are July 2026; behavioral/feature reference histories begin March 2026.
+Important: All named customers, employers, projects, scores, rates, exposures and policy clauses in the worked examples are synthetic. Alpha Card is a demonstration product. These are not ANB loss statistics or approved underwriting rules.
+Navigation
+1. Execution and baseline protection
+2. Metrics, evidence and policy safeguards
+3. Shared data and handoff contracts
+4. Required UI behavior and persistence
+5. Excel and What-If contracts
+6. Ten complete worked stories
+7. Ordered implementation phases
+8. Acceptance, research and handoff
+
+
+1. Execute this as one controlled implementation
+Claude Code: read both attachments in full before editing. Implement the complete specification phase by phase on the current accepted ANB retail build. Do not deliver only a plan, ten hardcoded answer strings or a static dashboard mock-up. The acceptance condition is that all ten stories work through real UI interactions, with the same customer/facility identity and evidence across modules, and can be exported, saved, reopened and simulated without rebuilding the cohort manually.
+Persist this specification in the repository, together with a phase status file and an acceptance-results manifest. After each phase, record the files changed, migrations, tests, data hashes and remaining blockers. Continue to the next dependent phase without repeated approval requests, except for destructive changes, inaccessible baselines, permission decisions or genuine policy ambiguity. Do not let a long regression run silently substitute for testing the actual user journey.
+1.1 Protect the versions already in use
+The latest user-supplied report describes twelve commits on claude/exciting-archimedes-npzji5, 40 passing ANB-specific gates and a 4.01× 20–29 DPD baseline multiple. It also reports twenty remaining retail failures attributed to the original baseline. Treat those statements as an audit starting point, not proof that the current local Mac has that exact version. The older local ANB launch log showed 59e5a301; the final full current SHA is not supplied. [P01]
+Protected item
+ | Constraint
+ |
+Original frozen retail build
+ | 5328 / 8328 and its existing launcher, worktree and database remain untouched.
+ |
+ANB Requires Attention demo
+ | 5330 / 8330, ~/Desktop/IPM_V2-ANB-Demo and its data remain untouched until explicit acceptance of a new version.
+ |
+Agentic Project Planner UAT
+ | 5332 / 8332 are reserved for the separate Planner setup; do not base this retail work on that branch.
+ |
+Existing database instances
+ | Do not reuse or stop the Docker database ports 5528, 5538, 5548, 5558 or 5568. A separate DB on an existing server is acceptable only after ownership and isolation are verified.
+ |
+New implementation
+ | New branch/worktree and dedicated database; recheck genuinely free ports. Never blindly kill listeners, overwrite env files or run a destructive reset.
+ |
+Inspect actual repository state, the accepted runbook, frontend API configuration, launcher environment loading and migrations. Read the latest branch head and verify ancestry to the approved baseline before branching. Do not silently reset to c0db151f or merge main. Use local settings without printing passwords. A remote Claude Code container must not claim it opened or modified the user’s Mac: build/test remotely and provide a local setup artifact when direct Mac access is absent.
+1.2 Preserve the Alpha case while generalizing
+Keep the current Alpha case’s calibrated data relationships, focused drawer chart, thread context, routing and evidence behavior as regression contracts. The workbook’s 100-customer-per-case fixture is a miniature engineering example; its counts are not a replacement for the installed 59,000+ facility book. Extend the generator and scale episodes through underlying records. Never scale only displayed totals or invent extra cards by copying the Alpha title.
+The attached report describes a previous partially rebuilt catalogue and a 50,000-row measurement cap. Specifically guard both failure modes. Rebuild and publish all dependent views as one versioned bundle, and compute aggregates on the complete authorized population. A capped result must fail explicitly, not be reported as the whole book.
+2. Keep the financial reasoning defensible
+“Make the problem grave” means construct material adverse synthetic episodes with honest controls, amounts, persistence and severity arithmetic. It does not mean exaggerate axes, invent causality, deteriorate every model variable or claim that High EWS customers will certainly default.
+Affected population
+Evaluate the case predicate at the declared date, count facilities or distinct customers according to case grain. Show eligible count as denominator.
+Do not: Stock is not migration; a stock rise alone cannot identify current→arrears flows.
+Roll rate
+Same-facility transition from beginning bucket to ending bucket divided by eligible starting-bucket facilities, excluding/labeling closures and new entrants.
+Do not: Do not infer from the difference between two stock percentages.
+ODR
+Observed first default events over a named matured window / original at-risk population. C02 uses MOB6 cumulative first default; C10 uses six-month redefault.
+Do not: This is not PD, EWS or a 1–29 stock rate; windows are not interchangeable.
+PD12 / lifetime PD
+Approved model, horizon, point-in-time/through-cycle and scenario basis explicit. Compare the same eligible non-impaired cohort, preferably EAD-weighted.
+Do not: Already-impaired accounts are not new forward-risk predictions. Show their stage separately and N/A where a comparable forward PD does not apply.
+Application score
+Immutable original score, input features, decision policy/model and original date.
+Do not: A change in portfolio average can be mix change; do not call it the same customer’s original score deterioration.
+Behavioral score
+Longitudinal same-customer observations under comparable model versions; lower/worse convention stated.
+Do not: Separate the DPD input from other drivers and verify temporal ordering.
+EWS
+Governed score/band/reasons at customer-product grain and declared date. Expose model coverage and risk horizon if validated.
+Do not: High EWS is elevated risk, not certainty of default or automatically DPD 0.
+Current bad / forward risk
+Use the approved rule definitions. This fixture uses 30+ DPD for current bad and High/Critical outside that state for forward risk.
+Do not: Do not subtract inconsistent card counts and call the remainder all DPD-0 customers.
+ECL
+Approved stage-aware, probability-weighted discounted loss with appropriate term/cash-flow data.
+Do not: A three-factor one-period proxy is not a universal IFRS9 calculation.
+EAD
+Drawn exposure plus eligible expected future drawings under CCF/behavioral exposure assumptions.
+Do not: A limit cut does not repay existing drawn principal.
+Concentration
+Show share of eligible book, share of cases, within-pocket incidence and outside-pocket incidence; include sample size.
+Do not: Large population count alone does not imply high risk; control for age/vintage and confounding.
+Severity
+Existing governed materiality plus persistence/excess-risk and confidence rules; retain the arithmetic in Trace.
+Do not: No threshold change merely to turn a demo card red; no repeated duplicate cases to reach ten.
+Recent-card ODR
+Store value, numerator, denominator, horizon and source snapshot in the saved investigation.
+Do not: For an early case with no completed outcome window, show Not yet observed rather than fabricate a default rate.
+Missingness
+Coverage count and explicit reason for unavailable, stale, unverified or inapplicable data.
+Do not: Do not fill missing income, EWS or PD with zero or reuse an unrelated cohort.
+2.1 Specific modeling requirements
+Use original application scorecards for underwriting-quality and vintage cases; use behavioral models for post-origination changes. For each, expose every available model input and its contribution, not only the two strongest variables. Collapse minor variables visually only with an expandable full table. Distinguish raw-variable change from score points or SHAP units. Contribution totals must reconcile to the reference/ending score or display the unexplained residual. Never manufacture points for a feature that the actual model does not use.
+Compare the same IDs through time. Show eligibility, missingness and model-version changes. Application scores are immutable at decision time: an average can change because the population mix changes, not because the original score was retroactively rescored. If behavioral model versions changed, either use a valid bridge or display non-comparability rather than subtracting incompatible scores.
+Separate statement-cycle mechanics from credit stress. Historical minimum or partial payments are not themselves an overdue-payment event if the required minimum was met. In C01 the repayment feature is a trailing-cycle behavior measure; the later missed required payment establishes DPD. Require dated source evidence to support the sequence. Low cash buffers or absent salary credits must be verified against authorized alternative explanations.
+For vintage ODR, match months-on-book and retain the original at-risk denominator, including paid-off or closed borrowers when appropriate. For a roll-rate calculation, track the same starting facilities and label new business, closures, write-offs, cures and exits. Never infer current→arrears transitions from the difference between two stock percentages alone.
+2.2 ECL and simulation integrity
+Production ECL must use the installed governed methodology: stage/SICR/default definitions, scenario probabilities, conditional and marginal PD term structure, survival, EAD/CCF path, conditional LGD and recoveries, effective-interest/profit-rate discounting, remaining contractual/behavioral horizon and any governed overlays. Preserve approved modifications and staging policy. A simple PD × LGD × EAD display can explain a component, but cannot substitute for the full IFRS9 calculation. [R07]
+The workbook includes thirty formula proofs with compact annual buckets and 1,000 published synthetic model outputs. These prove the arithmetic of the fixture, not regulatory compliance or calibration quality. Do not truncate a real mortgage’s horizon to the teaching example’s three annual buckets. Stage 1 uses default events in the next twelve months and their lifetime loss, not only cash losses occurring in those twelve months. Credit-impaired records use recovery/cash-shortfall logic and must not be presented as fresh forward-risk predictions.
+For existing revolving exposure, reducing a credit limit does not repay drawn principal. Model the lawful remaining undrawn headroom and CCF, and do not push a proposed limit below existing drawings without an explicit contractual/treatment analysis. Separate future-origination limits from existing accounts. A reschedule may increase duration or ECL; a validated LGD or stage correction may increase the allowance. Show the adverse tradeoff rather than forcing every action to improve the headline loss.
+2.3 Policy hierarchy and approval
+Apply the hierarchy: applicable law/regulation → bank-approved effective policy → delegated authority and customer contract → proposed action. Public SAMA guidance is not a substitute for the bank’s proprietary thresholds. Rules depend on income band, salary/pension status, obligation category and housing-support eligibility, so no blanket 45%, 55% or 65% limit may be applied indiscriminately. Collection-rule default and finance-model default must remain distinct definitions where applicable. [R01–R03]
+No approved bank policy was supplied with this request. Search authorized repository/document sources for it. If unavailable, implement the DEMO_DRAFT templates in Policy_Actions, prominently labeled NOT BANK APPROVED. Every generated recommendation must carry policy ID, version, clause, effective date, applicability, evidence, owner, sequence, deadline, approval requirement and safeguard. Do not claim compliance or execute actions based on a draft template.
+For public-rule checks, revalidate the current source at implementation and record effective dates. Do not embed commercial product terms or superseded BNPL caps as immutable law. The December 2025 onward regulatory landscape is one reason to keep source/version metadata rather than a single hardcoded debt-burden threshold. [R06]
+If an approved clause defines an exposure or ECL budget, calculate a candidate action by solving the governed scenario engine within contractual, affordability and policy bounds, and disclose the objective, constraints and feasibility. For an existing card, the unchanged drawn balance can make the requested loss target infeasible. Without an approved budget, the 15%, 20% and 25% new-limit reductions are explicit scenario trials, not mathematically optimal recommendations. Do not reverse-engineer an arbitrary percentage and present it as a bank rule.
+3. One coherent book across every module
+Do not create an Alpha label only in a Cockpit answer. A product pocket is a canonical dimension joined to the source facilities and carried into all governed views. Preserve the existing retail_facility_month, retail_ews_score, retail_early_warning, retail_credit_scorecard and retail_whatif registrations, adapting to their actual audited names. Add evidence/contract tables as needed without introducing a disconnected parallel retail universe.
+customer_dim
+Key / grain: customer_id
+Identity, authorized label, employment type, employer_id, region, permitted data sources. Effective-dated identity; no invented nationality/sex/religion risk rule. Distinct customers, not count of joined facility rows.
+facility_dim
+Key / grain: facility_id
+customer_id, product_id, subproduct_id, contract, origination, maturity, payment structure. Effective-dated product mapping and contractual changes. Canonical Alpha and all other pockets across every domain.
+origination_snapshot
+Key / grain: facility_id + decision_id
+Original application model/version, score, feature points, verified income, obligations, tenure, exception and policy decision. Immutable at origination; no reconstruction from today’s values. Show fixed-cohort original values separately from changing book composition.
+facility_month
+Key / grain: facility_id + as_of + bundle_id
+DPD, stage/default/forbearance, GCA, limit, undrawn, CCF, PD12/lifetime, LGD, EAD, ECL, EIR, term. Monthly snapshot and explicit calculation/model versions. Primary balance and impairment facts; retain input/output lineage.
+behavior_features
+Key / grain: facility_id + as_of + model_version
+Score, calibration link, features, point/SHAP contributions, benchmark and residual, missingness. Same-cohort longitudinal features; no future leakage. Reconcile contributions in their own units; no causal proof from correlation.
+ews_customer_product_month
+Key / grain: customer_id + product_id + as_of + bundle_id
+EWS score/band/reasons, model/rules, current_bad, forward_risk, trend and coverage. Customer-product grain; subproduct/customer-facility bridge. EWS joining to several facilities must not multiply ECL.
+episode_evidence
+Key / grain: evidence_id + as_of
+Payroll, bureau obligations, balloon resources, recovery, milestones, support ledger, pension and cure evidence. Source/authority/date/coverage/confidence recorded. Missing, zero, unverified and inapplicable are different states.
+policy_clause
+Key / grain: policy_id + version + clause_id
+Clause, effective dates, approved/draft status, product scope, owner, expression, exception and authority. Retain decision-time and current policy versions. Draft demo clauses cannot be presented as approved bank policy.
+risk_case
+Key / grain: case_id + occurrence_id
+Rule, episode, root snapshot, scope, as-of, notified timestamp, severity calculation and evidence. Idempotent per episode/scope/period/bundle. Deduplicate repeated findings without removing distinct stories.
+investigation_step
+Key / grain: thread_id + step_id + version
+Question, result, chart specs, metrics, input/output snapshot, visited steps and policy links. Completed step immutable; regenerate explicitly as new version. Exports include only steps actually visited at the selected point.
+cohort_snapshot
+Key / grain: snapshot_id
+Customer/facility IDs, predicate AST, date, bundle, metric definitions, authorization and hash. Server-persisted immutable ID set and scope. Same object travels Cockpit→EWS→360→What-If.
+saved_investigation
+Key / grain: saved_id + version
+Source case/thread/step, snapshot, issue, notice/save times, note history, selection, owner/share scope. Server-side persistence; retention and refresh explicit. Recent cards restore exact saved detail, not a silently newer population.
+whatif_scenario
+Key / grain: scenario_id + version
+Source snapshot, baseline, parameters, selected facilities, results, assumptions and approvals. Scenario separate from published actual data. Return-to-source link and baseline reconciliation mandatory.
+export_manifest
+Key / grain: export_id
+User, timestamp, source step, bundle/hash, row counts, columns allowed, file checksum. Immutable audit; governed storage/expiry. No silent truncation, unauthorized PII, external spreadsheet links or future-step leakage.
+3.1 CohortSnapshot: required handoff object
+Every case, completed step, export and saved investigation references a server-side immutable snapshot. Prefer the existing architecture if an equivalent object exists; otherwise add it with a schema migration. URLs carry only an authorized opaque snapshot ID, not thousands of raw customer IDs.
+Field group
+ | Required values
+ |
+Identity
+ | snapshot_id; case_id and occurrence_id; thread_id; step_id; created_at; source_as_of.
+ |
+Version
+ | source_bundle_id; dataset hashes; model/rule/policy versions; metric definition IDs.
+ |
+Scope
+ | root predicate AST; current predicate AST; explicit customer IDs; explicit included facility IDs; customer and facility counts.
+ |
+Selection
+ | All matched versus selected subset; flagged-facilities-only versus all authorized facilities of selected customers; excluded/restricted IDs count.
+ |
+Integrity
+ | Stable hash over sorted IDs, dates, predicates and bundle; source step and visited-step cap.
+ |
+Authorization
+ | Owner, role/team scope, purpose, permitted fields, consent/evidence references and retention rules.
+ |
+Recheck authorization when creating, reading, sharing, reopening and exporting the snapshot. A known snapshot ID is not authority. Server-side permissions must govern both the list and aggregate counts. A user note or uploaded document is untrusted content and cannot alter execution permissions or policy definitions.
+3.2 Reconciliation and join invariants
+For an identical authorized scope and date, sorted Cockpit facility IDs must equal the corresponding EWS/360/What-If set. The customer set is the distinct projection of those facilities, not an accidental row count. A customer with two products may have two product-specific EWS observations; join by the declared customer-product-date grain. Never multiply facility ECL through a many-to-many EWS join.
+Borrower 360 may show the customer’s other authorized facilities for context, but they do not silently enter the investigation’s financial baseline. Let the user explicitly switch from flagged-only to all selected-customer facilities; create a new snapshot and recalculate counts/totals. If a customer belongs to multiple findings, retain each issue link and de-duplicate the union of facilities.
+Expose all pocket dimensions in EWS filters or the governed drilldown already used there: Alpha, acquisition channel/exception, employer group, verified obligations/top-up interval, balloon/funding, recovery asset/channel, project/milestone, support status, documented pension transition and restructure strategy. A warning reason may be contextual rather than a calibrated PD predictor; label its nature. Do not assign a fabricated EWS score to fill missing coverage.
+Build all data in staging. Validate identity, period, unit, policy and model coverage; run parity checks; then atomically switch catalogue and manifest. Cross-domain stale joins must fail with a clear mismatch message. A failed EWS build must not leave a newly published Cockpit book with yesterday’s EWS. Keep the previous complete bundle intact until validation passes.
+4. Implement only the specified UI additions
+This is not a redesign. Keep the existing navigation, visual language, cards, right drawer and chat interaction. Use the existing retail Customer 360 / Borrower 360 module; do not create a second incompatible customer workspace merely because the route or menu label differs. Audit actual routes/components before choosing implementation files.
+U01 | Cockpit cards
+Keep existing visual design; display at least ten generated cases through list/scroll or Show all with visible total.
+Must show: Title, severity, affected and eligible count, product/pocket, date, SAR exposure, notice timestamp.
+Must do: Click opens that occurrence’s drawer, not a generic answer.
+U02 | Right-hand drawer
+Retain current width, typography and Investigate button; add stacked evidence sections.
+Must show: Bottom line, trend, PD12/lifetime basis, origination score, behavioral score, ECL/stage change, normalized pocket, coverage and sources.
+Must do: Separate current book vs same-cohort comparators; all denominators visible.
+U03 | Thread context
+Complete drawer snapshot at top; preserve root and current-filter breadcrumbs.
+Must show: Case/snapshot/bundle/date, root and current counts, conclusion, charts and definitions.
+Must do: Collapse only via explicit control; reload and Back do not lose context.
+U04 | Prompt chips
+Five tailored prompts immediately above composer, one suggested next; keep free text.
+Must show: Short chip label plus full readable prompt; visited markers and model/data caveats.
+Must do: Follow same insert/submit behavior as existing chips; no unseen answers preloaded.
+U05 | Thread export toolbar
+Add Export customers to Borrower 360 alongside Trace/Save at S0 and each answer.
+Must show: Current authorized count; all-matched versus selected; customer and facility counts.
+Must do: Persist server snapshot/token; no thousands of IDs in a URL and no page-only export.
+U06 | Borrower 360 imported mode
+Existing layout with investigation banner, selectable customer rows and facility expansion.
+Must show: Exact issue; scores; PD/LGD/EAD/ECL/stage/DPD; EWS score/band, reasons and six-month+ chart; missing-data badge.
+Must do: EWS investigation enrichment only in exported or saved context; standalone searches unchanged.
+U07 | Recent investigations
+Persist a recent-investigation draft automatically on each import; place its card below the Borrower 360 chatbox. Save names/pins a version.
+Must show: Issue; notified/saved times; segment; count; ODR value with numerator/denominator/window; notes preview and source step.
+Must do: Click restores list, notes and snapshot. Update-to-latest creates an explicit new version.
+U08 | Borrower 360 actions
+Save, notes, Export Excel and Export to What-If for selected customers.
+Must show: Selection count plus included facilities; flagged-only versus all facilities is an explicit choice.
+Must do: Notes retain author/date/history. No note may override policy or tool instructions.
+U09 | What-If import
+Use existing module and retain return link.
+Must show: Imported scope banner, unchanged baseline metrics, model/policy versions and available scenario controls.
+Must do: Validate identical baseline before simulation; no actual account changes.
+U10 | Charts and accessibility
+Reuse current chart components; readable labels/contrast/tooltips, responsive drawer.
+Must show: Units, periods, denominators, data-table option and no-data explanations.
+Must do: Do not hide anomalies under 0 DPD or exaggerate with undisclosed axis tricks; all units/horizons explicit.
+4.1 Drawer and thread layout in detail
+The drawer opens with one bottom-line conclusion and an explicit observation-versus-hypothesis label. Follow with affected/eligible population, count and percentage change, gross exposure, ECL movement and coverage, PD basis/horizon, same-customer behavioral distribution, immutable original application distribution, stage mix and charts. Include comparator period and metric denominator on each measure. Provide the underlying table and trace without sending users to a different module to understand the card.
+For small delinquency rates, do not let 0 DPD flatten the meaningful movements: show a focused early-arrears chart plus the 0-DPD KPI and a full-distribution toggle. Use honest axes and visible scales. C06 must visibly show stable scores/PD while LGD/recovery and ECL worsen; a tight 668–676 score axis would falsely dramatize a three-point movement. Display ECL decomposition interactions/residuals explicitly.
+Investigate opens S0 with the complete carried drawer context. Every answer follows conclusion → relevant chart/table → two to five evidence observations → counterargument/limitation → next recommended question. Next-question chips sit immediately above the composer, not buried in an answer paragraph. Clicking must use the current scope. Free-form questions and reasonable paraphrases remain available; unsupported requests decline with a specific missing-data explanation.
+The toolbar Export customers to Borrower 360 is available at S0 and every answered step. Its label/popup shows authorized matched customer and facility counts. Export S1 before visiting S2–S5 must work. Do not hard-wire the transfer to the final policy cohort. Never let a default pagination limit redefine the population.
+4.2 Borrower 360 imported experience
+At landing, show a source banner: issue, case/step, noticed date, reporting date, selected scope, source bundle/hash and count. One row per customer; expand to every included facility and the exact reason it was included. Show PD12/lifetime, LGD, stage, DPD, GCA, EAD, ECL, behavioral score, original application score, EWS band/reasons and history. If mixed facilities make a single customer PD/LGD meaningless, label the aggregate basis and expose the facility values rather than presenting an unexplained arithmetic average.
+Use the same EWS history/reason component as the Early Warning module where practical. Render the detailed EWS investigation context only after an investigation/cohort export or reopening a saved investigation. Standalone direct Borrower 360 searches retain existing behavior; recent saved investigation cards remain available below the chatbox. A missing EWS period must show coverage, not a fabricated flat chart.
+Provide select all matched, individual selection, clear selection and selected-count badges. Save investigation persists the selected snapshot, source step, issue summary, ODR definition/window/count, user notes and source evidence. A recent card displays issue, notice time, save time, segment, customer count, observed/default-risk label and note preview. Clicking reopens the full saved list and all histories. A later source refresh never silently changes saved results; Offer an explicit versioned Refresh to latest action.
+Notes need author, created/updated time and version history. Persist them server-side, scoped to the user/team authorization. Ensure row list, cards and export obey the same field permissions and retention. Archive/delete is permission-controlled and auditable. Every Borrower 360 import immediately creates a persistent recent-investigation draft, even before the user presses Save, so an Excel export or leaving the page cannot lose the list. Save names or pins a version. Autosave revisions and notes within the investigation rather than creating a duplicate card for every message; retain the earlier immutable snapshots.
+5. Excel export and What-If must preserve the evidence
+5.1 Stage-aware workbook contents
+Use one export service reading the selected completed step/snapshot. The workbook must contain all selected customers and included facilities, not merely the first screen or a screenshot. Include the analysis already completed up to the selected step, not prewritten later conclusions. If policy actions have not yet been reached, the policy sheet says Not reached; it does not reveal S5. Raw legitimate customer attributes can still be included according to permissions without inventing a later diagnostic conclusion.
+00_Readme: Purpose, synthetic/real classification, export time, user and field permissions.
+01_Snapshot: Case/thread/step/bundle/snapshot hashes, filters, date, denominator definitions and selection scope.
+02_Customers: One row per selected customer; segment, issue, scores, EWS, status and included facility count.
+03_Facilities_IFRS9: Every included facility: GCA, stage/DPD, PD12/lifetime, LGD, EAD/CCF/undrawn, EIR, term, ECL and changes.
+04_ECL_Term_Scenarios: Scenario weights, survival/marginal PD, exposure path, LGD, discount, cash recoveries and weighted loss.
+05_Diagnosis_Visited: Each completed question and answer up to the export step, scope, calculations, counterchecks and evidence.
+06_Score_Drivers: Original and behavioral model versions, inputs, contributions, benchmark/residual and dates.
+07_EWS_History: Customer-product history, reasons, eligibility and coverage; unavailable is not zero.
+08_Charts_Data: Native charts with their exact underlying series, units and denominator definitions.
+09_Policy_Actions: Only actions reached so far; clauses, draft/approved status, sequence, owner, timing and constraints.
+10_Notes: Authorized notes with author/timestamp/version, linked to saved investigation.
+11_Reconciliation: IDs, counts, stage/GCA/EAD/ECL totals, scenario sums, visited-step cap and permission checks.
+12_Sources: Customer-evidence lineage, bank-policy sources and research context kept distinct.
+Financial rows must include currency, GCA/exposure, remaining term and maturity, EIR/effective profit rate, stage/default/SICR/forbearance, PD12 and lifetime/term structure with scenario basis, LGD and recovery assumptions, limit/undrawn/CCF, EAD path, discounting, weighted ECL and previous/current measures. A source/model-input appendix must make the ECL computation auditable, including overlays and modifications where applicable. Do not label the miniature teaching workbook’s three-bucket proof as the complete production calculation.
+Use proper numbers/dates/percent formats, filters, frozen headers, consistent SAR units, native charts with source series, a definitions sheet and reconciliation checks. Show both unrounded raw inputs and controlled display precision where needed. Escape untrusted text beginning with spreadsheet formula markers; do not export macros, volatile/external links, database credentials, hidden unauthorized fields or unrestricted personal identifiers. Hash and audit the exported file. Queue/stream large exports with an explicit completion state; failure cannot be dressed as a successful partial workbook.
+5.2 What-If handoff and scenario types
+The Borrower 360 Export to What-If button uses the current explicit selection. The landing banner displays exact source IDs, date/bundle and unchanged baseline customer/facility counts, GCA, EAD, stage totals and ECL. Gate simulation on reconciliation; do not silently query all credit cards or recreate a cohort from a vague natural-language segment label. Return to the original saved/unsaved investigation through a stable link.
+Preserve the distinction between existing contractual exposure and a proposed future-book policy. Existing-card limit changes affect lawful expected drawings, not outstanding balances. New-book limits, origination cutoffs or LTV changes need separate hypothetical origination assumptions. Balloon changes require actual payment schedules; recovery scenarios require costs and timing; support/pension scenarios require verified cash flows; restructuring and cure changes require appropriate modification/staging treatment. Parameters and results remain scenario records, not edits to source accounts.
+Show affected customers, facilities, assumptions, baseline versus scenario EAD/ECL, stage changes if explicitly justified, gross versus net movement and material business/customer tradeoffs. Revenue or probability-of-cure effects appear only when an actual supported model exists; otherwise say Not modeled. Recommendations do not acquire approval merely because a simulation has a favorable result.
+
+
+6. Ten fully specified investigation stories
+Each case below is worked in the attached Excel sheet of the same ID. Every current case has 100 eligible observations in the compact engineering fixture; the full deployed book must calculate its own counts from the coherent generator. Preserve the story’s logic, date/grain definitions, materiality and controls, not an unsupported promise that every live number equals this miniature example. These severe synthetic cases are not statistical estimates for Saudi banks.
+S0 is the rich drawer/carried thread context. S1 disaggregates, S2 checks score/underwriting characteristics, S3 challenges and decomposes, S4 identifies a normalized pocket and S5 proposes ordered policy actions. Export to Borrower 360 is enabled at all six snapshots, and each resulting Excel export is capped to the visited history.
+
+
+C01 | Alpha Card early arrears
+Card: 1–29 DPD account share • CRITICAL • CREDIT_CARD
+Pocket: Alpha Card / internal application band 580–619
+Policy context: DEMO-CC-01 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R03,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Alpha Card early arrears: 15 of 100 eligible observations meet the issue rule, versus 6 of 100 in the comparator (2.50×; +9.0 percentage points). Affected gross exposure is SAR 359,462. For the same current issue customers, published synthetic ECL moves from SAR 7,512 to SAR 42,519. Comparable forward PD rises from 3.5% to 10.5% on 15 non-impaired issue customers. Behavioral score moves from 660.0 to 490.0; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Split 1–29 DPD into 1–9, 10–19 and 20–29 days and show the six-month trend. Is this merely short payment timing?
+Expected response: 1–9: 2 customers; 10–19: 1; 20–29: 12. The comparator has 2, 1 and 3 respectively. Deep early arrears therefore rise from 3 to 12 accounts: fourfold and 80% of current 1–29 cases. A shared statement cycle can concentrate DPD. It does not establish stress alone; corroborate funding and repayments before intervention.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 12 customers in the reference fixture. Snapshot CPRA-C01-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: How have the same 20–29 DPD customers’ behavioral scores changed? Keep their original application scores separate.
+Expected response: Keep the S1 set of 12 IDs fixed. The demonstration behavioral-score change is 170 adverse points, while their original application values do not change. The pocket’s original internal score is around 604; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 12 customers in the reference fixture. Snapshot CPRA-C01-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Could the score fall just be the DPD input? Decompose it by model variable and show which non-arrears changes preceded the missed payment.
+Expected response: For corroborated accounts, utilization increases from 41.5% to 97.4% while repayment proportion falls from 28% to 5.5%. Utilization and repayments contribute 120 of 170 adverse score points. They are distinct from DPD, not proof of statistical independence or causation. Verify the pre-arrears time sequence.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 11 customers in the reference fixture. Snapshot CPRA-C01-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Where is this stress concentrated by subproduct and original score band, after controlling for vintage and statement cycle?
+Expected response: The named pocket contains 28 of 100 eligible observations (28%) and 13 of 15 issue cases (86.7%). Its issue incidence is 46.4%, versus 2.8% outside, a 16.71× rate ratio. Narrow the corroborated list to 11 policy-review customers. Use Alpha versus Standard/Premium and 580–589, 590–599, 600–619, 620+ internal bands. Show affected / eligible rates, not raw counts. These are internal demo scores, not a claimed SIMAH scale.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 11 customers in the reference fixture. Snapshot CPRA-C01-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Existing accounts: within one business day assign confidential early-arrears contact, verify cash flow and pause discretionary limit increases only where policy/terms permit. 2. NEW originations: test 20,000→17,000 SAR at 600–619, 15,000→12,000 at 590–599 and 10,000→7,500 at 580–589. These are trial assumptions, not approved or optimized reductions. 3. Credit policy owner reviews the controlled expansion, not all cards. Approval is required; measure cure, 30+ roll rate and complaints after intervention. Existing drawn debt is unchanged by a limit cut. Recompute EAD = drawn + CCF × unused headroom. Separate NEW-book limit proposals from existing-account contractual changes; keep PD unchanged unless independently modeled.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 11 customers in the reference fixture. Snapshot CPRA-C01-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: A shared statement cycle can concentrate DPD. It does not establish stress alone; corroborate funding and repayments before intervention.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C02 | Personal finance acquisition quality
+Card: Cumulative default by MOB6 • CRITICAL • PERSONAL_FINANCE
+Pocket: Digital channel B / short employment tenure / approved exceptions
+Policy context: DEMO-PF-02 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R02,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Personal finance acquisition quality: 16 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.20×; +11.0 percentage points). Affected gross exposure is SAR 2,113,638. For the same current issue customers, published synthetic ECL moves from SAR 288,960 to SAR 1,428,290. All issue customers are already credit-impaired: a forward PD comparison for that issue cohort is not applicable; show stage/default and recovery instead. Behavioral score moves from 654.1 to 549.1; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Compare booking vintages at exactly month-on-book 6. Split first-default timing into MOB1–2 and MOB3–6, retaining the original eligible population.
+Expected response: The current mature vintage has 16 defaults out of 100 versus 5/100 for its historical mature comparator. Three first defaults occur at MOB1–2; thirteen at MOB3–6. Do not compare immature vintages or omit closed loans. Book growth and differing months-on-book can imitate deterioration. Match vintage age and risk mix before judging the acquisition channel.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 13 customers in the reference fixture. Snapshot CPRA-C02-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Return to the original application scores and decision-time features for this vintage. Were the customers weak when approved?
+Expected response: Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 105 adverse points, while their original application values do not change. The pocket’s original internal score is around 610; compare its distribution with the matched controls near 690. Here the application evidence, rather than a monthly change in the original score, is the main diagnostic evidence.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 13 customers in the reference fixture. Snapshot CPRA-C02-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Which application scorecard inputs and authorized exception codes explain the weak original profile? Use the model and policy versions in force then.
+Expected response: The internal application benchmark is 700; debt burden −45, employer tenure −30 and documented credit history −15 produce 610. Original burden is 54% and tenure three months. These values are immutable historical inputs, not reconstructed from current defaults. Apply the correct affordability rules before calling an exception a breach.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 12 customers in the reference fixture. Snapshot CPRA-C02-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Within matched vintages, compare channels and exception combinations. Is the short-tenure/high-burden intersection genuinely overrepresented?
+Expected response: The named pocket contains 30 of 100 eligible observations (30%) and 12 of 16 issue cases (75.0%). Its issue incidence is 40.0%, versus 5.7% outside, a 7.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Focus on the channel/exception intersection, with within-channel denominators and matched controls. Do not blame every digital-originated loan.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 12 customers in the reference fixture. Snapshot CPRA-C02-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Underwriting owner reviews the relevant historical exception approvals and verifies whether each was authorized; separate policy design from policy non-compliance. 2. NEW lending: place only the evidenced exception route on second-level approval pending review; refresh verified obligations and residual-income assessment. 3. Use the applicable policy ceiling and residual-income requirement to calculate affordable principal and tenor. Track MOB3/MOB6 performance; do not retroactively apply today’s rules to old decisions. Test future-book affordable principal from a supported payment budget and contractual cash flows. For current defaults, model sustainable recovery/collection separately; no artificial balance deletion.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 12 customers in the reference fixture. Snapshot CPRA-C02-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: Book growth and differing months-on-book can imitate deterioration. Match vintage age and risk mix before judging the acquisition channel.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C03 | Employer payroll interruption
+Card: Two-cycle apparent payroll shortfall share • CRITICAL • PERSONAL_FINANCE
+Pocket: DEMO Employer A / private facilities services / Eastern Province
+Policy context: DEMO-EMP-03 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R03,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Employer payroll interruption: 22 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (5.50×; +18.0 percentage points). Affected gross exposure is SAR 2,264,490. For the same current issue customers, published synthetic ECL moves from SAR 34,277 to SAR 309,191. Comparable forward PD rises from 2.5% to 11.0% on 22 non-impaired issue customers. Behavioral score moves from 684.3 to 544.3; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Split apparent payroll shortfalls into account switches, calendar/posting effects and verified multi-cycle interruptions. Compare matched payroll dates.
+Expected response: Twenty-two alerts include four timing/switch explanations and eighteen requiring verified payroll follow-up. Sixteen have corroborating household liquidity evidence. Missing salary credit alone is not proven loss of income. One missed credit can be an account switch or holiday shift. Obtain permitted evidence before inferring employer distress.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 18 customers in the reference fixture. Snapshot CPRA-C03-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Were these borrowers sound at origination? Compare original application scores with current payroll continuity, liquidity and behavioral scores.
+Expected response: Keep the S1 set of 18 IDs fixed. The demonstration behavioral-score change is 140 adverse points, while their original application values do not change. The pocket’s original internal score is around 692; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 18 customers in the reference fixture. Snapshot CPRA-C03-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Decompose the behavioral fall and date the payroll and cash-buffer changes before arrears. Which customers have verified alternative salary receipts?
+Expected response: Original applications were relatively strong. In the evidenced pocket, payroll credits fall from SAR 9,000 to SAR 4,200 and buffers from 2.3 to 0.25 months. Exclude confirmed bank-account switches; uncertain external income remains unverified, not zero.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 16 customers in the reference fixture. Snapshot CPRA-C03-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Rank employer concentrations using affected employees divided by all financed employees. Compare similar employer types and regions.
+Expected response: The named pocket contains 25 of 100 eligible observations (25%) and 18 of 22 issue cases (81.8%). Its issue incidence is 72.0%, versus 5.3% outside, a 13.50× rate ratio. Narrow the corroborated list to 16 policy-review customers. DEMO Employer A is fictitious. An employer-level cluster is an investigation lead, not authority to penalize every employee or disclose employee debts to the employer.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 16 customers in the reference fixture. Snapshot CPRA-C03-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Servicing owner performs confidential customer contact and verifies the documented income interruption and alternative resources. 2. Assess the applicable response to changed circumstances under current collections rules and the bank’s hardship policy; no automatic new borrowing to cover missed payments. 3. NEW verified payroll-linked exposure to the affected employer may go to manual review, subject to policy approval. Track restored payroll and sustainable arrangements weekly. Test documented, eligible payment accommodation or rescheduling with customer consent. Longer duration may increase ECL; preserve contractual rights and correct modification accounting.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 16 customers in the reference fixture. Snapshot CPRA-C03-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: One missed credit can be an account switch or holiday shift. Obtain permitted evidence before inferring employer distress.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C04 | Top-up debt stacking
+Card: Verified affordability-stress share • HIGH • PERSONAL_FINANCE
+Pocket: Repeat top-up within six months / new verified external obligations
+Policy context: DEMO-TOPUP-04 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R02,R06,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Top-up debt stacking: 19 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.80×; +14.0 percentage points). Affected gross exposure is SAR 3,082,287. For the same current issue customers, published synthetic ECL moves from SAR 91,817 to SAR 529,074. Comparable forward PD rises from 4.5% to 13.5% on 19 non-impaired issue customers. Behavioral score moves from 669.7 to 549.7; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Split monthly obligations into this bank, other lenders and verified BNPL installments. Separate real growth from reporting-lag and duplicate-line effects.
+Expected response: Nineteen alerts include three reporting/verification exceptions. Sixteen show comparable obligation growth and fourteen also have a materially depleted residual-income buffer. A better bureau feed can make liabilities look new. Reconcile reporting dates and deduplicate before claiming debt growth.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 16 customers in the reference fixture. Snapshot CPRA-C04-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Compare approval-time affordability and original application inputs with current verified monthly obligations for the same customers.
+Expected response: Keep the S1 set of 16 IDs fixed. The demonstration behavioral-score change is 120 adverse points, while their original application values do not change. The pocket’s original internal score is around 655; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 16 customers in the reference fixture. Snapshot CPRA-C04-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: How much score deterioration comes from new debt and weaker repayments, rather than DPD or refreshed bureau coverage?
+Expected response: Verified obligations rise from 39% to 59% of income and residual funds fall from SAR 2,400 to SAR 350. BNPL account count alone is not risk; use supported monthly commitments and consented evidence. Determine the applicable income/product rules individually.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 14 customers in the reference fixture. Snapshot CPRA-C04-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Is the short interval since the last top-up plus increased external debt more risky than either factor alone? Compare matched borrowers.
+Expected response: The named pocket contains 30 of 100 eligible observations (30%) and 15 of 19 issue cases (78.9%). Its issue incidence is 50.0%, versus 5.7% outside, a 8.75× rate ratio. Narrow the corroborated list to 14 policy-review customers. Focus on repeat top-up timing and verified monthly burden, not all top-up or BNPL users. Separate approval-time omissions from subsequent borrowing.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 14 customers in the reference fixture. Snapshot CPRA-C04-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Stop discretionary new top-up offers to the corroborated cohort pending refreshed obligations and affordability, within approved marketing/policy controls. 2. Validate genuine debt settlement and a sustainable customer budget; avoid additional finance that only masks arrears. 3. For NEW top-ups, require fresh consented credit evidence and residual-income checks under the applicable policy. Monitor reborrowing and net monthly commitments. Compare no-new-top-up exposure and sustainable repayment schedules. Include fees, tenor, modification and ECL tradeoffs; do not equate consolidation with eliminated debt.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 14 customers in the reference fixture. Snapshot CPRA-C04-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: A better bureau feed can make liabilities look new. Reconcile reporting dates and deduplicate before claiming debt growth.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C05 | Auto balloon funding cliff
+Card: Unfunded balloon due within 90 days share • HIGH • AUTO_FINANCE
+Pocket: Balloon ≥35% of original price / verified coverage <25%
+Policy context: DEMO-AUTO-05 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R02,R04,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Auto balloon funding cliff: 16 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (4.00×; +12.0 percentage points). Affected gross exposure is SAR 1,427,708. For the same current issue customers, published synthetic ECL moves from SAR 14,374 to SAR 107,898. Comparable forward PD rises from 3.0% to 12.0% on 16 non-impaired issue customers. Behavioral score moves from 678.9 to 588.9; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Show 0–30, 31–60 and 61–90 day final-payment ladders with liquid funding, sale plans and actually approved refinancing.
+Expected response: Sixteen near-term maturity alerts include three without sufficient funding evidence. Thirteen are verified funding gaps; twelve have corroborating behavioral strain. A refinancing option is not approved funding. Large balloons can be planned for. Verify the actual funding plan and approved refinancing rather than assuming default.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 13 customers in the reference fixture. Snapshot CPRA-C05-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Inspect the original balloon-inclusive affordability assessment and compare current liquidity and behavioral scores.
+Expected response: Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 90 adverse points, while their original application values do not change. The pocket’s original internal score is around 638; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 13 customers in the reference fixture. Snapshot CPRA-C05-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Distinguish the contractual final-payment exposure from behavioral-score variables. What evidence supports inability to fund it?
+Expected response: The contractual final payment remains 40% of original price while liquid coverage falls from 55% to 15%. Cash buffers and other borrowing drive the behavioral deterioration; do not pretend balloon size is a scorecard input unless the actual model contains it.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 12 customers in the reference fixture. Snapshot CPRA-C05-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Compare maturity month, balloon band, liquidity coverage and original LTV. Which intersection has the highest normalized shortfall?
+Expected response: The named pocket contains 25 of 100 eligible observations (25%) and 13 of 16 issue cases (81.2%). Its issue incidence is 52.0%, versus 4.0% outside, a 13.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Use contract structure and verified resources, with residual-asset value as a control. Do not blame a named dealer without real file evidence.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 12 customers in the reference fixture. Snapshot CPRA-C05-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Begin maturity contact and funding verification at the policy-defined lead time; prioritize unresolved 30-day maturities. 2. Document permissible sale, settlement or refinancing options without guaranteeing eligibility or approval. 3. NEW leases: test reducing a 40% maximum balloon to 30%, subject to a full monthly-payment affordability recheck because ordinary installments rise. Rebuild amortization and balloon cash flows explicitly. Show payment change, final balance, EAD and ECL; a smaller final payment is not a free exposure reduction.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 12 customers in the reference fixture. Snapshot CPRA-C05-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: Large balloons can be planned for. Verify the actual funding plan and approved refinancing rather than assuming default.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C06 | Used-auto recovery deterioration
+Card: Material LGD revision share • HIGH • AUTO_FINANCE
+Pocket: Vehicle age >5 years / mileage >150,000 km / weak recovery channel
+Policy context: DEMO-RECOVERY-06 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R04,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Used-auto recovery deterioration: 15 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (3.75×; +11.0 percentage points). Affected gross exposure is SAR 1,139,005. For the same current issue customers, published synthetic ECL moves from SAR 95,494 to SAR 164,742. Comparable PD is almost stable at 5.0%→5.1%; do not portray an unchanged borrower profile as a score-driven default shock. Behavioral score moves from 673.8 to 670.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Reconcile ECL change into PD, LGD, EAD, stage, recovery timing and interaction effects. Which component is actually material?
+Expected response: Fifteen valuation alerts include three stale/incomplete observations. Twelve have validated recovery revisions and eleven have independent supporting recovery evidence. Separate current defaults from performing collateral reviews. A stale valuation batch or duplicated recovery costs can imitate a loss increase. Validate evidence before changing LGD.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 12 customers in the reference fixture. Snapshot CPRA-C06-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Show borrower scores and PD as controls. Has default propensity deteriorated enough to explain the ECL movement?
+Expected response: Keep the S1 set of 12 IDs fixed. The demonstration behavioral-score change is 3 adverse points, while their original application values do not change. The pocket’s original internal score is around 666; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 12 customers in the reference fixture. Snapshot CPRA-C06-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Hold PD/exposure fixed and decompose collateral value, costs and recovery-delay effects. Are any recovery costs or discounts counted twice?
+Expected response: PD barely moves from 5.0% to 5.1% and the behavioral score changes only three points. Expected net proceeds fall from SAR 56,000 to SAR 37,000 while recovery time doubles. The serious issue is loss severity, not manufactured borrower-risk deterioration.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 11 customers in the reference fixture. Snapshot CPRA-C06-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Compare recovery outcomes by vehicle age, mileage, condition and recovery channel using matched realized cohorts.
+Expected response: The named pocket contains 30 of 100 eligible observations (30%) and 12 of 15 issue cases (80.0%). Its issue incidence is 40.0%, versus 4.3% outside, a 9.33× rate ratio. Narrow the corroborated list to 11 policy-review customers. Do not claim a Saudi used-car market crash or name a real dealer. Analyze the evidenced asset/recovery intersection, not a protected customer characteristic.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 11 customers in the reference fixture. Snapshot CPRA-C06-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Recovery/model owners validate updated net proceeds and independent valuations, including costs and timing. 2. Update LGD only through model/finance governance; prioritize lawful efficient recovery handling rather than unapproved repossession. 3. NEW used-vehicle lending: test LTV 80%→70% for the evidenced pocket subject to commercial/affordability review. Track realized recovery and vendor performance. Hold PD constant; simulate validated recovery values and timing. Honest provisioning can rise. EWS may be a contextual operational/recovery warning, not a calibrated default probability.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 11 customers in the reference fixture. Snapshot CPRA-C06-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: A stale valuation batch or duplicated recovery costs can imitate a loss increase. Validate evidence before changing LGD.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C07 | Self-construction cash-flow strain
+Card: Verified >90-day delay with low buffer share • HIGH • HOME_FINANCE
+Pocket: DEMO Housing Project C / delayed milestone / rent-finance overlap
+Policy context: DEMO-HOME-07 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R05,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Self-construction cash-flow strain: 13 of 100 eligible observations meet the issue rule, versus 3 of 100 in the comparator (4.33×; +10.0 percentage points). Affected gross exposure is SAR 10,330,483. For the same current issue customers, published synthetic ECL moves from SAR 35,768 to SAR 485,704. Comparable forward PD rises from 1.8% to 7.5% on 13 non-impaired issue customers. Behavioral score moves from 708.8 to 588.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Split construction stages and delay bands, then distinguish households paying rent alongside finance from those without overlap.
+Expected response: Thirteen alerts include two requiring additional milestone evidence. Eleven have verified delays and ten show corresponding budget strain. Compare planned and actual milestones, permitted extensions and disbursement status. Construction delay alone is not household distress. Confirm the overlap expense and depleted resources before a credit conclusion.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 11 customers in the reference fixture. Snapshot CPRA-C07-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Compare original underwriting with current household liquidity and behavioral scores. Was the risk weak at inception or did cash flow change?
+Expected response: Keep the S1 set of 11 IDs fixed. The demonstration behavioral-score change is 120 adverse points, while their original application values do not change. The pocket’s original internal score is around 702; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 11 customers in the reference fixture. Snapshot CPRA-C07-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Trace milestone delays, rent-finance overlap and cash-buffer decline in time. Exclude rate repricing where the contract is fixed.
+Expected response: The demonstrated delay grows from 20 to 125 days and housing outgoings rise from 33% to 57% of verified income. Project progress is supporting evidence, not automatically a model feature. The original application score was sound.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 10 customers in the reference fixture. Snapshot CPRA-C07-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Which project, construction stage and overlap-expense intersection drives the normalized stress and exposure?
+Expected response: The named pocket contains 20 of 100 eligible observations (20%) and 11 of 13 issue cases (84.6%). Its issue incidence is 55.0%, versus 2.5% outside, a 22.00× rate ratio. Narrow the corroborated list to 10 policy-review customers. Use a fictitious project and matched non-delayed developments. Region is context, not a reason to classify all city residents as risky.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 10 customers in the reference fixture. Snapshot CPRA-C07-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Obtain authorized surveyor/progress evidence and reconcile the contractual undrawn commitment and permitted milestones. 2. Assess individual sustainable support and resolve administrative delays; any draw suspension requires contractual and legal justification. 3. For NEW cases, review contingency buffers and monitoring around the demonstrated stage. Track completion dates, overlap costs and customer outcomes. Simulate actual draw timing and permitted payment accommodation. Preserve committed-but-undrawn exposure and contractual obligations.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 10 customers in the reference fixture. Snapshot CPRA-C07-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: Construction delay alone is not household distress. Confirm the overlap expense and depleted resources before a credit conclusion.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C08 | Housing-support reconciliation gaps
+Card: Unmatched expected support-payment share • HIGH • HOME_FINANCE
+Pocket: Repeated unresolved support posting / low own-cash buffer
+Policy context: DEMO-SUPPORT-08 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R02,R03,R05,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Housing-support reconciliation gaps: 12 of 100 eligible observations meet the issue rule, versus 2 of 100 in the comparator (6.00×; +10.0 percentage points). Affected gross exposure is SAR 8,709,862. For the same current issue customers, published synthetic ECL moves from SAR 29,869 to SAR 218,435. Comparable forward PD rises from 2.0% to 5.5% on 12 non-impaired issue customers. Behavioral score moves from 704.2 to 654.2; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Separate eligibility changes, payable-but-unmatched support, settlement delay and unverified claims; compare one-cycle and repeated gaps.
+Expected response: Twelve mismatches include two single-cycle or documentary exceptions. Ten recur over two cycles; eight also show verified low household buffers. Do not equate all posting exceptions with credit weakness. This can be a bank reconciliation fault. Do not claim the programme has withdrawn support or penalize customers for a posting error.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 10 customers in the reference fixture. Snapshot CPRA-C08-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Compare customer-funded payments and behavioral scores before and after the gap; separate technical-only from financially stressed customers.
+Expected response: Keep the S1 set of 10 IDs fixed. The demonstration behavioral-score change is 50 adverse points, while their original application values do not change. The pocket’s original internal score is around 700; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 10 customers in the reference fixture. Snapshot CPRA-C08-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Reconcile expected support, actual credits and the household-funded shortfall before attributing score deterioration.
+Expected response: Expected support is absent in the demonstration’s unresolved repeated-gap pocket, while own-cash buffers decline from 1.5 to 0.4 months. Remedy the verified operating problem first; the credit action cohort includes only corroborated household stress.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 8 customers in the reference fixture. Snapshot CPRA-C08-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Which reconciliation failure code and verified support arrangement concentrates the unresolved amount and household strain?
+Expected response: The named pocket contains 20 of 100 eligible observations (20%) and 10 of 12 issue cases (83.3%). Its issue incidence is 50.0%, versus 2.5% outside, a 20.00× rate ratio. Narrow the corroborated list to 8 policy-review customers. Trace contract, eligibility, support ledger and customer account with the same facility ID; no inference about an actual government programme’s reliability.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 8 customers in the reference fixture. Snapshot CPRA-C08-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Operations owns prompt reconciliation of verified payable exceptions and customer communication, with a dated resolution target. 2. Correct erroneous customer treatment under approved bank policy; assess sustainable temporary support for genuinely stressed households. 3. Credit and compliance review repeated gaps only after eligibility/funding evidence. No automatic adverse bureau report or blanket limit cut based on a missing posting. Compare support restored versus delayed only where eligibility is verified. Separate operating correction from modeled credit-risk change; PD does not become zero.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 8 customers in the reference fixture. Snapshot CPRA-C08-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: This can be a bank reconciliation fault. Do not claim the programme has withdrawn support or penalize customers for a posting error.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C09 | Salary-to-pension affordability
+Card: Verified pension affordability-gap share • HIGH • PERSONAL_FINANCE
+Pocket: Documented pension transition / unchanged scheduled payment
+Policy context: DEMO-RETIRE-09 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R02,R03,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Salary-to-pension affordability: 15 of 100 eligible observations meet the issue rule, versus 3 of 100 in the comparator (5.00×; +12.0 percentage points). Affected gross exposure is SAR 2,295,469. For the same current issue customers, published synthetic ECL moves from SAR 34,146 to SAR 264,800. Comparable forward PD rises from 2.5% to 9.5% on 15 non-impaired issue customers. Behavioral score moves from 678.8 to 538.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Show the verified transition-date ladder and pension projections; separate contracts with an affordable step-down from unchanged payments.
+Expected response: Fifteen potential gaps include two unverified pension projections. Thirteen have documented amounts; eleven also lack an adequate contractual step-down or alternative verified resources. Age is not the mechanism. Verify the actual pension amount, other income and existing payment-step-down provisions first.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 13 customers in the reference fixture. Snapshot CPRA-C09-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Inspect the original salary/pension affordability assumptions and the new documented income, not age as a stand-alone risk proxy.
+Expected response: Keep the S1 set of 13 IDs fixed. The demonstration behavioral-score change is 140 adverse points, while their original application values do not change. The pocket’s original internal score is around 687; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 13 customers in the reference fixture. Snapshot CPRA-C09-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Decompose the changed repayment capacity into verified pension, other income, obligations and contract step-down. Which changes are compulsory versus voluntary?
+Expected response: Recurring income changes from SAR 12,000 to SAR 7,600 while the scheduled SAR 3,600 payment is unchanged: about 47.4% of income. Apply the specific pension and affordability rules; do not characterize all pensioners as high risk.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 11 customers in the reference fixture. Snapshot CPRA-C09-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Compare documented transition cohorts by payment profile and replacement-income ratio, excluding already-affordable adjusted contracts.
+Expected response: The named pocket contains 25 of 100 eligible observations (25%) and 12 of 15 issue cases (80.0%). Its issue incidence is 48.0%, versus 4.0% outside, a 12.00× rate ratio. Narrow the corroborated list to 11 policy-review customers. The actionable pocket is a verified cash-flow mismatch, not a demographic label. Keep the policy’s effective dates and contractual rights visible.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 11 customers in the reference fixture. Snapshot CPRA-C09-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Servicing validates the documented transition and any contractual step-down before the first pension payment cycle. 2. Assess the applicable changed-circumstances and affordability rules; offer permitted sustainable arrangements with required customer choice/consent. 3. NEW lending must assess documented transition cash flows across the term, not current salary alone. Track the first pension payment cycles and arrangement sustainability. Rebuild permitted installment/tenor schedules using documented pension income. Include modification accounting and duration effects; no automatic cure assumption.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 11 customers in the reference fixture. Snapshot CPRA-C09-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: Age is not the mechanism. Verify the actual pension amount, other income and existing payment-step-down provisions first.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+C10 | Restructure redefault and cure governance
+Card: Six-month post-restructure redefault rate • CRITICAL • PERSONAL_FINANCE
+Pocket: Payment-holiday expiry / unsupported sustainable-cure decision
+Policy context: DEMO-CURE-10 v1, clauses 1.1 / 2.1 / 3.1; DEMO_DRAFT only. Public research: R01,R03,R07. Synthetic evidence: SYN.
+S0 — Open the card; no question required
+Restructure redefault and cure governance: 17 of 100 eligible observations meet the issue rule, versus 5 of 100 in the comparator (3.40×; +12.0 percentage points). Affected gross exposure is SAR 2,118,981. For the same current issue customers, published synthetic ECL moves from SAR 219,503 to SAR 1,531,407. All issue customers are already credit-impaired: a forward PD comparison for that issue cohort is not applicable; show stage/default and recovery instead. Behavioral score moves from 649.1 to 519.1; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+Drawer charts: Six-window issue trend, comparator table, scores/PD with declared coverage, stage/ECL change and cohort counts. Retain the entire context at the top of the investigation.
+S1 — Break the issue apart
+Preconfigured prompt: Match restructures at six months of observation, then split redefaults by payment holiday, installment relief and cure evidence.
+Expected response: Seventeen redefaults out of 100 mature arrangements compare with five in the reference window. Fourteen follow the payment-holiday strategy; twelve lack credible sustained-affordability evidence. Exclude immature arrangements. Different observation windows or prematurely changed stage labels can distort the result. Validate actual cash payments and maturity first.
+Visual: Disaggregation table + comparable trend or maturity ladder.
+Current export scope: Detailed evidence subgroup; 14 customers in the reference fixture. Snapshot CPRA-C10-S1-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S2 — Connect customer characteristics
+Preconfigured prompt: Compare original underwriting, restructure-time affordability and subsequent behavior. What evidence justified the cure or stage decision?
+Expected response: Keep the S1 set of 14 IDs fixed. The demonstration behavioral-score change is 130 adverse points, while their original application values do not change. The pocket’s original internal score is around 672; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+Visual: Matched score distribution + transition/trajectory chart.
+Current export scope: Same S1 IDs; historical match; 14 customers in the reference fixture. Snapshot CPRA-C10-S2-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S3 — Challenge and decompose
+Preconfigured prompt: Trace holiday expiry, residual budgets and broken commitments before redefault; evaluate the cure decision against the policy then in force.
+Expected response: Only one of three scheduled payments is met and residual funds fall from SAR 1,700 to SAR 150 in the demonstrated pocket. A restructure is not automatically a cure. The bank’s observation/cure rules apply; no universal IFRS9 three-payment probation is invented.
+Visual: Variable point waterfall / ECL driver bridge + feature timelines.
+Current export scope: Corroborated evidence subgroup; 12 customers in the reference fixture. Snapshot CPRA-C10-S3-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S4 — Locate the responsible pocket
+Preconfigured prompt: Which restructure strategy and approval exception produces excess redefault after matching distressed vintages and initial severity?
+Expected response: The named pocket contains 25 of 100 eligible observations (25%) and 14 of 17 issue cases (82.4%). Its issue incidence is 56.0%, versus 4.0% outside, a 14.00× rate ratio. Narrow the corroborated list to 12 policy-review customers. Use documented sustainability and strategy rather than forcing a subproduct story. Current defaults must remain distinct from still-performing forward risk.
+Visual: Normalized pocket incidence + within-pocket score/feature bands.
+Current export scope: Corroborated AND named pocket; 12 customers in the reference fixture. Snapshot CPRA-C10-S4-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+S5 — Sequence policy actions
+Preconfigured prompt: What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+Expected response: 1. Credit/finance owners review cure and stage decisions, preserving the historical audit trail and assessing necessary corrections. 2. Consider sustainable individual arrangements and hardship treatment; do not grant another top-up merely to erase arrears. 3. Policy committee reviews cure evidence and monitoring requirements. Track sustained contractual performance and redefault; any allowance correction may increase ECL. Compare current booked allowance with policy-compliant staging/cash-flow corrections and sustainable arrangements. Show provisioning uplift honestly; never force every action to reduce loss.
+Visual: Policy action table + scenario inputs and tradeoffs.
+Current export scope: Same S4 policy-review scope; 12 customers in the reference fixture. Snapshot CPRA-C10-S5-20260831-v1. All selected IDs must exist in EWS, Borrower 360 and What-If at the same date/version.
+Critical countercheck: Different observation windows or prematurely changed stage labels can distort the result. Validate actual cash payments and maturity first.
+Do not stop at narrative: Every figure in the actual product comes from the active source snapshot, not a hardcoded response matching one exact prompt. Include traceable evidence and the same reusable export controls at every step.
+
+
+7. Implement in this exact dependency order
+Work in phases with code/data/test checkpoints. Record a concise phase report, then proceed. Do not repeatedly ask the user to run individual setup commands when the execution environment has the required local access. Do not claim local changes when working remotely. A genuinely inaccessible approved policy/baseline or destructive choice is a real blocker; a long-standing regression is an item to compare and report, not permission to ignore new defects.
+P0 | Baseline audit and isolation
+Depends on: None
+Read this prompt, every workbook sheet and the latest supplied branch report. Verify the actual full SHA of the accepted ANB branch and the locally running version separately. Protect the original frozen build and the ANB/Planner worktrees. Record dirty/untracked state; do not discard it. Create a separate implementation branch/worktree and database from the verified latest accepted ANB version, not blindly from c0db151f, old local 59e5a301 or the Planner branch.
+Exit gate: Deliver baseline manifest: SHA, catalogue/bundle hashes, migrations, existing screens, route map, launcher ownership, port checks and same-environment test baseline. Stop only for genuinely destructive or unresolved baseline decisions.
+P1 | Identity, metric and cohort contracts
+Depends on: P0
+Implement canonical product/subproduct/customer/facility/employer identities and immutable origination records. Define metric grains, outcome windows, PD horizons, current-bad and forward-risk meanings. Persist authorization-scoped CohortSnapshot objects with exact IDs and period/version hashes.
+Exit gate: Contract tests must pass before new story adapters: unique facility-month; EWS grain-safe joins; immutable application features; ID/period coverage; unambiguous denominator and missing-data states.
+P2 | Ten coherent synthetic episodes
+Depends on: P1
+Extend the existing generator with all ten cases and credible controls. Use the worked workbook as a miniature engineering fixture, not literal bank population statistics. Preserve the accepted Alpha calibration and existing gates. Create temporal evidence and mature-vintage comparators without future leakage; use fictitious employer/project labels and clearly draft policy clauses.
+Exit gate: Deterministic seed/bundle and all ten severity/concentration gates. No chart-only or narrative-only manipulation; no protected-characteristic penalty. Production-sized demo populations must support the rates displayed.
+P3 | Atomic Cockpit/EWS publication
+Depends on: P2
+Generate the financial book, EWS panel/score, governed views and evidence domains from the same source version. Validate a staged bundle, then publish catalogue and manifest atomically. Preserve the five existing dataset registrations; add new domains without overwriting old registrations.
+Exit gate: Every pocket including Alpha exists in both Cockpit and EWS at the same date. Failure midway leaves the last complete bundle usable. Fail on stale cross-domain hashes rather than silently joining them.
+P4 | Ten evidence-driven cards and drawers
+Depends on: P3
+Generalize the existing Risk Case contract and add ten story adapters; do not hardcode ten static text cards. Preserve the layout and add rich drawer panels. Use real severity arithmetic and deduplicate repeated instances of the same occurrence. Make all ten discoverable through the current list/scroll/Show all pattern.
+Exit gate: Each drawer shows root/affected scope, current/comparator measures, PD and score coverage, stage/ECL changes, chart data and sources. No 1–29 default label, no rate hidden by the 0-DPD scale.
+P5 | Stateful investigation threads
+Depends on: P4
+Carry the complete drawer snapshot into S0 at the thread top. Add five case-specific prompt chips above the composer, a recommended next question and visited markers. Allow paraphrases, counterarguments and free-form follow-ups. Add Export customers to Borrower 360 next to Trace/Save at S0 and every completed step.
+Exit gate: Fifty planned questions and variations run in real threads. Save/reload/back/export retain exact step scope. Missing evidence is explicit; no silently substituted cohort or provider/model marketing strings.
+P6 | Versioned policy action engine
+Depends on: P3,P5
+Retrieve effective-dated bank clauses and validate actions against structured rules. Every action has evidence, owner, order, deadline, scope, approval and customer safeguards. In absence of approved bank policy use the clearly marked DEMO_DRAFT templates; never describe them as ANB policy.
+Exit gate: No irreversible action execution. Existing balances and contractual limits are not silently mutated. Missing/outdated policy blocks compliance claims and execution but not exploratory analysis.
+P7 | Borrower 360 investigation workspace
+Depends on: P5
+Add imported-cohort mode with a full customer list and facility expansion, EWS histories/reasons, score and IFRS9 detail and exact issue. Add selection, notes, Save investigation and recent cards below the chatbox. Standard standalone Borrower 360 remains unchanged outside exported/saved context.
+Exit gate: Reopening restores the saved immutable snapshot and notes. Refresh-to-latest creates a new version. Permissions are rechecked at export/reopen; multi-facility and overlapping-case cohorts do not double-count.
+P8 | Stage-aware Excel evidence exports
+Depends on: P5,P7
+Implement one generic XLSX export service from persisted step snapshots. Export selected or all-matched rows across pagination, their facilities and all completed diagnosis up to that step, ECL detail, EWS history, charts/data, policy references and notes.
+Exit gate: Test all 60 S0–S5 exports, file integrity, typed values, counts/totals, no future-step leakage, no formula injection or unauthorized fields. Queue large exports; never truncate at a hidden 50,000-row cap.
+P9 | Borrower 360 to What-If
+Depends on: P7,P8
+Export explicit selected customers and included facilities with source bundle/hash. Present the unchanged baseline before a scenario. Use the governed ECL engine and separate what-if parameters, with existing-limit/new-business, recovery, subsidy, rescheduling and stage-correction scenarios handled distinctly.
+Exit gate: IDs, EAD, stage totals and ECL reconcile to the selected 360 scope. Scenarios never overwrite published actuals. Unsupported simulations are labeled unavailable, not replaced with a crude universal percentage.
+P10 | Real-browser, data and regression verification
+Depends on: P4–P9
+Run each entire case with fresh threads and test every handoff, all six export stages, role changes, reload, stale bundles and start-stop-start. Include overlapping cases and multi-facility customers even though this compact workbook is disjoint. Compare failures against the exact audited baseline and same data.
+Exit gate: Provide screenshots plus machine assertions for all ten stories. Known reported failures are not new regressions or a green suite; prove attribution. No unexplained new failures and no untested UI claims.
+P11 | Freeze and handoff
+Depends on: P10
+Record final source SHA, model/policy/data manifests, migrations and demo login details from the seeder. Update runbook and phased status file. Create a dedicated local launcher only where actual Mac access exists; remote Claude Code must supply the setup artifact, not claim it changed the Mac.
+Exit gate: Launcher loads its own environment, verifies prerequisites and database, refuses occupied/unowned ports, waits on real health endpoints, opens the correct URL and passes stopped→start→stop→start. Never modify another demo or merge main without authorization.
+7.1 Final result to hand back
+Provide the complete new source SHA, ancestry, database/worktree/port isolation, model/policy/data bundle manifests, migration instructions, exact local launcher paths where actually created, logs, validated credentials from the seeded demo, all ten demo questions and a row-by-row acceptance report. List failures, partial coverage and unavailable simulations honestly. Do not call the suite green because only the ANB-specific subset passes.
+A dedicated launcher must load the correct environment automatically, verify Python/frontend dependencies and isolated DB, refuse ports owned by others, wait on the actual health endpoints and open the correct version. It must not automatically stop the old ANB, Planner or frozen demo. Pin source and data versions and test start-stop-start using only that launcher; check process ownership before stopping anything. Do not invent a completion claim from a screenshot saying Starting backend.
+8. Acceptance and traceability
+The workbook contains 60 case-step acceptance rows plus 30 cross-cutting checks. They are labeled NOT RUN IN APP because this package is a specification and fixture, not installed software. Execute each test against the implemented SHA and record the evidence. At minimum, demonstrate every planned prompt and a paraphrase, export each step, save/reopen each story, and test the selected-scope What-If baseline.
+User requirement
+ | Where to verify
+ |
+1. Rich drawer with PD, scores, ECL
+ | U02; all case sheets; phases P1,P4
+ |
+2. Logical next prompts above chatbox
+ | U03–U05; 50 step records; phases P5
+ |
+3. Behavior/application feature diagnosis
+ | C01–C10; Score/Proof; phases P1,P2,P5
+ |
+4. Different Saudi-relevant pockets
+ | Ten independent cases and source register; phases P2,P4
+ |
+5. Sequenced bank-policy actions
+ | Policy_Actions and approval gates; phases P6
+ |
+6. At least ten complete attention cards
+ | Card count + end-to-end browser gates; phases P4,P10
+ |
+7. Cockpit/EWS segment parity
+ | Shared bundle, IDs, product mapping; phases P1,P3
+ |
+8. Export 360, EWS, notes and recent cards
+ | U05–U08; persisted snapshots; phases P7,P8
+ |
+9. 360 selection to What-If
+ | U09; exact ECL baseline; phases P9
+ |
+10. Full stage-specific workbook export
+ | Export_Contract; 60 export tests; phases P8
+ |
+11. Worked Excel examples
+ | Ten case sheets + complete synthetic fixture; phases P2
+ |
+12. Explicit UI/data/phase implementation
+ | UI_Contract, Data_Contract and Tests; phases P0–P11
+ |
+8.1 Additional release blockers
+Any missing Alpha/other pocket in EWS; a changed cohort on export; duplicate customer/facility aggregation; a stale bundle or incorrect period; fake zero for missing risk; an original score rewritten over time; unsupported causality/policy certainty; an unvisited future conclusion in Excel; a page-limited or capped export labeled complete; unauthorized note/PII disclosure; an existing limit cut that deletes drawn debt; ECL baseline mismatch; or a launcher affecting another version blocks acceptance.
+Include explicit negative-control tests. In C06 the borrower score and PD are nearly stable and the diagnosis must stay recovery-led. In C08 a posting exception must first lead to reconciliation, not automatic adverse credit treatment. In C09 documented pension cash flow, not age alone, defines the pocket. In C02 and C10 defaulted issue customers are not misrepresented as still-performing future defaults.
+Record performance rather than inventing a one-second promise: first and repeat response time, export latency, representative full-book row counts and longest query. Use lazy rendering and server-side aggregates for the full book without weakening population-completeness checks. Test a cohort beyond previous caps and retain a correct full export or a clear failure.
+8.2 Research register and provenance
+Primary sources establish Saudi-market structures, responsible-lending/collections context and financial/privacy safeguards. They do not prove that the invented scenarios occurred at ANB. Product pages are context, not authority to recommend a specific customer action. At implementation, revalidate commercial terms, consolidated rules and bank-approved internal clauses. URLs are included in the workbook Sources sheet for review; no customer information is derived from public pages.
+R01 — SAMA | Responsible Lending Principles for Individual Customers
+2018 consolidated rules; accessed 17 Sep 2026. Documented underwriting, credit-history verification, disposable-income assessment and treatment of uneven installments. Public rules do not establish actual bank portfolio deterioration.
+https://rulebook.sama.gov.sa/en/responsible-lending-principles-individual-customers-0
+R02 — SAMA | Chapter IV: Quantitative Principles of Responsible Lending
+Accessed 17 Sep 2026. Affordability limits depend on income, salary/pension, obligation type and supported-housing status. Never apply one universal debt-burden threshold to every customer.
+https://rulebook.sama.gov.sa/en/chapter-iv-quantitative-principles-responsible-lending
+R03 — SAMA | Debt Collection Regulations and Procedures
+In-force March 2025 rules; accessed 17 Sep 2026. Articles 4, 7–10 cover confidential contact, payment-date alignment, deductions and responses to changed circumstances. The operational definition of default here is not automatically the IFRS9/model definition.
+https://rulebook.sama.gov.sa/en/debt-collection-regulations-and-procedures
+R04 — Arab National Bank | Auto Lease product information
+Public product context; terms must be revalidated at implementation. Final-payment and used-vehicle structures provide context for maturity and recovery cases. Refinancing availability is not a promise of approval. No ANB loss or default figures are asserted.
+https://anb.com.sa/web/anb/auto-lease
+R05 — Arab National Bank | Real Estate Finance product information
+Public product context; page availability/terms must be revalidated. Self-construction, housing-support and repayment-structure context. Synthetic delays and support mismatches below are invented; do not infer a real developer or support programme failure.
+https://anb.com.sa/web/anb/real-estate
+R06 — SAMA | Rules for Regulating Buy-Now-Pay-Later Companies
+Consolidated rules; accessed 17 Sep 2026. Credit-record and repayment-capacity requirements inform external-obligation verification. Actual bureau coverage, consent and reporting lag must be checked. Do not hard-code an obsolete BNPL cap.
+https://rulebook.sama.gov.sa/en/rules-regulating-buy-now-pay-later-bnpl-companies-0
+R07 — IFRS Foundation | IFRS 9 Financial Instruments / impairment background
+Accessed 17 Sep 2026. Probability-weighted, time-sensitive impairment measurement and distinction between 12-month and lifetime losses. The teaching calculation in this workbook is not an approved bank methodology.
+https://www.ifrs.org/issued-standards/list-of-standards/ifrs-9-financial-instruments/
+R08 — SDAIA | Personal Data Protection knowledge centre
+Accessed 17 Sep 2026. Privacy context for purpose-limited customer investigations, controlled exports and retention. Bank legal/compliance must specify the lawful basis and concrete retention/transfer rules.
+https://dgp.sdaia.gov.sa/wps/portal/pdp/knowledgecenter
+P01 — User attachment | Latest ANB branch calibration and regression report
+Report supplied in this conversation. Reports 12 commits, 40/40 ANB gates, 4.01x 20–29 DPD baseline multiple and 20 attributed pre-existing retail failures. Reproduce the audit at the actual full SHA; this is a report, not independently verified local state.
+User attachment: Pasted markdown.md
+SYN — This implementation package | Synthetic worked fixture / draft bank-policy templates
+As-of 31 Aug 2026. All people, employers, projects, rates, balances, internal scores, policies and thresholds in the worked cases are invented. Nothing represents ANB customer data, actual distress or bank-approved policy.
+Source: CP-RA-V2-2026-08 synthetic generation
+Execution instruction
+Proceed from P0 now. Preserve the accepted demo, implement the shared contracts before new stories, and do not stop at a report that the code compiles. Completion means ten reproducible, evidence-backed card → thread → Borrower 360 → saved/exported customer list → What-If journeys, with the specified UI, exact cohort continuity and honest policy/model limitations.

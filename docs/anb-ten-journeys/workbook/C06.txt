@@ -1,0 +1,122 @@
+C06 | Used-auto recovery deterioration
+
+
+SYNTHETIC ADVERSE FIXTURE • AUTO_FINANCE • HIGH • Vehicle age >5 years / mileage >150,000 km / weak recovery channel
+
+
+Drawer measure |  |  |  | Comparator |  | Current |  | Meaning / date
+Issue count |  |  |  | 4 |  | 15 |  | Out of 100; case-specific grain
+PD12, non-impaired |  |  |  | 0.049999999999999996 |  | 0.05100000000000001 |  | Matched eligible issue cohort; Jul→Aug
+Behavioral score |  |  |  | 673.8 |  | 670.8 |  | Same current issue cohort; Mar→Aug
+Original application score |  |  |  | 669.6 |  | 669.6 |  | Fixed origination value, not rescored
+Affected ECL (SAR) |  |  |  | 95493.55367541156 |  | 164741.9179990645 |  | Same current issue IDs; Jul→Aug
+Affected GCA (SAR) |  |  |  | 1156350 |  | 1139004.75 |  | Same issue IDs; Jul→Aug
+LGD |  |  |  | 0.29999999999999993 |  | 0.5 |  | Conditional model assumption; Jul→Aug
+ODR / redefault |  |  |  | Not used |  | 0 |  | New impaired this month / prior non-impaired
+Forward-risk customers |  |  |  | Not used |  | 12 |  | High/Critical and not current bad
+
+Expected net collateral proceeds: 56,000 → 37,000 (SAR). Expected recovery delay: 6 → 12 (months). Feature reference Mar 2026; current Aug. Synthetic inputs.
+
+
+
+Window | Eligible | Events | Rate |  |  | Population | Eligible | Issue | Incidence
+Mar | 100 | 3 | 0.03 |  |  | Pocket | 30 | 12 | 0.4
+Apr | 100 | 4 | 0.04 |  |  | Other | 70 | 3 | 0.04285714285714286
+May | 100 | 4 | 0.04
+Jun | 100 | 3 | 0.03 |  |  | Month | Behavior
+Jul | 100 | 4 | 0.04 |  |  | Mar | 674.455
+Aug | 100 | 15 | 0.15 |  |  | Apr | 674.095
+ |  |  |  |  |  | May | 673.615
+ |  |  |  |  |  | Jun | 673.015
+ |  |  |  |  |  | Jul | 672.295
+ |  |  |  |  |  | Aug | 671.455
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ |  |  |  |  |  | Driver | Point effect | Type | Source
+ |  |  |  |  |  | Utilization behavior | 0 | Behavior | SYN
+ |  |  |  |  |  | Repayment behavior | -2 | Behavior | SYN
+ |  |  |  |  |  | Arrears input | 0 | Behavior | SYN
+ |  |  |  |  |  | Other model inputs | -1 | Behavior | SYN
+
+
+ |  |  |  |  |  | Alternative explanation: A stale valuation batch or duplicated recovery costs can imitate a loss increase. Validate evidence before changing LGD.
+
+These charts illustrate the reference fixture. The live thread must compute every answer/chart from its active snapshot and must expose model/coverage limitations.
+
+
+
+
+
+
+
+
+
+S0 | DRAWER / THREAD CONTEXT
+Used-auto recovery deterioration: 15 of 100 eligible observations meet the issue rule, versus 4 of 100 in the comparator (3.75×; +11.0 percentage points). Affected gross exposure is SAR 1,139,005. For the same current issue customers, published synthetic ECL moves from SAR 95,494 to SAR 164,742. Comparable PD is almost stable at 5.0%→5.1%; do not portray an unchanged borrower profile as a score-driven default shock. Behavioral score moves from 673.8 to 670.8; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+
+VISUAL + EXPORT CONTRACT
+Issue trend + score and ECL panels. Scope: Current issue predicate; 15 current matched customers. Export to Borrower 360 uses CPRA-C06-S0-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S1 | TYPE / CLICK PROMPT
+Reconcile ECL change into PD, LGD, EAD, stage, recovery timing and interaction effects. Which component is actually material?
+
+EXPECTED CREDITPROBE RESPONSE
+Fifteen valuation alerts include three stale/incomplete observations. Twelve have validated recovery revisions and eleven have independent supporting recovery evidence. Separate current defaults from performing collateral reviews. A stale valuation batch or duplicated recovery costs can imitate a loss increase. Validate evidence before changing LGD.
+
+VISUAL + EXPORT CONTRACT
+Disaggregation table + comparable trend or maturity ladder. Scope: Detailed evidence subgroup; 12 current matched customers. Export to Borrower 360 uses CPRA-C06-S1-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S2 | TYPE / CLICK PROMPT
+Show borrower scores and PD as controls. Has default propensity deteriorated enough to explain the ECL movement?
+
+EXPECTED CREDITPROBE RESPONSE
+Keep the S1 set of 12 IDs fixed. The demonstration behavioral-score change is 3 adverse points, while their original application values do not change. The pocket’s original internal score is around 666; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+
+VISUAL + EXPORT CONTRACT
+Matched score distribution + transition/trajectory chart. Scope: Same S1 IDs; historical match; 12 current matched customers. Export to Borrower 360 uses CPRA-C06-S2-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S3 | TYPE / CLICK PROMPT
+Hold PD/exposure fixed and decompose collateral value, costs and recovery-delay effects. Are any recovery costs or discounts counted twice?
+
+EXPECTED CREDITPROBE RESPONSE
+PD barely moves from 5.0% to 5.1% and the behavioral score changes only three points. Expected net proceeds fall from SAR 56,000 to SAR 37,000 while recovery time doubles. The serious issue is loss severity, not manufactured borrower-risk deterioration.
+
+VISUAL + EXPORT CONTRACT
+Variable point waterfall / ECL driver bridge + feature timelines. Scope: Corroborated evidence subgroup; 11 current matched customers. Export to Borrower 360 uses CPRA-C06-S3-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S4 | TYPE / CLICK PROMPT
+Compare recovery outcomes by vehicle age, mileage, condition and recovery channel using matched realized cohorts.
+
+EXPECTED CREDITPROBE RESPONSE
+The named pocket contains 30 of 100 eligible observations (30%) and 12 of 15 issue cases (80.0%). Its issue incidence is 40.0%, versus 4.3% outside, a 9.33× rate ratio. Narrow the corroborated list to 11 policy-review customers. Do not claim a Saudi used-car market crash or name a real dealer. Analyze the evidenced asset/recovery intersection, not a protected customer characteristic.
+
+VISUAL + EXPORT CONTRACT
+Normalized pocket incidence + within-pocket score/feature bands. Scope: Corroborated AND named pocket; 11 current matched customers. Export to Borrower 360 uses CPRA-C06-S4-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S5 | TYPE / CLICK PROMPT
+What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+
+EXPECTED CREDITPROBE RESPONSE
+1. Recovery/model owners validate updated net proceeds and independent valuations, including costs and timing. 2. Update LGD only through model/finance governance; prioritize lawful efficient recovery handling rather than unapproved repossession. 3. NEW used-vehicle lending: test LTV 80%→70% for the evidenced pocket subject to commercial/affordability review. Track realized recovery and vendor performance. Hold PD constant; simulate validated recovery values and timing. Honest provisioning can rise. EWS may be a contextual operational/recovery warning, not a calibrated default probability.
+
+VISUAL + EXPORT CONTRACT
+Policy action table + scenario inputs and tradeoffs. Scope: Same S4 policy-review scope; 11 current matched customers. Export to Borrower 360 uses CPRA-C06-S5-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+POLICY / WHAT-IF / SOURCE
+DEMO-RECOVERY-06 v1 clauses 1.1, 2.1, 3.1 are DEMO_DRAFT, not ANB policy. Hold PD constant; simulate validated recovery values and timing. Honest provisioning can rise. EWS may be a contextual operational/recovery warning, not a calibrated default probability. Public context: R04,R07. Customer facts: SYN.

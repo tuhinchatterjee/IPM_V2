@@ -1,0 +1,122 @@
+C01 | Alpha Card early arrears
+
+
+SYNTHETIC ADVERSE FIXTURE • CREDIT_CARD • CRITICAL • Alpha Card / internal application band 580–619
+
+
+Drawer measure |  |  |  | Comparator |  | Current |  | Meaning / date
+Issue count |  |  |  | 6 |  | 15 |  | Out of 100; case-specific grain
+PD12, non-impaired |  |  |  | 0.03500000000000002 |  | 0.105 |  | Matched eligible issue cohort; Jul→Aug
+Behavioral score |  |  |  | 660 |  | 490 |  | Same current issue cohort; Mar→Aug
+Original application score |  |  |  | 615.4666666666667 |  | 615.4666666666667 |  | Fixed origination value, not rescored
+Affected ECL (SAR) |  |  |  | 7511.862949434746 |  | 42519.1470398415 |  | Same current issue IDs; Jul→Aug
+Affected GCA (SAR) |  |  |  | 301697.45 |  | 359462.4 |  | Same issue IDs; Jul→Aug
+LGD |  |  |  | 0.6799999999999998 |  | 0.6999999999999998 |  | Conditional model assumption; Jul→Aug
+ODR / redefault |  |  |  | Not used |  | 0 |  | New impaired this month / prior non-impaired
+Forward-risk customers |  |  |  | Not used |  | 15 |  | High/Critical and not current bad
+
+Utilization: 41.5% → 97.4% (ratio). Payment / statement balance: 28.0% → 5.5% (ratio). Feature reference Mar 2026; current Aug. Synthetic inputs.
+
+
+
+Window | Eligible | Events | Rate |  |  | Population | Eligible | Issue | Incidence
+Mar | 100 | 5 | 0.05 |  |  | Pocket | 28 | 13 | 0.4642857142857143
+Apr | 100 | 6 | 0.06 |  |  | Other | 72 | 2 | 0.027777777777777776
+May | 100 | 6 | 0.06
+Jun | 100 | 5 | 0.05 |  |  | Month | Behavior
+Jul | 100 | 6 | 0.06 |  |  | Mar | 659.455
+Aug | 100 | 15 | 0.15 |  |  | Apr | 639.055
+ |  |  |  |  |  | May | 611.855
+ |  |  |  |  |  | Jun | 577.855
+ |  |  |  |  |  | Jul | 537.055
+ |  |  |  |  |  | Aug | 489.455
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ |  |  |  |  |  | Driver | Point effect | Type | Source
+ |  |  |  |  |  | Utilization | -70 | Behavior | SYN
+ |  |  |  |  |  | Repayment proportion | -50 | Behavior | SYN
+ |  |  |  |  |  | Arrears input | -35 | Behavior | SYN
+ |  |  |  |  |  | Other model inputs | -15 | Behavior | SYN
+
+
+ |  |  |  |  |  | Alternative explanation: A shared statement cycle can concentrate DPD. It does not establish stress alone; corroborate funding and repayments before intervention.
+
+These charts illustrate the reference fixture. The live thread must compute every answer/chart from its active snapshot and must expose model/coverage limitations.
+
+
+
+
+
+
+
+
+
+S0 | DRAWER / THREAD CONTEXT
+Alpha Card early arrears: 15 of 100 eligible observations meet the issue rule, versus 6 of 100 in the comparator (2.50×; +9.0 percentage points). Affected gross exposure is SAR 359,462. For the same current issue customers, published synthetic ECL moves from SAR 7,512 to SAR 42,519. Comparable forward PD rises from 3.5% to 10.5% on 15 non-impaired issue customers. Behavioral score moves from 660.0 to 490.0; the original application score stays immutable. These are calibration fixtures, not bank performance estimates.
+
+VISUAL + EXPORT CONTRACT
+Issue trend + score and ECL panels. Scope: Current issue predicate; 15 current matched customers. Export to Borrower 360 uses CPRA-C01-S0-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S1 | TYPE / CLICK PROMPT
+Split 1–29 DPD into 1–9, 10–19 and 20–29 days and show the six-month trend. Is this merely short payment timing?
+
+EXPECTED CREDITPROBE RESPONSE
+1–9: 2 customers; 10–19: 1; 20–29: 12. The comparator has 2, 1 and 3 respectively. Deep early arrears therefore rise from 3 to 12 accounts: fourfold and 80% of current 1–29 cases. A shared statement cycle can concentrate DPD. It does not establish stress alone; corroborate funding and repayments before intervention.
+
+VISUAL + EXPORT CONTRACT
+Disaggregation table + comparable trend or maturity ladder. Scope: Detailed evidence subgroup; 12 current matched customers. Export to Borrower 360 uses CPRA-C01-S1-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S2 | TYPE / CLICK PROMPT
+How have the same 20–29 DPD customers’ behavioral scores changed? Keep their original application scores separate.
+
+EXPECTED CREDITPROBE RESPONSE
+Keep the S1 set of 12 IDs fixed. The demonstration behavioral-score change is 170 adverse points, while their original application values do not change. The pocket’s original internal score is around 604; compare its distribution with the matched controls near 690. Keep score model versions, cohort coverage and default status visible.
+
+VISUAL + EXPORT CONTRACT
+Matched score distribution + transition/trajectory chart. Scope: Same S1 IDs; historical match; 12 current matched customers. Export to Borrower 360 uses CPRA-C01-S2-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S3 | TYPE / CLICK PROMPT
+Could the score fall just be the DPD input? Decompose it by model variable and show which non-arrears changes preceded the missed payment.
+
+EXPECTED CREDITPROBE RESPONSE
+For corroborated accounts, utilization increases from 41.5% to 97.4% while repayment proportion falls from 28% to 5.5%. Utilization and repayments contribute 120 of 170 adverse score points. They are distinct from DPD, not proof of statistical independence or causation. Verify the pre-arrears time sequence.
+
+VISUAL + EXPORT CONTRACT
+Variable point waterfall / ECL driver bridge + feature timelines. Scope: Corroborated evidence subgroup; 11 current matched customers. Export to Borrower 360 uses CPRA-C01-S3-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S4 | TYPE / CLICK PROMPT
+Where is this stress concentrated by subproduct and original score band, after controlling for vintage and statement cycle?
+
+EXPECTED CREDITPROBE RESPONSE
+The named pocket contains 28 of 100 eligible observations (28%) and 13 of 15 issue cases (86.7%). Its issue incidence is 46.4%, versus 2.8% outside, a 16.71× rate ratio. Narrow the corroborated list to 11 policy-review customers. Use Alpha versus Standard/Premium and 580–589, 590–599, 600–619, 620+ internal bands. Show affected / eligible rates, not raw counts. These are internal demo scores, not a claimed SIMAH scale.
+
+VISUAL + EXPORT CONTRACT
+Normalized pocket incidence + within-pocket score/feature bands. Scope: Corroborated AND named pocket; 11 current matched customers. Export to Borrower 360 uses CPRA-C01-S4-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+S5 | TYPE / CLICK PROMPT
+What should we do next? Give a sequenced action plan linked to the applicable policy clauses.
+
+EXPECTED CREDITPROBE RESPONSE
+1. Existing accounts: within one business day assign confidential early-arrears contact, verify cash flow and pause discretionary limit increases only where policy/terms permit. 2. NEW originations: test 20,000→17,000 SAR at 600–619, 15,000→12,000 at 590–599 and 10,000→7,500 at 580–589. These are trial assumptions, not approved or optimized reductions. 3. Credit policy owner reviews the controlled expansion, not all cards. Approval is required; measure cure, 30+ roll rate and complaints after intervention. Existing drawn debt is unchanged by a limit cut. Recompute EAD = drawn + CCF × unused headroom. Separate NEW-book limit proposals from existing-account contractual changes; keep PD unchanged unless independently modeled.
+
+VISUAL + EXPORT CONTRACT
+Policy action table + scenario inputs and tradeoffs. Scope: Same S4 policy-review scope; 11 current matched customers. Export to Borrower 360 uses CPRA-C01-S5-20260831-v1. Exported Excel includes S0 through this visited step only, not later answers.
+
+POLICY / WHAT-IF / SOURCE
+DEMO-CC-01 v1 clauses 1.1, 2.1, 3.1 are DEMO_DRAFT, not ANB policy. Existing drawn debt is unchanged by a limit cut. Recompute EAD = drawn + CCF × unused headroom. Separate NEW-book limit proposals from existing-account contractual changes; keep PD unchanged unless independently modeled. Public context: R01,R03,R07. Customer facts: SYN.
