@@ -106,6 +106,11 @@ class RetailDemoConfig:
     #: a configuration without it generates the book exactly as it did before,
     #: which is what keeps this an addition rather than a fork.
     card_programmes: dict[str, Any] = field(default_factory=dict)
+    #: The nine additional demonstration episodes, C02-C10. Optional in the
+    #: same way and for the same reason: without it the book is generated
+    #: exactly as the accepted version generates it, so the Alpha calibration
+    #: cannot be disturbed by a configuration that is simply absent.
+    episodes: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
     # ---------------------------------------------------------------- chronology
@@ -214,6 +219,7 @@ def load_config(path: Path | None = None) -> RetailDemoConfig:
         ),
         ecl=raw["ecl"],
         card_programmes=dict(raw.get("card_programmes") or {}),
+        episodes=dict(raw.get("episodes") or {}),
         raw=raw,
     )
     cfg.validate()

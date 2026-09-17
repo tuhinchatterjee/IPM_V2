@@ -395,3 +395,153 @@ def config_version() -> str:
 def reset_cache() -> None:
     _config.cache_clear()
     all_episodes.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# The case predicates
+# ---------------------------------------------------------------------------
+#
+# What decides whether a facility is in a case's issue population, evaluated
+# over the PUBLISHED columns at the declared date. The generator decides who
+# the mechanism is applied to; these decide who the case is about, and the two
+# are deliberately not the same function. A facility the mechanism pressed but
+# that recovered is not a case, and a facility the mechanism never touched but
+# that meets the rule is.
+#
+# Every threshold is named and carried into the cohort snapshot's predicate
+# tree, so a reader can see in the drawer, in the breadcrumb and in the
+# exported workbook exactly what was counted.
+
+#: Two consecutive cycles, because one missing salary credit is an account
+#: switch or a holiday shift about as often as it is an interruption.
+PAYROLL_MISSING_CYCLES = 2
+#: Verified monthly commitments at or above half of verified income.
+OBLIGATIONS_TO_INCOME = 0.50
+#: Liquid coverage of a contractual final payment.
+BALLOON_COVERAGE = 0.25
+#: Expected net proceeds as a share of the valuation they were set from.
+NET_PROCEEDS_RATIO = 0.80
+#: A construction delay past the policy-defined tolerance, with a household
+#: that has less than a month of buffer behind it.
+MILESTONE_DELAY_DAYS = 90
+LOW_BUFFER_MONTHS = 1.0
+#: Two unresolved posting cycles, not one.
+SUPPORT_GAP_CYCLES = 2
+#: Total monthly credit obligations as a share of documented recurring
+#: income. Total rather than this facility's instalment: a customer with three
+#: commitments does not become affordable because each one is small, and the
+#: affordability rules the story cites are written against total debt service.
+PENSION_PAYMENT_TO_INCOME = 0.40
+#: And how much of the customer's verified income the documented pension
+#: actually replaces. Both clauses are needed: a high obligation ratio that was
+#: already there before the transition is not a transition story, and a low
+#: replacement with small commitments is affordable.
+PENSION_REPLACEMENT = 0.80
+#: The matured outcome window for the acquisition-quality vintage.
+MOB_WINDOW = 6
+
+_PREDICATES: dict[str, dict[str, Any]] = {
+    "C01": {"describes": "Alpha Card accounts 1-29 days past due",
+            "clauses": [("product_subsegment", "==", "ALPHA",
+                         "Alpha Card"),
+                        ("dpd_bucket", "==", "1-29",
+                         "1-29 days past due")]},
+    "C02": {"describes": (
+                "personal finance facilities in the matured month-on-book six "
+                "vintage whose first default fell inside that window"),
+            "clauses": [("vintage_cohort", "==", "CURRENT_MATURE_MOB6",
+                         "matured MOB6 vintage"),
+                        ("first_default_mob", "<=", MOB_WINDOW,
+                         f"first default by month-on-book {MOB_WINDOW}")]},
+    "C03": {"describes": "financed employees with a verified multi-cycle "
+                         "payroll interruption",
+            "clauses": [("episode_code", "==", "C03", "financed employees"),
+                        ("payroll_missing_cycles", ">=",
+                         PAYROLL_MISSING_CYCLES,
+                         f"{PAYROLL_MISSING_CYCLES} or more missing payroll "
+                         f"cycles")]},
+    "C04": {"describes": "top-up borrowers whose verified commitments reach "
+                         "half of verified income",
+            "clauses": [("episode_code", "==", "C04", "top-up borrowers"),
+                        ("verified_obligations_to_income", ">=",
+                         OBLIGATIONS_TO_INCOME,
+                         f"verified obligations at or above "
+                         f"{OBLIGATIONS_TO_INCOME:.0%} of income")]},
+    "C05": {"describes": "auto contracts whose final payment falls due inside "
+                         "the window with liquid coverage below a quarter",
+            "clauses": [("episode_code", "==", "C05",
+                         "balloon due within the window"),
+                        ("balloon_funding_coverage_ratio", "<",
+                         BALLOON_COVERAGE,
+                         f"verified coverage below {BALLOON_COVERAGE:.0%}")]},
+    "C06": {"describes": "used-vehicle contracts whose expected net proceeds "
+                         "have been revised down materially",
+            "clauses": [("episode_code", "==", "C06", "used-vehicle book"),
+                        ("net_proceeds_ratio", "<=", NET_PROCEEDS_RATIO,
+                         f"expected net proceeds at or below "
+                         f"{NET_PROCEEDS_RATIO:.0%} of the valuation they "
+                         f"were set from")]},
+    "C07": {"describes": "self-construction households past the delay "
+                         "tolerance with less than a month of buffer",
+            "clauses": [("episode_code", "==", "C07",
+                         "self-construction book"),
+                        ("milestone_delay_days", ">", MILESTONE_DELAY_DAYS,
+                         f"milestone delay beyond {MILESTONE_DELAY_DAYS} "
+                         f"days"),
+                        ("balance_buffer_months", "<", LOW_BUFFER_MONTHS,
+                         f"under {LOW_BUFFER_MONTHS:g} month of buffer")]},
+    "C08": {"describes": "supported mortgages whose expected support has not "
+                         "posted for two cycles",
+            "clauses": [("episode_code", "==", "C08", "supported mortgages"),
+                        ("support_gap_cycles", ">=", SUPPORT_GAP_CYCLES,
+                         f"{SUPPORT_GAP_CYCLES} or more unresolved cycles")]},
+    "C09": {"describes": "documented pension transitions whose scheduled "
+                         "payment takes two fifths of recurring income",
+            "clauses": [("pension_transition_state", "==",
+                         "DOCUMENTED_TRANSITION", "documented transition"),
+                        ("pension_income_replacement", "<=",
+                         PENSION_REPLACEMENT,
+                         f"documented pension replacing "
+                         f"{PENSION_REPLACEMENT:.0%} or less of verified "
+                         f"income"),
+                        ("pension_obligations_to_income", ">=",
+                         PENSION_PAYMENT_TO_INCOME,
+                         f"total obligations at or above "
+                         f"{PENSION_PAYMENT_TO_INCOME:.0%} of documented "
+                         f"income")]},
+    "C10": {"describes": "matured arrangements that defaulted again inside "
+                         "the six-month observation window",
+            "clauses": [("episode_code", "==", "C10",
+                         "matured arrangements"),
+                        ("redefault_flag", "==", True,
+                         "redefaulted within six months")]},
+}
+
+
+def predicate(case_id: str) -> dict[str, Any]:
+    """The issue rule, in the stored form a cohort snapshot carries."""
+    raw = _PREDICATES.get(case_id)
+    if raw is None:
+        raise KeyError(f"{case_id} has no issue predicate")
+    return {
+        "combine": "and",
+        "describes": raw["describes"],
+        "clauses": [{"field": f, "op": o, "value": v, "label": label}
+                    for f, o, v, label in raw["clauses"]],
+    }
+
+
+def predicate_thresholds() -> dict[str, float | int]:
+    """Every named threshold, for the drawer's definitions panel."""
+    return {
+        "payroll_missing_cycles": PAYROLL_MISSING_CYCLES,
+        "obligations_to_income": OBLIGATIONS_TO_INCOME,
+        "balloon_coverage": BALLOON_COVERAGE,
+        "net_proceeds_ratio": NET_PROCEEDS_RATIO,
+        "milestone_delay_days": MILESTONE_DELAY_DAYS,
+        "low_buffer_months": LOW_BUFFER_MONTHS,
+        "support_gap_cycles": SUPPORT_GAP_CYCLES,
+        "pension_obligations_to_income": PENSION_PAYMENT_TO_INCOME,
+        "pension_replacement": PENSION_REPLACEMENT,
+        "mob_window": MOB_WINDOW,
+    }

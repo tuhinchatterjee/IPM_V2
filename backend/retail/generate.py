@@ -880,6 +880,15 @@ class RetailSimulation:
         # in the latest published month.
         self._prepare_card_programmes()
 
+        # The nine other demonstration episodes. Constructed after the card
+        # programmes and seeded from their own generator, so that adding them
+        # cannot shift a single draw the accepted Alpha calibration was
+        # measured under.
+        from backend.retail.episode_overlay import EpisodeOverlay
+
+        self.episodes = EpisodeOverlay(self)
+        self.episodes.assign()
+
         # Event matrices for outcome labelling. Small, and the only way to
         # build a forward-looking label without letting the generator write
         # future knowledge into an operational row.
@@ -1323,9 +1332,11 @@ class RetailSimulation:
               * self._anb_drawdown_relief(t)
             + balloon_pressure
             + self._anb_miss_logit(t)
+            + self.episodes.miss_logit(t)
         )
         p_catch_up = _sigmoid(
-            CATCH_UP_INTERCEPT - CATCH_UP_STRESS_BETA * stress - 0.55 * balloon_pressure)
+            CATCH_UP_INTERCEPT - CATCH_UP_STRESS_BETA * stress - 0.55 * balloon_pressure
+            - self.episodes.catch_up_logit(t))
 
         r = rng.random(n)
         in_arrears = st.arrears_months > 0
@@ -1753,8 +1764,13 @@ class RetailSimulation:
              RECOVERY_POLICY.recovery_delay_months[tax.HOME_LOAN]],
             default=8,
         ).astype("float64")
+        # One episode's finding is that recovery takes twice as long for an
+        # evidenced pocket. It has to move the figure the discounting uses,
+        # not a caption beside it.
+        delay = delay + self.episodes.recovery_delay_add(t)
         rr_secured = np.clip(
             st.collateral_current * (1.0 - np.nan_to_num(sale_cost, nan=0.1))
+            * self.episodes.recovery_haircut(t)
             / np.maximum(gca, 1.0), 0.0, 1.0)
         rr_unsecured = np.where(is_card, 1.0 - RECOVERY_POLICY.unsecured_lgd[tax.CREDIT_CARD],
                                 1.0 - RECOVERY_POLICY.unsecured_lgd[tax.PERSONAL_LOAN])
@@ -2297,7 +2313,19 @@ class RetailSimulation:
             columns=["facility_id", "application_id", "scheduled_monthly_payment_sar",
                      "bureau_thin_file_flag"]), risk], axis=1)
         frame = frame.loc[:, ~frame.columns.duplicated()]
-        return frame.loc[self.active_now].reset_index(drop=True)
+        frame = frame.loc[self.active_now].reset_index(drop=True)
+
+        # The nine episodes' own columns. Concatenated last and always with the
+        # same shape, configured or not: a schema that changes depending on
+        # configuration is a schema two readers disagree about, and the
+        # catalogue, the governed views and the exports all read this one.
+        live = np.where(self.active_now)[0]
+        episode_columns = self.episodes.columns(t, live, frame)
+        episode_columns.index = frame.index
+        return pd.concat(
+            [frame, episode_columns.loc[
+                :, [c for c in episode_columns.columns
+                    if c not in frame.columns]]], axis=1)
 
     # -- the run ------------------------------------------------------------
 
@@ -2308,6 +2336,10 @@ class RetailSimulation:
             self._customer_month(t)
             self._activate(t)
             self._facility_month(t)
+            # After the month's payments and arrears, so a trajectory is
+            # written against the state that produced it rather than against
+            # the state that is about to replace it.
+            self.episodes.month(t)
             self._push_history(t)
             sources = self._behavioural_sources(t)
             beh = self._behavioural_scores(sources)
