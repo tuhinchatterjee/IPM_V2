@@ -40,6 +40,21 @@ export function text(value: unknown): string {
  */
 export function chartIsUseful(chart: RenderedChart | undefined): boolean {
   if (!chart) return false;
+  // A MATRIX AND A BOX PLOT ARE NOT POINT SERIES. Their bodies are built
+  // beside the points, and asking "does it have two points with a number
+  // in the first y column" of a grid answers a question about a different
+  // chart. A grid is worth drawing when it has two axes and a filled cell;
+  // a box plot when it has a box.
+  if (chart.kind === "heatmap") {
+    const matrix = chart.matrix;
+    return Boolean(
+      matrix?.rows?.length &&
+        matrix.columns?.length &&
+        Object.values(matrix.cells ?? {}).some((v) => typeof v === "number"),
+    );
+  }
+  if (chart.kind === "box") return (chart.boxes ?? []).length > 0;
+
   const columns = chart.y_columns ?? [];
   if (!columns.length) return false;
   const points = chart.points ?? [];

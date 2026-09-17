@@ -225,11 +225,14 @@
       "properties": {
         "kind": {
           "type": "string",
+          "description": "bar, line, waterfall or scatter: x_column is the category or x axis and y_columns are the measures. heatmap: a matrix — x_column is the COLUMN axis, series_column is the ROW axis, and y_columns[0] is the value in each cell. box: a distribution — y_columns[0] is the value, x_column groups it, and CreditProbe computes the quartiles from the rows.",
           "enum": [
             "bar",
             "line",
             "waterfall",
-            "scatter"
+            "scatter",
+            "heatmap",
+            "box"
           ]
         },
         "title": {
@@ -249,7 +252,8 @@
           "minItems": 1
         },
         "series_column": {
-          "type": "string"
+          "type": "string",
+          "description": "The second categorical axis. Required for a heatmap, where it is the row axis; ignored by every other kind."
         },
         "unit": {
           "type": "string"

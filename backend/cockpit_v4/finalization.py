@@ -241,6 +241,24 @@ def _format(claim: NumericClaim) -> str:
 MIN_CHART_POINTS = 2
 MAX_CHART_POINTS = 25
 
+#: A distribution nobody can draw quartiles through. Four values is the
+#: smallest set with a meaningful first and third quartile between them.
+MIN_BOX_OBSERVATIONS = 4
+
+#: The two forms whose rows are not points. A heatmap's rows are CELLS of a
+#: grid, a box plot's rows are OBSERVATIONS inside a box; in both, counting
+#: rows measures something a reader does not read one at a time.
+HEATMAP = "heatmap"
+BOX = "box"
+
+#: Every form `finalize_response` accepts, matching the `kind` enum in
+#: `shared_defs.schema.json`. Validated here as well because the JSON
+#: schema is enforced by the provider and nothing in Python ever looked:
+#: `parse_final` took each chart as a raw dict, so a kind no renderer knows
+#: reached `chart_svg`, fell through its `else`, and was silently drawn as
+#: a bar.
+CHART_KINDS = ("bar", "line", "waterfall", "scatter", HEATMAP, BOX)
+
 
 @dataclass
 class Finalizer:
@@ -751,7 +769,122 @@ class Finalizer:
                          "series_units": {c: units.get(c, declared)
                                           for c in series},
                          "rendered_by": "creditprobe"})
+            kind = str(chart.get("kind") or "").lower()
+            if kind == HEATMAP:
+                body["matrix"] = self._matrix(chart, record, units, declared,
+                                              disp)
+            elif kind == BOX:
+                body["boxes"] = self._boxes(chart, record, units, declared,
+                                            disp)
             out.append(body)
+        return out
+
+    @staticmethod
+    def _matrix(chart: dict[str, Any], record: dict[str, Any],
+                units: dict[str, str], declared: str, disp: Any
+                ) -> dict[str, Any]:
+        """A from/to result as the grid it is.
+
+        A rating migration is `rating_from`, `rating_to` and a measure. Laid
+        out flat it is forty-nine rows a reader compares by scrolling; laid
+        out as a grid it is one picture, and the diagonal -- everything that
+        did not move -- is visible without reading a single number. A live
+        answer published the flat form because the contract had no second
+        axis to put the rows on.
+
+        Every cell is keyed `row|column`, which is what the renderer looks
+        up. A pair the result does not contain is simply absent: an empty
+        cell means "no borrowers made that move", and writing a zero there
+        would assert something the query never said.
+        """
+        column_axis = str(chart.get("x_column") or "")
+        row_axis = str(chart.get("series_column") or "")
+        measure = next((str(c) for c in (chart.get("y_columns") or []) if c),
+                       "")
+        unit = units.get(measure, declared)
+
+        rows_seen: list[str] = []
+        columns_seen: list[str] = []
+        cells: dict[str, Any] = {}
+        display: dict[str, Any] = {}
+        for row in record["rows"]:
+            down = str(row.get(row_axis, ""))
+            across = str(row.get(column_axis, ""))
+            if down not in rows_seen:
+                rows_seen.append(down)
+            if across not in columns_seen:
+                columns_seen.append(across)
+            value = row.get(measure) if measure else None
+            cells[f"{down}|{across}"] = value
+            display[f"{down}|{across}"] = _cell(value, unit, disp)
+
+        # ONE ORDERED AXIS FOR BOTH SIDES when the two name the same things,
+        # which a migration always does: from-A must sit above to-A or the
+        # diagonal is not a diagonal and the picture says nothing.
+        #
+        # The order is the RESULT'S, as it is for every published table --
+        # first appearance, which is what the query's ORDER BY produced.
+        # Sorting the labels instead would put a rating axis in alphabetical
+        # order, `A, A+, A-, AA, BBB`, and a diagonal drawn through that
+        # means nothing. The analyst ordered the query; this draws it.
+        axis = list(rows_seen)
+        axis.extend(c for c in columns_seen if c not in rows_seen)
+        square = set(rows_seen) == set(columns_seen)
+        return {"row_axis": row_axis, "column_axis": column_axis,
+                "measure": measure, "unit": unit,
+                "rows": axis if square else rows_seen,
+                "columns": axis if square else columns_seen,
+                "square": square, "cells": cells, "display": display}
+
+    @staticmethod
+    def _boxes(chart: dict[str, Any], record: dict[str, Any],
+               units: dict[str, str], declared: str, disp: Any
+               ) -> list[dict[str, Any]]:
+        """The five numbers a box plot draws, computed HERE.
+
+        The same rule as every other published figure: the server owns the
+        number. Sending the raw observations and letting a browser compute
+        quartiles would put arithmetic a reader acts on into the client,
+        where it is neither checked nor reproducible from the trace.
+
+        Quartiles by the linear-interpolation convention, which is what
+        `numpy.percentile` and every spreadsheet produce, so a reader
+        checking the box against their own tooling gets the same numbers.
+        """
+        group = str(chart.get("x_column") or "")
+        measure = next((str(c) for c in (chart.get("y_columns") or []) if c),
+                       "")
+        unit = units.get(measure, declared)
+
+        grouped: dict[str, list[Decimal]] = {}
+        for row in record["rows"]:
+            key = str(row.get(group, "")) if group else ""
+            try:
+                value = Decimal(str(row.get(measure)))
+            except (InvalidOperation, ValueError, TypeError):
+                continue
+            grouped.setdefault(key, []).append(value)
+
+        def quantile(ordered: list[Decimal], fraction: float) -> Decimal:
+            if len(ordered) == 1:
+                return ordered[0]
+            position = Decimal(str(fraction)) * (len(ordered) - 1)
+            low = int(position)
+            high = min(low + 1, len(ordered) - 1)
+            return (ordered[low]
+                    + (ordered[high] - ordered[low]) * (position - low))
+
+        out: list[dict[str, Any]] = []
+        for key, values in grouped.items():
+            ordered = sorted(values)
+            five = {"minimum": ordered[0], "q1": quantile(ordered, 0.25),
+                    "median": quantile(ordered, 0.5),
+                    "q3": quantile(ordered, 0.75), "maximum": ordered[-1]}
+            out.append({
+                "label": key, "count": len(ordered), "unit": unit,
+                **{name: str(value) for name, value in five.items()},
+                "display": {name: _cell(value, unit, disp)
+                            for name, value in five.items()}})
         return out
 
     def _check_table(self, table: dict[str, Any], index: int) -> list[str]:
@@ -835,6 +968,12 @@ class Finalizer:
         return problems
 
     def _check_chart(self, chart: dict[str, Any], index: int) -> str:
+        kind = str(chart.get("kind") or "").lower()
+        if kind not in CHART_KINDS:
+            return (f"chart {index} asks for {kind!r}, which is not a form "
+                    f"CreditProbe draws ({', '.join(CHART_KINDS)}); the "
+                    f"chart was dropped. It used to be drawn as a bar "
+                    f"whatever it said.")
         artifact_id = str(chart.get("artifact_id") or "")
         if artifact_id not in self.run_artifacts:
             return (f"chart {index} references artifact {artifact_id!r}, "
@@ -845,11 +984,19 @@ class Finalizer:
                     f"you; the chart was dropped.")
         columns = set(record["columns"])
         missing = [c for c in
-                   [chart.get("x_column"), *(chart.get("y_columns") or [])]
+                   [chart.get("x_column"), chart.get("series_column"),
+                    *(chart.get("y_columns") or [])]
                    if c and c not in columns]
         if missing:
             return (f"chart {index} names columns {missing} that are not in "
                     f"its artifact; the chart was dropped.")
+        kind = str(chart.get("kind") or "").lower()
+        if kind == HEATMAP and not chart.get("series_column"):
+            return (f"chart {index} is a heatmap with no series_column, so "
+                    f"it has only one axis and no cells to fill; the chart "
+                    f"was dropped. A heatmap needs x_column for the columns, "
+                    f"series_column for the rows and y_columns[0] for the "
+                    f"value in each cell.")
         return self._chart_shape_problem(chart, index, record)
 
     def _chart_shape_problem(self, chart: dict[str, Any], index: int,
@@ -874,11 +1021,39 @@ class Finalizer:
         the column names, or from the grain. A top-ten borrower ranking is
         ten points and passes, because ten points IS a readable comparison
         whatever the rows are called.
+
+        WHAT COUNTS AS A POINT DEPENDS ON THE FORM. For a bar or a line it
+        is a distinct x value, and the arithmetic above is right. For a
+        MATRIX it is not: a rating migration over seven grades is forty-nine
+        rows and seven categories, and a reader takes in a 7x7 grid at a
+        glance. Counting its cells dropped it as "past the 25 a reader can
+        take in" -- which is how a live rating migration arrived as a flat
+        48-row table. For a BOX PLOT the rows ARE the distribution and are
+        supposed to be many; what a reader counts is the boxes.
         """
         label = str(chart.get("x_column") or "")
         rows = record["rows"]
-        points = (len({str(row.get(label)) for row in rows}) if label
-                  else len(rows))
+        kind = str(chart.get("kind") or "").lower()
+        if kind == HEATMAP:
+            # The larger of the two axes: a 7x3 grid is as readable as 7x7,
+            # and it is the longer axis that runs out of room first.
+            series = str(chart.get("series_column") or "")
+            points = max(len({str(row.get(label)) for row in rows}),
+                         len({str(row.get(series)) for row in rows}))
+        elif kind == BOX:
+            points = (len({str(row.get(label)) for row in rows}) if label
+                      else 1)
+            if not label:
+                # One ungrouped distribution is a legitimate single box, and
+                # "a chart needs two points to compare anything" is about
+                # comparing categories, not about summarising rows.
+                return ("" if len(rows) >= MIN_BOX_OBSERVATIONS else
+                        f"chart {index} summarises {len(rows)} row(s); a box "
+                        f"plot needs at least {MIN_BOX_OBSERVATIONS} to have "
+                        f"quartiles worth drawing. The chart was dropped.")
+        else:
+            points = (len({str(row.get(label)) for row in rows}) if label
+                      else len(rows))
         if points < MIN_CHART_POINTS:
             return (f"chart {index} would have {points} point(s); a chart "
                     f"needs at least {MIN_CHART_POINTS} to compare anything. "

@@ -174,16 +174,53 @@ export type ChartPoint = {
   display: Record<string, unknown>;
 };
 
+/**
+ * A from/to result as the grid it is, built by the server.
+ *
+ * `cells` is keyed `row|column`. A pair the query never reported is ABSENT
+ * rather than zero: an empty cell means "nobody made that move", and a zero
+ * would assert something the result never said.
+ */
+export type ChartMatrix = {
+  row_axis: string;
+  column_axis: string;
+  measure: string;
+  unit: string;
+  rows: string[];
+  columns: string[];
+  square: boolean;
+  cells: Record<string, number | null>;
+  display: Record<string, string>;
+};
+
+/** The five numbers of one box, computed server-side like every figure. */
+export type ChartBox = {
+  label: string;
+  count: number;
+  unit: string;
+  minimum: string;
+  q1: string;
+  median: string;
+  q3: string;
+  maximum: string;
+  display: Record<string, string>;
+};
+
 export type RenderedChart = {
-  kind: "bar" | "line" | "waterfall" | "scatter" | string;
+  kind: "bar" | "line" | "waterfall" | "scatter" | "heatmap" | "box" | string;
   title: string;
   artifact_id: string;
   x_column: string;
   y_columns: string[];
+  /** The second categorical axis: a heatmap's ROW axis. Unused elsewhere. */
   series_column?: string;
   unit: string;
   points?: ChartPoint[];
   series_units?: Record<string, string>;
+  /** Present on a heatmap. Built beside the points, never from them. */
+  matrix?: ChartMatrix;
+  /** Present on a box plot, one entry per box. */
+  boxes?: ChartBox[];
   rendered_by?: string;
 };
 

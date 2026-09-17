@@ -385,6 +385,21 @@ def chart_svg(*, chart: dict[str, Any], lineage: Lineage) -> str:
     same chart: it cannot pick up a different scale, a different rounding or
     a different set of points on its way out.
     """
+    kind = str(chart.get("kind") or chart.get("type") or "bar").lower()
+    title = str(chart.get("title") or "")
+    # A MATRIX AND A BOX PLOT ARE NOT POINT SERIES. Their bodies are built
+    # by the server beside the points -- a grid of cells, or five numbers
+    # per box -- and drawing them from `points[0]` would draw the flat rows
+    # the grid exists to replace.
+    if kind == "heatmap" and chart.get("matrix"):
+        return _frame(title=title,
+                      unit=str(chart["matrix"].get("unit") or ""),
+                      body=_matrix_svg(chart["matrix"]), lineage=lineage)
+    if kind == "box" and chart.get("boxes"):
+        return _frame(title=title,
+                      unit=str((chart["boxes"][0] or {}).get("unit") or ""),
+                      body=_box_svg(chart["boxes"]), lineage=lineage)
+
     points = list(chart.get("points") or [])
     series = [str(c) for c in (chart.get("y_columns") or []) if c]
     if not points or not series:
@@ -402,12 +417,18 @@ def chart_svg(*, chart: dict[str, Any], lineage: Lineage) -> str:
     if not values:
         raise ExportUnavailable("Every point on this chart is empty.")
 
-    kind = str(chart.get("kind") or chart.get("type") or "bar").lower()
-    title = str(chart.get("title") or "")
     unit = str((chart.get("series_units") or {}).get(column)
                or chart.get("unit") or "")
-    body = (_line_svg(values) if kind.startswith("line")
-            else _bar_svg(values))
+    # EVERY FORM DRAWN AS ITSELF. `waterfall` and `scatter` have been legal
+    # in the contract all along and fell through this dispatch to `_bar_svg`,
+    # so an analyst that asked for a bridge got bars and was told nothing.
+    body = {"line": _line_svg, "scatter": _scatter_svg,
+            "waterfall": _waterfall_svg}.get(kind, _bar_svg)(values)
+    return _frame(title=title, unit=unit, body=body, lineage=lineage)
+
+
+def _frame(*, title: str, unit: str, body: str, lineage: Lineage) -> str:
+    """The page every chart is drawn on: title, unit and provenance."""
     footnote = (f"{lineage.domain_label or lineage.domain_id} · "
                 f"{lineage.release_id} · fingerprint "
                 f"{lineage.release_fingerprint[:16]} · exported "
@@ -476,6 +497,188 @@ def _line_svg(values: list[tuple[str, float, str]]) -> str:
         f'<text x="{right}" y="{ceiling - 8}" text-anchor="end" '
         f'font-family="system-ui, sans-serif" font-size="11" '
         f'fill="#0f172a">{_escape(last[2])}</text>')
+
+
+def _scatter_svg(values: list[tuple[str, float, str]]) -> str:
+    """One mark per point, positioned rather than joined.
+
+    A scatter drawn as a line asserts an ordering between neighbours that a
+    scatter is specifically not claiming.
+    """
+    numbers = [v for _l, v, _d in values]
+    top, bottom = max(numbers), min(numbers)
+    span = (top - bottom) or 1.0
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 70
+    step = (right - left) / max(1, len(values) - 1)
+    parts = []
+    for index, (_label, value, _shown) in enumerate(values):
+        x = left + index * step
+        y = floor - (value - bottom) / span * (floor - ceiling)
+        parts.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4" '
+                     f'fill="#0f172a" fill-opacity="0.75"/>')
+    parts.append(
+        f'<text x="{left}" y="{floor + 18}" '
+        f'font-family="system-ui, sans-serif" font-size="11" '
+        f'fill="#64748b">{_escape(values[0][0])}</text>'
+        f'<text x="{right}" y="{floor + 18}" text-anchor="end" '
+        f'font-family="system-ui, sans-serif" font-size="11" '
+        f'fill="#64748b">{_escape(values[-1][0])}</text>')
+    return "".join(parts)
+
+
+def _waterfall_svg(values: list[tuple[str, float, str]]) -> str:
+    """A bridge: each bar starts where the last one finished.
+
+    Drawn as ordinary bars -- which is what happened -- a bridge loses the
+    one thing it is for, which is showing how a total was arrived at.
+    """
+    running, stops = 0.0, [0.0]
+    for _label, value, _shown in values:
+        running += value
+        stops.append(running)
+    top, bottom = max(stops), min(stops)
+    span = (top - bottom) or 1.0
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    width = (right - left) / max(1, len(values)) * 0.62
+    step = (right - left) / max(1, len(values))
+
+    def height_of(amount: float) -> float:
+        return floor - (amount - bottom) / span * (floor - ceiling)
+
+    parts = []
+    for index, (label, value, shown) in enumerate(values):
+        x = left + index * step + (step - width) / 2
+        start, end = height_of(stops[index]), height_of(stops[index + 1])
+        top_y, bar = min(start, end), max(2.0, abs(end - start))
+        parts.append(
+            f'<rect x="{x:.2f}" y="{top_y:.2f}" width="{width:.2f}" '
+            f'height="{bar:.2f}" rx="2" '
+            f'fill="{"#0f172a" if value >= 0 else "#b45309"}"/>'
+            f'<text x="{x + width / 2:.2f}" y="{floor + 18}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#64748b">{_escape(label[:12])}</text>'
+            f'<text x="{x + width / 2:.2f}" y="{top_y - 5:.2f}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#0f172a">{_escape(shown)}</text>')
+        if index:
+            previous = height_of(stops[index])
+            joined = left + (index - 1) * step + (step + width) / 2
+            parts.append(
+                f'<line x1="{joined:.2f}" y1="{previous:.2f}" '
+                f'x2="{x:.2f}" y2="{previous:.2f}" '
+                f'stroke="#cbd5e1" stroke-width="1"/>')
+    return "".join(parts)
+
+
+def _matrix_svg(matrix: dict[str, Any]) -> str:
+    """The grid, with every cell shaded by its share of the largest.
+
+    A migration matrix read as forty-nine rows is read by scrolling. Read
+    as a grid it is one picture: the diagonal is everything that stayed
+    put, and the mass either side of it is the movement.
+    """
+    rows = [str(r) for r in (matrix.get("rows") or [])]
+    columns = [str(c) for c in (matrix.get("columns") or [])]
+    cells = matrix.get("cells") or {}
+    if not rows or not columns:
+        raise ExportUnavailable("This matrix has no axes to draw.")
+
+    numbers = [abs(float(v)) for v in cells.values()
+               if isinstance(v, (int, float))]
+    top = max(numbers) if numbers else 1.0
+    left, head = PADDING + 92, 78
+    span = WIDTH - left - PADDING
+    depth = HEIGHT - head - 52
+    box_w, box_h = span / len(columns), depth / len(rows)
+    square = bool(matrix.get("square"))
+
+    parts = []
+    for c, column in enumerate(columns):
+        parts.append(
+            f'<text x="{left + c * box_w + box_w / 2:.2f}" y="{head - 6}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#64748b">{_escape(column[:8])}</text>')
+    for r, row in enumerate(rows):
+        y = head + r * box_h
+        parts.append(
+            f'<text x="{left - 8}" y="{y + box_h / 2 + 4:.2f}" '
+            f'text-anchor="end" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#64748b">{_escape(row[:12])}</text>')
+        for c, column in enumerate(columns):
+            raw = cells.get(f"{row}|{column}")
+            x = left + c * box_w
+            if isinstance(raw, (int, float)):
+                # A single hue by intensity. Sequential, because these are
+                # magnitudes with no natural midpoint to diverge around.
+                weight = min(1.0, abs(float(raw)) / top) if top else 0.0
+                fill, opacity = "#0f172a", 0.08 + 0.84 * weight
+            else:
+                # ABSENT IS NOT ZERO. No row for this pair means the query
+                # never reported that move; a shaded zero would assert it.
+                fill, opacity = "#f8fafc", 1.0
+            parts.append(
+                f'<rect x="{x:.2f}" y="{y:.2f}" width="{box_w - 1:.2f}" '
+                f'height="{box_h - 1:.2f}" fill="{fill}" '
+                f'fill-opacity="{opacity:.3f}"/>')
+            if square and rows[r] == columns[c]:
+                parts.append(
+                    f'<rect x="{x:.2f}" y="{y:.2f}" width="{box_w - 1:.2f}" '
+                    f'height="{box_h - 1:.2f}" fill="none" '
+                    f'stroke="#0ea5e9" stroke-width="1.5"/>')
+    return "".join(parts)
+
+
+def _box_svg(boxes: list[dict[str, Any]]) -> str:
+    """Min, Q1, median, Q3, max -- the five numbers, already computed.
+
+    Nothing is derived here. The quartiles were computed server-side beside
+    the points, for the same reason every other published figure is: a
+    number a reader acts on is not calculated in a renderer.
+    """
+    def number(box: dict[str, Any], name: str) -> float:
+        try:
+            return float(box.get(name))
+        except (TypeError, ValueError):
+            return 0.0
+
+    spread = [number(b, n) for b in boxes
+              for n in ("minimum", "maximum")]
+    if not spread:
+        raise ExportUnavailable("This box plot has nothing to summarise.")
+    top, bottom = max(spread), min(spread)
+    scale = (top - bottom) or 1.0
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    step = (right - left) / max(1, len(boxes))
+    width = step * 0.46
+
+    def height_of(amount: float) -> float:
+        return floor - (amount - bottom) / scale * (floor - ceiling)
+
+    parts = []
+    for index, box in enumerate(boxes):
+        centre = left + index * step + step / 2
+        x = centre - width / 2
+        low, q1 = height_of(number(box, "minimum")), height_of(
+            number(box, "q1"))
+        med, q3 = height_of(number(box, "median")), height_of(
+            number(box, "q3"))
+        high = height_of(number(box, "maximum"))
+        parts.append(
+            f'<line x1="{centre:.2f}" y1="{high:.2f}" x2="{centre:.2f}" '
+            f'y2="{low:.2f}" stroke="#94a3b8" stroke-width="1"/>'
+            f'<rect x="{x:.2f}" y="{min(q1, q3):.2f}" width="{width:.2f}" '
+            f'height="{max(2.0, abs(q1 - q3)):.2f}" rx="2" '
+            f'fill="#0f172a" fill-opacity="0.16" stroke="#0f172a"/>'
+            f'<line x1="{x:.2f}" y1="{med:.2f}" x2="{x + width:.2f}" '
+            f'y2="{med:.2f}" stroke="#0f172a" stroke-width="2"/>'
+            f'<text x="{centre:.2f}" y="{floor + 18}" text-anchor="middle" '
+            f'font-family="system-ui, sans-serif" font-size="10" '
+            f'fill="#64748b">'
+            f'{_escape(str(box.get("label") or "")[:14])}</text>')
+    return "".join(parts)
 
 
 def _escape(text: str) -> str:

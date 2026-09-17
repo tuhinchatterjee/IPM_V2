@@ -299,17 +299,162 @@ function StackedBarChart({ chart }: { chart: RenderedChart }) {
   );
 }
 
+/**
+ * A from/to result as a grid.
+ *
+ * NOT `analytics/charts.tsx#MatrixHeatmap`, which looks like the same
+ * component and is not: it is hard-coded for row PERCENTAGES
+ * (`value.toFixed(1)`, a `%` tooltip), so a migration counted in borrowers
+ * renders as "100.0" and claims to be a percentage. It also formats in the
+ * browser, which is the one thing the numeric contract forbids; takes a
+ * single `categories` axis, so a sector-by-stage grid cannot be drawn; and
+ * reads a missing cell as `?? 0`, asserting that nobody made a move the
+ * query simply never reported.
+ *
+ * Every string here is the server's. The only arithmetic is the shade.
+ */
+function MatrixChart({ chart }: { chart: RenderedChart }) {
+  const matrix = chart.matrix;
+  if (!matrix?.rows?.length || !matrix.columns?.length) return null;
+  const magnitudes = Object.values(matrix.cells ?? {})
+    .filter((v): v is number => typeof v === "number")
+    .map(Math.abs);
+  const max = magnitudes.length ? Math.max(...magnitudes) : 0;
+
+  return (
+    <div data-testid="v4-chart-matrix" className="overflow-x-auto">
+      <table className="border-separate border-spacing-0.5 text-xs">
+        <thead>
+          <tr>
+            <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              {matrix.row_axis} \ {matrix.column_axis}
+            </th>
+            {matrix.columns.map((column) => (
+              <th key={column}
+                  className="px-1.5 py-1 text-center text-[10px] font-semibold text-slate-500">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.rows.map((row) => (
+            <tr key={row}>
+              <th className="px-2 py-1 text-left text-[10px] font-semibold text-slate-500">
+                {row}
+              </th>
+              {matrix.columns.map((column) => {
+                const key = `${row}|${column}`;
+                const value = matrix.cells?.[key];
+                const shown = matrix.display?.[key];
+                const has = typeof value === "number";
+                const weight = has && max > 0 ? Math.abs(value) / max : 0;
+                const diagonal = matrix.square && row === column;
+                return (
+                  <td
+                    key={column}
+                    data-testid="v4-matrix-cell"
+                    data-cell={key}
+                    data-empty={has ? undefined : "true"}
+                    title={has ? `${row} → ${column}: ${shown}` : undefined}
+                    className={[
+                      "min-w-12 rounded-[3px] px-1.5 py-1.5 text-center",
+                      "tabular-nums",
+                      weight > 0.55 ? "text-white" : "text-slate-700",
+                      diagonal ? "ring-1 ring-inset ring-sky-500" : "",
+                    ].join(" ")}
+                    style={{
+                      backgroundColor: has
+                        ? `rgba(15, 23, 42, ${(0.08 + 0.84 * weight).toFixed(3)})`
+                        : "#f8fafc",
+                    }}
+                  >
+                    {/* An empty cell is not a zero. */}
+                    {has ? shown : "·"}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Min, Q1, median, Q3, max — the five numbers, as computed by the server. */
+function BoxChart({ chart }: { chart: RenderedChart }) {
+  const boxes = chart.boxes ?? [];
+  if (!boxes.length) return null;
+  const numbers = boxes
+    .flatMap((b) => [Number(b.minimum), Number(b.maximum)])
+    .filter((n) => Number.isFinite(n));
+  if (!numbers.length) return null;
+  const top = Math.max(...numbers);
+  const bottom = Math.min(...numbers);
+  const span = top - bottom || 1;
+  const place = (raw: string) => ((Number(raw) - bottom) / span) * 100;
+
+  return (
+    <ol data-testid="v4-chart-boxes" className="space-y-2">
+      {boxes.map((box) => {
+        const q1 = place(box.q1);
+        const q3 = place(box.q3);
+        return (
+          <li key={box.label || "all"}
+              className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3">
+            <span className="truncate text-xs text-slate-700" dir="auto"
+                  title={box.label}>
+              {box.label || "All"}
+            </span>
+            <span data-testid="v4-box" data-label={box.label}
+                  className="relative block h-5">
+              <span className="absolute top-1/2 h-px bg-slate-300"
+                    style={{
+                      left: `${place(box.minimum)}%`,
+                      width: `${place(box.maximum) - place(box.minimum)}%`,
+                    }} />
+              <span className="absolute top-0 h-5 rounded-sm border border-slate-800 bg-slate-800/15"
+                    style={{
+                      left: `${Math.min(q1, q3)}%`,
+                      width: `${Math.max(Math.abs(q3 - q1), 0.5)}%`,
+                    }} />
+              <span data-testid="v4-box-median"
+                    className="absolute top-0 h-5 w-0.5 bg-slate-900"
+                    style={{ left: `${place(box.median)}%` }}
+                    title={`median ${box.display?.median ?? ""}`} />
+            </span>
+            <span className="shrink-0 tabular-nums text-xs text-slate-600">
+              {box.display?.median}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function ResultChart({ chart }: { chart: RenderedChart }) {
   const stacked = (chart.y_columns ?? []).length > 1;
-  const body = stacked ? (
-    <StackedBarChart chart={chart} />
-  ) : chart.kind === "line" ? (
-    <LineChart chart={chart} />
-  ) : (
-    <BarChart chart={chart} />
-  );
+  const body =
+    chart.kind === "heatmap" ? (
+      <MatrixChart chart={chart} />
+    ) : chart.kind === "box" ? (
+      <BoxChart chart={chart} />
+    ) : stacked ? (
+      <StackedBarChart chart={chart} />
+    ) : chart.kind === "line" ? (
+      <LineChart chart={chart} />
+    ) : (
+      <BarChart chart={chart} />
+    );
   if (!body) return null;
-  const unit = chart.unit || Object.values(chart.series_units ?? {})[0] || "";
+  const unit =
+    chart.matrix?.unit ||
+    chart.boxes?.[0]?.unit ||
+    chart.unit ||
+    Object.values(chart.series_units ?? {})[0] ||
+    "";
   return (
     <figure data-testid="v4-result-chart" data-kind={chart.kind}
             className="min-w-0">

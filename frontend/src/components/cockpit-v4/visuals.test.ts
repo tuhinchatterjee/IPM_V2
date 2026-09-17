@@ -107,3 +107,95 @@ test("the displayed value is what the server wrote, not a local rounding",
       "if these were ever the same string the frontend would be rounding",
     );
   });
+
+/**
+ * A matrix and a box plot are not point series.
+ *
+ * `chartIsUseful` asked "does it have two points with a number in the first
+ * y column". Of a GRID that answers a question about a different chart:
+ * the live rating migration arrived with 48 rows and no `points` shaped
+ * like a series, and would have been judged not worth drawing by a test
+ * written for bars.
+ */
+function matrix(over: Partial<RenderedChart> = {}): RenderedChart {
+  return {
+    kind: "heatmap",
+    title: "Rating migration",
+    artifact_id: "art-1",
+    x_column: "rating_to",
+    series_column: "rating_from",
+    y_columns: ["borrowers"],
+    unit: "borrowers",
+    matrix: {
+      row_axis: "rating_from",
+      column_axis: "rating_to",
+      measure: "borrowers",
+      unit: "borrowers",
+      rows: ["AA", "A+", "A"],
+      columns: ["AA", "A+", "A"],
+      square: true,
+      // AA -> A is absent on purpose: nobody reported that move.
+      cells: { "AA|AA": 127, "AA|A+": 3, "A+|A+": 78, "A|A": 168 },
+      display: {
+        "AA|AA": "127 borrowers", "AA|A+": "3 borrowers",
+        "A+|A+": "78 borrowers", "A|A": "168 borrowers",
+      },
+    },
+    rendered_by: "creditprobe",
+    ...over,
+  };
+}
+
+test("a grid with filled cells is worth drawing", () => {
+  assert.equal(chartIsUseful(matrix()), true);
+});
+
+test("a grid with no filled cell is not", () => {
+  const empty = matrix();
+  assert.equal(
+    chartIsUseful({ ...empty, matrix: { ...empty.matrix!, cells: {} } }),
+    false,
+  );
+});
+
+test("a grid is not judged by whether it has point series", () => {
+  // No `points` at all: the old rule would have refused it.
+  const withoutPoints = { ...matrix(), points: [] };
+  assert.equal(chartIsUseful(withoutPoints), true);
+});
+
+test("the axis keeps the order the result was returned in", () => {
+  // Alphabetically this is A, A+, AA -- and a diagonal drawn through that
+  // pairs grades that have nothing to do with each other.
+  const axis = matrix().matrix!.rows;
+  assert.deepEqual(axis, ["AA", "A+", "A"]);
+  assert.notDeepEqual(axis, [...axis].sort());
+});
+
+test("an absent cell is absent, not zero", () => {
+  const cells = matrix().matrix!.cells;
+  assert.equal("AA|A" in cells, false);
+  assert.equal(cells["AA|AA"], 127);
+});
+
+test("a box plot is worth drawing when it has a box", () => {
+  const box: RenderedChart = {
+    kind: "box",
+    title: "EAD spread by sector",
+    artifact_id: "art-1",
+    x_column: "sector",
+    y_columns: ["ead"],
+    unit: "SAR million",
+    boxes: [
+      { label: "Energy", count: 5, unit: "SAR million",
+        minimum: "10", q1: "20.00", median: "30.0", q3: "40.00",
+        maximum: "50",
+        display: { minimum: "SAR 10 million", q1: "SAR 20 million",
+                   median: "SAR 30 million", q3: "SAR 40 million",
+                   maximum: "SAR 50 million" } },
+    ],
+    rendered_by: "creditprobe",
+  };
+  assert.equal(chartIsUseful(box), true);
+  assert.equal(chartIsUseful({ ...box, boxes: [] }), false);
+});
