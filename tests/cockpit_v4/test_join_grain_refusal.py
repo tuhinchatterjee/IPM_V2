@@ -499,3 +499,290 @@ def test_the_check_reads_names_and_an_aggregate_and_nothing_finer(book):
         "corp_facility_quarter)")
     with pytest.raises(Rejection):
         service.validate_batch(submission(step(repeats_nothing)))
+
+
+# ---- the repair: refused, corrected, completed --------------------------
+
+#: The same total, de-duplicated. Every facility of a borrower repeats that
+#: borrower's debt, so the correction takes the borrower side on its own --
+#: one of the three de-duplications the refusal itself names.
+CORPORATE_DEDUPLICATED = (
+    "SELECT sector, SUM(total_debt_sar_mn) AS debt "
+    "FROM corp_borrower_quarter GROUP BY 1 ORDER BY 2 DESC")
+
+
+def _submission(code: str, *, step_id: str = "s1", call_id: str = "tu-1",
+                objective: str = "total debt by sector"):
+    return tool_call("execute_analysis", {
+        "intent": intent("DATA_ANALYSIS", "COCKPIT", understood=objective),
+        "objective": objective, "subquestions": [objective],
+        "scope": {"reporting_months": [], "filters": {}},
+        "metadata_receipt_ids": [], "fields_required": [],
+        "expected_output_grain": "sector", "expected_units": "SAR million",
+        "steps": [step(code, step_id=step_id)],
+        "repair_of_submission_id": ""}, call_id)
+
+
+def _diagnostic(messages) -> dict:
+    """The tool_result body the repairing turn actually read.
+
+    Not the event, not the store -- the bytes handed to the model. A
+    refusal the analyst cannot act on is a refusal that ends the run.
+    """
+    return json.loads(messages[-1]["content"][0]["content"])
+
+
+def _repair_run(drive_domain, seen: dict):
+    """Fan-out refused, corrected, answered. The shape of a working repair."""
+    from test_domain_execution import answer_from
+
+    def repair(messages):
+        seen["diagnostic"] = _diagnostic(messages)
+        return ScriptedResult(tool_calls=[
+            _submission(CORPORATE_DEDUPLICATED, step_id="s2",
+                        call_id="tu-2")])
+
+    def finish(messages):
+        return answer_from(messages, narrative="Total debt by sector.",
+                           subquestion="total debt by sector")
+
+    return drive_domain(
+        dom.CORPORATE, "What is total debt by sector?",
+        [ScriptedResult(tool_calls=[_submission(CORPORATE_FAN_OUT)]),
+         repair, finish])
+
+
+def test_a_refused_fan_out_is_repaired_by_the_model_and_the_run_completes(
+        drive_domain, store_db):
+    """THE point of refusing early rather than late.
+
+    A fan-out caught at validation costs a submission and nothing else --
+    no step budget, no round, no artifact to reconcile. So the analyst can
+    simply write the query again, and the run finishes the question it was
+    asked. This is the grain twin of the bind repair pinned in
+    `test_protocol_and_bounds.py`, and it is what "repairable" has to mean:
+    not that an error was returned, but that the run reached COMPLETED.
+    """
+    seen: dict = {}
+    outcome, _provider, _record = _repair_run(drive_domain, seen)
+    assert outcome.state == st.COMPLETED, outcome.message
+    assert outcome.response["executed"] is True
+    assert outcome.response["numeric_claims"], "the answer published a figure"
+    assert seen["diagnostic"], "the repairing turn read no diagnostic"
+
+
+def test_the_diagnostic_the_repairing_turn_read_carries_its_evidence(
+        drive_domain, store_db):
+    """What is in the analyst's hands when it writes the correction.
+
+    Asserted from the tool_result body, because that is the only thing the
+    model sees. An event nobody reads and a store nobody queries are not
+    how a repair gets authored.
+    """
+    seen: dict = {}
+    outcome, _provider, _record = _repair_run(drive_domain, seen)
+    assert outcome.state == st.COMPLETED, outcome.message
+    body = seen["diagnostic"]
+
+    assert body["status"] == "rejected"
+    assert body["error_code"] == st.SQL_VALIDATION
+    assert body["field"] == "steps.s1.code"
+    detail = body["detail"]
+    assert detail["failed_check"] == xt.CHECK_GRAIN
+    assert detail["phase"] == xt.PHASE_CHECK
+    # The facts, as data. A repair that has to regex an English sentence to
+    # learn which measure was doubled is a repair written from a guess.
+    assert detail["many_relation"] == "corp_facility_quarter"
+    assert detail["one_relation"] == "corp_borrower_quarter"
+    assert detail["join_key"] == ["borrower_id", "reporting_quarter"]
+    assert "total_debt_sar_mn" in detail["measures_at_risk"]
+    # And the three de-duplications that would be valid, so the correction
+    # is a choice rather than a search.
+    assert "aggregating one side before joining" in detail["explanation"]
+    # What the runtime path has always said, and the validation path did not.
+    assert "Author the corrected code yourself" in detail["note"]
+    assert "no step budget was spent" in detail["note"]
+    # How much room is left to do it in.
+    assert body["budgets_remaining"]["execution_submissions"] == [1, 5]
+    assert body["budgets_remaining"]["steps_attempted"] == [0, 12]
+
+
+def test_both_the_refused_and_the_corrected_sql_came_from_the_model(
+        drive_domain, store_db):
+    """§25, restated for grain. CreditProbe supplies a diagnostic and
+    nothing more: it never rewrites a query, drops a join or substitutes a
+    de-duplication it thinks the analyst meant."""
+    seen: dict = {}
+    outcome, _provider, record = _repair_run(drive_domain, seen)
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    rows = store_db._connect().execute(
+        "SELECT status, payload FROM submissions WHERE run_id=? "
+        "ORDER BY ordinal", (record.run_id,)).fetchall()
+    codes = "\n".join(r["payload"] for r in rows)
+    assert CORPORATE_FAN_OUT in codes, "the refused query is not on file"
+    assert CORPORATE_DEDUPLICATED in codes, "the correction is not on file"
+    assert any(r["status"] == "rejected" for r in rows)
+    assert any(r["status"] == "ok" for r in rows), rows[-1]["status"]
+
+
+def test_an_identical_resubmission_is_refused_again_and_the_run_lives(
+        drive_domain, store_db):
+    """A refusal is about THIS submission, never about the run.
+
+    Worth pinning for a reason that is easy to get wrong: the rejected
+    submission IS filed with a real no-progress key, but that is not what
+    stops the second attempt. `no_progress_check` sits after
+    `validate_batch`, so the identical query is refused again by the same
+    check and never reaches it. Determinism stops it, not bookkeeping --
+    and either way the analyst is still free to write something different.
+    """
+    from test_domain_execution import answer_from
+
+    def finish(messages):
+        return answer_from(messages, narrative="Total debt by sector.",
+                           subquestion="total debt by sector")
+
+    outcome, _provider, record = drive_domain(
+        dom.CORPORATE, "What is total debt by sector?",
+        [ScriptedResult(tool_calls=[_submission(CORPORATE_FAN_OUT)]),
+         ScriptedResult(tool_calls=[
+             _submission(CORPORATE_FAN_OUT, call_id="tu-2")]),
+         ScriptedResult(tool_calls=[
+             _submission(CORPORATE_DEDUPLICATED, step_id="s2",
+                         call_id="tu-3")]),
+         finish])
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    spent = store_db.get_run(record.run_id).budget
+    assert spent["execution_submissions"][0] == 3, (
+        "each refusal costs a submission slot; that is what bounds the loop")
+    assert spent["steps_attempted"][0] == 1, (
+        "only the corrected submission ever reached a step")
+
+
+# ---- refused before any step executes -----------------------------------
+
+#: A four-step plan whose first three are ordinary and whose last fans out.
+#:
+#: AUTHORED, not replayed. The live Mac plan is not in this repository --
+#: no SQL, no digest -- so this proves the STRUCTURAL claim and says so:
+#: a plan is refused whole, and a good step early in it does not run
+#: because a bad step later in it exists.
+FOUR_STEP_PLAN = [
+    ("s1", "SELECT sector, SUM(ead_sar_mn) AS ead "
+           "FROM corp_facility_quarter GROUP BY 1"),
+    ("s2", "SELECT sector, SUM(ecl_sar_mn) AS ecl "
+           "FROM corp_facility_quarter GROUP BY 1"),
+    ("s3", "SELECT stage, COUNT(*) AS facilities "
+           "FROM corp_facility_quarter GROUP BY 1"),
+    ("s4", CORPORATE_FAN_OUT),
+]
+
+
+def _four_step_run(drive_domain):
+    steps = [step(code, step_id=step_id) for step_id, code in FOUR_STEP_PLAN]
+    return drive_domain(
+        dom.CORPORATE, "Exposure, loss, stage mix and debt by sector",
+        [ScriptedResult(tool_calls=[tool_call("execute_analysis", {
+            "intent": intent("DATA_ANALYSIS", "COCKPIT",
+                             understood="four views of the corporate book"),
+            "objective": "four views of the corporate book",
+            "subquestions": [code for _, code in FOUR_STEP_PLAN],
+            "scope": {"reporting_months": [], "filters": {}},
+            "metadata_receipt_ids": [], "fields_required": [],
+            "expected_output_grain": "sector",
+            "expected_units": "SAR million",
+            "steps": steps, "repair_of_submission_id": ""}, "tu-1")])])
+
+
+def test_a_plan_whose_last_step_fans_out_runs_none_of_the_first_three(
+        drive_domain, store_db):
+    """`validate_batch`'s own contract, at four steps.
+
+    "A batch whose fourth step names a table that does not exist should not
+    have run its first three: a partial execution leaves artifacts an
+    analyst may reasonably think are complete." The grain check is now one
+    of the checks that sentence is about. Three of these four steps are
+    perfectly good and none of them ran.
+
+    AUTHORED SQL. This is the shape of the failure, not a replay of a
+    particular one.
+    """
+    _outcome, _provider, record = _four_step_run(drive_domain)
+
+    stored = store_db._connect().execute(
+        "SELECT COUNT(*) AS n FROM artifacts WHERE run_id=?",
+        (record.run_id,)).fetchone()
+    assert stored["n"] == 0, (
+        "a good step ran inside a plan that was refused as a whole")
+
+    events = _events(store_db, record.run_id)
+    assert ev.TOOL_VALIDATED not in [e.event_type for e in events]
+    assert "executing" not in {e.stage for e in events}
+
+
+def test_the_refusal_names_the_step_that_fans_out_and_not_the_first_one(
+        drive_domain, store_db):
+    """Four steps, one fault. An analyst told "steps.s1.code" would rewrite
+    a query that is correct."""
+    _outcome, _provider, record = _four_step_run(drive_domain)
+    failed = [e for e in _events(store_db, record.run_id)
+              if e.event_type == ev.TOOL_FAILED and e.stage == "validating"]
+    assert failed, "no validation refusal was recorded"
+    body = (store_db.get_detail(failed[0].detail_ref) or {}).get("body") or {}
+    assert body["field"] == "steps.s4.code", body.get("field")
+    assert body["failed_check"] == xt.CHECK_GRAIN
+    # The whole plan is on file, not only the step that broke it.
+    assert [s["step_id"] for s in body["steps"]] == ["s1", "s2", "s3", "s4"]
+
+
+def test_a_refused_plan_spends_a_submission_and_no_step_budget(
+        drive_domain, store_db):
+    """The mechanical content of "before any step executes".
+
+    `spend_steps` and `open_round` both sit after the re-raise, so a
+    refused plan leaves them untouched. That is what makes a repair
+    affordable: four steps were proposed and the run still has all twelve.
+    """
+    _outcome, _provider, record = _four_step_run(drive_domain)
+    spent = store_db.get_run(record.run_id).budget
+
+    assert spent["execution_submissions"][0] == 1, (
+        "a refused submission is still a submission")
+    assert spent["steps_attempted"][0] == 0, (
+        "the step budget was charged for steps that never ran")
+    assert spent["analysis_rounds"][0] == 0, (
+        "a refused plan opened an analysis round")
+
+
+# ---- a broken check is not a clean bill of health -----------------------
+
+def test_a_grain_check_that_cannot_run_is_not_an_all_clear(book,
+                                                           monkeypatch):
+    """The arm that used to read `except Exception: risk = None`.
+
+    A diagnostic that cannot complete must not return "no risk found" --
+    that is the one answer a check may never give, because it is
+    indistinguishable from the answer that lets a double-counted total
+    through. It is an operator's problem and is reported as one, so the
+    reader is pointed at somebody who can fix it rather than asked to
+    rewrite SQL that may be perfectly correct.
+    """
+    from backend.cockpit_v4 import sql as v4_sql
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("the catalogue join table could not be read")
+
+    monkeypatch.setattr(v4_sql, "multiplication_risk", broken)
+    service = book(dom.CORPORATE)
+    with pytest.raises(Rejection) as caught:
+        service.validate_batch(submission(step(CORPORATE_DEDUPLICATED)))
+
+    assert caught.value.code == st.INTERNAL_ERROR, (
+        "a broken check is not the analyst's fault and is not their fix")
+    assert caught.value.detail["check_completed"] is False
+    assert caught.value.detail["failed_check"] == xt.CHECK_GRAIN
+    said = caught.value.message
+    assert "was not run" in said and "not modified" in said, said
+    assert "could not be completed" in said, said

@@ -1242,6 +1242,30 @@ class Orchestrator:
         try:
             bind_report = self.execution_service.validate_batch(submission)
         except Rejection as rejection:
+            # A REFUSAL IS THE MOST REPAIRABLE THING THAT CAN HAPPEN, AND IT
+            # WAS THE ONE THAT SAID SO LEAST.
+            #
+            # A batch that fails while RUNNING is handed a note -- "author
+            # the corrected code yourself, or finalize a supported partial
+            # answer" -- and a submission refused before it ran was handed
+            # nothing. That is backwards. Nothing executed, so there is no
+            # partial result to reconcile and no step budget to recover: the
+            # analyst can simply write the query again. Mutating the
+            # rejection's own detail is deliberate -- `_handle_call` passes
+            # this same dict to `_tool_error`, so the note reaches the model
+            # without a second user turn and without a new mechanism.
+            #
+            # What is NOT repeated here: how to fix it. That is the check's
+            # own business and the check already said it -- a grain refusal
+            # names the join, both grains, the measures at risk and the
+            # three de-duplications that would be valid.
+            rejection.detail.setdefault("note", (
+                "Nothing was executed and nothing was repaired: this "
+                "submission was refused before any step ran, so no step "
+                "budget was spent and no result exists to reconcile. Author "
+                "the corrected code yourself and submit again, or finalize "
+                "a supported partial answer. CreditProbe will not rewrite a "
+                "query, drop a step or compute a substitute."))
             # A submission refused at the binder is still a numbered
             # submission, and its exact SQL is still on file. "Which query, on
             # which attempt" has to be answerable for the one that never ran,
