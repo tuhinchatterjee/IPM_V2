@@ -89,7 +89,23 @@ CORE_COLUMNS: tuple[str, ...] = (
     "ead_base_sar", "ecl_weighted_sar", "lgd_base", "pd_pit_12m_base",
     "pd_pit_lifetime_base", "behavioural_score", "behavioural_score_band",
     "application_score_band", "app_score_value", "origination_score_band",
-    "credit_impaired_flag", "default_flag",
+    "credit_impaired_flag", "current_default_flag",
+)
+
+#: Columns outside the episodes' own set that their rules and drawers read.
+EXTRA_COLUMNS: tuple[str, ...] = (
+    "balance_buffer_months", "disposable_income_sar",
+    "monthly_total_credit_obligations_sar",
+    "verified_total_monthly_income_sar", "recovery_delay_months",
+    "utilisation_ratio", "collateral_value_current_sar",
+    "employment_status", "employer_id", "employer_sector", "region",
+    "origination_channel", "origination_date", "origination_vintage",
+    "balloon_payment_sar", "months_to_balloon", "balloon_band",
+    "vehicle_age_months", "vehicle_new_used", "property_type",
+    "housing_support_type", "restructured_flag", "restructure_date",
+    "employment_tenure_months", "origination_employment_tenure_months",
+    "app_predicted_pd_12m", "behavioural_predicted_pd_12m",
+    "previous_month_dpd", "previous_month_stage", "sicr_flag",
 )
 
 _OPS = {
@@ -172,10 +188,22 @@ class MissingEpisodeColumns(RuntimeError):
 
 
 def frame(month: str = "", columns: Sequence[str] = ()) -> pd.DataFrame:
+    """One month, projected to what the episodes actually read.
+
+    The episodes' own columns are always included. They are forty-seven of the
+    book's near-six-hundred, they are the columns every rule, drawer panel and
+    exported sheet is written against, and a caller that had to list them
+    would list them differently in each of the six places that read them —
+    which is how a drawer and a workbook end up describing the same cohort
+    with different fields.
+    """
     at = resolve(month)
     if not at:
         return pd.DataFrame()
-    want = tuple(dict.fromkeys([*CORE_COLUMNS, *columns]))
+    from backend.retail.episode_overlay import COLUMNS as EPISODE_COLUMNS
+
+    want = tuple(dict.fromkeys(
+        [*CORE_COLUMNS, *EPISODE_COLUMNS, *EXTRA_COLUMNS, *columns]))
     return _read(at, want)
 
 
@@ -225,12 +253,21 @@ def historical_mask(data: pd.DataFrame, case_id: str) -> np.ndarray:
             & (data["vintage_cohort"] == label)).to_numpy()
 
 
-def issue_mask(data: pd.DataFrame, case_id: str) -> np.ndarray:
-    """The predicate, evaluated over the published columns at this date."""
+def issue_mask(data: pd.DataFrame, case_id: str,
+               *, outcome_only: bool = False) -> np.ndarray:
+    """The predicate, evaluated over the published columns at this date.
+
+    `outcome_only` drops the scope clause, which is how a matched historical
+    cohort is measured: it is a different vintage, so it fails the scope
+    clause by definition, and evaluating the whole rule over it would return
+    nobody and make every rate ratio infinite.
+    """
     if data.empty:
         return np.zeros(0, dtype=bool)
     mask = np.ones(len(data), dtype=bool)
-    for clause in ep.predicate(case_id)["clauses"]:
+    clauses = (ep.outcome_clauses(case_id) if outcome_only
+               else ep.predicate(case_id)["clauses"])
+    for clause in clauses:
         field = clause["field"]
         if field not in data.columns:
             raise MissingEpisodeColumns(
@@ -386,7 +423,7 @@ def comparator(month: str = "", case_id: str = "") -> dict[str, Any]:
 
     if basis == HISTORICAL:
         historical = historical_mask(data, case_id)
-        issue = issue_mask(data, case_id)
+        issue = issue_mask(data, case_id, outcome_only=True)
         # The historical cohort is measured on the SAME rule at the same date;
         # what differs is that it reached this age before the episode began.
         return {"available": bool(historical.any()), "basis": basis,

@@ -1,0 +1,60 @@
+{
+  "schema": "retail-bundle-1.0.0",
+  "bundle_id": "RB-E7BA202A45842B71",
+  "created_at": "2026-09-17T11:47:29+00:00",
+  "as_of": "2026-08",
+  "config_version": "1.0.0",
+  "generator_version": "retail-gen-1.2.0",
+  "episode_config_version": "retail-episodes-1.0.0",
+  "seed": 20260910,
+  "dataset_hashes": {
+    "retail_facility_month": "e150a921cb911d3c626ca45818df9d9b95d2de44831de7e9b6b2e016365c4a37",
+    "retail_ews_panel": "5e77f9af2f05baa71bc565868a03faf470fb26023f9f174054a8c4a4f3c86992",
+    "retail_ews_score": "4a9eec31e8eb00be9910fe643aac0a2a60fb41d35445fab6e3c8cc8aa37db17d",
+    "retail_early_warning": "b28a4dc16b7814d1091fc74c991812148876f03506a77301bba569697c9924b0",
+    "retail_credit_scorecard": "de7996a3fa28a7ff173aea87a0b68357a22b4285d01466d692012f1caab5451b",
+    "retail_whatif": "fc534411094589dab86dfff68b8474911b275125a3629b800930a0fcccba4709"
+  },
+  "dataset_periods": {
+    "retail_facility_month": 25,
+    "retail_ews_panel": 25,
+    "retail_ews_score": 20,
+    "retail_early_warning": 25,
+    "retail_credit_scorecard": 25,
+    "retail_whatif": 25
+  },
+  "checks": [
+    {
+      "check": "every dataset present",
+      "passed": true,
+      "detail": "6 datasets, all with published periods"
+    },
+    {
+      "check": "Early Warning ends where the book ends",
+      "passed": true,
+      "detail": "book 2026-08, panel 2026-08"
+    },
+    {
+      "check": "every pocket exists in both the Cockpit and Early Warning",
+      "passed": true,
+      "detail": "all 10 pockets present at 2026-08"
+    },
+    {
+      "check": "the Early Warning join is grain-safe",
+      "passed": true,
+      "detail": "total ECL 110922285.79 before the join and 110922285.79 after"
+    },
+    {
+      "check": "a facility-month is unique",
+      "passed": true,
+      "detail": "59416 rows, 59416 facilities"
+    },
+    {
+      "check": "the five registrations survive publication",
+      "passed": true,
+      "detail": "5: retail_credit_scorecard, retail_early_warning, retail_ews_score, retail_facility_month, retail_whatif"
+    }
+  ],
+  "replaced": "RB-E7BA202A45842B71",
+  "disclosure": "Synthetic Saudi retail demonstration data \u2014 not ANB customer data or approved models."
+}

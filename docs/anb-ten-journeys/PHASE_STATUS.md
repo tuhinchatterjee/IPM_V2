@@ -12,8 +12,8 @@ so a reader never has to trust a claim that is not beside the work.
 |-------|------|-------|
 | P0  | Baseline audit and isolation            | COMPLETE |
 | P1  | Identity, metric and cohort contracts   | COMPLETE |
-| P2  | Ten coherent synthetic episodes         | NOT STARTED |
-| P3  | Atomic Cockpit/EWS publication          | NOT STARTED |
+| P2  | Ten coherent synthetic episodes         | COMPLETE |
+| P3  | Atomic Cockpit/EWS publication          | COMPLETE |
 | P4  | Ten evidence-driven cards and drawers   | NOT STARTED |
 | P5  | Stateful investigation threads          | NOT STARTED |
 | P6  | Versioned policy action engine          | NOT STARTED |
@@ -203,6 +203,173 @@ build: unique facility-month, a grain-safe Early Warning join that leaves total
 ECL unchanged to the cent, an original application score that has not moved in
 25 months, identity coverage in every month, and a reachable denominator for
 every rate.
+
+### Blockers
+
+None.
+
+---
+
+## P2 — Ten coherent synthetic episodes
+
+### How the nine are made
+
+Membership first, pressure second. Each episode picks an eligible population
+out of the real book — personal loans to financed employees, auto contracts
+whose final payment falls inside two quarters, self-construction mortgages,
+supported mortgages, matured arrangements — then marks a pocket inside it, then
+applies its mechanism mostly to the pocket and rarely outside it.
+
+The mechanism is applied to the **records**, never to a figure. A payroll
+interruption is missing salary credits and a collapsed cash buffer; the
+behavioural scorecard reads it as a behavioural scorecard, the staging rules as
+staging rules, the ECL engine as the ECL engine. Nothing writes a score, a
+stage or a loss.
+
+The measured concentration is therefore a measurement: the published predicate
+runs over the resulting columns exactly as it will in production, and the
+incidence inside and outside the pocket is counted.
+
+### What the nine actually do
+
+| Case | Lever pulled | What is NOT touched |
+|---|---|---|
+| C02 | Weak approvals default from the first instalment; clocked on months-on-book so a matched earlier vintage exists in the same dataset | the behavioural score — this is the application-model story |
+| C03 | Salary credits stop for two cycles; the household balance follows | — |
+| C04 | New external obligations arrive monthly; residual income drains | — |
+| C05 | Liquid coverage of a contractual balloon falls; the balloon does not | the contract |
+| C06 | Expected net proceeds fall and recovery takes six months longer | the collateral, the balance, every behavioural input |
+| C07 | Milestones slip past the tolerance; housing outgoings rise | — |
+| C08 | An expected support credit does not post, repeatedly | the customer's own payments |
+| C09 | Documented pension replaces part of verified income; commitments do not move | age — the rule reads the transition and the obligations |
+| C10 | A matured arrangement is not kept and defaults again inside the window | — |
+
+### Three negative controls, as tests rather than sentences
+
+**C06** marks down the expected *proceeds*, not the *asset*. Marking the asset
+down would move loan-to-value, which is a behavioural feature, which would
+worsen the borrower this story exists to exonerate. Measured on the shipped
+book: LGD 0.12 to 0.31, recovery delay 9 to 15 months, ECL up 4.4x — and the
+revised cohort's median behavioural score and 12-month PD within tolerance of
+the rest of its own book.
+
+**C09** selects on `pension_income_replacement` and
+`pension_obligations_to_income`. A gate proves the second clause excludes
+somebody, so the rule is not really "their income fell".
+
+**C02 and C10** carry a matched earlier cohort in the same dataset and compare
+against it. Comparing this vintage with itself a month ago is comparing the
+episode with itself.
+
+### Measured on the shipped 59,416-facility book
+
+| Case | Eligible | Issue | Rate | vs comparator | Pocket holds | Incidence in / out |
+|---|---|---|---|---|---|---|
+| C01 | 5,402 | 1,539 | 28.5% | 4.5x | 86.6% | 51.4% / 7.3% |
+| C02 | 504 | 76 | 15.1% | 10.1x | 67.1% | 35.2% / 7.0% |
+| C03 | 6,336 | 1,379 | 21.8% | 4.3x | 83.7% | 60.2% / 5.1% |
+| C04 | 6,729 | 1,295 | 19.3% | 3.4x | 83.6% | 35.7% / 5.7% |
+| C05 | 243 | 40 | 16.5% | 1.7x | 47.5% | 76.0% / 9.6% |
+| C06 | 4,355 | 677 | 15.6% | 3.5x | 80.5% | 38.4% / 4.5% |
+| C07 | 1,356 | 173 | 12.8% | 2.5x | 68.8% | 41.9% / 5.0% |
+| C08 | 2,020 | 247 | 12.2% | 4.1x | 81.8% | 39.8% / 3.0% |
+| C09 | 1,186 | 219 | 18.5% | 3.3x | 82.2% | 37.2% / 5.6% |
+| C10 | 2,011 | 259 | 12.9% | 8.3x | 88.4% | 22.1% / 3.1% |
+
+C05's pocket is small because the book holds only 25 contracts with a balloon
+at or above 35% of price inside the window, and the pocket is read off the
+contracts rather than seeded — an honest 1.7x rather than a manufactured 4x.
+
+### The accepted Alpha calibration
+
+Unmoved. Alpha's 1-29 share is 0.2849 on both the accepted build and this one,
+its 20-29 concentration is identical, and its utilisation matches to four
+decimal places. Four extra facilities survive across the whole book
+(59,412 to 59,416) because nine episodes changed a handful of closures; the
+only visible consequence is Alpha's weak-and-very-weak band share moving from
+0.3206 to 0.3210. No episode touches the card book, and a gate asserts it.
+
+Book-level effect of the nine: gross carrying amount +0.27%, ECL
+SAR 70.4m to SAR 110.9m, stage 3 894 to 1,461 facilities.
+
+### Files
+
+| Added | |
+|---|---|
+| `backend/retail/episode_overlay.py` | the nine episodes' membership and mechanisms |
+| `backend/retail/episode_measures.py` | the reader every card, drawer, thread and export uses |
+| `tests/retail/test_ret_cpra_p2_episodes.py` | 22 gates |
+
+| Changed | |
+|---|---|
+| `backend/retail/generate.py` | five hook points: assign, one miss-logit summand, one catch-up summand, a recovery-delay summand, a recovery haircut, the month's evidence and the frame's columns |
+| `backend/retail/config.py` | an optional `episodes` block |
+| `config/retail_demo_config.json` | nine calibrations |
+| `backend/retail/episodes.py` | the ten issue predicates, scope and outcome clauses apart |
+
+### Tests
+
+22 P2 gates, and the 40 accepted Alpha gates re-run on the new book: **62
+passed**.
+
+### Blockers
+
+None.
+
+---
+
+## P3 — Atomic Cockpit/EWS publication
+
+### The failure this closes
+
+Six datasets were built one after another, each idempotent and each skipping
+what it already had. That is correct while the book underneath is the same
+book. Regenerating it changes every period WITHOUT changing their names, so an
+incremental build of the views has nothing to do and they go on serving the
+previous book's figures — reconciled against a canonical total they no longer
+match. A build that failed halfway published a new Cockpit book beside
+yesterday's Early Warning. None of it produced an error; it produced answers.
+
+`scripts/publish_retail_bundle.py` builds everything into a staging tree,
+validates it, and swaps in one move. Six checks gate the swap:
+
+| Check | Result on this publication |
+|---|---|
+| every dataset present | 6 datasets, all with published periods |
+| Early Warning ends where the book ends | book 2026-08, panel 2026-08 |
+| every pocket exists in both the Cockpit and Early Warning | all 10 present at 2026-08 |
+| the Early Warning join is grain-safe | total ECL SAR 110,922,285.79 before and after |
+| a facility-month is unique | 59,416 rows, 59,416 facilities |
+| the five registrations survive publication | 5 present |
+
+### The registration check exists because the publication broke it
+
+`write_catalog` replaces the catalogue with the canonical book alone — right
+for what it knows about, and wrong as the last word, because four governed
+views and the Early Warning score were registered in it. The first run of this
+publisher reduced the catalogue from five registrations to one. A screen
+reading a lost registration opens **empty** rather than failing, so nothing
+would have said so. Registration is now part of the publication and the count
+is a gate; below five, the catalogue and the tree both roll back.
+
+### Published bundle
+
+`RB-E7BA202A45842B71`, as of 2026-08, seed 20260910, with per-dataset content
+hashes over the published parquet files. A cohort snapshot records the bundle
+it was measured on, and `bundle.require_same()` refuses a join across two —
+including a join to a figure that does not record its provenance at all.
+
+### Files
+
+| Added | |
+|---|---|
+| `backend/retail/bundle.py` | bundle identity, hashing, the stale-join refusal |
+| `scripts/publish_retail_bundle.py` | stage, validate, swap, register, verify |
+| `tests/retail/test_ret_cpra_p3_bundle.py` | 8 gates, one of which runs the publisher against a tree it must reject and proves the previous bundle survives |
+
+### Tests
+
+8 P3 gates. All CPRA gates plus the accepted Alpha suite: **104 passed**.
 
 ### Blockers
 

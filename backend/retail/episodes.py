@@ -519,16 +519,36 @@ _PREDICATES: dict[str, dict[str, Any]] = {
 
 
 def predicate(case_id: str) -> dict[str, Any]:
-    """The issue rule, in the stored form a cohort snapshot carries."""
+    """The issue rule, in the stored form a cohort snapshot carries.
+
+    Each clause says whether it is SCOPE or OUTCOME, and the distinction is
+    load-bearing rather than tidy. A scope clause names the population — this
+    product, this pocket, this vintage. An outcome clause is the thing that
+    happened to them.
+
+    Two of the ten are measured against a matched earlier cohort, and that
+    cohort fails the scope clause by definition: it is a DIFFERENT vintage.
+    Evaluating the whole rule over it therefore returns nobody, and a
+    comparator of zero makes every rate ratio infinite. So the comparator
+    evaluates the outcome clauses over the cohort it was handed, and the
+    breadcrumb still shows the reader all of them.
+    """
     raw = _PREDICATES.get(case_id)
     if raw is None:
         raise KeyError(f"{case_id} has no issue predicate")
-    return {
-        "combine": "and",
-        "describes": raw["describes"],
-        "clauses": [{"field": f, "op": o, "value": v, "label": label}
-                    for f, o, v, label in raw["clauses"]],
-    }
+    clauses = []
+    for index, (field, op, value, label) in enumerate(raw["clauses"]):
+        clauses.append({"field": field, "op": op, "value": value,
+                        "label": label,
+                        "role": "scope" if index == 0 else "outcome"})
+    return {"combine": "and", "describes": raw["describes"],
+            "clauses": clauses}
+
+
+def outcome_clauses(case_id: str) -> list[dict[str, Any]]:
+    """The clauses that decide whether something HAPPENED, scope aside."""
+    return [c for c in predicate(case_id)["clauses"]
+            if c["role"] == "outcome"]
 
 
 def predicate_thresholds() -> dict[str, float | int]:
