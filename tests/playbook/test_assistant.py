@@ -16,7 +16,6 @@ import pytest
 
 from backend.playbook import assistant, provider
 
-
 # --------------------------------------------------------------------------
 # A scripted provider, one response per turn.
 # --------------------------------------------------------------------------
