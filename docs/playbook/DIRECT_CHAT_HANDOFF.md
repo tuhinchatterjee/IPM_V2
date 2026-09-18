@@ -7,7 +7,7 @@ Specification: `DIRECT_CHAT_MASTER_SPEC.md`. Plan and reuse/change table:
 |---|---|
 | Branch | `claude/creditprobe-playbook-plan-ky3m05` |
 | Base at the start of this work | `cc16b9b` |
-| Final commit | `5bb8d38` |
+| Final commit | `50aa94d` (this document's own commit follows it; `git log -1` on the branch is authoritative) |
 | Alembic head | `0040`, single — **no migration was needed** |
 | Merged / deployed / PR | none of the three |
 | Paid provider calls | **none**, see §5 |
