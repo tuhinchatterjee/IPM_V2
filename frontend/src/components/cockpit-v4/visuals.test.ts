@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { RenderedChart, RenderedTable } from "./client.ts";
-import { TOP_N, chartIsUseful } from "./visual-choice.ts";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+import { CHART_KINDS, TOP_N, chartIsUseful, choose } from "./visual-choice.ts";
 
 /**
  * What earns a chart, and what a chart is drawn from.
@@ -198,4 +201,68 @@ test("a box plot is worth drawing when it has a box", () => {
   };
   assert.equal(chartIsUseful(box), true);
   assert.equal(chartIsUseful({ ...box, boxes: [] }), false);
+});
+
+/**
+ * Every chart, not the first one.
+ *
+ * `choose` used `.find()`. A three-chart answer rendered one, and the
+ * reader had no way to know the other two existed -- "the delinquency
+ * trend for each product" came back as one product. The singular fields
+ * stay for the headline pair; the arrays are what gets drawn.
+ */
+test("every useful chart survives the choice, in the analyst's order", () => {
+  const charts = [
+    chart({ title: "Credit Card" }),
+    chart({ title: "Personal Finance" }),
+    chart({ title: "Auto" }),
+    chart({ title: "Mortgage" }),
+  ];
+  const chosen = choose([], charts);
+  assert.equal(chosen.usefulCharts.length, 4);
+  assert.deepEqual(
+    chosen.usefulCharts.map((c) => c.title),
+    ["Credit Card", "Personal Finance", "Auto", "Mortgage"],
+  );
+  // The headline pair still points at the first one.
+  assert.equal(chosen.chart!.title, "Credit Card");
+});
+
+test("a chart that is not worth drawing is dropped, not the ones after it",
+  () => {
+    const chosen = choose([], [
+      chart({ title: "Empty", points: [] }),
+      chart({ title: "Real" }),
+    ]);
+    assert.equal(chosen.usefulCharts.length, 1);
+    assert.equal(chosen.usefulCharts[0].title, "Real");
+  });
+
+test("charts and tables are peers, not two sides of a toggle", () => {
+  const table: RenderedTable = {
+    title: "EAD by sector", artifact_id: "art-1",
+    columns: ["sector_name", "ead"], column_units: {},
+    rows: [{ row_id: "r0", canonical: { ead: 1 }, display: { ead: "1" } }],
+    row_count: 1, rendered_by: "creditprobe",
+  };
+  const chosen = choose([table], [chart(), chart({ title: "Second" })]);
+  assert.equal(chosen.both, true);
+  assert.equal(chosen.usefulCharts.length, 2);
+  assert.equal(chosen.usefulTables.length, 1);
+});
+
+test("the browser's vocabulary is the contract's vocabulary", () => {
+  // `CHART_BODIES` in `visuals.tsx` is a `Record<ChartKind, ...>`, so a kind
+  // with no component is a TYPE error rather than a chart that quietly
+  // renders as bars -- which is how `waterfall` and `scatter` were legal in
+  // the contract for months and drawn as something else. What a type cannot
+  // check is whether that list is still the server's, so this reads the
+  // schema both sides are generated against.
+  const schema = JSON.parse(readFileSync(
+    path.join(import.meta.dirname, "../../../../backend/cockpit_v4",
+              "contracts/shared_defs.schema.json"),
+    "utf8",
+  ));
+  const enumerated: string[] = schema.$defs.Chart.properties.kind.enum;
+  assert.deepEqual([...CHART_KINDS].sort(), [...enumerated].sort());
 });

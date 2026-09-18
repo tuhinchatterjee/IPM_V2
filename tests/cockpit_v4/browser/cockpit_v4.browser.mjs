@@ -815,9 +815,12 @@ if (process.env.V4_THREAD_SHOTS) {
     try {
       await ask(page, "What is the EAD by sector for the latest quarter?");
       await waitForAnswer(page, 90_000);
+      // ONE SCREEN, not two. The chart/table toggle is gone: every chart
+      // is stacked and the table sits below them, so a reader sees the
+      // picture and the figures without choosing between them.
+      await page.waitForSelector('[data-testid="v4-result-table"]',
+        { timeout: 30_000 }).catch(() => {});
       await shot(page, "thread_analytical_chart");
-      await page.click('[data-testid="v4-visual-table"]').catch(() => {});
-      await shot(page, "thread_analytical_table");
     } finally {
       await context.close();
     }
@@ -1396,14 +1399,14 @@ await test("a published figure is written once, the way a credit paper writes it
           return `${root?.textContent ?? ""} ${titles.join(" ")}`;
         });
 
-      const chartScreen = await read();
-      await page.click('[data-testid="v4-visual-table"]');
+      // The chart and the table are on the SAME screen now, so one read
+      // covers both. It is also a stronger assertion than the two it
+      // replaces: a figure written twice is caught wherever it is written.
       await page.waitForSelector('[data-testid="v4-result-table"]',
         { timeout: 30_000 });
-      const tableScreen = await read();
+      const screens = [["chart and table", await read()]];
 
-      for (const [where, screen] of [
-        ["chart", chartScreen], ["table", tableScreen]]) {
+      for (const [where, screen] of screens) {
         // §37: machine precision must never reach a reader. The live defect
         // printed `7013.1167117986615 SAR million` under a narrative that
         // had already written the same figure properly.
@@ -1423,9 +1426,10 @@ await test("a published figure is written once, the way a credit paper writes it
 
       // One metric, one string: the figure the prose quotes is a figure the
       // table shows.
-      const quoted = /SAR [\d,]+ million/.exec(tableScreen)?.[0] ?? "";
+      const [, whole] = screens[0];
+      const quoted = /SAR [\d,]+ million/.exec(whole)?.[0] ?? "";
       assert.ok(quoted, "no amount was published at all");
-      const occurrences = tableScreen.split(quoted).length - 1;
+      const occurrences = whole.split(quoted).length - 1;
       assert.ok(occurrences >= 2,
         `${quoted} appears once; the prose and the table must agree`);
     } finally {
@@ -1463,7 +1467,6 @@ await test("the conversation is quick to open, restore and ask again in",
       const drawn = Date.now();
       await page.waitForSelector('[data-testid="v4-chart-bar"]',
         { timeout: 30_000 });
-      await page.click('[data-testid="v4-visual-table"]').catch(() => {});
       await page.waitForSelector('[data-testid="v4-result-table"]',
         { timeout: 30_000 });
       measure("chart and table rendered", Date.now() - drawn, 5_000);
@@ -1584,7 +1587,7 @@ await test("Investigate Further opens the conversation, not just the context",
     }
   });
 
-await test("an analytical answer leads with a chart and offers its table",
+await test("an analytical answer shows every chart it sent, and its table",
   async () => {
     const { context, page, problems } = await openCockpit(browser);
     try {
@@ -1603,8 +1606,22 @@ await test("an analytical answer leads with a chart and offers its table",
       assert.ok(values.some((v) => v !== values[0]),
         "every bar carries the same value; the chart is not reading the data");
 
-      // And the exact figures are one click away.
-      await page.click('[data-testid="v4-visual-table"]');
+      // EVERY chart, one after the other. `choose` used `.find()`, so an
+      // answer carrying three charts rendered one -- which is how "a line
+      // chart per product" came back as a single bar chart.
+      const figures = await page.$$eval('[data-testid="v4-result-chart"]',
+        (nodes) => nodes.map((n) => n.getAttribute("data-kind")));
+      assert.ok(figures.length >= 3,
+        `the analyst sent three charts and ${figures.length} were drawn`);
+      assert.equal(new Set(figures).size, figures.length,
+        `each chart keeps its own form: ${figures.join(", ")}`);
+      // And each form is drawn as itself rather than falling through to
+      // bars: a line has a line, a donut has slices.
+      await expect(page, '[data-testid="v4-chart-line"]', 10_000, problems);
+      await expect(page, '[data-testid="v4-chart-donut"]', 10_000, problems);
+
+      // The exact figures are right there, not one click away: the toggle
+      // that used to hide one behind the other is gone.
       await expect(page, '[data-testid="v4-result-table"]', 10_000, problems);
       const rows = await page.$$('[data-testid="v4-table-row"]');
       assert.ok(rows.length >= 2, "the table shows the rows behind the chart");

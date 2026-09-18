@@ -430,6 +430,44 @@ def _value_resolution(resolved: list[Any], asked: list[Any]
     }
 
 
+#: How to present the result, carried only on a turn that writes an answer.
+#:
+#: Four live answers came back as tables and nothing else, one of them to a
+#: reader who had asked for a line chart by name. The instruction file did
+#: not contain the word "chart", so nothing told the analyst that the form
+#: was part of the answer or that the request was there to be honoured.
+PRESENTATION: dict[str, Any] = {
+    "phase": "PRESENTATION",
+    "charts_are_part_of_the_answer": (
+        "A result that moves, ranks, splits a total or spreads across a "
+        "range reads better drawn than listed. Send `charts` with the "
+        "answer, not instead of the table."),
+    "an_explicit_request_wins": (
+        "If the reader named a form -- \"give me a line chart\" -- send that "
+        "`kind`. Their words are in the conversation above."),
+    "otherwise_choose_by_shape": (
+        "A sequence draws as line, step_line, area or waterfall; a ranking "
+        "as bar or grouped_bar; a composition as pie, donut, stacked_bar or "
+        "stacked_bar_100; a spread as histogram, box, scatter or bubble; a "
+        "from-to grid as heatmap; a rate beside a volume as combo. The "
+        "`kind` enum carries what each one means."),
+    "a_bar_chart_states_an_order": (
+        "bar and grouped_bar are read top-down as a ranking, so when the "
+        "answer says \"the largest\" the result behind them must be ORDERED "
+        "by the measure being charted. A series that moves up and down is a "
+        "sequence, not a ranking: draw it as a line."),
+    "several_small_charts": (
+        "Prefer several small charts to one crowded one. A trend \"for each "
+        "product\" is one chart per product, each titled for its product, "
+        "rather than every series fighting over one axis. Use the chart "
+        "allowance the budget gives you."),
+    "a_correction_replaces_everything": (
+        "If this answer comes back for correction, send the charts again "
+        "with the corrected answer. A chart left out of a correction is a "
+        "chart the reader never sees."),
+}
+
+
 def finalization_system(system_blocks: list[dict[str, Any]]
                         ) -> list[dict[str, Any]]:
     """The system context a turn needs when its job is to WRITE THE ANSWER.
@@ -448,6 +486,14 @@ def finalization_system(system_blocks: list[dict[str, Any]]
 
     Nothing analytical is removed: the result, its evidence and the
     derived-claim contract all arrive in the tool result, not from here.
+
+    HOW TO PRESENT the result is added here rather than in `analyst.md`,
+    because it is only true on this turn. The action turn cannot send a
+    chart, and the action payload has no room to spare -- the instruction is
+    carried on every attempt and is measured against a bound. So the chart
+    policy costs nothing until the turn that can act on it. It reaches the
+    correction turn too: that turn answers as well, and a correction replaces
+    the whole answer, charts included.
     """
     if not system_blocks:
         return system_blocks
@@ -470,8 +516,10 @@ def finalization_system(system_blocks: list[dict[str, Any]]
             }, ensure_ascii=False)})
             continue
         kept.append(block)
+    kept.append({"type": "text", "text": json.dumps(
+        PRESENTATION, ensure_ascii=False)})
     return kept
 
 
-__all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "Packet",
-           "analyst_instruction", "build", "finalization_system"]
+__all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "PRESENTATION",
+           "Packet", "analyst_instruction", "build", "finalization_system"]

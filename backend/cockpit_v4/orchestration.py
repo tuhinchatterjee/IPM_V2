@@ -463,12 +463,18 @@ class Orchestrator:
                        message=message, response=response,
                        terminal_event_emitted=True)
 
-    def _result_only_response(self, code: str) -> dict[str, Any] | None:
+    def _result_only_response(self, code: str,
+                              rejected: Any = None) -> dict[str, Any] | None:
         """The stored result, shaped as a response, or nothing.
 
         Nothing is the right answer for a run that executed nothing, and
         for one that already published an answer -- a terminal stop after a
         successful publication is not this case and must not overwrite it.
+
+        `rejected` is the answer that failed its evidence check, when there
+        is one. Its CHARTS are re-checked and republished; its narrative and
+        claims are not. A stop with no answer object -- a deadline, a cost
+        ceiling -- passes nothing and publishes tables alone, as before.
         """
         if self.answer_published or not self.executed:
             return None
@@ -485,7 +491,8 @@ class Orchestrator:
         try:
             body = self.finalizer.result_only_response(
                 reason=reason, purposes=self.step_purposes,
-                catalog=self.catalog, intent=self.intent)
+                catalog=self.catalog, intent=self.intent,
+                rejected=rejected)
         except Exception:                                     # noqa: BLE001
             # A result that cannot be rendered must not turn a stop into a
             # crash. The run still fails; it fails the way it did before.
@@ -1576,7 +1583,8 @@ class Orchestrator:
                 # over a query that ran correctly. Same channel, same
                 # server-written caveat, no narrative -- the rejected one is
                 # discarded here exactly as it was before.
-                published = self._result_only_response(st.ANSWER_VALIDATION)
+                published = self._result_only_response(
+                    st.ANSWER_VALIDATION, rejected=final)
                 return Outcome(
                     st.PARTIAL if published else st.FAILED,
                     error_code=st.ANSWER_VALIDATION, response=published,

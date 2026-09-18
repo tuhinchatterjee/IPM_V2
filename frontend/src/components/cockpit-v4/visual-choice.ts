@@ -12,6 +12,27 @@ import type { RenderedChart, RenderedTable } from "./client.ts";
 export const TOP_N = 10;
 
 /**
+ * Every form the analyst may ask for, and the browser must be able to draw.
+ *
+ * Kept here, in a module with no JSX in it, so the unit suite can read it
+ * and `visuals.tsx` can key its dispatch by it: a `Record<ChartKind, …>`
+ * with a kind missing is a TYPE error, not a chart that quietly renders as
+ * bars. That silence is not hypothetical -- `waterfall` and `scatter` were
+ * legal in the contract for months and fell through to `_bar_svg`, and an
+ * analyst who asked for a bridge got bars and was told nothing.
+ *
+ * The same list is `finalization.CHART_KINDS` on the server and the `kind`
+ * enum in `shared_defs.schema.json`. The test pins all three together.
+ */
+export const CHART_KINDS = [
+  "area", "bar", "box", "bubble", "combo", "donut", "grouped_bar", "heatmap",
+  "histogram", "line", "pie", "scatter", "stacked_bar", "stacked_bar_100",
+  "step_line", "waterfall",
+] as const;
+
+export type ChartKind = (typeof CHART_KINDS)[number];
+
+/**
  * A number, or nothing.
  *
  * A null is NOT zero, and `Number(null)` is 0 -- which would plot a cell
@@ -76,8 +97,26 @@ export function tableIsUseful(table: RenderedTable | undefined): boolean {
 export function choose(
   tables: RenderedTable[],
   charts: RenderedChart[],
-): { chart?: RenderedChart; table?: RenderedTable; both: boolean } {
-  const chart = charts.find((c) => chartIsUseful(c));
-  const table = tables.find((t) => tableIsUseful(t));
-  return { chart, table, both: Boolean(chart && table) };
+): {
+  chart?: RenderedChart;
+  table?: RenderedTable;
+  both: boolean;
+  /** EVERY useful chart, in the order the analyst sent them. */
+  usefulCharts: RenderedChart[];
+  usefulTables: RenderedTable[];
+} {
+  // `.find()` returned the FIRST useful chart and discarded the rest, so a
+  // three-chart answer rendered one. A question like "show the delinquency
+  // trend for each product" is answered by one chart per product, and the
+  // reader saw one product. The singular fields are kept for callers that
+  // still want a headline pair; the arrays are what gets rendered.
+  const usefulCharts = charts.filter((c) => chartIsUseful(c));
+  const usefulTables = tables.filter((t) => tableIsUseful(t));
+  return {
+    chart: usefulCharts[0],
+    table: usefulTables[0],
+    both: Boolean(usefulCharts.length && usefulTables.length),
+    usefulCharts,
+    usefulTables,
+  };
 }

@@ -270,8 +270,26 @@ This environment uses synthetic demonstration data rather than a real bank portf
                   # decision. It supplies no values -- the schema has nowhere
                   # to put one -- so every figure in the rendered chart still
                   # comes out of the stored artifact.
+                  # THREE FORMS, ONE ANSWER. A reader asked for "multiple
+                  # product x DPD line charts" and got one bar chart,
+                  # because the browser rendered the FIRST useful chart and
+                  # hid it behind a toggle. Three charts of different kinds
+                  # is the smallest arrangement that proves the stack
+                  # renders them all and draws each as itself.
                   charts=[{"kind": "bar",
                            "title": f"Exposure at default by {grain}",
+                           "artifact_id": step["artifact_id"],
+                           "x_column": dimension,
+                           "y_columns": ["ead_sar_mn"],
+                           "unit": money_unit()},
+                          {"kind": "line",
+                           "title": f"Exposure profile across {grain}s",
+                           "artifact_id": step["artifact_id"],
+                           "x_column": dimension,
+                           "y_columns": ["ead_sar_mn"],
+                           "unit": money_unit()},
+                          {"kind": "donut",
+                           "title": f"Share of exposure by {grain}",
                            "artifact_id": step["artifact_id"],
                            "x_column": dimension,
                            "y_columns": ["ead_sar_mn"],

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -419,12 +420,45 @@ def chart_svg(*, chart: dict[str, Any], lineage: Lineage) -> str:
 
     unit = str((chart.get("series_units") or {}).get(column)
                or chart.get("unit") or "")
+
+    # A FORM WITH SEVERAL MEASURES NEEDS THEM ALL. The single-series
+    # `values` above is what a bar or a line is drawn from; a stack, a
+    # group and a combo are drawn from every column the analyst named, so
+    # they are dispatched before it and read the points themselves.
+    if kind in _MULTI_SERIES:
+        return _frame(title=title, unit=unit, lineage=lineage,
+                      body=_MULTI_SERIES[kind](points, series))
+
     # EVERY FORM DRAWN AS ITSELF. `waterfall` and `scatter` have been legal
     # in the contract all along and fell through this dispatch to `_bar_svg`,
     # so an analyst that asked for a bridge got bars and was told nothing.
-    body = {"line": _line_svg, "scatter": _scatter_svg,
-            "waterfall": _waterfall_svg}.get(kind, _bar_svg)(values)
+    body = {"line": _line_svg, "step_line": _step_line_svg,
+            "area": _area_svg, "scatter": _scatter_svg,
+            "waterfall": _waterfall_svg, "histogram": _histogram_svg,
+            "pie": _pie_svg, "donut": _donut_svg,
+            }.get(kind, _bar_svg)(values)
     return _frame(title=title, unit=unit, body=body, lineage=lineage)
+
+
+def _numbers(points: list[dict[str, Any]], series: list[str]
+             ) -> list[tuple[str, list[float]]]:
+    """Every named measure, per labelled point. Missing cells read zero.
+
+    A stack with a hole in it is not a stack: the segments above would sit
+    at the wrong height and the total would be wrong, which is worse than
+    showing the contribution as nothing.
+    """
+    out: list[tuple[str, list[float]]] = []
+    for point in points:
+        raw = point.get("values") or {}
+        row: list[float] = []
+        for column in series:
+            try:
+                row.append(float(raw.get(column)))
+            except (TypeError, ValueError):
+                row.append(0.0)
+        out.append((str(point.get("label") or ""), row))
+    return out
 
 
 def _frame(*, title: str, unit: str, body: str, lineage: Lineage) -> str:
@@ -570,6 +604,292 @@ def _waterfall_svg(values: list[tuple[str, float, str]]) -> str:
                 f'x2="{x:.2f}" y2="{previous:.2f}" '
                 f'stroke="#cbd5e1" stroke-width="1"/>')
     return "".join(parts)
+
+
+#: A categorical ramp for stacked and grouped forms. Ordered so adjacent
+#: segments stay distinguishable; the first is the same slate the
+#: single-series forms use, so one chart does not look like another product.
+_SERIES_COLOURS = ("#0f172a", "#0ea5e9", "#b45309", "#15803d", "#7c3aed",
+                   "#be123c", "#0891b2", "#a16207")
+
+
+def _colour(index: int) -> str:
+    return _SERIES_COLOURS[index % len(_SERIES_COLOURS)]
+
+
+def _legend(series: list[str], y: int = 60) -> str:
+    """Which colour is which measure. A stack without one is a puzzle."""
+    parts, x = [], PADDING
+    for index, name in enumerate(series):
+        parts.append(
+            f'<rect x="{x}" y="{y - 8}" width="9" height="9" rx="2" '
+            f'fill="{_colour(index)}"/>'
+            f'<text x="{x + 13}" y="{y}" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#475569">{_escape(name[:18])}</text>')
+        x += 22 + 6 * min(len(name), 18)
+    return "".join(parts)
+
+
+def _stacked_svg(points: list[dict[str, Any]], series: list[str], *,
+                 normalise: bool = False) -> str:
+    """Segments piled to a total, per category.
+
+    `normalise` makes every column sum to 100%, which is how a delinquency
+    BAND MIX is read: the question is what share sits in each bucket, not
+    how big the book got.
+    """
+    rows = _numbers(points, series)
+    if not rows:
+        raise ExportUnavailable("This chart has no plotted points.")
+    totals = [sum(abs(v) for v in values) or 1.0 for _l, values in rows]
+    top = 1.0 if normalise else (max(totals) or 1.0)
+
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    step = (right - left) / max(1, len(rows))
+    width = step * 0.68
+    parts = [_legend(series)]
+    for index, (label, values) in enumerate(rows):
+        x = left + index * step + (step - width) / 2
+        base = totals[index] if normalise else 1.0
+        y = floor
+        for order, value in enumerate(values):
+            share = (abs(value) / base) if normalise else abs(value)
+            height = share / top * (floor - ceiling)
+            if height <= 0:
+                continue
+            y -= height
+            parts.append(
+                f'<rect x="{x:.2f}" y="{y:.2f}" width="{width:.2f}" '
+                f'height="{height:.2f}" fill="{_colour(order)}"/>')
+        parts.append(
+            f'<text x="{x + width / 2:.2f}" y="{floor + 18}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#64748b">{_escape(label[:12])}</text>')
+    return "".join(parts)
+
+
+def _stacked_100_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+    return _stacked_svg(points, series, normalise=True)
+
+
+def _grouped_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+    """Bars side by side, per category. The comparison is WITHIN a group."""
+    rows = _numbers(points, series)
+    if not rows:
+        raise ExportUnavailable("This chart has no plotted points.")
+    top = max((abs(v) for _l, values in rows for v in values), default=0) or 1.0
+
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    step = (right - left) / max(1, len(rows))
+    band = step * 0.72
+    width = band / max(1, len(series))
+    parts = [_legend(series)]
+    for index, (label, values) in enumerate(rows):
+        start = left + index * step + (step - band) / 2
+        for order, value in enumerate(values):
+            height = abs(value) / top * (floor - ceiling)
+            x = start + order * width
+            parts.append(
+                f'<rect x="{x:.2f}" y="{floor - height:.2f}" '
+                f'width="{max(1.0, width - 1):.2f}" height="{height:.2f}" '
+                f'fill="{_colour(order)}"/>')
+        parts.append(
+            f'<text x="{start + band / 2:.2f}" y="{floor + 18}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#64748b">{_escape(label[:12])}</text>')
+    return "".join(parts)
+
+
+def _combo_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+    """Volumes as bars, a RATE as a line on its own scale.
+
+    The one form a credit pack cannot do without: exposure in SAR millions
+    and a delinquency rate in percent do not share an axis, and plotting
+    them on one makes the rate a flat line along the floor.
+    """
+    rows = _numbers(points, series)
+    if not rows or len(series) < 2:
+        raise ExportUnavailable(
+            "A combo chart needs two measures: bars first, then the line.")
+    bar_top = max((abs(v[0]) for _l, v in rows), default=0) or 1.0
+    line_values = [v[1] for _l, v in rows]
+    line_top, line_bottom = max(line_values), min(line_values)
+    line_span = (line_top - line_bottom) or 1.0
+
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    step = (right - left) / max(1, len(rows))
+    width = step * 0.56
+    parts = [_legend(series)]
+    coordinates = []
+    for index, (label, values) in enumerate(rows):
+        centre = left + index * step + step / 2
+        height = abs(values[0]) / bar_top * (floor - ceiling)
+        parts.append(
+            f'<rect x="{centre - width / 2:.2f}" y="{floor - height:.2f}" '
+            f'width="{width:.2f}" height="{height:.2f}" rx="2" '
+            f'fill="{_colour(0)}" fill-opacity="0.85"/>'
+            f'<text x="{centre:.2f}" y="{floor + 18}" text-anchor="middle" '
+            f'font-family="system-ui, sans-serif" font-size="10" '
+            f'fill="#64748b">{_escape(label[:12])}</text>')
+        y = floor - (values[1] - line_bottom) / line_span * (floor - ceiling)
+        coordinates.append(f"{centre:.2f},{y:.2f}")
+    parts.append(
+        f'<polyline fill="none" stroke="{_colour(1)}" stroke-width="2" '
+        f'points="{" ".join(coordinates)}"/>')
+    return "".join(parts)
+
+
+#: Forms drawn from EVERY named measure rather than the first one.
+_MULTI_SERIES = {"stacked_bar": _stacked_svg,
+                 "stacked_bar_100": _stacked_100_svg,
+                 "grouped_bar": _grouped_svg,
+                 "combo": _combo_svg,
+                 "bubble": None}      # replaced below, after _bubble_svg
+
+
+def _bubble_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+    """Two measures against each other, a third as the area."""
+    rows = _numbers(points, series)
+    if not rows or len(series) < 2:
+        raise ExportUnavailable(
+            "A bubble chart needs two measures: the axis, then the size.")
+    xs = [v[0] for _l, v in rows]
+    sizes = [abs(v[1]) for _l, v in rows]
+    x_top, x_bottom = max(xs), min(xs)
+    x_span = (x_top - x_bottom) or 1.0
+    size_top = max(sizes) or 1.0
+
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    step = (right - left) / max(1, len(rows))
+    parts = [_legend(series)]
+    for index, (label, values) in enumerate(rows):
+        cx = left + index * step + step / 2
+        cy = floor - (values[0] - x_bottom) / x_span * (floor - ceiling)
+        # AREA, not radius: a radius proportional to the value exaggerates
+        # a big bubble by its square.
+        radius = 4 + 18 * ((abs(values[1]) / size_top) ** 0.5)
+        parts.append(
+            f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="{radius:.2f}" '
+            f'fill="{_colour(0)}" fill-opacity="0.45" stroke="{_colour(0)}"/>'
+            f'<text x="{cx:.2f}" y="{floor + 18}" text-anchor="middle" '
+            f'font-family="system-ui, sans-serif" font-size="10" '
+            f'fill="#64748b">{_escape(label[:10])}</text>')
+    return "".join(parts)
+
+
+_MULTI_SERIES["bubble"] = _bubble_svg
+
+
+def _area_svg(values: list[tuple[str, float, str]]) -> str:
+    """A line with the ground filled in: a level over time, not a rate."""
+    line = _line_svg(values)
+    numbers = [v for _l, v, _d in values]
+    top, bottom = max(numbers), min(numbers)
+    span = (top - bottom) or 1.0
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 70
+    step = (right - left) / max(1, len(values) - 1)
+    points = [f"{left:.2f},{floor:.2f}"]
+    for index, (_label, value, _shown) in enumerate(values):
+        x = left + index * step
+        y = floor - (value - bottom) / span * (floor - ceiling)
+        points.append(f"{x:.2f},{y:.2f}")
+    points.append(f"{left + (len(values) - 1) * step:.2f},{floor:.2f}")
+    return (f'<polygon fill="#0f172a" fill-opacity="0.12" '
+            f'points="{" ".join(points)}"/>' + line)
+
+
+def _step_line_svg(values: list[tuple[str, float, str]]) -> str:
+    """A level that holds until it changes -- a limit, a cut-off, a rate."""
+    numbers = [v for _l, v, _d in values]
+    top, bottom = max(numbers), min(numbers)
+    span = (top - bottom) or 1.0
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 70
+    step = (right - left) / max(1, len(values) - 1)
+    points = []
+    previous_y = None
+    for index, (_label, value, _shown) in enumerate(values):
+        x = left + index * step
+        y = floor - (value - bottom) / span * (floor - ceiling)
+        if previous_y is not None:
+            points.append(f"{x:.2f},{previous_y:.2f}")
+        points.append(f"{x:.2f},{y:.2f}")
+        previous_y = y
+    return (f'<polyline fill="none" stroke="#0f172a" stroke-width="2" '
+            f'points="{" ".join(points)}"/>')
+
+
+def _histogram_svg(values: list[tuple[str, float, str]]) -> str:
+    """Counts per band, drawn touching, because the axis is continuous.
+
+    The gap between bars is what says "these categories are separate". A
+    DPD distribution has no gaps -- 10-19 abuts 20-29 -- and drawing one
+    invites a reader to see groups that are not there.
+    """
+    top = max((abs(v) for _l, v, _d in values), default=0) or 1.0
+    left, right = PADDING + 10, WIDTH - PADDING
+    floor, ceiling = HEIGHT - 60, 78
+    width = (right - left) / max(1, len(values))
+    parts = []
+    for index, (label, value, shown) in enumerate(values):
+        height = abs(value) / top * (floor - ceiling)
+        x = left + index * width
+        parts.append(
+            f'<rect x="{x:.2f}" y="{floor - height:.2f}" '
+            f'width="{max(1.0, width - 0.5):.2f}" height="{height:.2f}" '
+            f'fill="#0f172a" fill-opacity="0.82"/>'
+            f'<text x="{x + width / 2:.2f}" y="{floor + 18}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="9" fill="#64748b">{_escape(label[:9])}</text>')
+    return "".join(parts)
+
+
+def _slice_svg(values: list[tuple[str, float, str]], *, hole: float) -> str:
+    """Shares of one whole. `hole` makes it a donut."""
+    total = sum(abs(v) for _l, v, _d in values)
+    if total <= 0:
+        raise ExportUnavailable("A share chart needs a non-zero total.")
+    cx, cy = WIDTH / 2, (HEIGHT + 20) / 2
+    radius = min(HEIGHT - 150, 120)
+    angle = -90.0
+    parts = []
+    for index, (label, value, shown) in enumerate(values):
+        sweep = abs(value) / total * 360.0
+        end = angle + sweep
+        large = 1 if sweep > 180 else 0
+        x1 = cx + radius * math.cos(math.radians(angle))
+        y1 = cy + radius * math.sin(math.radians(angle))
+        x2 = cx + radius * math.cos(math.radians(end))
+        y2 = cy + radius * math.sin(math.radians(end))
+        parts.append(
+            f'<path d="M {cx:.2f} {cy:.2f} L {x1:.2f} {y1:.2f} '
+            f'A {radius:.2f} {radius:.2f} 0 {large} 1 {x2:.2f} {y2:.2f} Z" '
+            f'fill="{_colour(index)}"/>')
+        middle = math.radians(angle + sweep / 2)
+        label_r = radius * (0.66 if hole <= 0 else (1 + hole) / 2)
+        parts.append(
+            f'<text x="{cx + label_r * math.cos(middle):.2f}" '
+            f'y="{cy + label_r * math.sin(middle):.2f}" '
+            f'text-anchor="middle" font-family="system-ui, sans-serif" '
+            f'font-size="10" fill="#ffffff">{_escape(label[:10])}</text>')
+        angle = end
+    if hole > 0:
+        parts.append(f'<circle cx="{cx:.2f}" cy="{cy:.2f}" '
+                     f'r="{radius * hole:.2f}" fill="#ffffff"/>')
+    return "".join(parts)
+
+
+def _pie_svg(values: list[tuple[str, float, str]]) -> str:
+    return _slice_svg(values, hole=0.0)
+
+
+def _donut_svg(values: list[tuple[str, float, str]]) -> str:
+    return _slice_svg(values, hole=0.55)
 
 
 def _matrix_svg(matrix: dict[str, Any]) -> str:

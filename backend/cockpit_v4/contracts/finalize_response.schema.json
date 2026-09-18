@@ -68,8 +68,8 @@
         "$ref": "#/$defs/Chart"
       },
       "minItems": 0,
-      "maxItems": 3,
-      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form. Pick the form from the SHAPE of the result: a ranked comparison is a bar, a series over time is a line, a from/to pair with a measure is a heatmap (the grid, whose diagonal is everything that did not move -- a rating or stage migration is this and is unreadable as a flat list), a contribution bridge is a waterfall, two measures against each other is a scatter, and the spread of a measure across a category is a box. CreditProbe computes every value, including a box's quartiles."
+      "maxItems": 8,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form. Pick the form from the SHAPE of the result: a ranked comparison is a bar, a series over time is a line, a from/to pair with a measure is a heatmap (the grid, whose diagonal is everything that did not move -- a rating or stage migration is this and is unreadable as a flat list), a contribution bridge is a waterfall, two measures against each other is a scatter, and the spread of a measure across a category is a box. CreditProbe computes every value, including a box's quartiles. SEVERAL SMALL CHARTS BEAT ONE CROWDED ONE: a trend per product is one chart per product, and they are published in the order you send them. If the reader named a form -- \"give me a line chart\" -- use that form."
     },
     "limitations": {
       "type": [

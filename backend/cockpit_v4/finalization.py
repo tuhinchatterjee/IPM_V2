@@ -251,13 +251,41 @@ MIN_BOX_OBSERVATIONS = 4
 HEATMAP = "heatmap"
 BOX = "box"
 
+#: Forms that state an order BY POSITION: the reader takes the top bar to be
+#: the largest. Only these make a ranking claim, and only these are held to
+#: `_check_ordering`.
+RANKING_KINDS = frozenset({"bar", "grouped_bar"})
+
+#: Forms whose x axis is a SEQUENCE -- time, or an ordered band. Their order
+#: is the axis's, not the measure's, so a ranking test means nothing on them.
+SEQUENCE_KINDS = frozenset({"line", "step_line", "area", "combo",
+                            "waterfall"})
+
+#: Forms that divide ONE WHOLE. Magnitude is read off area or length, not
+#: off position, so an unsorted delinquency mix under "the highest share is
+#: in 1-29" is perfectly readable -- the reader sees the biggest slice
+#: wherever it sits.
+COMPOSITION_KINDS = frozenset({"pie", "donut", "stacked_bar",
+                               "stacked_bar_100"})
+
+#: Forms that show a DISTRIBUTION or a relationship rather than an order.
+SHAPE_KINDS = frozenset({"scatter", "bubble", "histogram", HEATMAP, BOX})
+
 #: Every form `finalize_response` accepts, matching the `kind` enum in
 #: `shared_defs.schema.json`. Validated here as well because the JSON
 #: schema is enforced by the provider and nothing in Python ever looked:
 #: `parse_final` took each chart as a raw dict, so a kind no renderer knows
 #: reached `chart_svg`, fell through its `else`, and was silently drawn as
 #: a bar.
-CHART_KINDS = ("bar", "line", "waterfall", "scatter", HEATMAP, BOX)
+#:
+#: The set is what a credit-risk team actually draws. `bar`, `line`,
+#: `waterfall`, `scatter`, `heatmap` and `box` were here; the rest existed
+#: only as the shapes analysts had to flatten into bars: a delinquency mix
+#: is a stacked bar, a band mix is a 100% stacked bar, rate-over-volume is a
+#: combo, a DPD distribution is a histogram, a vintage comparison is a
+#: grouped bar.
+CHART_KINDS = tuple(sorted(
+    RANKING_KINDS | SEQUENCE_KINDS | COMPOSITION_KINDS | SHAPE_KINDS))
 
 
 @dataclass
@@ -597,8 +625,9 @@ class Finalizer:
         "written by the analyst.")
 
     def result_only_response(self, *, reason: str, purposes: Any = None,
-                             catalog: Any = None,
-                             intent: Any = None) -> dict[str, Any]:
+                             catalog: Any = None, intent: Any = None,
+                             rejected: FinalResponse | None = None
+                             ) -> dict[str, Any]:
         """The computed result, published without a written answer.
 
         The defect this exists for
@@ -623,6 +652,22 @@ class Finalizer:
         `render_tables`, which reads the artifact and formats it under the
         one display policy, so nothing published this way has passed
         through a model.
+
+        THE CHARTS SURVIVE, when there are any. `rejected` is the answer
+        that failed, and this used not to receive it at all: the parameter
+        was absent, `charts` was a hard-coded `[]`, and a reader whose
+        narrative was refused lost every picture the analyst had drawn
+        along with it. Four live answers came back as bare tables that way,
+        one of them after the reader had asked for a line chart by name.
+
+        A chart is safe to keep where a claim is not. `_check_chart` judges
+        a chart against its ARTIFACT -- the columns exist, the kind is
+        known, the shape is readable -- and never against the narrative, so
+        a chart that passed is still passing. `render_charts` then reads
+        every value back out of the artifact store. Nothing the model wrote
+        reaches the reader through this path; the drawing is the analyst's
+        choice of WHICH stored rows to show, which is the same kind of
+        choice the tables already carry.
 
         Returns `{}` when there is nothing to publish, which is the correct
         answer for a run that never executed anything.
@@ -658,12 +703,23 @@ class Finalizer:
             referral_owner="", referral_reason="")
         rendered = self.render_tables(shell, catalog)
 
+        # The analyst's own charts, re-checked and re-rendered from the
+        # artifacts. A rejected NARRATIVE says nothing about whether a
+        # picture of the stored rows was sound.
+        charts: list[dict[str, Any]] = []
+        if rejected is not None and rejected.charts:
+            try:
+                charts = self.render_charts(
+                    self.surviving_charts(rejected), catalog)
+            except Exception:  # noqa: BLE001 - a chart is never worth the rows
+                charts = []
+
         body: dict[str, Any] = {
             "intent": intent.to_dict() if intent is not None else {},
             "disposition": "partial_answer",
             "narrative": self.RESULT_ONLY_NARRATIVE,
             "coverage": [], "numeric_claims": [], "evidence_refs": [],
-            "tables": rendered, "charts": [],
+            "tables": rendered, "charts": charts,
             "limitations": [
                 "The written answer could not be produced, so these rows "
                 "are published without an explanation of them.",
@@ -922,12 +978,23 @@ class Finalizer:
         """A ranking claimed in words must be a ranking in the evidence.
 
         Checked only where the answer both CLAIMS an order ("the largest",
-        "top five") and publishes a chart, because a chart of ranked bars is
-        the reader's ranking. The test is monotonicity on the charted
+        "top five") and publishes a RANKING chart, because a chart of ranked
+        bars is the reader's ranking. The test is monotonicity on the charted
         measure, in either direction -- an ascending chart under "the
         smallest" is as correct as a descending one under "the largest". It
         catches the specific error of a query that forgot its ORDER BY under
         an answer that says "the biggest", which no other check would see.
+
+        ONLY A RANKING CHART MAKES A RANKING CLAIM. This paragraph has
+        always said "a chart of ranked bars"; the code tested every kind,
+        and that is a defect a live run paid for twice. A line over time is
+        ordered by PERIOD, so a delinquency trend that rises and then falls
+        is not monotonic and never will be -- and the narrative had only to
+        contain "most", "highest" or "worst", which is most of the
+        vocabulary of a delinquency write-up. Two answers were refused, the
+        single correction was spent on a rejection that reproduces
+        identically, and the reader was handed rows with no explanation.
+        A sequence is not a rank, and neither is a distribution or a flow.
         """
         if not final.charts:
             return []
@@ -935,7 +1002,12 @@ class Finalizer:
         if not _SUPERLATIVE.search(words):
             return []
         problems: list[str] = []
-        for index, chart in enumerate(final.charts):
+        # SURVIVING charts, not every chart the analyst sent: one that is
+        # about to be dropped as a warning must not hard-reject the answer
+        # it was only decorating.
+        for index, chart in enumerate(self.surviving_charts(final)):
+            if str(chart.get("kind") or "").lower() not in RANKING_KINDS:
+                continue
             artifact_id = str(chart.get("artifact_id") or "")
             if artifact_id not in self.run_artifacts:
                 continue
@@ -961,10 +1033,13 @@ class Finalizer:
                 ascending = all(a <= b for a, b in zip(values, values[1:]))
                 if not (descending or ascending):
                     problems.append(
-                        f"the answer claims a ranking and charts "
-                        f"{column!r}, but artifact {artifact_id!r} is not "
-                        f"ordered by it. Order the query by the measure you "
-                        f"are ranking, or drop the ranking language.")
+                        f"chart {index + 1} "
+                        f"({str(chart.get('title') or chart.get('kind'))!r}) "
+                        f"claims a ranking and charts {column!r}, but "
+                        f"artifact {artifact_id!r} is not ordered by it. "
+                        f"Order the query by the measure you are ranking, "
+                        f"draw it as a sequence rather than a ranking, or "
+                        f"drop the ranking language.")
         return problems
 
     def _check_chart(self, chart: dict[str, Any], index: int) -> str:
@@ -1177,6 +1252,24 @@ def correction_packet(final: FinalResponse, report: ValidationReport, *,
              "kind": "derived" if c.is_derived else "direct"}
             for c in final.numeric_claims],
         "authorized_artifacts": artifacts,
+        # A CORRECTION REPLACES THE WHOLE ANSWER. The packet used to say
+        # nothing about charts, so a corrected answer came back with none:
+        # the reader lost every chart by getting a better sentence. The
+        # charts are echoed by title and kind -- not by their points, which
+        # the analyst already has -- so resending them is a copy, not a
+        # reconstruction.
+        "charts": {
+            "resend_them": (
+                "This correction replaces your whole answer, charts "
+                "included. Send the same charts again unless a problem "
+                "above names one, in which case fix that one and send the "
+                "rest unchanged."),
+            "you_sent": [
+                {"title": str(chart.get("title") or ""),
+                 "kind": str(chart.get("kind") or ""),
+                 "artifact_id": str(chart.get("artifact_id") or "")}
+                for chart in final.charts],
+        },
         "direct_value": (
             "A number that appears in one result cell: send 'evidence' with "
             "artifact_id, row_id and column_id."),

@@ -28,6 +28,7 @@ import * as React from "react";
 
 import type { ChartPoint, RenderedChart, RenderedTable } from "./client";
 import { TOP_N, choose, numeric, text } from "./visual-choice";
+import type { ChartKind } from "./visual-choice";
 
 export { TOP_N, chartIsUseful } from "./visual-choice";
 
@@ -218,8 +219,21 @@ function BarChart({ chart }: { chart: RenderedChart }) {
   );
 }
 
-/** A line over an ordered axis. §13: the shape for a time series. */
-function LineChart({ chart }: { chart: RenderedChart }) {
+/**
+ * A line over an ordered axis. §13: the shape for a time series.
+ *
+ * FOUR FORMS SHARE THIS GEOMETRY and none of them is the others. A `line`
+ * interpolates between readings; a `step_line` holds each value until the
+ * next one, which is what a policy rate or a limit actually does; an `area`
+ * fills to the baseline, so the eye reads the total rather than the slope;
+ * a `scatter` draws the points and NO line, because there is no ordering
+ * between them to interpolate along. All four rendered as a plain line,
+ * which told the reader three things that were not true.
+ */
+function LineChart({ chart, variant = "line" }: {
+  chart: RenderedChart;
+  variant?: "line" | "step_line" | "area" | "scatter";
+}) {
   const data = series(chart);
   if (!data || data.points.length < 2) return null;
   const values = data.points.map((p) => p.value);
@@ -227,18 +241,46 @@ function LineChart({ chart }: { chart: RenderedChart }) {
   const min = Math.min(...values, 0);
   const span = max - min || 1;
   const step = 100 / (data.points.length - 1);
+  const at = (p: { value: number }, i: number): [number, number] => [
+    i * step, 100 - ((p.value - min) / span) * 100];
   const path = data.points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${(i * step).toFixed(2)} ${
-      (100 - ((p.value - min) / span) * 100).toFixed(2)}`)
+    .map((p, i) => {
+      const [x, y] = at(p, i);
+      if (i === 0) return `M ${x.toFixed(2)} ${y.toFixed(2)}`;
+      if (variant === "step_line") {
+        const [, previous] = at(data.points[i - 1], i - 1);
+        return `L ${x.toFixed(2)} ${previous.toFixed(2)} L ${x.toFixed(2)} ${
+          y.toFixed(2)}`;
+      }
+      return `L ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
     .join(" ");
 
   return (
-    <div data-testid="v4-chart-line">
+    <div data-testid={`v4-chart-${variant === "line" ? "line" : variant}`}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none"
            className="h-40 w-full" role="img"
            aria-label={`${chart.title}. ${data.points.length} points.`}>
-        <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5"
-              vectorEffect="non-scaling-stroke" className="text-sky-600" />
+        {variant === "area" ? (
+          <path d={`${path} L 100 100 L 0 100 Z`} fill="currentColor"
+                className="text-sky-600/20" stroke="none" />
+        ) : null}
+        {variant === "scatter" ? null : (
+          <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5"
+                vectorEffect="non-scaling-stroke" className="text-sky-600" />
+        )}
+        {variant === "scatter"
+          ? data.points.map((p, i) => {
+              const [x, y] = at(p, i);
+              return (
+                <circle key={p.rowId} cx={x} cy={y} r="1.6"
+                        vectorEffect="non-scaling-stroke"
+                        className="fill-sky-600">
+                  <title>{`${p.label}: ${p.display}`}</title>
+                </circle>
+              );
+            })
+          : null}
       </svg>
       <div className="mt-1 flex justify-between text-xs text-slate-500">
         <span dir="auto">{data.points[0].label}</span>
@@ -253,18 +295,35 @@ function LineChart({ chart }: { chart: RenderedChart }) {
 }
 
 /** One bar per category, segmented by series. §13: the shape for a mix. */
-function StackedBarChart({ chart }: { chart: RenderedChart }) {
+/**
+ * Segments piled to a total, per category.
+ *
+ * `normalise` is the difference between the two forms a credit pack uses.
+ * A 100% stack answers "what SHARE sits in each bucket" — the delinquency
+ * band mix — and every row fills the width. A plain stack keeps the totals
+ * comparable, so a book that grew shows a longer bar.
+ */
+function StackedBarChart({ chart, normalise = true }: {
+  chart: RenderedChart;
+  normalise?: boolean;
+}) {
   const columns = chart.y_columns ?? [];
   const points = chart.points ?? [];
   if (columns.length < 2 || !points.length) return null;
   const tones = ["bg-sky-700", "bg-sky-500", "bg-amber-500", "bg-slate-400",
-                 "bg-emerald-600"];
+                 "bg-emerald-600", "bg-rose-500", "bg-violet-500"];
+  const widest = Math.max(
+    ...points.map((p) =>
+      columns.reduce((sum, c) => sum + Math.abs(numeric(p.values?.[c]) ?? 0), 0)),
+    0) || 1;
   return (
-    <div data-testid="v4-chart-stacked" className="space-y-2">
+    <div data-testid={normalise ? "v4-chart-stacked" : "v4-chart-stacked-abs"}
+         className="space-y-2">
       <ol className="space-y-1.5">
         {points.map((point) => {
           const parts = columns.map((c) => numeric(point.values?.[c]) ?? 0);
-          const total = parts.reduce((a, b) => a + Math.abs(b), 0) || 1;
+          const sum = parts.reduce((a, b) => a + Math.abs(b), 0) || 1;
+          const total = normalise ? sum : widest;
           return (
             <li key={point.row_id}
                 className="grid grid-cols-[minmax(0,11rem)_1fr] items-center gap-3">
@@ -295,6 +354,297 @@ function StackedBarChart({ chart }: { chart: RenderedChart }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Bars side by side per category: the comparison is WITHIN a group. */
+function GroupedBarChart({ chart }: { chart: RenderedChart }) {
+  const columns = chart.y_columns ?? [];
+  const points = chart.points ?? [];
+  if (columns.length < 2 || !points.length) return null;
+  const tones = ["bg-sky-700", "bg-amber-500", "bg-emerald-600",
+                 "bg-violet-500", "bg-rose-500"];
+  const max = Math.max(
+    ...points.flatMap((p) =>
+      columns.map((c) => Math.abs(numeric(p.values?.[c]) ?? 0))), 0) || 1;
+  return (
+    <div data-testid="v4-chart-grouped" className="space-y-2">
+      <ol className="space-y-2">
+        {points.map((point) => (
+          <li key={point.row_id} className="space-y-0.5">
+            <span className="truncate text-xs text-slate-700" dir="auto">
+              {text(point.label)}
+            </span>
+            {columns.map((column, index) => {
+              const value = numeric(point.values?.[column]) ?? 0;
+              return (
+                <span key={column} className="flex items-center gap-2">
+                  <span className="h-2.5 w-full rounded-sm bg-slate-100">
+                    <span className={`block h-2.5 rounded-sm ${
+                            tones[index % tones.length]}`}
+                          style={{ width: `${(Math.abs(value) / max) * 100}%` }}
+                          title={`${column}: ${text(point.display?.[column])}`} />
+                  </span>
+                  <span className="shrink-0 tabular-nums text-[10px] text-slate-500">
+                    {text(point.display?.[column])}
+                  </span>
+                </span>
+              );
+            })}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * Volumes as bars, a RATE as a line on its own scale.
+ *
+ * Exposure in SAR millions and a delinquency rate in percent do not share
+ * an axis. Plotted on one, the rate is a flat line along the floor and the
+ * chart says nothing — which is why this form exists separately.
+ */
+function ComboChart({ chart }: { chart: RenderedChart }) {
+  const columns = chart.y_columns ?? [];
+  const points = chart.points ?? [];
+  if (columns.length < 2 || !points.length) return null;
+  const [bars, line] = columns;
+  const barMax = Math.max(
+    ...points.map((p) => Math.abs(numeric(p.values?.[bars]) ?? 0)), 0) || 1;
+  const rates = points.map((p) => numeric(p.values?.[line]) ?? 0);
+  const top = Math.max(...rates);
+  const bottom = Math.min(...rates);
+  const span = top - bottom || 1;
+  return (
+    <div data-testid="v4-chart-combo" className="space-y-2">
+      <ol className="space-y-1.5">
+        {points.map((point, index) => {
+          const value = numeric(point.values?.[bars]) ?? 0;
+          const rate = rates[index];
+          return (
+            <li key={point.row_id}
+                className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3">
+              <span className="truncate text-xs text-slate-700" dir="auto">
+                {text(point.label)}
+              </span>
+              <span className="relative block h-4 rounded-sm bg-slate-100">
+                <span className="block h-4 rounded-sm bg-sky-700"
+                      style={{ width: `${(Math.abs(value) / barMax) * 100}%` }}
+                      title={`${bars}: ${text(point.display?.[bars])}`} />
+                <span data-testid="v4-combo-rate"
+                      className="absolute top-0 h-4 w-0.5 bg-amber-500"
+                      style={{ left: `${((rate - bottom) / span) * 100}%` }}
+                      title={`${line}: ${text(point.display?.[line])}`} />
+              </span>
+              <span className="shrink-0 tabular-nums text-xs text-amber-700">
+                {text(point.display?.[line])}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/** Shares of one whole. `hole` makes it a donut. */
+function SliceChart({ chart, hole }: { chart: RenderedChart; hole: number }) {
+  const data = series(chart);
+  if (!data) return null;
+  const total = data.points.reduce((a, p) => a + Math.abs(p.value), 0);
+  if (total <= 0) return null;
+  const tones = ["#0f172a", "#0ea5e9", "#b45309", "#15803d", "#7c3aed",
+                 "#be123c", "#0891b2", "#a16207"];
+  // The running angle is carried in the array rather than in a variable
+  // this closure reassigns: a render body that mutates its own scope is a
+  // render that can disagree with itself on a re-run.
+  const starts = data.points.reduce<number[]>(
+    (acc, point) => [...acc,
+                     acc[acc.length - 1] + (Math.abs(point.value) / total) * 360],
+    [-90]);
+  const arcs = data.points.map((point, index) => {
+    const sweep = (Math.abs(point.value) / total) * 360;
+    const start = starts[index];
+    const angle = starts[index + 1];
+    const rad = (deg: number) => (deg * Math.PI) / 180;
+    const x1 = 60 + 52 * Math.cos(rad(start));
+    const y1 = 60 + 52 * Math.sin(rad(start));
+    const x2 = 60 + 52 * Math.cos(rad(angle));
+    const y2 = 60 + 52 * Math.sin(rad(angle));
+    return (
+      <path key={point.rowId}
+            d={`M 60 60 L ${x1.toFixed(2)} ${y1.toFixed(2)} A 52 52 0 ${
+              sweep > 180 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`}
+            fill={tones[index % tones.length]}>
+        <title>{`${point.label}: ${point.display}`}</title>
+      </path>
+    );
+  });
+  return (
+    <div data-testid={hole > 0 ? "v4-chart-donut" : "v4-chart-pie"}
+         className="flex flex-wrap items-center gap-4">
+      <svg viewBox="0 0 120 120" className="h-32 w-32" role="img">
+        {arcs}
+        {hole > 0 ? (
+          <circle cx="60" cy="60" r={52 * hole} fill="#ffffff" />
+        ) : null}
+      </svg>
+      <ul className="space-y-1 text-xs text-slate-600">
+        {data.points.map((point, index) => (
+          <li key={point.rowId} className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-sm"
+                  style={{ backgroundColor: tones[index % tones.length] }} />
+            <span className="truncate" dir="auto">{point.label}</span>
+            <span className="tabular-nums text-slate-500">{point.display}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Counts per band, drawn touching.
+ *
+ * The gap between bars is what says "these categories are separate". A DPD
+ * distribution has no gaps — 10-19 abuts 20-29 — and drawing one invites a
+ * reader to see groups that are not there.
+ */
+function HistogramChart({ chart }: { chart: RenderedChart }) {
+  const data = series(chart);
+  if (!data) return null;
+  const max = Math.max(...data.points.map((p) => Math.abs(p.value)), 0) || 1;
+  return (
+    <div data-testid="v4-chart-histogram"
+         className="flex h-32 items-end gap-px">
+      {data.points.map((point) => (
+        <span key={point.rowId} className="flex-1"
+              title={`${point.label}: ${point.display}`}>
+          <span className="block w-full bg-slate-800"
+                style={{ height: `${(Math.abs(point.value) / max) * 112}px` }} />
+          <span className="block truncate pt-1 text-center text-[9px] text-slate-500">
+            {point.label}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A bridge: each step starts where the last one finished.
+ *
+ * A waterfall is how a book explains a MOVEMENT — opening balance, new
+ * lending, repayments, write-offs, closing balance. Drawn as ordinary bars
+ * it becomes five unrelated quantities and the arithmetic that connects
+ * them is invisible, which is exactly what `waterfall` did for the months
+ * it was legal in the contract and fell through to `_bar_svg`.
+ *
+ * The last point is treated as a total and drawn from the baseline when it
+ * equals the running sum; every other step floats.
+ */
+function WaterfallChart({ chart }: { chart: RenderedChart }) {
+  const data = series(chart);
+  if (!data) return null;
+  // Running totals in an array, not a reassigned variable: the lint rule
+  // that forbids the second one is right that a render body which mutates
+  // its own scope can disagree with itself on a re-run.
+  const cumulative = data.points.reduce<number[]>(
+    (acc, point) => [...acc, acc[acc.length - 1] + point.value], [0]);
+  const last = data.points[data.points.length - 1];
+  // A LAST STEP THAT EQUALS EVERYTHING BEFORE IT IS THE TOTAL, not another
+  // movement: "closing balance" is drawn from the baseline, or the bridge
+  // ends with a bar that says the book doubled.
+  const before = cumulative[cumulative.length - 2];
+  const isTotal = Math.abs(before - last.value)
+    <= Math.abs(last.value) * 1e-9;
+  const steps = data.points.map((point, index) => (
+    isTotal && index === data.points.length - 1
+      ? { ...point, from: 0, to: point.value }
+      : { ...point, from: cumulative[index], to: cumulative[index + 1] }));
+  const floor = Math.min(0, ...steps.map((s) => Math.min(s.from, s.to)));
+  const ceiling = Math.max(0, ...steps.map((s) => Math.max(s.from, s.to)));
+  const span = ceiling - floor || 1;
+  return (
+    <ol data-testid="v4-chart-waterfall" className="space-y-1.5">
+      {steps.map((step, index) => {
+        const low = Math.min(step.from, step.to);
+        const high = Math.max(step.from, step.to);
+        const total = isTotal && index === steps.length - 1;
+        return (
+          <li key={step.rowId}
+              className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-3">
+            <span className="truncate text-xs text-slate-700" dir="auto"
+                  title={step.label}>{step.label}</span>
+            <span className="relative block h-4 rounded-sm bg-slate-100">
+              <span
+                data-testid="v4-chart-waterfall-step"
+                data-value={String(step.value)}
+                className={`absolute h-4 rounded-sm ${
+                  total ? "bg-slate-700"
+                        : step.value >= 0 ? "bg-emerald-600" : "bg-rose-500"}`}
+                style={{ left: `${((low - floor) / span) * 100}%`,
+                         width: `${Math.max((high - low) / span, 0.004) * 100}%` }}
+                title={`${step.label}: ${step.display}`}
+              />
+            </span>
+            <span className="shrink-0 tabular-nums text-xs text-slate-600">
+              {step.display}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * Two measures and a third in the size of the mark.
+ *
+ * The form a concentration slide uses: exposure against delinquency rate,
+ * with the bubble sized by account count, so a terrible rate over eleven
+ * accounts does not read like a terrible rate over eleven thousand. Three
+ * numbers per point is the whole reason to draw it, and it was rendering
+ * as bars of the first one.
+ */
+function BubbleChart({ chart }: { chart: RenderedChart }) {
+  const columns = chart.y_columns ?? [];
+  const points = chart.points ?? [];
+  if (columns.length < 2 || !points.length) return null;
+  const [xColumn, yColumn, sizeColumn] = columns;
+  const read = (column: string | undefined) => (column
+    ? points.map((p) => numeric(p.values?.[column]) ?? 0) : []);
+  const xs = read(xColumn);
+  const ys = read(yColumn);
+  const sizes = sizeColumn ? read(sizeColumn) : ys.map(() => 1);
+  const place = (values: number[], value: number) => {
+    const low = Math.min(...values, 0);
+    const high = Math.max(...values, 0);
+    return ((value - low) / ((high - low) || 1)) * 100;
+  };
+  const widest = Math.max(...sizes.map(Math.abs), 0) || 1;
+  return (
+    <div data-testid="v4-chart-bubble">
+      <svg viewBox="0 0 100 100" className="h-48 w-full" role="img"
+           aria-label={`${chart.title}. ${points.length} points.`}>
+        {points.map((point, index) => (
+          <circle key={point.row_id}
+                  data-testid="v4-chart-bubble-mark"
+                  cx={place(xs, xs[index])}
+                  cy={100 - place(ys, ys[index])}
+                  r={1.5 + (Math.abs(sizes[index]) / widest) * 7}
+                  className="fill-sky-600/50 stroke-sky-700">
+            <title>{`${text(point.label)}: ${
+              columns.map((c) => text(point.display?.[c])).join(" / ")}`}</title>
+          </circle>
+        ))}
+      </svg>
+      <p className="mt-1 text-xs text-slate-500">
+        {xColumn} against {yColumn}
+        {sizeColumn ? `, sized by ${sizeColumn}` : ""}
+      </p>
     </div>
   );
 }
@@ -434,20 +784,44 @@ function BoxChart({ chart }: { chart: RenderedChart }) {
   );
 }
 
+/**
+ * The form the analyst asked for, drawn as itself.
+ *
+ * THE KIND DECIDES, not the shape of the payload. This read
+ * `y_columns.length > 1` FIRST, so any chart with two measures became a
+ * stack whatever it said it was — a combo, a grouped comparison and a
+ * bubble all rendered as stacked bars. The count of series is a fallback
+ * for a kind nobody recognises, not a rule that outranks the contract.
+ */
+export const CHART_BODIES: Record<
+  ChartKind,
+  (chart: RenderedChart) => React.ReactElement | null
+> = {
+  heatmap: (chart) => <MatrixChart chart={chart} />,
+  box: (chart) => <BoxChart chart={chart} />,
+  line: (chart) => <LineChart chart={chart} />,
+  step_line: (chart) => <LineChart chart={chart} variant="step_line" />,
+  area: (chart) => <LineChart chart={chart} variant="area" />,
+  scatter: (chart) => <LineChart chart={chart} variant="scatter" />,
+  stacked_bar: (chart) => <StackedBarChart chart={chart} normalise={false} />,
+  stacked_bar_100: (chart) => <StackedBarChart chart={chart} />,
+  grouped_bar: (chart) => <GroupedBarChart chart={chart} />,
+  combo: (chart) => <ComboChart chart={chart} />,
+  pie: (chart) => <SliceChart chart={chart} hole={0} />,
+  donut: (chart) => <SliceChart chart={chart} hole={0.55} />,
+  histogram: (chart) => <HistogramChart chart={chart} />,
+  bubble: (chart) => <BubbleChart chart={chart} />,
+  waterfall: (chart) => <WaterfallChart chart={chart} />,
+  bar: (chart) => <BarChart chart={chart} />,
+};
+
 export function ResultChart({ chart }: { chart: RenderedChart }) {
-  const stacked = (chart.y_columns ?? []).length > 1;
-  const body =
-    chart.kind === "heatmap" ? (
-      <MatrixChart chart={chart} />
-    ) : chart.kind === "box" ? (
-      <BoxChart chart={chart} />
-    ) : stacked ? (
-      <StackedBarChart chart={chart} />
-    ) : chart.kind === "line" ? (
-      <LineChart chart={chart} />
-    ) : (
-      <BarChart chart={chart} />
-    );
+  const draw = CHART_BODIES[chart.kind as ChartKind];
+  const body = draw
+    ? draw(chart)
+    : (chart.y_columns ?? []).length > 1
+      ? <StackedBarChart chart={chart} />
+      : <BarChart chart={chart} />;
   if (!body) return null;
   const unit =
     chart.matrix?.unit ||
@@ -485,41 +859,26 @@ export function Visuals({
   tables: RenderedTable[];
   charts: RenderedChart[];
 }) {
-  const { chart, table, both } = choose(tables, charts);
-  const [view, setView] = React.useState<"chart" | "table">("chart");
+  const { usefulCharts, usefulTables } = choose(tables, charts);
+  if (!usefulCharts.length && !usefulTables.length) return null;
 
-  if (!chart && !table) return null;
-  const showing = both ? view : chart ? "chart" : "table";
-
+  // EVERY CHART, ONE AFTER ANOTHER, and the tables below them.
+  //
+  // This was one chart and one table, mutually exclusive behind a toggle.
+  // Two things were wrong with it. An answer that draws a trend per product
+  // showed one product, silently — the rest were computed, validated,
+  // rendered and dropped a line before the screen. And a reader who wanted
+  // the numbers under the picture had to give up the picture to get them,
+  // which is not a choice anybody wants to make about their own result.
   return (
-    <div data-testid="v4-visuals" className="mt-4 space-y-3">
-      {both ? (
-        <div
-          data-testid="v4-visual-toggle"
-          role="group"
-          aria-label="Chart or table"
-          className="inline-flex rounded border border-slate-200 p-0.5 text-xs"
-        >
-          {(["chart", "table"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              data-testid={`v4-visual-${option}`}
-              aria-pressed={showing === option}
-              onClick={() => setView(option)}
-              className={`rounded px-3 py-1 capitalize ${
-                showing === option
-                  ? "bg-slate-800 text-white"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {showing === "chart" && chart ? <ResultChart chart={chart} /> : null}
-      {showing === "table" && table ? <ResultTable table={table} /> : null}
+    <div data-testid="v4-visuals" className="mt-4 space-y-5">
+      {usefulCharts.map((chart, index) => (
+        <ResultChart key={`${chart.artifact_id}-${chart.kind}-${index}`}
+                     chart={chart} />
+      ))}
+      {usefulTables.map((table, index) => (
+        <ResultTable key={`${table.artifact_id}-${index}`} table={table} />
+      ))}
     </div>
   );
 }

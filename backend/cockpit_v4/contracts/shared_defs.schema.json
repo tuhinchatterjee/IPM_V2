@@ -225,14 +225,24 @@
       "properties": {
         "kind": {
           "type": "string",
-          "description": "bar, line, waterfall or scatter: x_column is the category or x axis and y_columns are the measures. heatmap: a matrix — x_column is the COLUMN axis, series_column is the ROW axis, and y_columns[0] is the value in each cell. box: a distribution — y_columns[0] is the value, x_column groups it, and CreditProbe computes the quartiles from the rows.",
+          "description": "How to draw it. x_column is the category or axis, y_columns the measures. bar/grouped_bar/pie/donut rank categories. line/step_line/area follow a sequence; stacked_bar and stacked_bar_100 show a mix over one; combo puts y_columns[0] as bars and y_columns[1] as a line on its own axis (a rate over volumes). waterfall bridges a total. scatter/bubble relate two measures; histogram shows a distribution; box shows quartiles; heatmap is a matrix -- x_column is the COLUMN axis, series_column the ROW axis, y_columns[0] the value in each cell.",
           "enum": [
+            "area",
             "bar",
-            "line",
-            "waterfall",
-            "scatter",
+            "box",
+            "bubble",
+            "combo",
+            "donut",
+            "grouped_bar",
             "heatmap",
-            "box"
+            "histogram",
+            "line",
+            "pie",
+            "scatter",
+            "stacked_bar",
+            "stacked_bar_100",
+            "step_line",
+            "waterfall"
           ]
         },
         "title": {
