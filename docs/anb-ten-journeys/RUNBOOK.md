@@ -133,10 +133,10 @@ the actions would have been.
 PYTHONPATH=. .venv/bin/python scripts/publish_retail_bundle.py
 ```
 
-Everything is built into a staging tree, validated, and swapped in one move. Six
-checks gate the swap; a failure leaves the previously published bundle exactly
-where it was and names the check that failed. The previous tree is kept beside
-the live one as `analytics.previous-<timestamp>` until you remove it.
+Everything is built into a staging tree, validated, and swapped in one move.
+Seven checks gate the swap; a failure leaves the previously published bundle
+exactly where it was and names the check that failed. The previous tree is kept
+beside the live one as `analytics.previous-<timestamp>` until you remove it.
 
 ## Re-running the verification
 

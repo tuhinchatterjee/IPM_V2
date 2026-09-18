@@ -663,9 +663,38 @@ journeys can run.
 export at a step, Borrower 360's imported list, save, reopen, the workbook
 download and the What-If handoff.
 
-**10 of 10 journeys, 340 of 340 checks.** 42 screenshots and 10 workbooks in
+**10 of 10 journeys, 340 of 340 checks**, at `http://localhost:5334` against
+`http://localhost:8334`. 42 screenshots and 10 workbooks in
 `var/anb2/acceptance/`; the machine assertions in
 `docs/anb-ten-journeys/acceptance/browser_journeys.json`.
+
+### Two more defects the second run found
+
+The run was repeated after the card fix below, and cost nothing to repeat
+because it is a script rather than a person clicking.
+
+4. **The harness was driving the wrong origin.** At `127.0.0.1` the Next.js
+   development server refuses every `/_next/*` chunk — it serves them only to
+   `localhost` unless a host is added to `allowedDevOrigins` — so the page
+   renders as an empty document and every page-reading check reports "0
+   characters on the page". That reads exactly like a broken product. It now
+   drives `localhost`, which is the origin the launcher prints, and which the
+   session cookie also requires: host-only and `SameSite=Lax`, so a page on
+   one host calling an API on the other is cross-site and the cookie is
+   withheld.
+5. **A card named its pocket where the Cockpit expects a product.** `entity`
+   held "Digital channel B / short employment tenure / approved exceptions"
+   where every other rule in the product puts "Personal Finance", so nine of
+   the sixteen cases could not be grouped, filtered or counted with the seven
+   beside them — and the repository's own gate said so. The pocket stayed
+   where a reader needs it: the drawer's *Normalised pocket* panel, the
+   conclusion's own sentence, and the first signal.
+
+`upsert` deliberately never rewrites `entity` on a refresh, because that field
+is the case's identity; rewriting it would silently repoint a case somebody had
+triaged. The nine already opened under the old entity were therefore deleted
+and reopened rather than refreshed, after checking that not one of them carried
+human state.
 
 ### Three defects it found that the gates could not
 

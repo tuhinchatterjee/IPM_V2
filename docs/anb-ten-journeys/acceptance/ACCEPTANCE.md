@@ -5,7 +5,7 @@ The workbook ships ninety checks and labels every one of them
 than installed software. This is the same ninety, executed against
 the implemented SHA, with what proved each one.
 
-- **SHA** `4479a30f95e4ab3f88f5e5cd5d2acea75249a8c0`
+- **SHA** `f1e7069ebb37c8502685117d10cf643b896edd4b`
 - **Branch** `claude/anb-ten-journeys`
 - **Browser journeys** 10/10 passed, 340/340 checks
 

@@ -2,7 +2,24 @@
 """Run all ten investigation journeys in a real browser, and record what happened.
 
     PYTHONPATH=. .venv/bin/python scripts/cpra_browser_journeys.py \
-        --base http://127.0.0.1:5334 --api http://127.0.0.1:8334
+        --base http://localhost:5334 --api http://localhost:8334
+
+Drive the origin the presenter opens
+------------------------------------
+`localhost`, not `127.0.0.1`, and both of them the same host. Two
+different things break otherwise and neither says so:
+
+* Next.js in development serves `/_next/*` only to `localhost` unless a
+  host is added to `allowedDevOrigins`. A page opened at `127.0.0.1` gets
+  403 on every chunk, so it renders as an empty document — the run then
+  reports "0 characters on the page" for every check that reads it, which
+  looks exactly like a broken product.
+* The session cookie is host-only and `SameSite=Lax`, so a page served
+  from one host calling an API on the other is cross-site and the cookie
+  is withheld. The launcher already says this in its own comments.
+
+The launcher prints `open http://localhost:5334`, so that is the origin
+this drives.
 
 Why a browser and not the API
 -----------------------------
@@ -293,8 +310,8 @@ def _headers() -> dict[str, str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--base", default="http://127.0.0.1:5334")
-    ap.add_argument("--api", default="http://127.0.0.1:8334")
+    ap.add_argument("--base", default="http://localhost:5334")
+    ap.add_argument("--api", default="http://localhost:8334")
     ap.add_argument("--cases", default="")
     args = ap.parse_args()
 

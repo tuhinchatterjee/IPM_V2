@@ -1,6 +1,6 @@
 {
- "base": "http://127.0.0.1:5334",
- "api": "http://127.0.0.1:8334",
+ "base": "http://localhost:5334",
+ "api": "http://localhost:8334",
  "cases": 10,
  "passed": 10,
  "checks": 340,
@@ -8,20 +8,11 @@
  "results": [
   {
    "case_id": "C01",
-   "passed": true,
-   "seconds": 47.8,
-   "screenshots": [
-    "C01-01-cockpit.png",
-    "C01-02-thread.png",
-    "C01-03-thread-answered.png",
-    "C01-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2289 characters on the page"
+     "detail": "2239 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -41,7 +32,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 14, \"created\": true, \"question\": \"Why has the Credit Card population in 1-29 DPD risen at 2026-08, and where is it concentrated?\", \"case\": {\"id\": 1, \"case_key\": \"rc_3fd98af5e57c\","
+     "detail": "{\"investigation_id\": 14, \"created\": false, \"message\": \"This case already has an Investigation.\"}"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -121,7 +112,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C01-S4-202608-5840FED2\",\"case_id\":\"C01\",\"occurrence_id\":\"C01\",\"thread_id\":\"14\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C01-S4-202608-D4490FDD\",\"case_id\":\"C01\",\"occurrence_id\":\"C01\",\"thread_id\":\"14\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -166,7 +157,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 614364 bytes"
+     "detail": "HTTP 200 614362 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -186,26 +177,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-7A1E1E3AE5CD\",\"snapshot_id\":\"CPRA-C01-S4-202608-5840FED2\",\"case_id\":\"C01\",\"issue\":\"1-29 DPD account share\",\"source_step\":\"S4\",\"as_of\":\"20"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-56DA2B6EC887\",\"snapshot_id\":\"CPRA-C01-S4-202608-D4490FDD\",\"case_id\":\"C01\",\"issue\":\"1-29 DPD account share\",\"source_step\":\"S4\",\"as_of\":\"20"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C01-01-cockpit.png",
+    "C01-02-thread.png",
+    "C01-03-thread-answered.png",
+    "C01-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 47.8
   },
   {
    "case_id": "C02",
-   "passed": true,
-   "seconds": 27.9,
-   "screenshots": [
-    "C02-01-cockpit.png",
-    "C02-02-thread.png",
-    "C02-03-thread-answered.png",
-    "C02-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2255 characters on the page"
+     "detail": "2239 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -225,7 +216,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 15, \"created\": true, \"question\": \"Personal finance acquisition quality: cumulative default by mob6 at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {"
+     "detail": "{\"investigation_id\": 24, \"created\": false, \"message\": \"This case already has an Investigation.\"}"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -305,7 +296,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C02-S4-202608-A39BA9BA\",\"case_id\":\"C02\",\"occurrence_id\":\"C02\",\"thread_id\":\"15\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C02-S4-202608-5E828754\",\"case_id\":\"C02\",\"occurrence_id\":\"C02\",\"thread_id\":\"24\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -350,7 +341,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 39967 bytes"
+     "detail": "HTTP 200 39965 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -370,26 +361,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-882761EB1818\",\"snapshot_id\":\"CPRA-C02-S4-202608-A39BA9BA\",\"case_id\":\"C02\",\"issue\":\"Cumulative default by MOB6\",\"source_step\":\"S4\",\"as_of\""
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-95452C8D31AA\",\"snapshot_id\":\"CPRA-C02-S4-202608-5E828754\",\"case_id\":\"C02\",\"issue\":\"Cumulative default by MOB6\",\"source_step\":\"S4\",\"as_of\""
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C02-01-cockpit.png",
+    "C02-02-thread.png",
+    "C02-03-thread-answered.png",
+    "C02-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 27.5
   },
   {
    "case_id": "C03",
-   "passed": true,
-   "seconds": 41.1,
-   "screenshots": [
-    "C03-01-cockpit.png",
-    "C03-02-thread.png",
-    "C03-03-thread-answered.png",
-    "C03-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2246 characters on the page"
+     "detail": "2239 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -409,7 +400,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 16, \"created\": true, \"question\": \"Employer payroll interruption: two-cycle apparent payroll shortfall share at 2026-08: break the issue apart and show where it is concentrated.\", "
+     "detail": "{\"investigation_id\": 25, \"created\": false, \"message\": \"This case already has an Investigation.\"}"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -489,7 +480,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C03-S4-202608-7345A379\",\"case_id\":\"C03\",\"occurrence_id\":\"C03\",\"thread_id\":\"16\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C03-S4-202608-43B56208\",\"case_id\":\"C03\",\"occurrence_id\":\"C03\",\"thread_id\":\"25\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -534,7 +525,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 423155 bytes"
+     "detail": "HTTP 200 423154 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -554,26 +545,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-E9701B121774\",\"snapshot_id\":\"CPRA-C03-S4-202608-7345A379\",\"case_id\":\"C03\",\"issue\":\"Two-cycle apparent payroll shortfall share\",\"source_st"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-8765AD35DB9B\",\"snapshot_id\":\"CPRA-C03-S4-202608-43B56208\",\"case_id\":\"C03\",\"issue\":\"Two-cycle apparent payroll shortfall share\",\"source_st"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C03-01-cockpit.png",
+    "C03-02-thread.png",
+    "C03-03-thread-answered.png",
+    "C03-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 39.3
   },
   {
    "case_id": "C04",
-   "passed": true,
-   "seconds": 40.6,
-   "screenshots": [
-    "C04-01-cockpit.png",
-    "C04-02-thread.png",
-    "C04-03-thread-answered.png",
-    "C04-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2235 characters on the page"
+     "detail": "2239 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -593,7 +584,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 17, \"created\": true, \"question\": \"Top-up debt stacking: verified affordability-stress share at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {\"id\": 4"
+     "detail": "{\"investigation_id\": 26, \"created\": true, \"question\": \"Top-up debt stacking: verified affordability-stress share at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {\"id\": 1"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -673,7 +664,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C04-S4-202608-64BCFB7F\",\"case_id\":\"C04\",\"occurrence_id\":\"C04\",\"thread_id\":\"17\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C04-S4-202608-6D4C26D4\",\"case_id\":\"C04\",\"occurrence_id\":\"C04\",\"thread_id\":\"26\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -718,7 +709,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 390673 bytes"
+     "detail": "HTTP 200 390672 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -738,26 +729,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-C78B7C758654\",\"snapshot_id\":\"CPRA-C04-S4-202608-64BCFB7F\",\"case_id\":\"C04\",\"issue\":\"Verified affordability-stress share\",\"source_step\":\"S4"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-95EA017CB1DE\",\"snapshot_id\":\"CPRA-C04-S4-202608-6D4C26D4\",\"case_id\":\"C04\",\"issue\":\"Verified affordability-stress share\",\"source_step\":\"S4"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C04-01-cockpit.png",
+    "C04-02-thread.png",
+    "C04-03-thread-answered.png",
+    "C04-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 38.2
   },
   {
    "case_id": "C05",
-   "passed": true,
-   "seconds": 26.6,
-   "screenshots": [
-    "C05-01-cockpit.png",
-    "C05-02-thread.png",
-    "C05-03-thread-answered.png",
-    "C05-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2249 characters on the page"
+     "detail": "2253 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -777,7 +768,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 18, \"created\": true, \"question\": \"Auto balloon funding cliff: unfunded balloon due within 90 days share at 2026-08: break the issue apart and show where it is concentrated.\", \"cas"
+     "detail": "{\"investigation_id\": 27, \"created\": true, \"question\": \"Auto balloon funding cliff: unfunded balloon due within 90 days share at 2026-08: break the issue apart and show where it is concentrated.\", \"cas"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -857,7 +848,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C05-S4-202608-503CC2C3\",\"case_id\":\"C05\",\"occurrence_id\":\"C05\",\"thread_id\":\"18\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C05-S4-202608-6CB4951C\",\"case_id\":\"C05\",\"occurrence_id\":\"C05\",\"thread_id\":\"27\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -922,26 +913,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-6B093155FE5B\",\"snapshot_id\":\"CPRA-C05-S4-202608-503CC2C3\",\"case_id\":\"C05\",\"issue\":\"Unfunded balloon due within 90 days share\",\"source_ste"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-4A07134A251D\",\"snapshot_id\":\"CPRA-C05-S4-202608-6CB4951C\",\"case_id\":\"C05\",\"issue\":\"Unfunded balloon due within 90 days share\",\"source_ste"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C05-01-cockpit.png",
+    "C05-02-thread.png",
+    "C05-03-thread-answered.png",
+    "C05-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 26.1
   },
   {
    "case_id": "C06",
-   "passed": true,
-   "seconds": 35.6,
-   "screenshots": [
-    "C06-01-cockpit.png",
-    "C06-02-thread.png",
-    "C06-03-thread-answered.png",
-    "C06-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2275 characters on the page"
+     "detail": "2279 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -961,7 +952,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 19, \"created\": true, \"question\": \"Used-auto recovery deterioration: material lgd revision share at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {\"id"
+     "detail": "{\"investigation_id\": 28, \"created\": true, \"question\": \"Used-auto recovery deterioration: material lgd revision share at 2026-08: break the issue apart and show where it is concentrated.\", \"case\": {\"id"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -1041,7 +1032,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C06-S4-202608-DD8A4EB3\",\"case_id\":\"C06\",\"occurrence_id\":\"C06\",\"thread_id\":\"19\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C06-S4-202608-F1ABADC5\",\"case_id\":\"C06\",\"occurrence_id\":\"C06\",\"thread_id\":\"28\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -1086,7 +1077,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 217773 bytes"
+     "detail": "HTTP 200 217775 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -1106,26 +1097,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-72CB65D9A0C0\",\"snapshot_id\":\"CPRA-C06-S4-202608-DD8A4EB3\",\"case_id\":\"C06\",\"issue\":\"Material LGD revision share\",\"source_step\":\"S4\",\"as_of"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-E109521D9D7E\",\"snapshot_id\":\"CPRA-C06-S4-202608-F1ABADC5\",\"case_id\":\"C06\",\"issue\":\"Material LGD revision share\",\"source_step\":\"S4\",\"as_of"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C06-01-cockpit.png",
+    "C06-02-thread.png",
+    "C06-03-thread-answered.png",
+    "C06-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 33.2
   },
   {
    "case_id": "C07",
-   "passed": true,
-   "seconds": 30.3,
-   "screenshots": [
-    "C07-01-cockpit.png",
-    "C07-02-thread.png",
-    "C07-03-thread-answered.png",
-    "C07-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2272 characters on the page"
+     "detail": "2276 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -1145,7 +1136,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 20, \"created\": true, \"question\": \"Self-construction cash-flow strain: verified >90-day delay with low buffer share at 2026-08: break the issue apart and show where it is concentra"
+     "detail": "{\"investigation_id\": 29, \"created\": true, \"question\": \"Self-construction cash-flow strain: verified >90-day delay with low buffer share at 2026-08: break the issue apart and show where it is concentra"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -1225,7 +1216,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C07-S4-202608-E14E370F\",\"case_id\":\"C07\",\"occurrence_id\":\"C07\",\"thread_id\":\"20\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C07-S4-202608-D46491E0\",\"case_id\":\"C07\",\"occurrence_id\":\"C07\",\"thread_id\":\"29\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -1245,7 +1236,7 @@
     {
      "check": "the imported list names its scope, date and snapshot",
      "passed": true,
-     "detail": "IMPORTED INVESTIGATION\n\nC07 \u2014 S4\nLeave imported mode\nCase\nC07\nSource step\nS4\nReporting date\n2026-08\nScope\nself-construction book and milestone delay beyond 90 days and under 1 month of buffer and veri"
+     "detail": "IMPORTED INVESTIGATION\n\nVerified >90-day delay with low buffer share \u2014 S4\nLeave imported mode\nCase\nC07\nSource step\nS4\nReporting date\n2026-08\nScope\nself-construction book and milestone delay beyond 90 "
     },
     {
      "check": "the customer rows are on screen",
@@ -1290,26 +1281,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-F116FA6D7E5F\",\"snapshot_id\":\"CPRA-C07-S4-202608-E14E370F\",\"case_id\":\"C07\",\"issue\":\"Verified >90-day delay with low buffer share\",\"source_"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-386F44434BEB\",\"snapshot_id\":\"CPRA-C07-S4-202608-D46491E0\",\"case_id\":\"C07\",\"issue\":\"Verified >90-day delay with low buffer share\",\"source_"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C07-01-cockpit.png",
+    "C07-02-thread.png",
+    "C07-03-thread-answered.png",
+    "C07-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 28.9
   },
   {
    "case_id": "C08",
-   "passed": true,
-   "seconds": 31.0,
-   "screenshots": [
-    "C08-01-cockpit.png",
-    "C08-02-thread.png",
-    "C08-03-thread-answered.png",
-    "C08-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2279 characters on the page"
+     "detail": "2283 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -1329,7 +1320,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 21, \"created\": true, \"question\": \"Housing-support reconciliation gaps: unmatched expected support-payment share at 2026-08: break the issue apart and show where it is concentrated"
+     "detail": "{\"investigation_id\": 30, \"created\": true, \"question\": \"Housing-support reconciliation gaps: unmatched expected support-payment share at 2026-08: break the issue apart and show where it is concentrated"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -1409,7 +1400,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C08-S4-202608-F3291242\",\"case_id\":\"C08\",\"occurrence_id\":\"C08\",\"thread_id\":\"21\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C08-S4-202608-E0FAED0F\",\"case_id\":\"C08\",\"occurrence_id\":\"C08\",\"thread_id\":\"30\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -1429,7 +1420,7 @@
     {
      "check": "the imported list names its scope, date and snapshot",
      "passed": true,
-     "detail": "IMPORTED INVESTIGATION\n\nC08 \u2014 S4\nLeave imported mode\nCase\nC08\nSource step\nS4\nReporting date\n2026-08\nScope\nsupported mortgages and 2 or more unresolved cycles and verification reached verified corrobor"
+     "detail": "IMPORTED INVESTIGATION\n\nUnmatched expected support-payment share \u2014 S4\nLeave imported mode\nCase\nC08\nSource step\nS4\nReporting date\n2026-08\nScope\nsupported mortgages and 2 or more unresolved cycles and v"
     },
     {
      "check": "the customer rows are on screen",
@@ -1454,7 +1445,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 81966 bytes"
+     "detail": "HTTP 200 81965 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -1474,26 +1465,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-0D2B9E5AE865\",\"snapshot_id\":\"CPRA-C08-S4-202608-F3291242\",\"case_id\":\"C08\",\"issue\":\"Unmatched expected support-payment share\",\"source_step"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-BF5375BD46A3\",\"snapshot_id\":\"CPRA-C08-S4-202608-E0FAED0F\",\"case_id\":\"C08\",\"issue\":\"Unmatched expected support-payment share\",\"source_step"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C08-01-cockpit.png",
+    "C08-02-thread.png",
+    "C08-03-thread-answered.png",
+    "C08-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 29.7
   },
   {
    "case_id": "C09",
-   "passed": true,
-   "seconds": 29.8,
-   "screenshots": [
-    "C09-01-cockpit.png",
-    "C09-02-thread.png",
-    "C09-03-thread-answered.png",
-    "C09-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2299 characters on the page"
+     "detail": "2303 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -1513,7 +1504,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 22, \"created\": true, \"question\": \"Salary-to-pension affordability: verified pension affordability-gap share at 2026-08: break the issue apart and show where it is concentrated.\", "
+     "detail": "{\"investigation_id\": 31, \"created\": true, \"question\": \"Salary-to-pension affordability: verified pension affordability-gap share at 2026-08: break the issue apart and show where it is concentrated.\", "
     },
     {
      "check": "the thread opens on the carried case context",
@@ -1593,7 +1584,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C09-S4-202608-2E911D00\",\"case_id\":\"C09\",\"occurrence_id\":\"C09\",\"thread_id\":\"22\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C09-S4-202608-82209089\",\"case_id\":\"C09\",\"occurrence_id\":\"C09\",\"thread_id\":\"31\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -1613,7 +1604,7 @@
     {
      "check": "the imported list names its scope, date and snapshot",
      "passed": true,
-     "detail": "IMPORTED INVESTIGATION\n\nC09 \u2014 S4\nLeave imported mode\nCase\nC09\nSource step\nS4\nReporting date\n2026-08\nScope\ndocumented transition and documented pension replacing 80% or less of verified income and tota"
+     "detail": "IMPORTED INVESTIGATION\n\nVerified pension affordability-gap share \u2014 S4\nLeave imported mode\nCase\nC09\nSource step\nS4\nReporting date\n2026-08\nScope\ndocumented transition and documented pension replacing 80"
     },
     {
      "check": "the customer rows are on screen",
@@ -1638,7 +1629,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 84895 bytes"
+     "detail": "HTTP 200 84891 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -1658,26 +1649,26 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-11E6A4A82D55\",\"snapshot_id\":\"CPRA-C09-S4-202608-2E911D00\",\"case_id\":\"C09\",\"issue\":\"Verified pension affordability-gap share\",\"source_step"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-9253F22BE7D7\",\"snapshot_id\":\"CPRA-C09-S4-202608-82209089\",\"case_id\":\"C09\",\"issue\":\"Verified pension affordability-gap share\",\"source_step"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C09-01-cockpit.png",
+    "C09-02-thread.png",
+    "C09-03-thread-answered.png",
+    "C09-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 29.5
   },
   {
    "case_id": "C10",
-   "passed": true,
-   "seconds": 29.7,
-   "screenshots": [
-    "C10-01-cockpit.png",
-    "C10-02-thread.png",
-    "C10-03-thread-answered.png",
-    "C10-04-borrower-360.png"
-   ],
-   "failures": [],
    "checks": [
     {
      "check": "the Cockpit lists at least ten cases",
      "passed": true,
-     "detail": "2303 characters on the page"
+     "detail": "2307 characters on the page"
     },
     {
      "check": "the story has a card on the Cockpit",
@@ -1697,7 +1688,7 @@
     {
      "check": "the thread has an id",
      "passed": true,
-     "detail": "{\"investigation_id\": 23, \"created\": true, \"question\": \"Restructure redefault and cure governance: six-month post-restructure redefault rate at 2026-08: break the issue apart and show where it is conce"
+     "detail": "{\"investigation_id\": 32, \"created\": true, \"question\": \"Restructure redefault and cure governance: six-month post-restructure redefault rate at 2026-08: break the issue apart and show where it is conce"
     },
     {
      "check": "the thread opens on the carried case context",
@@ -1777,7 +1768,7 @@
     {
      "check": "the cohort exports from a step",
      "passed": true,
-     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C10-S4-202608-AB0EF5C1\",\"case_id\":\"C10\",\"occurrence_id\":\"C10\",\"thread_id\":\"23\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
+     "detail": "HTTP 200 {\"snapshot\":{\"snapshot_id\":\"CPRA-C10-S4-202608-AC9F370D\",\"case_id\":\"C10\",\"occurrence_id\":\"C10\",\"thread_id\":\"32\",\"step_id\":\"S4\",\"source_as_of\":\"2026-08\",\"source_"
     },
     {
      "check": "the export carries customers",
@@ -1797,7 +1788,7 @@
     {
      "check": "the imported list names its scope, date and snapshot",
      "passed": true,
-     "detail": "IMPORTED INVESTIGATION\n\nC10 \u2014 S4\nLeave imported mode\nCase\nC10\nSource step\nS4\nReporting date\n2026-08\nScope\nmatured arrangements and redefaulted within six months and verification reached verified corro"
+     "detail": "IMPORTED INVESTIGATION\n\nSix-month post-restructure redefault rate \u2014 S4\nLeave imported mode\nCase\nC10\nSource step\nS4\nReporting date\n2026-08\nScope\nmatured arrangements and redefaulted within six months a"
     },
     {
      "check": "the customer rows are on screen",
@@ -1822,7 +1813,7 @@
     {
      "check": "the workbook downloads",
      "passed": true,
-     "detail": "HTTP 200 95002 bytes"
+     "detail": "HTTP 200 95001 bytes"
     },
     {
      "check": "the workbook is capped at the visited steps",
@@ -1842,9 +1833,18 @@
     {
      "check": "the scope hands over to What-If",
      "passed": true,
-     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-CE4E422A4EE5\",\"snapshot_id\":\"CPRA-C10-S4-202608-AB0EF5C1\",\"case_id\":\"C10\",\"issue\":\"Six-month post-restructure redefault rate\",\"source_ste"
+     "detail": "HTTP 200 {\"selection_id\":\"EWSEL-52B02277825E\",\"snapshot_id\":\"CPRA-C10-S4-202608-AC9F370D\",\"case_id\":\"C10\",\"issue\":\"Six-month post-restructure redefault rate\",\"source_ste"
     }
-   ]
+   ],
+   "failures": [],
+   "screenshots": [
+    "C10-01-cockpit.png",
+    "C10-02-thread.png",
+    "C10-03-thread-answered.png",
+    "C10-04-borrower-360.png"
+   ],
+   "passed": true,
+   "seconds": 30.3
   }
  ]
 }
