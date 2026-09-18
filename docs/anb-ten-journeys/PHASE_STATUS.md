@@ -742,6 +742,59 @@ counts.
 
 ---
 
+### Regression attribution
+
+The whole `tests/retail` suite, file by file, **twice on the same published
+book**: once on this branch, and once at the accepted ANB head checked out
+beside it with the data, metadata and catalogue directories pointed at the
+identical tree. Different code, identical data.
+
+| | Failures |
+|---|---|
+| Accepted ANB head | 31 |
+| This branch | 29 |
+| Fail under both (pre-existing) | 29 |
+| **Fail only on this branch** | **0** |
+| Fail only at the accepted head (fixed here) | 2 |
+
+Three rounds to get there, and each round's finding looked like something it
+was not:
+
+1. **Forty-five files the surface gate had never been told about.** It
+   enumerates what a retail conversion may touch, so a new file is a failure
+   by design. Extended file by file rather than by loosening the rule.
+2. **Two genuine regressions**, both in `episode_cases.py`: the card entity
+   and the threshold wording, both recorded above.
+3. **An attribution run that was silently useless.** The accepted worktree's
+   fixture reads a hard-coded `data/retail/analytics`, so every test in it
+   skipped and the "baseline" I was comparing against was an empty set. Fixed
+   by symlinking the data and metadata trees into that checkout; only then
+   was the comparison real.
+
+The 29 that fail under both, by file: `test_ret_adversarial_cockpit` (10),
+`test_ret_metrics_library` (7), `test_ret_overnight_completion` (4 — the
+workspace seeder refusing a database whose URL does not name a retail one),
+`test_ret_ews_wiring` (3), and one each in `test_ret_039_045_whatif`,
+`test_ret_customer_360`, `test_ret_retail_only_surfaces`,
+`test_ret_whatif_fidelity` and `test_ret_whatif_integration`.
+
+### Sixty exports, not one
+
+`test_every_stage_of_every_story_exports_and_admits_its_cap` walks all ten
+stories at each of the six stages: builds the workbook, asserts every visited
+step is marked visited, every later step reads *Not reached at the exported
+step*, and the two sheets that only exist downstream carry no rows until the
+reader has been there. One story exported at one stage proves the mechanism
+and nothing about the other fifty-nine, and the cap is the part that misleads
+when it is wrong.
+
+**Sixty workbooks built, all ten parameters passing.** The gate's own first
+run failed on all ten, on a sheet key that does not exist (`03_Population`
+rather than `02_Customers`) — a gate that had never been run is not evidence,
+which is why it was run before it was written up.
+
+---
+
 ## P11 — Freeze and handoff
 
 ### The launcher

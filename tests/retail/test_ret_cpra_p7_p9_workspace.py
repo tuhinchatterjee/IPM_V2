@@ -26,6 +26,7 @@ from backend.retail import cohort as ch
 from backend.retail import cohort_whatif
 from backend.retail import episode_answers as ea
 from backend.retail import episode_measures as em
+from backend.retail import episodes as ep
 from backend.retail import investigation_store as store
 from backend.retail import investigation_workbook as wb
 
@@ -340,3 +341,65 @@ def test_the_handoff_keeps_a_return_link_and_refuses_to_edit_anything(cohort):
     assert "does not write" in found["never"]
     assert found["scenario"]["available"]
     assert found["scenario"]["not_modelled"]
+
+
+# ----------------------------------------------- every story, every stage
+
+
+@pytest.mark.parametrize("case_id", list(ep.case_ids()))
+def test_every_stage_of_every_story_exports_and_admits_its_cap(db_session,
+                                                               case_id):
+    """Sixty exports: ten stories at each of the six stages.
+
+    One story exported at one stage proves the mechanism and nothing about
+    the other fifty-nine. The cap is the part that misleads when it is wrong
+    — a workbook taken at S1 that quietly carries S5's policy actions
+    attributes reasoning to a reader who never reached it — and it is
+    per-story code, because each story's steps compute different things.
+
+    So this walks all sixty: builds the workbook at each stage, asserts every
+    visited step is marked visited, every later step says it was not reached,
+    and the two sheets that only exist downstream of S4 carry no rows until
+    the reader has been there.
+    """
+    if not em.months():
+        pytest.skip("The shipped retail lake is not built.")
+
+    for index, step_id in enumerate(ch.STEPS):
+        found = ea.scope("", case_id, step_id)
+        if not found.get("available") or not found["customers"]:
+            pytest.fail(f"{case_id} has no cohort at {step_id}.")
+        visited = list(ch.STEPS[:index + 1])
+        snapshot = ch.create(db_session, ch.Draft(
+            case_id=case_id, occurrence_id=case_id, thread_id="T-STAGES",
+            step_id=step_id, source_as_of=found["as_of"],
+            source_bundle_id="RB-TEST",
+            metric_definition_ids=found["metric_definition_ids"],
+            predicate=found["predicate"],
+            customer_ids=found["customers"],
+            facility_ids=found["facilities"],
+            visited_steps=visited, owner_user_id=1, purpose="stage gate",
+            totals=found["totals"]))
+        book, manifest, payload = _workbook(snapshot)
+
+        assert payload, f"{case_id} {step_id} produced no file"
+        assert manifest["sheet_rows"]["02_Customers"] > 0, (
+            f"{case_id} {step_id} exported an empty population")
+
+        diagnosis = book["05_Diagnosis_Visited"]
+        statuses = {row[0].value: row[2].value
+                    for row in diagnosis.iter_rows(min_row=5, max_row=10)}
+        for step in ch.STEPS:
+            if step in visited:
+                assert statuses.get(step) == "Visited", (
+                    f"{case_id} at {step_id}: {step} is not marked visited")
+            else:
+                assert statuses.get(step) == "Not reached at the exported step", (
+                    f"{case_id} at {step_id}: {step} does not admit the cap")
+
+        if "S5" not in visited:
+            assert manifest["sheet_rows"]["09_Policy_Actions"] == 0, (
+                f"{case_id} at {step_id} exported actions from S5")
+        if "S3" not in visited:
+            assert manifest["sheet_rows"]["06_Score_Drivers"] == 0, (
+                f"{case_id} at {step_id} exported drivers from S3")
