@@ -220,28 +220,92 @@ Weighted ECL was SAR 22.77 million.
             title="Report")
         assert first.version == 1
 
-        # Now make every validation fail, as a broken renderer would.
-        def always_fails(content, fmt, doc):
+        # Now make every file unopenable, as a broken renderer would. The
+        # distinction is the point: this is an INTEGRITY failure — the bytes
+        # are not a readable file — and chapter 29 is explicit that a
+        # corrupted file is never offered as valid.
+        def wont_open(content, fmt, doc):
             v = validate.Validation(format=fmt)
-            v.fail("simulated renderer failure")
+            v.fail("the generated file could not be reopened: simulated",
+                   integrity=True)
             return v
 
-        monkeypatch.setattr(validate, "validate", always_fails)
+        monkeypatch.setattr(validate, "validate", wont_open)
         monkeypatch.setattr("backend.playbook.service.validate.validate",
-                            always_fails)
+                            wont_open)
         monkeypatch.setattr(
             "backend.playbook.service.validate.validate_all",
-            lambda files, doc: {f: always_fails(b, f, doc)
+            lambda files, doc: {f: wont_open(b, f, doc)
                                 for f, b in files.items()})
 
         scripted_author(good.replace("22.77", "22.77 million, revised"))
-        with pytest.raises(provider.AuthoringError, match="validation"):
+        with pytest.raises(provider.AuthoringError) as caught:
             service.author_document(
                 db, scope, workspace.id, instruction="Revise it.",
                 ledger=ledger, title="Report",
                 artifact_id=first.artifact_id,
                 base_version_id=first.version_id)
+        # On the category, not the wording: the category is the contract a
+        # caller branches on, and asserting the sentence makes every
+        # improvement to the message look like a regression.
+        assert caught.value.category == "validation"
+        assert "no file was saved" in str(caught.value)
 
         versions = repo.versions(db, first.artifact_id)
         assert len(versions) == 1, "a failed generation must write no version"
         assert versions[0].id == first.version_id
+
+    def test_a_content_finding_leaves_the_draft_downloadable(
+            self, db, scope, workspace, scripted_author, monkeypatch):
+        """The other half of the same line, and the one that changed.
+
+        This once behaved identically to the case above: any validation
+        failure destroyed the turn, so a table count that differed or a
+        wrapped heading in a derived index took a perfectly good Word file
+        with it. Chapter 16 and Table 7 separate them — content findings are
+        review findings and "do not erase an otherwise safe draft" — so the
+        draft is delivered, the finding is recorded against it, and the user
+        decides.
+        """
+        from backend.playbook import validate
+
+        good = """# Report
+
+## 1. Summary
+
+Weighted ECL was SAR 22.77 million.
+"""
+        from backend.playbook.fixtures import ecl_oracle as oracle
+
+        ledger = ev.Ledger()
+        ev.add_calculations(ledger, list(oracle.headline().values()))
+
+        def content_finding(content, fmt, doc):
+            v = validate.Validation(format=fmt)
+            v.fail("2 table(s) were expected and 1 is present.")
+            return v
+
+        monkeypatch.setattr(validate, "validate", content_finding)
+        monkeypatch.setattr("backend.playbook.service.validate.validate",
+                            content_finding)
+        monkeypatch.setattr(
+            "backend.playbook.service.validate.validate_all",
+            lambda files, doc: {f: content_finding(b, f, doc)
+                                for f, b in files.items()})
+
+        scripted_author(good)
+        outcome = service.author_document(
+            db, scope, workspace.id, instruction="Write it.", ledger=ledger,
+            title="Report", formats=["docx"])
+
+        assert outcome.version == 1, "the draft was written"
+        assert outcome.formats["docx"].delivered is True
+        assert outcome.files["docx"], "and it has real bytes to download"
+        assert outcome.validations["docx"].sound is True
+        assert outcome.validations["docx"].ok is False, (
+            "the finding is kept, not discarded")
+        assert any("worth review" in n for n in outcome.notes), (
+            "and the user is told about it rather than it being silent")
+
+        files = repo.files(db, outcome.version_id)
+        assert [f.format for f in files] == ["docx"]

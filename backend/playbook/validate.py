@@ -51,14 +51,33 @@ class Validation:
     ok: bool = True
     issues: list[str] = field(default_factory=list)
     checked: dict = field(default_factory=dict)
+    #: The subset of `issues` that mean the FILE ITSELF is not sound — it did
+    #: not reopen, it is not that format, it has no readable content at all.
+    #:
+    #: Chapter 29's Table 7 draws this line and the product depends on it.
+    #: Technical delivery failures are hard: a corrupt PDF is never offered as
+    #: valid. Content findings — a table count that differs, a missing
+    #: section, a figure with no source — are review findings, and chapter 16
+    #: is explicit that they "do not erase an otherwise safe draft". Keeping
+    #: both in one flat list is what made a wrapped heading in a derived index
+    #: capable of destroying a perfectly good Word file.
+    integrity: list[str] = field(default_factory=list)
 
-    def fail(self, issue: str) -> None:
+    def fail(self, issue: str, *, integrity: bool = False) -> None:
         self.ok = False
         self.issues.append(issue)
+        if integrity:
+            self.integrity.append(issue)
+
+    @property
+    def sound(self) -> bool:
+        """Whether the file is deliverable. Content findings do not decide."""
+        return not self.integrity
 
     def as_dict(self) -> dict:
-        return {"format": self.format, "ok": self.ok,
-                "issues": list(self.issues), "checked": dict(self.checked)}
+        return {"format": self.format, "ok": self.ok, "sound": self.sound,
+                "issues": list(self.issues), "integrity": list(self.integrity),
+                "checked": dict(self.checked)}
 
 
 # ======================================================================
@@ -484,7 +503,7 @@ def validate(content: bytes, fmt: str, doc: D.Document) -> Validation:
             text = "\n".join(c.text for c in pages)
             v.checked["pages"] = len(pages)
             if not pages:
-                v.fail("the PDF has no readable page.")
+                v.fail("the PDF has no readable page.", integrity=True)
             # A PDF's text layer has no headings, so there is no title slot to
             # read: the title is checked as printed text instead.
             _check_title(v, doc, text, None)
@@ -518,7 +537,7 @@ def validate(content: bytes, fmt: str, doc: D.Document) -> Validation:
             sheet_names = [c.data.get("sheet") for c in result.chunks]
             v.checked["sheets"] = len(sheet_names)
             if not sheet_names:
-                v.fail("the workbook has no readable sheet.")
+                v.fail("the workbook has no readable sheet.", integrity=True)
             text = "\n".join(
                 " ".join(str(x) for row in c.data.get("rows", []) for x in row)
                 for c in result.chunks
@@ -529,9 +548,11 @@ def validate(content: bytes, fmt: str, doc: D.Document) -> Validation:
                 v.fail("the workbook states figure(s) that are in no source: "
                        + ", ".join(invented[:8]))
         else:
-            v.fail(f"there is no validator for .{fmt} files.")
+            v.fail(f"there is no validator for .{fmt} files.",
+                   integrity=True)
     except Exception as exc:  # noqa: BLE001 — any failure to reopen is a failure
-        v.fail(f"the generated file could not be reopened: {exc}")
+        v.fail(f"the generated file could not be reopened: {exc}",
+               integrity=True)
     return v
 
 

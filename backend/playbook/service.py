@@ -34,6 +34,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 from sqlalchemy import select
 
@@ -61,6 +62,10 @@ class Outcome:
     document: D.Document | None = None
     files: dict[str, bytes] = field(default_factory=dict)
     validations: dict[str, validate.Validation] = field(default_factory=dict)
+    #: Every requested format and what became of it, delivered or not. `files`
+    #: holds only the ones with real bytes, so a caller that iterates it can
+    #: never hand out a download for a format that failed.
+    formats: dict = field(default_factory=dict)
     #: What the model ATTEMPTED: the first pass, whose findings name every
     #: unsupported figure it wrote and what was done about it. `ok` is False
     #: when the draft reached for something the evidence did not support,
@@ -349,19 +354,84 @@ def _render_locally(doc: D.Document, formats: list[str]) -> dict[str, bytes]:
     return {fmt: render.render(doc, fmt) for fmt in formats}
 
 
+@dataclass
+class FormatOutcome:
+    """What happened to one requested format. Chapter 07's third outcome."""
+
+    fmt: str
+    content: bytes = b""
+    renderer: str = ""
+    validation: Any = None
+    issues: list[str] = field(default_factory=list)
+
+    @property
+    def delivered(self) -> bool:
+        """Whether a user may have this file.
+
+        Bytes exist AND the file itself is sound. Chapter 29 draws the line
+        there: "a file with no actual bytes is not delivered" and "a truly
+        corrupted PDF is not offered as valid", while content findings — a
+        table count that differs, a figure with no source — are review
+        findings that "do not erase an otherwise safe draft".
+        """
+        return bool(self.content) and (self.validation is None
+                                       or self.validation.sound)
+
+    def as_dict(self) -> dict:
+        return {"format": self.fmt, "delivered": self.delivered,
+                "renderer": self.renderer, "issues": list(self.issues),
+                "bytes": len(self.content)}
+
+
 def _usable(files: dict[str, bytes], doc: D.Document,
-            formats: list[str]) -> tuple[dict[str, bytes], dict, str]:
-    """Validate what the Skills produced; fall back where it does not hold."""
+            formats: list[str]) -> dict[str, FormatOutcome]:
+    """Decide each requested format on its own.
+
+    This used to be all-or-nothing in both directions: if any format was
+    missing or failed, EVERY provider-generated file was thrown away and the
+    whole set re-rendered locally, and a single failure then failed the turn.
+    So a perfectly good Word file was discarded because the PDF did not
+    convert, which is what DC-22 exists to catch and what chapter 08 forbids —
+    "never discard a provider-created DOCX/PPTX merely to regenerate it through
+    a less expressive writer".
+
+    Now each format is its own outcome. A provider file that validates is kept
+    as it came. One that is missing or does not validate falls back to the
+    local renderer for that format alone. A format that fails both ways is
+    reported as failed and takes nothing else with it.
+    """
     produced = {f: b for f, b in files.items() if f in formats}
-    missing = [f for f in formats if f not in produced]
-    results = validate.validate_all(produced, doc) if produced else {}
-    failed = [f for f, v in results.items() if not v.ok]
+    checked = validate.validate_all(produced, doc) if produced else {}
 
-    if not missing and not failed:
-        return produced, results, capabilities.SKILL
+    outcomes: dict[str, FormatOutcome] = {}
+    for fmt in formats:
+        result = checked.get(fmt)
+        if fmt in produced and result is not None and result.sound:
+            outcomes[fmt] = FormatOutcome(
+                fmt=fmt, content=produced[fmt], renderer=capabilities.SKILL,
+                validation=result)
+            continue
 
-    local = _render_locally(doc, formats)
-    return local, validate.validate_all(local, doc), capabilities.LOCAL
+        # Either the provider did not produce this one, or what it produced
+        # will not open. Render just this format locally and keep the reason
+        # the provider's copy was not used, so the fallback is visible rather
+        # than silent. A provider file with only CONTENT findings is kept as
+        # it came: re-rendering it through a thinner writer to satisfy a table
+        # count is exactly what chapter 08 forbids.
+        why = list(result.issues) if result is not None else []
+        try:
+            content = render.render(doc, fmt)
+        except Exception as exc:  # noqa: BLE001 — one format, not the turn
+            logger.exception("Playbook local rendering failed for %s", fmt)
+            outcomes[fmt] = FormatOutcome(
+                fmt=fmt, issues=why + [f"could not be produced: {exc}"])
+            continue
+
+        local = validate.validate(content, fmt, doc)
+        outcomes[fmt] = FormatOutcome(
+            fmt=fmt, content=content, renderer=capabilities.LOCAL,
+            validation=local, issues=why + list(local.issues))
+    return outcomes
 
 
 def author_document(session, scope: repo.Scope, workspace_id: int, *,
@@ -520,15 +590,39 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
         )
 
     render_began = time.monotonic()
-    files, validations, renderer = _usable(skill_files, doc, formats)
+    produced = _usable(skill_files, doc, formats)
     outcome.render_ms = int((time.monotonic() - render_began) * 1000)
-    outcome.files, outcome.validations, outcome.renderer = files, validations, renderer
+    outcome.formats = produced
+    outcome.files = {f: o.content for f, o in produced.items() if o.delivered}
+    outcome.validations = {f: o.validation for f, o in produced.items()
+                           if o.validation is not None}
+    renderers = {o.renderer for o in produced.values() if o.delivered}
+    outcome.renderer = renderers.pop() if len(renderers) == 1 else (
+        capabilities.LOCAL if renderers else "")
 
-    if any(not v.ok for v in validations.values()):
+    # A format that could not be produced is reported as itself and takes
+    # nothing with it. This used to raise for the whole turn on any validation
+    # failure, so one PDF that a derived index disliked destroyed the Word
+    # file, the answer and the version — DC-22, and chapter 16's recovery
+    # example verbatim: "The Word draft is ready. The PDF conversion could not
+    # be completed."
+    for fmt, outcome_ in produced.items():
+        if not outcome_.delivered:
+            outcome.notes.append(
+                f"The {fmt.upper()} could not be produced. "
+                + "; ".join(outcome_.issues))
+        elif outcome_.issues:
+            outcome.notes.append(
+                f"The {fmt.upper()} was produced with issues worth review: "
+                + "; ".join(outcome_.issues))
+
+    if not outcome.files:
+        # Nothing at all came back. That IS a failed turn: there is no draft
+        # to preserve, and chapter 07 forbids claiming one exists.
         raise provider.AuthoringError(
-            "The generated files did not pass validation, so nothing was "
+            "None of the requested formats could be produced, so no file was "
             "saved. "
-            + "; ".join(i for v in validations.values() for i in v.issues),
+            + "; ".join(i for o in produced.values() for i in o.issues),
             category="validation",
         )
 

@@ -154,3 +154,11 @@ case the old shape could not express, because it was not true: with
 `adopt.adopt` raising, the version, its content and its Word file are all still
 there, and the projection reports `ok: False` with the reason. Plus a vanished
 version and an empty projection, which are reported rather than raised.
+
+| `test_security.py::test_a_generation_that_fails_validation_writes_nothing` | Any validation failure destroys the turn and writes no version | Now simulates an **integrity** failure — the file will not reopen — and asserts the same outcome, on the error's category rather than its wording | Ch. 29 Table 7. A corrupt file is still never delivered. |
+
+**Added, not replaced** — `test_a_content_finding_leaves_the_draft_downloadable`.
+The other half of the same line, and the half that changed: a table count that
+differs no longer destroys a good Word file. The draft is written, the file has
+real bytes, `Validation.ok` is False and `Validation.sound` is True, and the
+finding is surfaced in the outcome's notes rather than discarded.
