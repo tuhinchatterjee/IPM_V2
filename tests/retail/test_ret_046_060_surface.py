@@ -725,7 +725,46 @@ class TestRET048LayoutPreserved:
             # The `slow` marker, for the tests that build a Word report or fit
             # a challenger. Registering it is the only change here.
             "pyproject.toml",
+
+            # ---- the ten investigation journeys (CP-RA-V2) ----------------
+            #
+            # Listed one by one rather than waved through by a prefix. This
+            # gate exists so that a retail change cannot quietly reach into
+            # the rest of the product, and a rule saying "anything new is
+            # fine" would retire it.
+            #
+            # The cohort handoff object and the API in front of it. The
+            # migration adds three tables and alters none.
+            "alembic/versions/0043_cohort_snapshot.py",
+            "backend/api/routers/cohorts.py",
+            # The screens the specification permits: prompt chips and the
+            # export toolbar above the composer, the drawer's stacked evidence
+            # panels, Borrower 360's imported-cohort mode and the recent
+            # investigation cards. Each is a NEW component; the existing ones
+            # gained a mount point and nothing else.
+            "frontend/src/components/attention/episode-chips.tsx",
+            "frontend/src/components/attention/episode-panels.tsx",
+            "frontend/src/components/borrower-360/imported-cohort.tsx",
+            "frontend/src/components/borrower-360/recent-investigations.tsx",
+            # The build's own launcher and environment example. They bind
+            # 5334/8334 and refuse every port that belongs to another build.
+            "launchers/anb2/start-anb2.command",
+            "launchers/anb2/stop-anb2.command",
+            ".env.anb2.example",
+            # Scripts: the episode config generator, the atomic bundle
+            # publisher, the browser journey runner and the acceptance
+            # manifest. Equipment, not product code.
+            "scripts/build_episode_config.py",
+            "scripts/publish_retail_bundle.py",
+            "scripts/cpra_browser_journeys.py",
+            "scripts/cpra_acceptance_manifest.py",
         }
+        # The specification, the worked workbook and the phase, runbook and
+        # acceptance records kept beside them. Documents: they ship in the
+        # repository because the specification asks for them to, and they
+        # serve nothing.
+        touched_elsewhere = [f for f in touched_elsewhere
+                             if not f.startswith("docs/anb-ten-journeys/")]
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail
         # scripts and touches nothing the product serves.
