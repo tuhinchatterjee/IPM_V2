@@ -100,6 +100,18 @@ _BARE_NUMBER = re.compile(r"(?<![\w.{])(\d[\d,]*\.?\d*)(?![\w}])")
 _ALLOWED_BARE = {"9", "12", "20", "19", "1", "2", "3", "4", "5", "10", "15",
                  "0", "40", "2021", "2022", "2023", "2024", "2025", "2026"}
 
+#: A sentence that PROPOSES A POLICY CHANGE. Both halves are required --
+#: the policy, and something being done to it -- because "tighten", "raise"
+#: and "recommend" on their own are the ordinary vocabulary of a credit
+#: write-up and a check that fires on them refuses correct analysis.
+_POLICY_ACTION = re.compile(
+    r"(?i)\bpolic(?:y|ies)\b(?=[^.!?]*\b(?:tighten|loosen|raise|lower|"
+    r"reduce|increase|cut|suspend|withdraw|amend|change|revise|cap|freeze|"
+    r"introduce|relax|restrict)\w*\b)"
+    r"|\b(?:tighten|loosen|raise|lower|reduce|increase|cut|suspend|withdraw|"
+    r"amend|change|revise|cap|freeze|introduce|relax|restrict)\w*\b"
+    r"(?=[^.!?]*\bpolic(?:y|ies)\b)")
+
 #: Language that asserts an order. Matched against the narrative to decide
 #: whether a published chart is making a ranking claim.
 _SUPERLATIVE = re.compile(
@@ -315,6 +327,10 @@ class Finalizer:
     #: from a DIFFERENT build of the same release id is not this run's
     #: evidence, and an id alone cannot tell them apart.
     header: Any = None
+    #: WHICH BOOK'S POLICY governs this answer. Empty on a run with no book
+    #: -- a product question has no credit policy to cite -- and the
+    #: citation check below does nothing when it is.
+    domain_id: str = ""
 
     def validate(self, final: FinalResponse, *,
                  executed: bool) -> ValidationReport:
@@ -387,6 +403,7 @@ class Finalizer:
             problems.extend(self._check_table(table, i))
 
         problems.extend(self._check_ordering(final))
+        problems.extend(self._check_policy_citation(final))
 
         rendered = final.narrative
         if not problems:
@@ -1040,6 +1057,55 @@ class Finalizer:
                         f"Order the query by the measure you are ranking, "
                         f"draw it as a sequence rather than a ranking, or "
                         f"drop the ranking language.")
+        return problems
+
+    def _check_policy_citation(self, final: FinalResponse) -> list[str]:
+        """A policy action names the clause it changes.
+
+        The same discipline as a numeric claim with no evidence, and for the
+        same reason. "We should tighten the non-salaried cut-off" reads as
+        governance advice whether or not any such cut-off exists, whether or
+        not the analyst knows what it currently is, and whether or not the
+        clause it would change is the one it names. A reader cannot tell the
+        difference from the prose, which is precisely what makes confident
+        policy language dangerous in a way confident numbers are not: a
+        wrong number can be checked.
+
+        DELIBERATELY NARROW. The trigger is the word "policy" in the same
+        sentence as a change verb, not a list of words that appear in every
+        credit write-up. A check that fires on "recommend" or "tighten"
+        alone would refuse ordinary analysis for using ordinary English,
+        which is the failure mode `_check_ordering` cost this product two
+        live answers for.
+
+        The OTHER book's clause is refused unconditionally. `CP-1.2` in a
+        Retail answer is a rule that does not govern the exposure being
+        discussed, and quoting it is worse than quoting nothing: it is a
+        citation that looks checked and is not.
+        """
+        if not self.domain_id or not final.narrative:
+            return []
+        from backend.cockpit_v4 import credit_policy as cp
+
+        problems: list[str] = []
+        foreign = cp.foreign_citations(final.narrative, self.domain_id)
+        if foreign:
+            other = ("Corporate" if self.domain_id == "retail"
+                     else "Retail")
+            problems.append(
+                f"the answer cites {', '.join(foreign)}, which belongs to "
+                f"the {other} credit policy and does not govern this book. "
+                f"Cite this book's own clause, or drop the citation.")
+
+        sentences = [x for x in re.split(r"(?<=[.!?])\s+", final.narrative)
+                     if _POLICY_ACTION.search(x)]
+        if sentences and not cp.citations(final.narrative, self.domain_id):
+            problems.append(
+                "the answer proposes a policy change and cites no clause of "
+                "this book's credit policy. The clauses this question "
+                "reaches are attached to this turn: name the one the change "
+                "would alter and quote the rule in force, or state the "
+                "finding without proposing an action.")
         return problems
 
     def _check_chart(self, chart: dict[str, Any], index: int) -> str:

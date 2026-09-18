@@ -725,7 +725,10 @@ class Orchestrator:
         if answering:
             from backend.cockpit_v4 import context as ctx
 
-            compact = ctx.finalization_system(self.analyst.system)
+            compact = ctx.finalization_system(
+                self.analyst.system,
+                domain_id=str(getattr(self.envelope, "domain_id", "") or ""),
+                question=self._asked())
             if compact is not self.analyst.system:
                 restore_system = self.analyst.system
                 self.analyst.system = compact
@@ -924,12 +927,7 @@ class Orchestrator:
         them), the product synopsis, the catalogue, any tool the state does
         not allow, and any part of the transcript this turn does not need.
         """
-        question = ""
-        first = self.analyst.messages[0] if self.analyst.messages else None
-        if first and isinstance(first.get("content"), str):
-            question = str(first["content"]).split("\n\n")[0]
-            question = question.replace(
-                "USER REQUEST (original wording, unmodified):\n", "")
+        question = self._asked()
 
         ready = dict(self.readiness or {})
         resolved = [str(m.get("field_id") or m.get("term") or "")
@@ -1195,6 +1193,19 @@ class Orchestrator:
                 "pack_version": result["pack_version"],
                 "sections": [s.get("title") for s in result["sections"]]}))
         return None
+
+    def _asked(self) -> str:
+        """The reader's own words, as the first user message carries them.
+
+        The run does not hold the question as a field -- it holds the
+        conversation -- so this reads it back out of the first message, the
+        same way the repair note does.
+        """
+        first = self.analyst.messages[0] if self.analyst.messages else None
+        if not first or not isinstance(first.get("content"), str):
+            return ""
+        return str(first["content"]).split("\n\n")[0].replace(
+            "USER REQUEST (original wording, unmodified):\n", "")
 
     # -- read_artifact ---------------------------------------------------
 

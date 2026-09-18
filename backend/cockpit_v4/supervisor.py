@@ -172,7 +172,8 @@ class Supervisor:
                 store=self.store, tenant_id=tenant_id,
                 release_id=str(getattr(record, "release_id", "") or ""),
                 limits=analytical_limits_for(record.mode),
-                run_artifacts=set(artifacts), header=header)
+                run_artifacts=set(artifacts), header=header,
+                domain_id=str(getattr(record, "domain_id", "") or ""))
             body = finalizer.result_only_response(reason=reason,
                                                   catalog=catalog)
         except Exception:  # noqa: BLE001

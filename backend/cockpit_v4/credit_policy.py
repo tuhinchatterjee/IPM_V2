@@ -6,16 +6,26 @@ Why not attach the policy
 The pack is thirty clauses across two books, about 23KB of JSON. Attaching
 it to every question would put the whole rule book in front of a request
 about Stage 2 exposure -- the same mistake `product_knowledge` exists to
-avoid, in a different costume. So the same two layers:
+avoid, in a different costume. So two layers:
 
-  * a compact SYNOPSIS in the analytical context -- which book's policy is
-    in force, its sections, and the handful of thresholds a portfolio
-    question actually collides with (the concentration limits, the DBR
-    caps, the SICR triggers, the write-off points). Enough to notice that a
-    number has crossed a line.
+  * a compact SYNOPSIS -- which book's policy is in force, its sections,
+    and the handful of thresholds a portfolio question actually collides
+    with (the concentration limits, the DBR caps, the SICR triggers, the
+    write-off points). Enough to notice that a number has crossed a line.
 
-  * `inspect_credit_policy`, which returns the clauses a specific question
-    needs, in full, with their thresholds and the levers they offer.
+  * `retrieve`, which returns the clauses a specific question needs, in
+    full, with their thresholds and the levers they offer.
+
+Both are carried on the ANSWER turn, by `context.finalization_system`. Not
+on an action turn, which holds no number yet and so has nothing to compare
+against a threshold; and not through a tool.
+
+WHY NOT A TOOL. It was one first, and the tool could not be called. The
+state that holds a result REQUIRES `finalize_response`, so a tool offered
+beside it is a schema every action turn pays for and no turn can reach.
+Retrieval here needs no judgement either -- the clause ids and the topics
+are in the reader's own words, exactly as `values.resolve` reads a category
+value -- so the server does it and the analyst cannot fail to have asked.
 
 THE BOOKS DO NOT CROSS. A Retail thread never receives a Corporate clause
 and a Corporate thread never receives a Retail one, because a policy
@@ -133,9 +143,9 @@ def synopsis(book_id: str) -> dict[str, Any]:
                 if by_id[cid].get("thresholds") else {})}
             for cid in _HEADLINE.get(book_id, ()) if cid in by_id],
         "more_detail": (
-            "Call inspect_credit_policy with a clause id, a section id or a "
-            "topic for the clauses in full, with their thresholds and the "
-            "levers each one offers."),
+            "Clauses this question names are attached in full below, with "
+            "their thresholds and the levers each one offers. Nothing is "
+            "attached when the question names no policy topic."),
         "citation_rule": (
             "A policy action names the clause it changes, quotes the rule "
             "in force, and states the proposed change. A recommendation "
@@ -145,41 +155,85 @@ def synopsis(book_id: str) -> dict[str, Any]:
 
 # ---- retrieval ----------------------------------------------------------
 
-#: Words that point at a section. Deterministic and inspectable, the same
-#: shape `product_knowledge` uses, and extended when the pack gains a
-#: section rather than guessed at by a model.
+#: Words that point at ONE CLAUSE. Deterministic, inspectable, and extended
+#: when the pack gains a clause rather than guessed at by a model.
+#:
+#: PER CLAUSE, NOT PER SECTION, and the words are phrases rather than terms.
+#: Both were the other way first and the retrieval fired on a third of an
+#: ordinary question bank: "What is exposure at default by sector?" pulled
+#: the whole rating and watchlist section because CP-3 listed the word
+#: "default", and "What is average LTV by collateral type?" pulled five
+#: clauses of retail product limits because RP-2 listed "ltv". A policy
+#: attachment that arrives on every other question is the pack attached by
+#: another route, and it teaches the analyst to stop reading it.
 _KEYWORDS: dict[str, tuple[str, ...]] = {
-    "RP-1": ("dbr", "debt burden", "affordability", "income", "salary "
-             "transfer", "salary", "employment"),
-    "RP-2": ("limit", "cut-off", "cutoff", "score", "tenor", "ltv", "loan to "
-             "value", "override", "card limit", "sub-product"),
-    "RP-3": ("new product", "pilot", "launch", "bnpl", "buy now", "channel",
-             "partner", "digital", "vintage", "origination"),
-    "RP-4": ("collection", "collections", "arrears", "restructure",
-             "forbearance", "deferral", "ramadan", "write-off", "write off",
-             "bucket", "dpd", "days past due", "delinquen"),
-    "RP-5": ("stage", "sicr", "staging", "provision", "ifrs", "default",
-             "cure"),
-    "CP-1": ("concentration", "single obligor", "group limit", "connected",
-             "sector limit", "exposure limit"),
-    "CP-2": ("covenant", "dscr", "debt service", "leverage", "interest "
-             "cover", "breach", "waiver"),
-    "CP-3": ("watchlist", "watch list", "rating", "notch", "downgrade",
-             "early warning", "stage", "sicr", "default"),
-    "CP-4": ("collateral", "security", "haircut", "ltv", "loan to value",
-             "revaluation", "valuation"),
-    "CP-5": ("new product", "pilot", "supply chain", "scf", "receivables "
-             "finance", "programme"),
+    # Retail
+    "RP-1.1": ("dbr", "debt burden", "affordability", "instalment burden"),
+    "RP-1.2": ("salary transfer", "salary assignment"),
+    "RP-1.3": ("non-salaried income", "self-employed income",
+               "income verification", "bank statement"),
+    "RP-2.1": ("card limit", "credit limit", "limit increase",
+               "limit ceiling"),
+    "RP-2.2": ("cut-off", "cutoff", "application score", "score floor",
+               "minimum score"),
+    "RP-2.3": ("maximum tenor", "tenor cap", "tenor"),
+    "RP-2.4": ("ltv", "loan to value", "loan-to-value"),
+    "RP-2.5": ("override", "exception approval", "policy exception"),
+    "RP-3.1": ("new product", "pilot", "launch", "bnpl", "buy now pay later",
+               "buy now"),
+    "RP-3.2": ("partner channel", "digital channel", "origination channel",
+               "first payment default", "partner"),
+    "RP-3.3": ("vintage", "months on book", "cohort performance"),
+    "RP-4.1": ("collection", "collections", "arrears band", "dpd band",
+               "days past due", "sub-bucket", "delinquency bucket",
+               "field visit", "contact strategy"),
+    "RP-4.2": ("restructure", "forbearance", "reschedul"),
+    "RP-4.3": ("deferral", "payment holiday", "ramadan", "seasonal"),
+    "RP-4.4": ("write-off", "write off", "charge-off", "charge off"),
+    "RP-5.1": ("sicr", "significant increase", "staging trigger",
+               "stage 2 trigger", "moves to stage 2"),
+    "RP-5.2": ("definition of default", "default definition", "cure period",
+               "90 days past due"),
+    # Corporate
+    "CP-1.1": ("single obligor", "obligor limit", "large exposure"),
+    "CP-1.2": ("group limit", "connected", "group exposure",
+               "related parties", "concentration"),
+    "CP-1.3": ("sector limit", "sector cap", "sub-sector limit",
+               "sector concentration"),
+    "CP-2.1": ("covenant package", "dscr", "debt service", "leverage "
+               "covenant", "interest cover", "covenant"),
+    "CP-2.2": ("breach", "waiver", "remediation"),
+    "CP-2.3": ("debt service below", "below policy", "utp",
+               "unlikeliness to pay"),
+    "CP-3.1": ("watchlist", "watch list", "early warning"),
+    "CP-3.2": ("rating review", "rating action", "out of cycle",
+               "review frequency", "notch"),
+    "CP-3.3": ("sicr", "significant increase", "staging trigger",
+               "stage 2 trigger"),
+    "CP-4.1": ("haircut", "collateral value", "recognised collateral",
+               "security value"),
+    "CP-4.2": ("revaluation", "valuation age", "ltv", "loan to value",
+               "top up", "top-up"),
+    "CP-5.1": ("new product", "pilot", "product approval"),
+    "CP-5.2": ("supply chain", "scf", "receivables finance", "dilution",
+               "programme limit", "anchor"),
 }
 
 
-def sections_for(book_id: str, question: str) -> list[str]:
-    """Which sections of THIS book's policy the question names."""
+def clauses_for(book_id: str, question: str) -> list[str]:
+    """Which clauses of THIS book's policy the question names."""
     text = (question or "").lower()
     prefix = "RP" if book_id == "retail" else "CP"
-    return [section for section, words in _KEYWORDS.items()
-            if section.startswith(prefix)
+    return [cid for cid, words in _KEYWORDS.items()
+            if cid.startswith(prefix)
             and any(word in text for word in words)]
+
+
+def sections_for(book_id: str, question: str) -> list[str]:
+    """The sections those clauses sit in. Kept for callers that want the
+    coarser answer; retrieval works at clause grain."""
+    return sorted({cid.split(".")[0]
+                   for cid in clauses_for(book_id, question)})
 
 
 def named_clauses(question: str) -> list[str]:
@@ -210,23 +264,30 @@ def retrieve(book_id: str, *, question: str = "",
 
     asked = [c.upper().replace(" ", "-") for c in clause_ids]
     asked += named_clauses(question) + named_clauses(topic)
-    if asked:
-        seen = {c["clause"] for c in wanted}
-        for cid in asked:
-            found = clause(book_id, cid)
-            if found is not None and found["clause"] not in seen:
-                wanted.append(found)
-                seen.add(found["clause"])
+    seen: set[str] = set()
+    for cid in asked:
+        # A clause id THIS book does not hold resolves to nothing, which is
+        # how a Retail thread asking for `CP-1.2` comes back empty rather
+        # than reaching across.
+        found = clause(book_id, cid)
+        if found is not None and found["clause"] not in seen:
+            wanted.append(found)
+            seen.add(found["clause"])
+    if wanted:
         how = "clause id"
 
     if not wanted:
-        sections = (named_sections(question) + named_sections(topic)
-                    or sections_for(book_id, f"{question} {topic}"))
-        prefix = "RP" if book_id == "retail" else "CP"
-        sections = [s for s in sections if s.startswith(prefix)]
+        sections = [x for x in named_sections(question) + named_sections(topic)
+                    if x.startswith("RP" if book_id == "retail" else "CP")]
         if sections:
             wanted = [c for c in everything if c["section"] in sections]
             how = "section"
+
+    if not wanted:
+        matched = clauses_for(book_id, f"{question} {topic}")
+        if matched:
+            wanted = [c for c in everything if c["clause"] in matched]
+            how = "topic"
 
     if not wanted:
         return {
@@ -283,6 +344,6 @@ def foreign_citations(text: str, book_id: str) -> list[str]:
 
 
 __all__ = ["CLAUSE_ID", "MAX_CLAUSES", "PACK_PATH", "UnknownBook",
-           "citations", "clause", "clauses", "foreign_citations",
-           "named_clauses", "named_sections", "pack", "retrieve",
-           "sections_for", "synopsis", "version"]
+           "citations", "clause", "clauses", "clauses_for",
+           "foreign_citations", "named_clauses", "named_sections", "pack",
+           "retrieve", "sections_for", "synopsis", "version"]

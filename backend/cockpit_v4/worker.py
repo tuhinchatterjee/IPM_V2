@@ -299,7 +299,12 @@ class Worker:
             finalizer=Finalizer(
                 store=self.store, tenant_id=record.tenant_id,
                 release_id=book.release_id, limits=limits,
-                header=header),
+                header=header,
+                # `getattr`, not `book.domain_id`: `_LegacyBook` carries no
+                # domain id on purpose, because the pre-domain release it
+                # wraps does not have one. A run with no book has no credit
+                # policy to cite and the citation check stands down.
+                domain_id=str(getattr(book, "domain_id", "") or "")),
             emitter=emitter, catalog=book.catalog,
             cancel_check=lambda: bool(
                 (self.store.get_run(record.run_id) or record).cancel_requested),

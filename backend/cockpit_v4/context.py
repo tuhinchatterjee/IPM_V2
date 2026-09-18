@@ -468,8 +468,9 @@ PRESENTATION: dict[str, Any] = {
 }
 
 
-def finalization_system(system_blocks: list[dict[str, Any]]
-                        ) -> list[dict[str, Any]]:
+def finalization_system(system_blocks: list[dict[str, Any]], *,
+                        domain_id: str = "",
+                        question: str = "") -> list[dict[str, Any]]:
     """The system context a turn needs when its job is to WRITE THE ANSWER.
 
     The starting context is built for AUTHORING an analysis: the catalogue
@@ -518,6 +519,33 @@ def finalization_system(system_blocks: list[dict[str, Any]]
         kept.append(block)
     kept.append({"type": "text", "text": json.dumps(
         PRESENTATION, ensure_ascii=False)})
+    # THE CREDIT POLICY, on the turn that can collide with it.
+    #
+    # An action turn is choosing what to run; it holds no number, so a
+    # threshold in front of it is a threshold nothing can be compared
+    # against. The answer turn has the result in hand, and that is the
+    # moment "this is above the limit" becomes a sentence worth writing.
+    #
+    # RETRIEVED HERE RATHER THAN THROUGH A TOOL. It was a tool first, and
+    # the tool could never be called: the state that holds a result REQUIRES
+    # `finalize_response`, so a companion offered beside it is a schema the
+    # run pays for and cannot reach. Retrieval is deterministic and needs no
+    # judgement -- the clause ids and topics are in the reader's own words,
+    # exactly like `value_resolution` -- so the server does it and the
+    # analyst cannot fail to have asked. A question that names no policy
+    # topic gets the synopsis and nothing else.
+    if domain_id:
+        try:
+            from backend.cockpit_v4 import credit_policy as cp
+
+            kept.append({"type": "text", "text": json.dumps(
+                cp.synopsis(domain_id), ensure_ascii=False)})
+            found = cp.retrieve(domain_id, question=question)
+            if found.get("clauses"):
+                kept.append({"type": "text", "text": json.dumps(
+                    found, ensure_ascii=False)})
+        except Exception:  # noqa: BLE001 - a book with no policy pack
+            pass
     return kept
 
 

@@ -6,38 +6,38 @@
   "measurements": {
     "analysis_end_to_end": {
       "samples": 5,
-      "min_ms": 91.4,
-      "median_ms": 92.7,
-      "p90_ms": 99.4,
-      "max_ms": 99.4
+      "min_ms": 93.8,
+      "median_ms": 98.4,
+      "p90_ms": 103.0,
+      "max_ms": 103.0
     },
     "attention_feed": {
       "samples": 5,
-      "min_ms": 22.4,
-      "median_ms": 22.7,
-      "p90_ms": 30.0,
-      "max_ms": 30.0
+      "min_ms": 22.1,
+      "median_ms": 23.3,
+      "p90_ms": 28.0,
+      "max_ms": 28.0
     },
     "bind_proof": {
       "samples": 20,
-      "min_ms": 4.5,
-      "median_ms": 4.6,
-      "p90_ms": 4.8,
-      "max_ms": 4.8
+      "min_ms": 4.4,
+      "median_ms": 4.5,
+      "p90_ms": 5.0,
+      "max_ms": 5.1
     },
     "heaviest_analysis_end_to_end": {
       "samples": 5,
-      "min_ms": 115.1,
-      "median_ms": 119.4,
-      "p90_ms": 121.5,
-      "max_ms": 121.5
+      "min_ms": 114.4,
+      "median_ms": 114.6,
+      "p90_ms": 119.9,
+      "max_ms": 119.9
     },
     "product_help_end_to_end": {
       "samples": 5,
-      "min_ms": 66.2,
-      "median_ms": 66.7,
-      "p90_ms": 79.8,
-      "max_ms": 79.8
+      "min_ms": 69.8,
+      "median_ms": 71.4,
+      "p90_ms": 72.3,
+      "max_ms": 72.3
     }
   }
 }
