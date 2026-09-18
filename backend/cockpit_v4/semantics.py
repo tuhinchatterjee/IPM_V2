@@ -284,7 +284,26 @@ _RETAIL_MEASURES: tuple[tuple[str, str, str, str, str], ...] = (
      "`delinquency_bucket` is the recorded banding of it."),
     ("delinquency", "retail_account_month", "delinquency_bucket",
      "Recorded delinquency bucket.",
-     "The banding the book uses. `dpd_days` is the underlying count."),
+     "The banding the book uses. `dpd_days` is the underlying count, and "
+     "`delinquency_bucket_fine` splits the first thirty days into 1-9, "
+     "10-19 and 20-29 and the tail into 90-179 and 180+."),
+    ("sub-bucket", "retail_account_month", "delinquency_bucket_fine",
+     "Arrears at collections grain.",
+     "Use it to say WHERE inside 1-29 a movement sits. It nests exactly "
+     "inside `delinquency_bucket`: summing the fine bands of a coarse one "
+     "reproduces it."),
+    ("sub-product", "retail_account_month", "sub_product",
+     "What the product was sold as.",
+     "Nested inside `product`. A sub-product name is only unambiguous with "
+     "its product: `Gold` is a card, and `New Vehicle` is auto finance."),
+    ("employment", "retail_account_month", "employment_type",
+     "How the customer is paid.",
+     "Salaried-Government, Salaried-Private, Self-employed or "
+     "Non-salaried. Also carried on retail_customer_month."),
+    ("channel", "retail_account_month", "origination_channel",
+     "Where the account was written: Branch, Digital or Partner.",
+     "An origination attribute: it does not change over the account's "
+     "life."),
     ("write-off", "retail_account_month", "write_off_sar_mn",
      "Amount written off in the month, in SAR million.",
      "A flow, not a balance: summing it across months is a cumulative "

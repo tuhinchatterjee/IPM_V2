@@ -180,6 +180,22 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "Personal Finance": ("personal loan", "personal loans", "pl"),
     "Auto Finance": ("auto", "car finance", "motor finance"),
     "Mortgage": ("mortgages", "home loan", "home loans"),
+    "Buy Now Pay Later": ("bnpl", "buy now pay later", "pay later",
+                          "instalment"),
+    "supply_chain_finance": ("scf", "supply chain", "supplier finance"),
+    # Sub-products a reader names by their short form. "Gold" alone is
+    # ambiguous across books, which is why it is not here: `Credit Card -
+    # Gold` is reached by naming the product too.
+    "Debt Consolidation": ("consolidation", "debt consol"),
+    "Salary Advance": ("salary advance", "advance"),
+    "Used Vehicle": ("used car", "used cars", "second hand"),
+    "New Vehicle": ("new car", "new cars"),
+    # Employment types. The hyphen is the canonical form and nobody types it.
+    "Salaried-Government": ("government", "govt", "public sector",
+                            "salaried government"),
+    "Salaried-Private": ("private sector", "salaried private"),
+    "Non-salaried": ("non salaried", "nonsalaried", "no salary transfer"),
+    "Self-employed": ("self employed", "selfemployed"),
 }
 
 

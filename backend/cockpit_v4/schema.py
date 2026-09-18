@@ -549,6 +549,9 @@ _RETAIL_CUSTOMER = Relation(
            "Period"),
         _f("customer_segment", "string", "",
            "Mass, Affluent, Private or Payroll.", "Segmentation"),
+        _f("employment_type", "string", "",
+           "Salaried-Government, Salaried-Private, Self-employed or "
+           "Non-salaried.", "Segmentation"),
         _f("region", "string", "", "Saudi region of residence.",
            "Segmentation"),
         _f("tenure_months", "integer", "months",
@@ -601,18 +604,35 @@ _RETAIL_ACCOUNT = Relation(
         _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
            "Period"),
         _f("product", "string", "",
-           "Mortgage, Personal Finance, Auto Finance or Credit Card.",
+           "Mortgage, Personal Finance, Auto Finance, Credit Card or Buy "
+           "Now Pay Later. Buy Now Pay Later was launched inside this "
+           "window and has no rows before its first month.",
+           "Product"),
+        _f("sub_product", "string", "",
+           "What the product was sold as: Fixed Rate or Variable Rate "
+           "mortgages; Salary Advance, Consumer Durable or Debt "
+           "Consolidation personal finance; New or Used vehicle finance; "
+           "Classic, Gold or Signature cards; Instalment 3M or 6M BNPL.",
            "Product"),
         _f("secured_flag", "integer", "count",
            "1 when the product is secured.", "Product"),
         _f("origination_month", "string", "",
            "The month the account was opened, as YYYY-MM.", "Vintage"),
+        _f("origination_channel", "string", "",
+           "Where the account was written: Branch, Digital or Partner.",
+           "Origination"),
         _f("vintage_year", "integer", "count",
            "The calendar year of origination.", "Vintage"),
         _f("months_on_book", "integer", "months",
-           "Months since origination.", "Vintage"),
+           "Months since origination. The comparison a vintage analysis "
+           "makes is at EQUAL months on book, not in calendar time.",
+           "Vintage"),
         _f("customer_segment", "string", "", "The customer's segment.",
            "Segmentation"),
+        _f("employment_type", "string", "",
+           "How the customer is paid: Salaried-Government, "
+           "Salaried-Private, Self-employed or Non-salaried. The strongest "
+           "single lever in Saudi retail credit policy.", "Segmentation"),
         _f("region", "string", "", "The customer's region.", "Segmentation"),
         _f("limit_sar_mn", "float", "rcy",
            "Sanctioned limit or original advance.", "Exposure"),
@@ -633,6 +653,12 @@ _RETAIL_ACCOUNT = Relation(
         _f("delinquency_bucket", "string", "",
            "Current, 1-29, 30-59, 60-89 or 90+ days past due.",
            "Delinquency"),
+        _f("delinquency_bucket_fine", "string", "",
+           "The same arrears at collections grain: Current, 1-9, 10-19, "
+           "20-29, 30-59, 60-89, 90-179 or 180+. Use it to say WHERE "
+           "inside 1-29 a movement sits -- a book entering at 20-29 is a "
+           "different problem from one entering at 1-9 -- and to separate "
+           "90-179 from the 180+ tail.", "Delinquency"),
         _f("pd_pit_12m", "float", "probability_0_1",
            "Point-in-time 12-month probability of default.", "IFRS 9",
            label="Point-in-time 12-month PD"),
@@ -676,6 +702,8 @@ _RETAIL_BEHAVIOUR = Relation(
         _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
            "Period"),
         _f("product", "string", "", "The account's product.", "Product"),
+        _f("sub_product", "string", "", "The account's sub-product.",
+           "Product"),
         _f("utilisation_pct", "float", "percent",
            "Balance as a percentage of limit.", "Behaviour variables"),
         _f("utilisation_change_pp", "float", "percentage points",

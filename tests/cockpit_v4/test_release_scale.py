@@ -65,13 +65,16 @@ def retail(books):
 def test_the_corporate_book_holds_thousands_of_borrowers(corporate):
     count = scalar(corporate,
                    "SELECT COUNT(DISTINCT borrower_id) FROM corp_borrower_quarter")
-    assert 3_000 <= count <= 5_000, count
+    # Raised with the book. Six sub-sectors inside a sector and a planted
+    # sub-sector story need a population to carry them, and a sub-sector
+    # finding resting on forty names is an anecdote with a p-value.
+    assert 5_000 <= count <= 7_000, count
 
 
 def test_the_corporate_book_holds_thousands_of_facilities(corporate):
     count = scalar(corporate,
                    "SELECT COUNT(DISTINCT facility_id) FROM corp_facility_quarter")
-    assert 8_000 <= count <= 15_000, count
+    assert 15_000 <= count <= 26_000, count
 
 
 def test_every_borrower_has_at_least_two_facilities(corporate):
@@ -133,7 +136,18 @@ def test_no_borrower_name_is_used_twice(corporate):
 EXPECTED_PRODUCT_TYPES = {
     "term_loan", "working_capital", "revolving_credit", "trade_finance",
     "project_finance", "overdraft", "asset_finance",
+    # EIGHT now. Supply chain finance is written from 2025Q4 onward and has
+    # no facility before it, which is the point: a book whose product list
+    # is the same in its first quarter and its last cannot be asked what
+    # the bank started doing recently.
+    "supply_chain_finance",
 }
+
+#: The product that does not span the window, and the quarter it starts.
+#: Excluded from the population floor below, because it is three quarters
+#: old and a floor written for a five-year product would fail it for being
+#: exactly what it is meant to be.
+NEW_PRODUCT_TYPE = "supply_chain_finance"
 
 
 def test_product_types_are_the_governed_snake_case_identifiers(corporate):
@@ -151,7 +165,8 @@ def test_every_product_type_is_actually_used(corporate):
         SELECT product_type, COUNT(DISTINCT facility_id)
         FROM corp_facility_quarter GROUP BY 1"""))
     for kind in EXPECTED_PRODUCT_TYPES:
-        assert used.get(kind, 0) >= 500, (kind, used.get(kind, 0))
+        floor = 500 if kind != NEW_PRODUCT_TYPE else 1_500
+        assert used.get(kind, 0) >= floor, (kind, used.get(kind, 0))
 
 
 # ---- §18: the authored stories are in the data --------------------------
@@ -250,7 +265,11 @@ def test_the_retail_book_holds_thousands_of_customers(retail):
 #: and a run that cannot open the release it was accepted against is a run
 #: whose stored answer can no longer be checked.
 SUPERSEDED_CORPORATE = ("v4-saudi-corporate-20m-v1",
-                        "v4-saudi-corporate-20m-v2")
+                        "v4-saudi-corporate-20m-v2",
+                        # The quarterly book BEFORE the planted patterns and
+                        # the larger population. Same calendar, different
+                        # numbers, so a different id rather than a rewrite.
+                        "v4-saudi-corporate-20q-v3")
 
 
 def test_the_previous_corporate_releases_are_published_and_unread():
@@ -258,7 +277,7 @@ def test_the_previous_corporate_releases_are_published_and_unread():
     did so by publishing a new release rather than rewriting the old ones.
     A calendar change under a release id nobody changed would silently
     restate every saved analysis."""
-    assert dom.DEFAULT_RELEASES[dom.CORPORATE] == "v4-saudi-corporate-20q-v3"
+    assert dom.DEFAULT_RELEASES[dom.CORPORATE] == "v4-saudi-corporate-20q-v4"
     for release_id in SUPERSEDED_CORPORATE:
         if not lake.exists(release_id):
             continue

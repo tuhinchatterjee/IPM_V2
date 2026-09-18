@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "inspect_credit_policy",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "clause_ids": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {"type": "string", "maxLength": 12},
+      "description": "Exact clause ids, as the policy writes them: RP-1.1, CP-2.3. The most precise way in."
+    },
+    "topic": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "A section id (RP-4, CP-1) or a policy topic: concentration, covenants, collections, staging, collateral, cut-offs, debt burden, a new product, a channel, a vintage."
+    },
+    "rationale": {
+      "type": "string",
+      "maxLength": 240,
+      "description": "Why this retrieval, in one line. Shown to the reader."
+    }
+  }
+}

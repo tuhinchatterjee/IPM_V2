@@ -384,7 +384,22 @@ def _build_session(catalog: Catalog) -> Session:
 
     connection = duckdb.connect(database=":memory:")
     connection.execute("SET threads TO 2")
-    connection.execute("SET memory_limit = '512MB'")
+    # RAISED FROM 512MB, DELIBERATELY AND ON A MEASUREMENT.
+    #
+    # The whole release is materialised into in-memory tables below, so the
+    # base tables are a fixed cost paid before a single query runs. On the
+    # enriched Retail book -- 1.9 million rows across four relations --
+    # `duckdb_memory()` reported 486 MiB of IN_MEMORY_TABLE against a
+    # 488 MiB effective limit. Queries still returned, because DuckDB
+    # streams and spills rather than failing outright, but a group-by that
+    # wants a hash table had nothing left to build it in, and a limit a
+    # workload sits exactly on is one that fails on the day the book gains
+    # a relation.
+    #
+    # 1.5GB is not a licence to grow: it is the measured footprint plus
+    # working room for the widest group-by an analyst can author. The
+    # figure to watch is IN_MEMORY_TABLE.
+    connection.execute("SET memory_limit = '1536MB'")
 
     built: list[str] = []
     for relation in catalog.relations():

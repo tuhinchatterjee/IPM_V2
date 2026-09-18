@@ -150,15 +150,23 @@ def test_a_real_value_outranks_an_authored_alias(corporate):
 # ---- refusing to guess ---------------------------------------------------
 
 def test_a_half_named_family_is_asked_about_not_chosen(corporate):
-    """§26. "finance" is Project Finance and Trade Finance in this book.
-    Choosing one of them is choosing the analysis."""
+    """§26. "finance" names four products in this book. Choosing one of
+    them is choosing the analysis.
+
+    FOUR, not three: supply chain finance was added to the book and the
+    word it shares with the others is exactly the one a reader types. A
+    resolver that narrowed to the three it used to know would be choosing
+    the analysis and hiding the newest product while doing it.
+    """
     outcome = val.resolve("finance", index=corporate)
     assert isinstance(outcome, val.Ambiguity)
     assert {c.value for c in outcome.candidates} == {
-        "asset_finance", "project_finance", "trade_finance"}
+        "asset_finance", "project_finance", "trade_finance",
+        "supply_chain_finance"}
     # Asked in the reader's spelling, whatever the book's own is.
-    assert outcome.question == ("Did you mean Asset Finance, Project Finance "
-                                "or Trade Finance?")
+    assert outcome.question == (
+        "Did you mean Asset Finance, Project Finance, Supply Chain Finance "
+        "or Trade Finance?")
 
 
 def test_the_same_half_named_family_is_different_in_the_other_book(retail):
@@ -494,8 +502,9 @@ def test_the_real_payload_enumerates_this_books_governed_values(
     published = set(oracle.frame(
         dom.CORPORATE, "corp_facility_quarter")["product_type"].unique())
     assert set(fields["product_type"]["values"]) == published
-    assert len(published) == 7, (
-        "§8 asks for seven facility types with real populations")
+    assert len(published) == 8, (
+        "§8's seven facility types, plus the one the bank started writing "
+        "in 2025Q4")
     assert all(v == v.lower() and " " not in v for v in published), (
         "a governed value is the identifier SQL filters on, not a label")
     assert "Information Technology" in fields["sector"]["values"]
@@ -524,7 +533,8 @@ def test_an_ambiguous_value_reaches_the_payload_as_a_question(
     assert len(asked) == 1
     assert asked[0]["term"] == "finance"
     assert {c["value"] for c in asked[0]["candidates"]} == {
-        "asset_finance", "project_finance", "trade_finance"}
+        "asset_finance", "project_finance", "trade_finance",
+        "supply_chain_finance"}
     assert body["value_resolution"]["recognised"] == []
 
 

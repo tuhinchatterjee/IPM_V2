@@ -54,7 +54,10 @@ SEED = 20260803
 #: means something else -- which is the one thing an immutable release id
 #: exists to prevent. Refused by name rather than silently obliged.
 FROZEN_RELEASES: frozenset[str] = frozenset({
-    "v4-saudi-corporate-20m-v1", "v4-saudi-corporate-20m-v2"})
+    "v4-saudi-corporate-20m-v1", "v4-saudi-corporate-20m-v2",
+    # -20q-v3 is the book before the planted patterns and the larger
+    # population. Published, readable, and not rebuildable from here.
+    "v4-saudi-corporate-20q-v3"})
 
 
 class FrozenRelease(ValueError):
@@ -187,13 +190,18 @@ _TAIL_SECTORS: dict[str, tuple[tuple[str, ...], tuple[str, ...],
 #: Extra names per sector, at wholesale scale. The weights keep the sectors
 #: carrying an authored story populous enough that a sector finding is a
 #: finding about a sector and not about one company.
+#: Raised by about half. Six sub-sectors inside a sector, three relationship
+#: tiers, eight products and twenty quarters is a lot of cells, and a
+#: sub-sector finding that rests on forty names is an anecdote with a
+#: p-value. `Building Contracting` carries a planted story and needs a
+#: population to carry it in.
 _TAIL_COUNTS: dict[str, int] = {
-    "Construction": 400, "Real Estate": 360, "Hospitality": 260,
-    "Retail Trade": 260, "Transport and Logistics": 270,
-    "Manufacturing": 320, "Wholesale Trade": 230,
-    "Agriculture and Agri-processing": 220, "Metals and Mining": 190,
-    "Healthcare": 230, "Chemicals": 260, "Information Technology": 240,
-    "Power and Utilities": 230, "Telecommunications": 160,
+    "Construction": 620, "Real Estate": 540, "Hospitality": 380,
+    "Retail Trade": 380, "Transport and Logistics": 400,
+    "Manufacturing": 480, "Wholesale Trade": 340,
+    "Agriculture and Agri-processing": 320, "Metals and Mining": 280,
+    "Healthcare": 340, "Chemicals": 380, "Information Technology": 350,
+    "Power and Utilities": 340, "Telecommunications": 240,
 }
 
 
@@ -264,12 +272,16 @@ GROUPS: dict[str, str] = {
 #: table header all show the reader's form.
 PRODUCT_TYPES: tuple[str, ...] = (
     "term_loan", "working_capital", "revolving_credit", "trade_finance",
-    "project_finance", "overdraft", "asset_finance")
+    "project_finance", "overdraft", "asset_finance",
+    # Weight 0. Supply chain finance is not drawn from this distribution --
+    # it is booked explicitly from `NEW_PRODUCT_FROM_QUARTER`, so no
+    # facility of it exists before the quarter the bank started writing it.
+    "supply_chain_finance")
 
 #: How often each product appears, out of 100. No mainstream product may be
 #: three names: a reader asking "and within project finance?" must get a
 #: population, not an anecdote.
-PRODUCT_WEIGHTS: tuple[int, ...] = (24, 19, 15, 14, 12, 9, 7)
+PRODUCT_WEIGHTS: tuple[int, ...] = (24, 19, 15, 14, 12, 9, 7, 0)
 
 #: Which products put cash out when drawn. A guarantee or a letter of credit
 #: is an exposure without a disbursement, and a book that cannot tell the
@@ -278,7 +290,7 @@ FACILITY_CLASS: dict[str, str] = {
     "term_loan": "funded", "working_capital": "funded",
     "revolving_credit": "funded", "overdraft": "funded",
     "asset_finance": "funded", "project_finance": "funded",
-    "trade_finance": "non_funded",
+    "trade_finance": "non_funded", "supply_chain_finance": "non_funded",
 }
 
 #: Sector concentration BY PRODUCT. Project finance sits in infrastructure,
@@ -384,6 +396,61 @@ SECTOR_STRESS: dict[str, float] = {
     "Information Technology": -0.30,
     "Power and Utilities": -0.35,
 }
+
+# ---- the planted patterns ------------------------------------------------
+#
+# Sector stress above shapes the book. What follows is deliberate structure
+# inside it: findings a corporate credit committee would be expected to
+# reach, each by a different cut, and each recovered by a direct SQL oracle
+# in `tests/cockpit_v4/domain_oracles.py`.
+
+#: C7. A SUB-SECTOR THAT GOES BEFORE ITS RATINGS DO.
+#:
+#: Building Contracting deteriorates from 2025Q4 in the two things a credit
+#: officer can see early -- debt service and covenant headroom -- while the
+#: internal grade, which is sticky and reviewed on a cycle, follows two
+#: quarters later. Construction as a whole barely moves, because the other
+#: five sub-sectors do not, so the finding is only reachable at sub-sector
+#: grain.
+#:
+#: This is the early-warning question the product exists to answer, and a
+#: book where rating, DSCR and covenant all turn in the same quarter cannot
+#: pose it.
+EARLY_SUB_SECTOR = "Building Contracting"
+EARLY_FROM_QUARTER = "2025Q4"
+EARLY_DSCR_DROP = 0.78
+EARLY_HEADROOM_DROP = 18.0
+
+#: How many quarters the internal grade lags the cash-flow signal.
+EARLY_RATING_LAG = 2
+
+#: C8. A CONCENTRATION THAT IS ONLY VISIBLE AFTER GROUPING.
+#:
+#: No single borrower in Tuwaiq Holding is near the single-obligor limit.
+#: Their aggregate crosses it in 2026Q1, and an exposure report by BORROWER
+#: shows nothing at all. Grouping is the whole finding.
+#: A SMALL, NAMED group -- seven obligors across four sectors, related by
+#: ownership and not by what they do. `GROUPS` above maps a whole SECTOR to
+#: a holding name, which makes those "groups" sector-sized and a
+#: concentration inside one indistinguishable from the sector moving. This
+#: one is the real shape of the exposure a single-obligor limit is written
+#: against: a handful of connected names, each modest, adding up.
+CONCENTRATION_GROUP = "Al Faisaliah Industrial Group"
+CONCENTRATION_MEMBERS: tuple[str, ...] = (
+    "Al Noor Infrastructure", "Tuwaiq Construction", "Najd Manufacturing",
+    "Rawabi Industrial Works", "Gulf Horizon Trading",
+    "Al Rawdah Real Estate", "Jeddah Waterfront Development")
+CONCENTRATION_FROM_QUARTER = "2026Q1"
+CONCENTRATION_RAMP = 3.4
+
+#: C10. A PRODUCT TYPE THAT DID NOT EXIST A YEAR AGO.
+#:
+#: Supply chain finance, written from 2025Q4 and growing fast. Same shape as
+#: the retail BNPL book and the same question: when losses rise, is it the
+#: book or is it the thing the bank started doing last year?
+NEW_PRODUCT_TYPE = "supply_chain_finance"
+NEW_PRODUCT_FROM_QUARTER = "2025Q4"
+NEW_PRODUCT_STRESS = 0.95
 
 #: Collateral values follow their own cycle. Real estate softens through the
 #: window while industrial security firms up -- so "coverage fell" and "ECL
@@ -528,12 +595,33 @@ def _pick(options: tuple[str, ...], weights: tuple[int, ...],
     return options[-1]
 
 
+def _group_of(name: str, sector: str) -> str:
+    """The ownership group a borrower belongs to.
+
+    `CONCENTRATION_MEMBERS` are named first, because they are related by
+    who owns them rather than by what they do -- which is exactly why a
+    limit written against a borrower does not catch them.
+    """
+    if name in CONCENTRATION_MEMBERS:
+        return CONCENTRATION_GROUP
+    return GROUPS.get(sector, f"{name} Holding")
+
+
 def _product_for(sector: str, key: str) -> str:
-    """Which product this facility is, biased by the obligor's sector."""
+    """Which product this facility is, biased by the obligor's sector.
+
+    A product with weight ZERO is not in the draw at all. `max(1, ...)`
+    below used to be applied to every product, which meant a zero weight
+    still produced a weight of one and a product the bank had not started
+    writing yet turned up in 2021. The floor is for a product that is IN
+    the distribution and heavily biased away from this sector.
+    """
+    options = tuple(p for p, w in zip(PRODUCT_TYPES, PRODUCT_WEIGHTS) if w > 0)
     weights = tuple(
-        max(1, int(round(base * PRODUCT_SECTOR_BIAS[product].get(sector, 1.0))))
-        for product, base in zip(PRODUCT_TYPES, PRODUCT_WEIGHTS))
-    return _pick(PRODUCT_TYPES, weights, _stable(key, sum(weights)))
+        max(1, int(round(base * PRODUCT_SECTOR_BIAS.get(product, {})
+                         .get(sector, 1.0))))
+        for product, base in zip(PRODUCT_TYPES, PRODUCT_WEIGHTS) if base > 0)
+    return _pick(options, weights, _stable(key, sum(weights)))
 
 
 def _migration(moved: int) -> str:
@@ -582,8 +670,8 @@ def build(release_id: str = "",
         borrower_id = f"CB{index + 1:05d}"
         borrowers.append({
             "borrower_id": borrower_id, "borrower_name": name,
-            "group_id": f"CG{_stable(GROUPS.get(sector, name), 9000) + 1000}",
-            "group_name": GROUPS.get(sector, f"{name} Holding"),
+            "group_id": f"CG{_stable(_group_of(name, sector), 9000) + 1000}",
+            "group_name": _group_of(name, sector),
             "sector": sector, "sub_sector": sub_sector, "region": region,
             "relationship_tier": TIERS[index % len(TIERS)],
             "base_rating": rng.choices(ORIGINATION_GRADES,
@@ -624,6 +712,36 @@ def build(release_id: str = "",
                     quarters[0], _stable(f"{facility_id}|origination", 16)),
             })
 
+    # C10. THE PRODUCT THE BANK STARTED DOING LAST YEAR.
+    #
+    # Supply chain finance, written from 2025Q4 onward. Every other facility
+    # in this book predates the window, which is why the loop below has to
+    # learn to skip: a facility originated INSIDE the window reports no row
+    # for the quarters before it existed, and a book where every product has
+    # been there for five years cannot be asked what is new.
+    new_from = quarters.index(NEW_PRODUCT_FROM_QUARTER)
+    for offset in range(int(len(book) * 0.55)):
+        index = (offset * 13 + 7) % len(book)
+        borrower_id = f"CB{index + 1:05d}"
+        facility_id = f"CFN{offset + 1:05d}"
+        facilities.append({
+            "facility_id": facility_id,
+            "borrower_id": borrower_id,
+            "product_type": NEW_PRODUCT_TYPE,
+            "facility_class": FACILITY_CLASS[NEW_PRODUCT_TYPE],
+            "base_limit": round(rng.uniform(60, 420), 1),
+            "base_util": rng.uniform(0.55, 0.98),
+            "ccf": rng.uniform(0.3, 0.6),
+            "lgd": rng.uniform(0.38, 0.68),
+            "collateral_type": "Receivables",
+            "base_collateral": rng.uniform(0.25, 0.70),
+            "covenant_type": "Current Ratio",
+            "wobble": rng.uniform(-0.03, 0.03),
+            "origination_quarter": quarters[
+                min(new_from + _stable(f"{facility_id}|open", 4),
+                    len(quarters) - 1)],
+        })
+
     by_id = {b["borrower_id"]: b for b in borrowers}
     gov = {"tenant_id": tenant_id, "dataset_release_id": release_id,
            "domain_id": dom.CORPORATE, "reporting_currency": lake.CURRENCY}
@@ -643,6 +761,9 @@ def build(release_id: str = "",
     #: index. "Why is this facility in arrears?" is then a question the book
     #: can answer from a column it publishes.
     arrears: dict[str, int] = {}
+
+    early_index = quarters.index(EARLY_FROM_QUARTER)
+    concentration_index = quarters.index(CONCENTRATION_FROM_QUARTER)
 
     for q_index, quarter in enumerate(quarters):
         ramp = _ramp(q_index, len(quarters))
@@ -675,6 +796,27 @@ def build(release_id: str = "",
             dscr = _clamp(2.35 - 0.95 * personal - 0.05 * leverage, 0.55, 4.2)
             interest_cover = _clamp(5.4 - 2.2 * personal - 0.22 * leverage,
                                     0.7, 12.0)
+
+            # C7. WHAT A CREDIT OFFICER SEES BEFORE THE RATING MOVES.
+            #
+            # Applied to debt service and interest cover only, and NOT to
+            # `personal`, which is what drives the rating. So Building
+            # Contracting's DSCR falls and its covenants tighten from
+            # 2025Q4 while its grades stand still; the grades follow two
+            # quarters later, when `personal` picks the same cohort up
+            # below. That lag is the finding, and a book where all three
+            # turn in the same quarter cannot be used to test for it.
+            early = (borrower["sub_sector"] == EARLY_SUB_SECTOR
+                     and q_index >= early_index)
+            if early:
+                lead = min(1.0, (q_index - early_index + 1) / 3.0)
+                dscr = _clamp(dscr - EARLY_DSCR_DROP * lead, 0.55, 4.2)
+                interest_cover = _clamp(
+                    interest_cover - 1.7 * lead, 0.7, 12.0)
+                if q_index >= early_index + EARLY_RATING_LAG:
+                    personal += 0.55 * min(
+                        1.0, (q_index - early_index
+                              - EARLY_RATING_LAG + 1) / 3.0)
             current_ratio = _clamp(1.65 - 0.5 * personal, 0.55, 3.1)
             quick_ratio = _clamp(current_ratio - 0.35 - 0.1 * personal,
                                  0.25, 2.6)
@@ -775,6 +917,8 @@ def build(release_id: str = "",
             })
 
         for facility in facilities:
+            if quarters_between(facility["origination_quarter"], quarter) < 0:
+                continue  # not written yet: no row rather than a zero row
             borrower = by_id[facility["borrower_id"]]
             bid = borrower["borrower_id"]
             here = state[bid]
@@ -783,6 +927,17 @@ def build(release_id: str = "",
             fid = facility["facility_id"]
 
             limit = facility["base_limit"] * (1 + 0.012 * q_index)
+            # C8. A LIMIT THAT IS ONLY BREACHED IN AGGREGATE.
+            #
+            # Every name in the group stays comfortably inside the
+            # single-obligor limit; what crosses it is their total. An
+            # exposure report ordered by borrower shows nothing, and the
+            # finding only exists once the rows are grouped -- which is the
+            # whole point of carrying `group_name` beside `borrower_name`.
+            if (borrower["group_name"] == CONCENTRATION_GROUP
+                    and q_index >= concentration_index):
+                limit *= 1 + (CONCENTRATION_RAMP - 1) * min(
+                    1.0, (q_index - concentration_index + 1) / 2.0)
             util = _clamp(facility["base_util"] + 0.12 * personal
                           + 0.02 * season + facility["wobble"], 0.05, 1.0)
             drawn = limit * util
@@ -795,6 +950,23 @@ def build(release_id: str = "",
             # recovers cures; one in between is frozen where it is.
             prior_dpd = arrears.get(fid, 0)
             dscr = here["dscr"]
+            # C10. A NEW PRODUCT UNDERWRITTEN WITHOUT PERFORMANCE HISTORY.
+            #
+            # Supply chain finance is written against receivables, on
+            # limits set from a programme rather than from the obligor, and
+            # its cut-offs have never been tested through a cycle. So the
+            # SAME borrower defaults on it before it defaults on its term
+            # loan: this facility's debt-service test is read against a
+            # tighter threshold than the book's.
+            #
+            # Applied per FACILITY rather than to the obligor, which is the
+            # whole finding. "Which names are deteriorating?" returns the
+            # usual suspects; "which PRODUCT is deteriorating?" returns the
+            # one the bank started writing three quarters ago.
+            if facility["product_type"] == NEW_PRODUCT_TYPE:
+                dscr -= NEW_PRODUCT_STRESS * min(
+                    1.0, quarters_between(facility["origination_quarter"],
+                                          quarter) / 2.0 + 0.5)
             if dscr < ARREARS_DSCR:
                 dpd = min(CHARGE_OFF_DPD, prior_dpd + 90 if prior_dpd else 30)
             elif dscr < CURE_DSCR and prior_dpd:

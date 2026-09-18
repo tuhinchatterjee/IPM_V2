@@ -49,10 +49,22 @@ DEFAULT_RELEASES: dict[str, str] = {
     # releases were monthly and invented twelve observations a year no
     # credit committee ever saw; they stay published and readable, and
     # nothing points at them.
-    CORPORATE: "v4-saudi-corporate-20q-v3",
+    #
+    # `-v4` because the book gained a product type the bank started writing
+    # inside the window, a sub-sector whose cash flows turn two quarters
+    # before its ratings, a named ownership group whose aggregate crosses a
+    # limit no single name is near, and half again as many obligors. Same
+    # twenty quarters, same currency, same grain; different numbers, so a
+    # different id. `-v3` stays published and readable.
+    CORPORATE: "v4-saudi-corporate-20q-v4",
     # Monthly, because retail risk is behavioural and behaviour is a monthly
     # signal.
-    RETAIL: "v4-saudi-retail-20m-v3",
+    #
+    # `-v4` for the same reason: sub-product, employment type, origination
+    # channel and a collections-grain arrears band are new columns, Buy Now
+    # Pay Later is a product with no rows before 2026-03, and the population
+    # is more than twice the size.
+    RETAIL: "v4-saudi-retail-20m-v4",
 }
 
 #: Which book a question belongs to when nothing has said. Corporate, because

@@ -40,15 +40,31 @@ SEED = 20260802
 #: small for the unit it is denominated in. A mass-market book is tens of
 #: thousands of accounts; this is the smallest number that makes the figures
 #: read like a portfolio rather than a branch.
-CUSTOMERS = 12000
+CUSTOMERS = 26000
 
 #: Releases this generator no longer produces. The earlier ids are published,
 #: fingerprinted books of a smaller population.
-FROZEN_RELEASES: frozenset[str] = frozenset({"v4-saudi-retail-20m-v1"})
+FROZEN_RELEASES: frozenset[str] = frozenset({
+    "v4-saudi-retail-20m-v1",
+    # -20m-v3 is the book before sub-product, employment type, the fine
+    # arrears bands and Buy Now Pay Later. Published, readable, and not
+    # rebuildable from here.
+    "v4-saudi-retail-20m-v3"})
 
 
 class FrozenRelease(ValueError):
     """A published release this generator must not rebuild."""
+
+#: The product a BNPL book is written under, and the month it starts.
+#:
+#: A product that did not exist a year ago and is carrying the losses is the
+#: thing a retail credit committee most often has to find, and a book whose
+#: product list is constant across its whole window cannot pose that
+#: question. Its `share` is zero because BNPL accounts are not drawn from
+#: the weighted origination -- they are booked explicitly from
+#: `NEW_PRODUCT_FROM` onward, so no row of it exists before that month.
+NEW_PRODUCT = "Buy Now Pay Later"
+NEW_PRODUCT_FROM = "2026-03"
 
 PRODUCTS: tuple[tuple[str, int, float, float, float], ...] = (
     # (product, secured, share, base limit SAR mn, base LGD)
@@ -56,7 +72,38 @@ PRODUCTS: tuple[tuple[str, int, float, float, float], ...] = (
     ("Personal Finance", 0, 0.31, 0.22, 0.62),
     ("Auto Finance", 1, 0.19, 0.16, 0.42),
     ("Credit Card", 0, 0.28, 0.055, 0.78),
+    (NEW_PRODUCT, 0, 0.00, 0.011, 0.71),
 )
+
+#: What a product is actually sold as. A review that stops at "Credit Card"
+#: cannot answer "which card", and "which card" is usually where the answer
+#: is: a book is rarely uniformly bad, it has a bad corner. Shares are
+#: within the product.
+SUB_PRODUCTS: dict[str, tuple[tuple[str, float], ...]] = {
+    "Mortgage": (("Fixed Rate", 0.58), ("Variable Rate", 0.42)),
+    "Personal Finance": (("Salary Advance", 0.41),
+                         ("Consumer Durable", 0.24),
+                         ("Debt Consolidation", 0.35)),
+    "Auto Finance": (("New Vehicle", 0.62), ("Used Vehicle", 0.38)),
+    "Credit Card": (("Classic", 0.52), ("Gold", 0.33), ("Signature", 0.15)),
+    NEW_PRODUCT: (("Instalment 3M", 0.64), ("Instalment 6M", 0.36)),
+}
+
+#: How the customer is paid. In Saudi retail this is the strongest policy
+#: lever there is: salary transfer to the lending bank, a government versus
+#: a private employer, and self-employed or non-salaried income all carry
+#: different limits, different debt-burden caps and different cut-offs.
+EMPLOYMENT_TYPES: tuple[tuple[str, float], ...] = (
+    ("Salaried-Government", 0.31),
+    ("Salaried-Private", 0.42),
+    ("Self-employed", 0.16),
+    ("Non-salaried", 0.11),
+)
+
+#: Where the account was written. A hazard that follows the CHANNEL rather
+#: than the product is a different finding and a different remedy.
+CHANNELS: tuple[tuple[str, float], ...] = (
+    ("Branch", 0.44), ("Digital", 0.38), ("Partner", 0.18))
 
 SEGMENTS = ("Mass", "Affluent", "Private", "Payroll")
 REGIONS = ("Riyadh", "Makkah", "Eastern Province", "Madinah", "Qassim",
@@ -69,6 +116,7 @@ PRODUCT_STRESS: dict[str, float] = {
     "Personal Finance": 0.62,
     "Auto Finance": -0.25,
     "Mortgage": 0.08,
+    NEW_PRODUCT: 1.30,
 }
 
 #: What the composite pressure is worth in absolute terms.
@@ -100,6 +148,9 @@ ENTRY_HAZARD: dict[str, float] = {
     "Personal Finance": 0.015,
     "Auto Finance": 0.008,
     "Mortgage": 0.0035,
+    # A new product written fast through a partner channel, with no
+    # performance history behind its cut-offs. Three times the card book.
+    NEW_PRODUCT: 0.066,
 }
 
 #: Monthly probability that a delinquent account cures, before depth,
@@ -111,6 +162,8 @@ CURE_RATE: dict[str, float] = {
     "Personal Finance": 0.27,
     "Auto Finance": 0.34,
     "Mortgage": 0.40,
+    # Small tickets on short tenors: the ones that cure, cure quickly.
+    NEW_PRODUCT: 0.38,
 }
 
 #: Days past due at which the account is charged off, written down and
@@ -123,6 +176,78 @@ CHARGE_OFF_DPD = 210
 #: is for.
 WRITE_OFF_FRACTION = 0.82
 RECOVERY_OF_WRITE_OFF = {0: 0.14, 1: 0.46}
+
+# ---- the planted patterns ------------------------------------------------
+#
+# Everything above shapes the book as a whole. What follows is deliberate
+# STRUCTURE inside it: six findings a credit team would be expected to
+# reach, each reachable by a different cut, and each with a wrong answer
+# sitting next to the right one. A book that only trends teaches an analyst
+# nothing about telling a segment from a mix or a season from a slide.
+#
+# Every one of them is recovered by a direct SQL oracle in
+# `tests/cockpit_v4/domain_oracles.py`, so a tuning change that quietly
+# buries one fails a test rather than being discovered in a demonstration.
+
+#: R2. The corner of the card book that is actually moving.
+#:
+#: Credit Card - Gold held by Non-salaried customers, from 2026-01. The
+#: product total barely moves, because Classic is two-thirds of it and
+#: Classic is flat; the answer is only visible at product x sub-product x
+#: employment type. Entries land in 20-29 first and reach 30-59 two months
+#: later, so a reader who stops at the `1-29` bucket sees a small rise and a
+#: reader who splits it sees where the rise is.
+GOLD_COHORT = ("Credit Card", "Gold", "Non-salaried")
+GOLD_FROM = "2026-01"
+GOLD_HAZARD_MULTIPLE = 4.2
+
+#: R6. One region, one sub-product. Used-vehicle Auto Finance in Qassim,
+#: from 2025-11. Auto Finance is the book's IMPROVING product, so a reader
+#: who looks at the product line concludes it is fine.
+REGION_POCKET = ("Auto Finance", "Used Vehicle", "Qassim")
+REGION_POCKET_FROM = "2025-11"
+REGION_POCKET_MULTIPLE = 5.2
+
+#: R4. A vintage, not a calendar month. Accounts written in the last quarter
+#: of 2025 underperform at EQUAL months on book -- a cut-off that was moved
+#: and moved back. In calendar time they are indistinguishable, because they
+#: are young and a young account is current whatever was wrong with it.
+BAD_VINTAGE_MONTHS = ("2025-10", "2025-11", "2025-12")
+BAD_VINTAGE_HAZARD_MULTIPLE = 2.3
+
+#: R5. Ramadan and Eid. Spending rises, a payment is missed, and it is made
+#: up within two months. This is NOT deterioration and an analysis that
+#: calls it deterioration is wrong, which is the point of including it.
+#: Ramadan fell in March 2025 and February 2026 over this window.
+SEASON_MONTHS = ("2025-03", "2026-02")
+SEASON_HAZARD_MULTIPLE = 2.1
+#: The two months after a seasonal spike, when it cures.
+SEASON_CURE_MULTIPLE = 1.9
+
+#: R3. Simpson's paradox, planted rather than hoped for.
+#:
+#: Mortgage is the cleanest product in the book and it takes a growing share
+#: of new accounts across the window, so a portfolio rate is being diluted
+#: at the same time as every product's own rate rises. The tilt below does
+#: that gently across all vintages; `MORTGAGE_CAMPAIGN_FROM` does it hard at
+#: the end, where a reader is looking.
+#:
+#: The claim this supports is NOT that the book's arrears fall to nothing --
+#: that would take a book nine-tenths mortgage, which is not a book. It is
+#: the real and far commoner version: over the closing months the PORTFOLIO
+#: delinquency rate is flat or falling while the rate inside EVERY product
+#: is rising. "Is the book improving?" then has two defensible answers, only
+#: one of them is right, and an analysis that reports the portfolio line
+#: without the mix has given the wrong one.
+MIX_SHIFT_PRODUCT = "Mortgage"
+MIX_SHIFT_WEIGHT = 1.75
+
+#: The campaign that does the diluting: clean mortgage accounts written in
+#: volume over the closing months, as a share of the customer base. Real,
+#: and the ordinary reason a portfolio ratio moves without any account in it
+#: having changed.
+MORTGAGE_CAMPAIGN_FROM = "2025-11"
+MORTGAGE_CAMPAIGN_SHARE = 0.20
 
 #: Older vintages carry more of the stress. A 2024 book has been through more
 #: than a 2026 one and it should show.
@@ -152,6 +277,111 @@ def _bucket(dpd: int) -> str:
     if dpd < 90:
         return "60-89"
     return "90+"
+
+
+def _fine_bucket(dpd: int) -> str:
+    """The arrears band a collections team actually works to.
+
+    `delinquency_bucket` keeps its five values, because every alias, test
+    and saved question in this product is written against them. This sits
+    BESIDE it. The two splits are the ones that carry information the
+    coarse banding hides: the first thirty days, where an account is still
+    recoverable by a phone call and the tenth day is a different problem
+    from the twenty-fifth, and the non-performing tail, where 90-179 and
+    180+ are a provisioning difference rather than a shade of the same
+    thing.
+    """
+    if dpd <= 0:
+        return "Current"
+    if dpd < 10:
+        return "1-9"
+    if dpd < 20:
+        return "10-19"
+    if dpd < 30:
+        return "20-29"
+    if dpd < 60:
+        return "30-59"
+    if dpd < 90:
+        return "60-89"
+    if dpd < 180:
+        return "90-179"
+    return "180+"
+
+
+def _pick(rng: random.Random, choices: tuple[tuple[str, float], ...]) -> str:
+    return rng.choices([c[0] for c in choices],
+                       weights=[c[1] for c in choices], k=1)[0]
+
+
+def _in_cohort(account: dict[str, Any], customer: dict[str, Any],
+               cohort: tuple[str, str, str]) -> bool:
+    product, sub_product, third = cohort
+    if account["product"] != product or account["sub_product"] != sub_product:
+        return False
+    return third in (customer.get("employment_type"), customer.get("region"))
+
+
+def _entry_multiple(account: dict[str, Any], customer: dict[str, Any],
+                    month: str) -> float:
+    """How much likelier THIS account is to miss a payment THIS month.
+
+    One multiplier on the entry hazard carries every planted pattern, so a
+    pattern is a statement about who and when rather than a second process
+    bolted beside the roll-rate one. A pattern that is not in force returns
+    1.0 and the book behaves exactly as it did.
+    """
+    multiple = 1.0
+    if (month >= GOLD_FROM
+            and _in_cohort(account, customer, GOLD_COHORT)):
+        multiple *= GOLD_HAZARD_MULTIPLE
+    if (month >= REGION_POCKET_FROM
+            and _in_cohort(account, customer, REGION_POCKET)):
+        multiple *= REGION_POCKET_MULTIPLE
+    if account["origination_month"] in BAD_VINTAGE_MONTHS:
+        multiple *= BAD_VINTAGE_HAZARD_MULTIPLE
+    if month in SEASON_MONTHS:
+        multiple *= SEASON_HAZARD_MULTIPLE
+    return multiple
+
+
+def _season_cure(month: str) -> float:
+    """The months a seasonal miss is made up in.
+
+    Without this the Ramadan spike is indistinguishable from a slide: the
+    accounts that entered would roll on at the ordinary rate and the shape
+    would be a step, not a bump. A season is a thing that REVERSES, and a
+    book where it does not reverse cannot be used to ask whether a reader
+    can tell the two apart.
+    """
+    for spike in SEASON_MONTHS:
+        year, mon = (int(p) for p in spike.split("-"))
+        for ahead in (1, 2):
+            total = year * 12 + (mon - 1) + ahead
+            if f"{total // 12:04d}-{total % 12 + 1:02d}" == month:
+                return SEASON_CURE_MULTIPLE
+    return 1.0
+
+
+def _entry_dpd(account: dict[str, Any], customer: dict[str, Any],
+               month: str, draw: float) -> int:
+    """How deep an account lands when it first misses.
+
+    The Gold cohort enters LATE in the month rather than early -- a missed
+    salary date rather than a forgotten payment -- so its entries pile into
+    20-29 and only reach 30-59 when they roll. That is the drill-down the
+    reader is meant to be able to make: the 1-29 population rose, and WHICH
+    part of 1-29 it rose in says whether this is friction or distress.
+    """
+    if month >= GOLD_FROM and _in_cohort(account, customer, GOLD_COHORT):
+        # MOSTLY 20-29, not entirely. A cohort every one of whose entries
+        # lands in one band is a label, not a distribution, and an analyst
+        # who finds it learns that the data was written rather than that
+        # the salary date moved. Seven in ten is a concentration a reader
+        # has to notice rather than trip over.
+        if draw < 0.70:
+            return 20 + int(9 * (draw / 0.70))
+        return 4 + int(15 * ((draw - 0.70) / 0.30))
+    return 4 + int(24 * draw)
 
 
 def _unit(key: str, month: str) -> float:
@@ -212,9 +442,36 @@ def build(release_id: str = "",
     months = month_range()
     rng = random.Random(SEED)
 
-    weights = [p[2] for p in PRODUCTS]
+    openable = [p for p in PRODUCTS if p[2] > 0]
+    weights = [p[2] for p in openable]
     customers: list[dict[str, Any]] = []
     accounts: list[dict[str, Any]] = []
+
+    def _open(customer_id: str, slot: str, product_row, origin: str,
+              *, channel: str = "") -> dict[str, Any]:
+        product, secured, _share, base_limit, base_lgd = product_row
+        return {
+            "account_id": f"RA{customer_id[2:]}{slot}",
+            "customer_id": customer_id,
+            "product": product,
+            "sub_product": _pick(rng, SUB_PRODUCTS[product]),
+            "secured_flag": secured,
+            "origination_channel": channel or _pick(rng, CHANNELS),
+            "origination_month": origin,
+            "vintage_year": int(origin[:4]),
+            "base_limit": round(base_limit * rng.uniform(0.5, 2.4), 4),
+            "base_util": rng.uniform(0.18, 0.94),
+            "base_lgd": base_lgd,
+            "wobble": rng.uniform(-0.04, 0.04),
+            "cure_cohort": rng.random() < 0.08,
+            # Heavy-tailed on purpose: most accounts are near zero and a
+            # few are genuinely fragile. A uniform draw here would give
+            # every account the same modest chance of arrears and
+            # produce a book with no tail, which is the defect this
+            # replaces.
+            "fragility": round(rng.random() ** 3.0, 6),
+        }
+
     for index in range(CUSTOMERS):
         customer_id = f"RC{index + 1:06d}"
         segment = SEGMENTS[index % len(SEGMENTS)]
@@ -222,37 +479,69 @@ def build(release_id: str = "",
             "customer_id": customer_id,
             "customer_segment": segment,
             "region": REGIONS[(index * 3) % len(REGIONS)],
+            "employment_type": _pick(rng, EMPLOYMENT_TYPES),
             "base_tenure": rng.randint(6, 168),
             "base_score": rng.uniform(520, 860),
             "quality": rng.uniform(0.0, 1.0),
         })
         for slot in range(1 if index % 3 else 2):
-            product, secured, _, base_limit, base_lgd = rng.choices(
-                PRODUCTS, weights=weights, k=1)[0]
             # Origination is spread back before the window so vintages differ.
             origin_year = rng.choices([2021, 2022, 2023, 2024, 2025, 2026],
                                       weights=[5, 9, 16, 26, 30, 14], k=1)[0]
             origin_month = rng.randint(1, 12)
             if origin_year == 2026:
                 origin_month = min(origin_month, 8)
-            accounts.append({
-                "account_id": f"RA{index + 1:06d}{slot}",
-                "customer_id": customer_id,
-                "product": product, "secured_flag": secured,
-                "origination_month": f"{origin_year:04d}-{origin_month:02d}",
-                "vintage_year": origin_year,
-                "base_limit": round(base_limit * rng.uniform(0.5, 2.4), 4),
-                "base_util": rng.uniform(0.18, 0.94),
-                "base_lgd": base_lgd,
-                "wobble": rng.uniform(-0.04, 0.04),
-                "cure_cohort": rng.random() < 0.08,
-                # Heavy-tailed on purpose: most accounts are near zero and a
-                # few are genuinely fragile. A uniform draw here would give
-                # every account the same modest chance of arrears and
-                # produce a book with no tail, which is the defect this
-                # replaces.
-                "fragility": round(rng.random() ** 3.0, 6),
-            })
+            # R3, SIMPSON'S PARADOX, PLANTED AT ORIGINATION. The mortgage
+            # share of NEW accounts grows across the window, so the book's
+            # average PD is pulled down by mix while every product's own PD
+            # is pushed up by stress. Mixing the two is the commonest way an
+            # otherwise correct portfolio number says the opposite of what
+            # is happening, and an analysis that cannot be caught by it
+            # cannot be trusted when it says the book is improving.
+            recency = _clamp((origin_year - 2021) / 5.0, 0.0, 1.0)
+            tilted = [w * (1 + (MIX_SHIFT_WEIGHT - 1) * recency)
+                      if p[0] == MIX_SHIFT_PRODUCT else w
+                      for p, w in zip(openable, weights)]
+            product_row = rng.choices(openable, weights=tilted, k=1)[0]
+            accounts.append(_open(
+                customer_id, str(slot), product_row,
+                f"{origin_year:04d}-{origin_month:02d}"))
+
+    # R1. THE PRODUCT THAT DID NOT EXIST A YEAR AGO.
+    #
+    # Booked separately, because every account of it is originated INSIDE
+    # the window and none before: a book whose BNPL rows start in 2026-03 is
+    # the only kind that can be asked "what is new in this book". Written
+    # fast and almost entirely through the partner channel, at three times
+    # the card book's entry hazard, so it is carrying losses out of
+    # proportion to its size within two months of launch.
+    bnpl_row = next(p for p in PRODUCTS if p[0] == NEW_PRODUCT)
+    bnpl_months = [m for m in months if m >= NEW_PRODUCT_FROM]
+    for offset in range(int(CUSTOMERS * 0.16)):
+        holder = customers[(offset * 7 + 3) % len(customers)]
+        origin = bnpl_months[min(int(_unit(f"bnpl{offset}", "open")
+                                     ** 0.7 * len(bnpl_months)),
+                                 len(bnpl_months) - 1)]
+        accounts.append(_open(
+            holder["customer_id"], f"B{offset % 10}", bnpl_row, origin,
+            channel="Partner" if offset % 5 else "Digital"))
+
+    # R3. THE MORTGAGE CAMPAIGN, booked over the closing months.
+    #
+    # The same mechanism as the BNPL block and the opposite finding: a
+    # volume of the CLEANEST product, written late, diluting every
+    # portfolio ratio it lands in. Without it the mix tilt above is real
+    # but small, and a paradox nobody can see is not a test of anything.
+    mortgage_row = next(p for p in PRODUCTS if p[0] == MIX_SHIFT_PRODUCT)
+    campaign_months = [m for m in months if m >= MORTGAGE_CAMPAIGN_FROM]
+    for offset in range(int(CUSTOMERS * MORTGAGE_CAMPAIGN_SHARE)):
+        holder = customers[(offset * 11 + 5) % len(customers)]
+        origin = campaign_months[
+            int(_unit(f"campaign{offset}", "open") * len(campaign_months))]
+        accounts.append(_open(
+            holder["customer_id"], f"M{offset // len(customers)}",
+            mortgage_row, origin,
+            channel="Digital" if offset % 3 else "Branch"))
 
     by_id = {c["customer_id"]: c for c in customers}
     gov = {"tenant_id": tenant_id, "dataset_release_id": release_id,
@@ -270,6 +559,28 @@ def build(release_id: str = "",
     #: been charged off and no longer report.
     arrears: dict[str, int] = {}
     charged_off: set[str] = set()
+
+    # THE BOOK DOES NOT OPEN CLEAN. `arrears` starting empty meant every
+    # account was Current in the first month of the window, so the book's
+    # delinquency rate began at exactly zero and every comparison drawn
+    # against the first month measured the generator warming up rather than
+    # anything about the portfolio. A twenty-month window is a slice out of
+    # a book that was already running; the accounts already open carry the
+    # arrears they had.
+    for account in accounts:
+        if months_between(account["origination_month"], months[0]) < 0:
+            continue
+        opening = _unit(account["account_id"], "opening")
+        standing = (ENTRY_HAZARD[account["product"]] * 4.2
+                    * (0.25 + 3.1 * account["fragility"]))
+        if opening >= standing:
+            continue
+        # Deeper buckets are thinner, because an account has to survive
+        # every earlier one to reach them.
+        depth = _unit(account["account_id"], "opening-depth")
+        arrears[account["account_id"]] = (
+            4 + int(24 * depth) if depth < 0.62
+            else 30 + 30 * int((depth - 0.62) / 0.095))
 
     for m_index, month in enumerate(months):
         ramp = _ramp(m_index, len(months))
@@ -322,15 +633,22 @@ def build(release_id: str = "",
             if prior_dpd <= 0:
                 hazard = (ENTRY_HAZARD[account["product"]]
                           * (0.25 + 3.1 * fragility)
-                          * (1.0 + 2.6 * pressure))
-                dpd = (4 + int(24 * _unit(account_id + "entry", month))
+                          * (1.0 + 2.6 * pressure)
+                          * _entry_multiple(account, customer, month))
+                dpd = (_entry_dpd(account, customer, month,
+                                  _unit(account_id + "entry", month))
                        if draw < hazard else 0)
             else:
                 depth = min(1.0, prior_dpd / float(CHARGE_OFF_DPD))
                 cure = (CURE_RATE[account["product"]]
                         * (1.25 - 0.85 * fragility)
                         * (1.0 - 0.72 * depth)
-                        / (1.0 + 1.4 * pressure))
+                        / (1.0 + 1.4 * pressure)
+                        # A SEASONAL MISS IS MADE UP. Without this the
+                        # Ramadan entries roll on at the ordinary rate and
+                        # the shape is a step rather than a bump, which is
+                        # a different finding and the wrong one.
+                        * (_season_cure(month) if prior_dpd < 60 else 1.0))
                 dpd = 0 if draw < cure else prior_dpd + 30
             was = streak.get(account_id, 0)
             streak[account_id] = was + 1 if dpd > 0 else 0
@@ -394,11 +712,14 @@ def build(release_id: str = "",
                 "account_id": account["account_id"],
                 "customer_id": account["customer_id"],
                 "reporting_month": month, "product": account["product"],
+                "sub_product": account["sub_product"],
                 "secured_flag": account["secured_flag"],
                 "origination_month": account["origination_month"],
+                "origination_channel": account["origination_channel"],
                 "vintage_year": account["vintage_year"],
                 "months_on_book": on_book,
                 "customer_segment": customer["customer_segment"],
+                "employment_type": customer["employment_type"],
                 "region": customer["region"],
                 "limit_sar_mn": round(limit, 5),
                 "balance_sar_mn": round(balance, 5),
@@ -407,6 +728,7 @@ def build(release_id: str = "",
                 "stage": stage, "sicr_flag": 1 if stage >= 2 else 0,
                 "default_flag": 1 if stage == 3 else 0,
                 "dpd_days": dpd, "delinquency_bucket": _bucket(dpd),
+                "delinquency_bucket_fine": _fine_bucket(dpd),
                 "pd_pit_12m": round(pd_pit, 6),
                 "pd_lifetime": round(pd_life, 6),
                 "lgd_pct": round(lgd * 100, 3),
@@ -431,6 +753,7 @@ def build(release_id: str = "",
                 "account_id": account["account_id"],
                 "customer_id": account["customer_id"],
                 "reporting_month": month, "product": account["product"],
+                "sub_product": account["sub_product"],
                 "utilisation_pct": round(util * 100, 3),
                 "utilisation_change_pp": round((util - prior_util) * 100, 3),
                 "payment_ratio_pct": round(
@@ -480,6 +803,7 @@ def build(release_id: str = "",
                 **gov,
                 "customer_id": customer_id, "reporting_month": month,
                 "customer_segment": customer["customer_segment"],
+                "employment_type": customer["employment_type"],
                 "region": customer["region"],
                 "tenure_months": customer["base_tenure"] + m_index,
                 "accounts_held": len(rows),
@@ -508,12 +832,21 @@ def build(release_id: str = "",
         domain_id=dom.RETAIL, release_id=release_id, periods=months,
         frames=frames,
         counts={"customers": len(customers), "accounts": len(accounts),
-                "products": len(PRODUCTS), "regions": len(REGIONS)},
+                "products": len(PRODUCTS),
+                "sub_products": sum(len(v) for v in SUB_PRODUCTS.values()),
+                "employment_types": len(EMPLOYMENT_TYPES),
+                "regions": len(REGIONS)},
         notes={"score_bands": list(BANDS),
                "stressed_products": [p for p, v in PRODUCT_STRESS.items()
                                      if v > 0.3],
                "improving_products": [p for p, v in PRODUCT_STRESS.items()
-                                      if v < 0]})
+                                      if v < 0],
+               "product_launched_in_window": {
+                   "product": NEW_PRODUCT, "first_month": NEW_PRODUCT_FROM},
+               "employment_types": [e[0] for e in EMPLOYMENT_TYPES],
+               "origination_channels": [c[0] for c in CHANNELS]})
 
 
-__all__ = ["BANDS", "CUSTOMERS", "PRODUCTS", "PRODUCT_STRESS", "build"]
+__all__ = ["BANDS", "CHANNELS", "CUSTOMERS", "EMPLOYMENT_TYPES",
+           "NEW_PRODUCT", "NEW_PRODUCT_FROM", "PRODUCTS",
+           "PRODUCT_STRESS", "SUB_PRODUCTS", "build"]
