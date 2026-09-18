@@ -459,7 +459,7 @@ def send_message(workspace_id: int, body: MessageIn,
 
     try:
         with _session() as session:
-            return service.send_message(
+            result = service.send_message(
                 session, scope, workspace_id,
                 text=body.text,
                 source_ids=body.source_ids or None,
@@ -472,6 +472,15 @@ def send_message(workspace_id: int, body: MessageIn,
                 context_kind=body.context_kind,
                 context_target=body.context_target,
             )
+        # Outside the `with`, so the version and its files have committed
+        # before the dashboard is asked to catch up. The projection runs in
+        # its own session and cannot raise, so a status failure leaves a
+        # delivered document rather than taking it down with it.
+        from backend.db.engine import get_session
+
+        result["dashboard"] = service.project_status(
+            get_session, result.pop("projection", None) or {})
+        return result
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
     except repo.StaleBaseVersion as exc:

@@ -20,6 +20,8 @@ through the composer.
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from backend.exports import playbook_contract as contract
@@ -28,6 +30,21 @@ from backend.playbook import document as D
 from backend.playbook import repository as repo
 from backend.playbook import service
 from backend.playbook.intelligence import adopt
+
+
+@contextlib.contextmanager
+def _reuse(session):
+    """A session factory for `project_status` that hands back this test's own.
+
+    The projection opens its own session in production precisely so that it
+    cannot take the version down with it. Here it reuses the test session so
+    that its writes roll back with everything else.
+    """
+    yield session
+
+
+def _factory(session):
+    return lambda: _reuse(session)
 from backend.playbook.intelligence import binding as bind
 from backend.playbook.intelligence import context as ctx
 from backend.playbook.intelligence import governance as gov
@@ -92,10 +109,22 @@ def _suggested_metric(db, workspace, *, label="Application cohort bad rate"):
 
 @pytest.mark.usefixtures("db")
 class TestWritingAVersionUpdatesTheDashboard:
-    """The gap Gate 8 closes: `sync` and `freeze` had no caller outside their
-    own tests."""
+    """Adoption happens, but AFTER the version is safe.
 
-    def test_a_generated_version_creates_its_section_rows(
+    These once asserted that `author_document` returned a populated
+    `adoption`, because adoption ran inside the version's own transaction. The
+    Direct Chat specification supersedes that deliberately: a failure in the
+    status projection destroyed the document the user was waiting for, and
+    chapter 13's architectural acceptance test is that it cannot.
+
+    So the expectation is now stronger, not weaker. The version commits with
+    no dashboard work at all; it names what the projection still owes; running
+    the projection produces exactly the rows the old test demanded; and
+    `TestTheProjectionCannotTakeTheDocumentWithIt` below proves the case the
+    old shape could not even express.
+    """
+
+    def test_a_generated_version_does_its_dashboard_work_afterwards(
             self, db, scope, workspace, scripted_author):
         from backend.playbook import evidence as ev
 
@@ -105,11 +134,22 @@ class TestWritingAVersionUpdatesTheDashboard:
             ledger=ev.Ledger(), title="IFRS 9 Committee Report",
             formats=["docx"])
 
+        assert outcome.adoption == {}, (
+            "the delivery path does no dashboard work")
+        assert sect.rows_for(db, outcome.artifact_id) == [], (
+            "and has written no section rows yet")
+        assert outcome.pending_projection["version"] == 1
+        assert outcome.pending_projection["artifact_id"] == outcome.artifact_id
+
+        recorded = service.project_status(_factory(db),
+                                          outcome.pending_projection)
+
+        assert recorded["ok"] is True
         rows = sect.rows_for(db, outcome.artifact_id)
         assert [r.heading for r in rows] == ["1. Executive summary",
                                              "2. Portfolio composition"]
-        assert outcome.adoption["sections"] == 2
-        assert outcome.adoption["version"] == 1
+        assert recorded["sections"] == 2
+        assert recorded["version"] == 1
 
     def test_adoption_reports_which_sections_changed(self, db, workspace):
         artifact = _artifact(db, workspace)
@@ -206,6 +246,12 @@ class TestWritingAVersionUpdatesTheDashboard:
             db, scope, workspace.id, instruction="Write it.", ledger=ledger,
             title="IFRS 9 Committee Report", formats=["docx"])
         assert first.grounding_final.ok
+        # Projected as production does it: after the version commits, before
+        # the next one is written. A version whose projection was skipped
+        # leaves the NEXT version comparing itself against nothing, so the
+        # order here is the contract, not test scaffolding.
+        assert service.project_status(_factory(db),
+                                      first.pending_projection)["ok"]
 
         scripted_author(REPORT_MD.replace(
             "Stage 2 coverage stands at 5.86 per cent of the book.",
@@ -217,8 +263,60 @@ class TestWritingAVersionUpdatesTheDashboard:
             formats=["docx"], artifact_id=first.artifact_id,
             task_kind="edit", task_scope="1. Executive summary")
 
-        assert [s["heading"] for s in second.adoption["sections_changed"]] \
+        recorded = service.project_status(_factory(db),
+                                          second.pending_projection)
+        assert [s["heading"] for s in recorded["sections_changed"]] \
             == ["1. Executive summary"]
+
+
+class TestTheProjectionCannotTakeTheDocumentWithIt:
+    """Chapter 13's architectural acceptance test, at the unit that decides it.
+
+    This is the case the old shape could not express: adoption ran inside the
+    version's transaction, so a broken projection meant no version, no files
+    and no answer. There was no way to write a test for "the document survives"
+    because it did not.
+    """
+
+    def test_a_broken_projection_leaves_the_version_and_its_files(
+            self, db, scope, workspace, scripted_author, monkeypatch):
+        from backend.playbook import evidence as ev
+
+        scripted_author(REPORT_MD)
+        outcome = service.author_document(
+            db, scope, workspace.id, instruction="Write it.",
+            ledger=ev.Ledger(), title="IFRS 9 Committee Report",
+            formats=["docx"])
+
+        def explode(*_a, **_kw):
+            raise RuntimeError("the status indexer is down")
+
+        monkeypatch.setattr(adopt, "adopt", explode)
+        recorded = service.project_status(_factory(db),
+                                          outcome.pending_projection)
+
+        assert recorded["ok"] is False
+        assert "the status indexer is down" in recorded["reason"]
+
+        # The whole point: everything the user asked for is still there.
+        versions = repo.versions(db, outcome.artifact_id)
+        assert [v.version for v in versions] == [1]
+        assert versions[0].content, "the document itself is intact"
+        files = repo.files(db, versions[0].id)
+        assert [f.format for f in files] == ["docx"]
+        assert files[0].size_bytes > 0, "the Word file is real and downloadable"
+
+    def test_a_projection_for_a_version_that_vanished_says_so(
+            self, db, scope, workspace):
+        recorded = service.project_status(
+            _factory(db),
+            {"workspace_id": workspace.id, "artifact_id": 1,
+             "version_id": 10 ** 9, "version": 1})
+        assert recorded["ok"] is False
+        assert "no longer there" in recorded["reason"]
+
+    def test_nothing_to_project_is_not_a_failure(self, db):
+        assert service.project_status(_factory(db), {})["ok"] is True
 
 
 # ========================================================== the chat context

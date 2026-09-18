@@ -135,3 +135,22 @@ the status. A failure in one is reported as itself.
   workspaces.
 - A skip is never reported as a pass; the whole repository suite is what counts
   (chapter 31), not the Playbook subsets.
+
+---
+
+## 6. Superseded test expectations (chapter 30)
+
+Each old expectation that changes because draft delivery is deliberately
+decoupled from content governance is recorded here with what replaced it.
+None was deleted, and none became an unexplained skip.
+
+| Test | Was | Is now | Why |
+|---|---|---|---|
+| `test_context_bridge.py::test_a_generated_version_creates_its_section_rows` | `author_document` returns a populated `outcome.adoption`; section rows exist the moment the version is written | Renamed `..._does_its_dashboard_work_afterwards`. The delivery path does **no** dashboard work — `adoption == {}` and no section rows — and names what the projection owes. Running `project_status` then produces exactly the rows the old test demanded. | Ch. 13. Adoption shared the version's transaction, so a status failure destroyed the document. |
+| `test_context_bridge.py::test_a_scoped_edit_leaves_the_untouched_section_alone` | Reads `second.adoption["sections_changed"]` inline | Projects each version after it commits, in order, then asserts the same list | Same. Made explicit that each version must be projected: skip one and the next compares itself against nothing. |
+
+**Added, not replaced** — `TestTheProjectionCannotTakeTheDocumentWithIt`. The
+case the old shape could not express, because it was not true: with
+`adopt.adopt` raising, the version, its content and its Word file are all still
+there, and the projection reports `ok: False` with the reason. Plus a vanished
+version and an empty projection, which are reported rather than raised.

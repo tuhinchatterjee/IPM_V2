@@ -353,18 +353,30 @@ def start(session_factory: Callable[[], Any], scope, workspace_id: int,
                 return
 
             session.commit()
+            # The work is now durable. Everything below is delivery and
+            # status, in that order, and nothing below can undo it.
             if result.get("artifact_id"):
                 writer.artifact({"artifact_id": result["artifact_id"],
                                  "version": result.get("version", 0),
                                  "version_id": result.get("version_id")})
+
+            # The dashboard catches up here — after the commit, in its own
+            # session, and unable to raise. The file card above has already
+            # been sent, so a projection that fails leaves a user with a
+            # downloadable document and a status panel that says it is
+            # updating, which is the honest pair.
+            projected = service.project_status(
+                session_factory, result.get("projection") or {})
+
             writer.done({"message_id": result.get("message_id"),
                          "artifact_id": result.get("artifact_id"),
                          "version": result.get("version", 0),
                          "notes": result.get("notes") or [],
-                         # §15: what changed in the dashboard, so a client
-                         # re-reads because something moved rather than on a
-                         # timer, and knows which sections lost their sign-off.
-                         "dashboard": result.get("dashboard") or {}})
+                         # What actually moved in the dashboard, or that it
+                         # did not. A client re-reads because something
+                         # changed rather than on a timer, and a stale panel
+                         # is visible rather than silent.
+                         "dashboard": projected})
         HUB.forget(job_id)
 
     thread = threading.Thread(target=work, name=f"playbook-job-{job_id}",

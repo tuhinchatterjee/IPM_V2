@@ -89,9 +89,14 @@ class Outcome:
     notes: list[str] = field(default_factory=list)
     #: What writing this version changed in the dashboard: how many sections
     #: it now has, which changed, whose sign-off had to be reopened, how many
-    #: metric readings were frozen. §15's "the dashboard refreshes", as a fact
-    #: about what was recorded rather than a hint to a component.
+    #: metric readings were frozen. Filled in by the projection AFTER the
+    #: version has committed, so it is empty on the delivery path and stays
+    #: empty when the projection fails.
     adoption: dict = field(default_factory=dict)
+    #: What the status projection needs in order to catch up with this
+    #: version, once it has been committed. The projection runs in its own
+    #: session and may fail without affecting anything recorded here.
+    pending_projection: dict = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -587,14 +592,26 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
             validated=outcome.validations.get(fmt, validate.Validation(fmt)).ok,
         )
 
-    # The dashboard is brought into line here, in this transaction, because a
-    # version whose sections were never recorded is one the dashboard
-    # misdescribes — sections missing from the Pack, a sign-off still standing
-    # against text that has moved, no THEN for the paper in front of the
-    # reader. If that cannot be written, the version is not written either.
-    outcome.adoption = adopt.adopt(
-        session, ws.id, artifact.id, version_id=version.id,
-        version=version.version, doc=doc).as_dict()
+    # The dashboard is NOT brought into line here, and that is the point.
+    #
+    # It used to be: adoption ran in this transaction, with a comment saying
+    # that a version whose sections were never recorded is one the dashboard
+    # misdescribes, so "if that cannot be written, the version is not written
+    # either". The consequence was that a failure in the status projection
+    # destroyed the file the user was waiting for — the exact coupling the
+    # specification's architectural acceptance test exists to catch. With the
+    # status service failing, no document could be saved at all.
+    #
+    # So the version and its files commit on their own, and what the dashboard
+    # needs to catch up is recorded for a projection that runs afterwards, in
+    # its own session, and is allowed to fail without taking anything with it.
+    # A dashboard that is briefly behind says so; a lost report cannot.
+    outcome.pending_projection = {
+        "workspace_id": ws.id,
+        "artifact_id": artifact.id,
+        "version_id": version.id,
+        "version": version.version,
+    }
 
     repo.touch(session, ws, summary=change_summary or f"{title} v{version.version}")
     outcome.artifact_id = artifact.id
@@ -906,11 +923,13 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
                                 if outcome.grounding_final else {}),
             "evidence_complete": ledger.complete,
             "evidence_gaps": list(ledger.omissions),
-            # What writing this version changed in the dashboard. §15 asks
-            # that the dashboard refresh when Claude finishes; this says what
-            # it should refresh to, so a client re-reads because something
-            # moved rather than on a timer.
-            "dashboard": dict(outcome.adoption),
+            # Deliberately not a claim about the dashboard. The status
+            # projection runs after this transaction commits, so at the moment
+            # this message is written the dashboard has not caught up yet and
+            # saying otherwise would be inventing state. The client re-reads
+            # the status itself, which is also what makes a stale or failed
+            # projection visible as "updating" rather than invisible.
+            "dashboard": {"state": "updating"},
         },
         origin="assistant_live", model=outcome.model_served,
         request_ids=list(outcome.request_ids), usage=outcome.usage()
@@ -920,7 +939,45 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             "message_id": assistant.id, "artifact_id": outcome.artifact_id,
             "version_id": outcome.version_id,
             "version": outcome.version, "notes": list(outcome.notes),
-            "dashboard": dict(outcome.adoption)}
+            "projection": dict(outcome.pending_projection)}
+
+
+def project_status(session_factory, pending: dict) -> dict:
+    """Bring the dashboard into line with a version that has already committed.
+
+    Runs in its own session, and never raises. That is the whole contract:
+    the specification's architectural acceptance test is that a user can
+    complete a question, create a draft file, download it and reopen the thread
+    with the status service deliberately broken, and none of that is possible
+    while the projection shares the version's transaction.
+
+    Returns what it recorded, or why it could not. A caller that gets
+    `{"ok": False, ...}` has a dashboard that is behind, which the status view
+    reports as updating — it does not have a lost document.
+    """
+    if not pending:
+        return {"ok": True, "skipped": "nothing to project"}
+
+    try:
+        with session_factory() as session:
+            from backend.models.playbook import PlaybookArtifactVersion
+
+            row = session.get(PlaybookArtifactVersion, pending["version_id"])
+            if row is None:
+                return {"ok": False,
+                        "reason": "the version is no longer there to project"}
+            doc = D.Document.from_dict(row.content or {})
+            recorded = adopt.adopt(
+                session, pending["workspace_id"], pending["artifact_id"],
+                version_id=row.id, version=row.version, doc=doc).as_dict()
+            session.commit()
+            return {"ok": True, **recorded}
+    except Exception as exc:  # noqa: BLE001 — reported, never propagated
+        # Logged with a traceback because a dashboard that silently stops
+        # updating is worse than one that visibly fails. Returned rather than
+        # raised because the document this describes is already safe.
+        logger.exception("Playbook status projection failed for %s", pending)
+        return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
 
 
 def mark_job_finished(session, job_id: int, *, state: str,
