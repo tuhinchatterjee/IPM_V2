@@ -86,9 +86,19 @@ PLAYBOOK_SCRIPTED_CHAT=scripts/acceptance/fixtures/scripted_chat.json \
 .venv/bin/python scripts/acceptance/playbook_chat_acceptance.py
 ```
 
-Counts at `5bb8d38`: Playbook suite green with 8 live checks skipped; workspace
-browser acceptance **105 passed**; dashboard browser acceptance **185 passed**;
-chat browser acceptance **15 passed**; `ruff` clean.
+Counts at the final commit:
+
+| | |
+|---|---|
+| `pytest` (whole repository) | **10,566 passed, 30 skipped, 0 failed**, exit 0 |
+| `pytest tests/playbook` | green; the 8 skips are the live checks |
+| Workspace browser acceptance | **105 passed, 0 failed** |
+| Dashboard browser acceptance | **185 passed, 0 failed** |
+| Chat browser acceptance (scripted) | **15 passed, 0 failed** |
+| `ruff check .` | clean |
+
+The 30 skips are the live-provider checks, which skip without a credential. A
+skip is never counted as a pass.
 
 `scripts/acceptance/playbook_chat_acceptance.py` proves its own premise before
 asserting anything — it reads `GET /playbook/capabilities` and fails if the
