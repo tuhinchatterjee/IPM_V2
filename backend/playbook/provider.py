@@ -601,7 +601,8 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
                 kwargs["model"] = model
             response, streamed = _stream_once(
                 client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled,
-                deadline=deadline, with_tools=with_tools, seen=seen)
+                deadline=deadline, with_tools=with_tools,
+                sandbox=bool(with_tools and container), seen=seen)
             if streamed:
                 emitted = True
             telemetry.record_success(
@@ -674,6 +675,7 @@ def _stream_once(client: Any, kwargs: dict, *,
                  is_cancelled: Callable[[], bool] | None,
                  deadline: float | None = None,
                  with_tools: bool = False,
+                 sandbox: bool = False,
                  seen: dict | None = None) -> tuple[Any, bool]:
     """One streamed call. Returns the finished message and whether text flowed.
 
@@ -684,9 +686,15 @@ def _stream_once(client: Any, kwargs: dict, *,
     about to run) all fail that test and never leave this function.
     """
     forwarded = False
-    if with_tools:
+    if sandbox:
         # Silence is expected while the sandbox builds a file, so the per-read
         # ceiling is raised for this call only rather than globally.
+        #
+        # Keyed on the sandbox, not on tools being declared. A conversational
+        # turn with client tools has no sandbox: the model emits a tool call
+        # and stops, we run the tool here, and a long silence from the provider
+        # means a stalled turn rather than work in progress. Raising the
+        # ceiling for it would hide exactly the failure it needs to surface.
         kwargs = {**kwargs, "timeout": SKILL_READ_TIMEOUT_SECONDS}
     with client.beta.messages.stream(**kwargs) as stream:
         # Captured as soon as the connection exists, before anything can go
