@@ -401,11 +401,18 @@ def _scopes(sql: str) -> tuple[_Scope, ...]:
 _ADDITIVE_UNITS = ("rcy", "count", "notches")
 
 
-def additive_measures(domain_id: str, relation: str) -> tuple[str, ...]:
-    """The measures of this relation that a repeated row would double-count."""
+def additive_measures(catalog: Any, relation: str) -> tuple[str, ...]:
+    """The measures of this relation that a repeated row would double-count.
+
+    Read off the CATALOGUE, so the answer is about the release the session
+    actually opened. Keyed on the domain it was the current schema's list,
+    which on a superseded release names measures that release does not have
+    and misses ones it does -- and because the failure is swallowed below,
+    the fan-out guard would have quietly weakened rather than complained.
+    """
     try:
-        spec = schema_mod.relation(domain_id, relation)
-    except Exception:  # noqa: BLE001
+        spec = catalog.spec(relation)
+    except Exception:  # noqa: BLE001 - a relation this release never had
         return ()
     return tuple(f.name for f in spec.fields
                  if f.additive == "additive" and f.unit in _ADDITIVE_UNITS)
@@ -451,7 +458,7 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
             continue
         # The COARSER side is the one repeated by the join, so its additive
         # measures are the ones a total would count more than once.
-        measures = additive_measures(domain_id, one)
+        measures = additive_measures(session.catalog, one)
         if not measures:
             continue
         for scope in here:
@@ -471,8 +478,9 @@ def multiplication_risk(sql: str, session: Any) -> SqlRejected | None:
             if not at_risk:
                 continue
             try:
-                many_grain = schema_mod.relation(domain_id, many).grain
-                one_grain = schema_mod.relation(domain_id, one).grain
+                # The grain THIS RELEASE published, for the same reason.
+                many_grain = session.catalog.spec(many).grain
+                one_grain = session.catalog.spec(one).grain
             except Exception:  # noqa: BLE001
                 many_grain = one_grain = "unknown"
             return SqlRejected(

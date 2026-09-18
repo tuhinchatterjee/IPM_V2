@@ -336,3 +336,101 @@ def test_an_unknown_book_is_refused_rather_than_defaulted(client):
     response = client.get(f"{P}/schema", params={"domain": "wholesale"})
     assert response.status_code == 400
     assert response.json()["detail"]["error_code"] == "UNKNOWN_DOMAIN"
+
+
+# ---- the enrichment, named ----------------------------------------------
+#
+# The convergence test above already proves the page shows exactly the
+# governed field list, so any column added to `schema.py` is covered by it
+# the moment it exists. That is the right shape for a rule and the wrong
+# shape for a RECEIPT: it will pass just as happily on the day somebody
+# drops `sub_product` from the schema, because the page would then agree
+# with a catalogue that no longer has it.
+#
+# So the columns the enrichment was actually for are named here. This is
+# the test that fails if the Data Builder stops exposing them -- or if the
+# release stops carrying them, which is the same thing to a reader.
+
+#: The Retail columns the enriched book added, and the group each belongs
+#: to. All four are under `values.MAX_CARDINALITY`, so the page serves
+#: their full value list rather than a sample.
+RETAIL_ENRICHMENT: dict[str, tuple[str, int]] = {
+    "sub_product": ("Product", 12),
+    "origination_channel": ("Origination", 3),
+    "employment_type": ("Segmentation", 4),
+    "delinquency_bucket_fine": ("Delinquency", 8),
+}
+
+
+def test_the_data_builder_shows_the_new_retail_columns(client):
+    detail = book(client, dom.RETAIL, "retail_account_month")
+    shown = {f["name"]: f for f in detail["fields"]}
+
+    for column, (group, cardinality) in RETAIL_ENRICHMENT.items():
+        assert column in shown, f"{column} is not on the page"
+        field = shown[column]
+        assert field["group"] == group, (column, field["group"])
+        # A column with no label and no definition is a column a reader
+        # cannot use, whether or not it is listed.
+        assert field["label"], column
+        assert len(field["definition"]) > 30, column
+        assert field["dtype"] == "string", column
+        # Under the cardinality cap, so the page owes the reader the whole
+        # set rather than a sample of it.
+        assert "governed_values" in field, column
+        assert "sample_values" not in field, column
+        assert len(field["governed_values"]) == cardinality, (
+            column, len(field["governed_values"]))
+
+
+def test_the_new_retail_values_are_the_ones_in_the_release(client):
+    """Read off the parquet, not off a list written down beside it."""
+    frame = oracle.frame(dom.RETAIL, "retail_account_month")
+    detail = book(client, dom.RETAIL, "retail_account_month")
+    shown = {f["name"]: f for f in detail["fields"]}
+    for column in RETAIL_ENRICHMENT:
+        assert shown[column]["governed_values"] == sorted(
+            frame[column].dropna().unique()), column
+
+
+def test_the_fine_bands_are_offered_beside_the_coarse_ones(client):
+    """Both bandings, because both are asked for.
+
+    The coarse bucket is what every saved question and alias is written
+    against; the fine one is what answers "which part of 1-29". A page that
+    replaced one with the other would break the first kind of question to
+    serve the second.
+    """
+    shown = {f["name"]: f for f in
+             book(client, dom.RETAIL, "retail_account_month")["fields"]}
+    assert set(shown["delinquency_bucket"]["governed_values"]) == {
+        "Current", "1-29", "30-59", "60-89", "90+"}
+    assert set(shown["delinquency_bucket_fine"]["governed_values"]) == {
+        "Current", "1-9", "10-19", "20-29", "30-59", "60-89", "90-179",
+        "180+"}
+
+
+def test_the_corporate_enrichment_is_a_value_not_a_column(client):
+    """Said precisely, because it would be easy to overstate.
+
+    Corporate gained no new column. Its enrichment is a new governed VALUE
+    in a column that was always there -- the product the bank started
+    writing inside the window -- and a new ownership group among many. The
+    first is under the cardinality cap and is served in full; the second is
+    one of thousands of names and is correctly served as a sample, which is
+    what this asserts rather than pretending otherwise.
+    """
+    detail = book(client, dom.CORPORATE, "corp_facility_quarter")
+    shown = {f["name"]: f for f in detail["fields"]}
+    assert "supply_chain_finance" in shown["product_type"]["governed_values"]
+    assert len(shown["product_type"]["governed_values"]) == 8
+
+    borrowers = {f["name"]: f for f in
+                 book(client, dom.CORPORATE,
+                      "corp_borrower_quarter")["fields"]}
+    group = borrowers["group_name"]
+    assert "governed_values" not in group, (
+        "thousands of group names are not a governed category")
+    assert group["distinct_values_at_least"] > val_mod.MAX_CARDINALITY
+    assert "Building Contracting" in borrowers["sub_sector"][
+        "governed_values"]

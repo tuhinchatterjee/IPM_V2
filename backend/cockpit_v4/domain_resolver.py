@@ -120,11 +120,21 @@ class DomainUnavailable(RuntimeError):
             f"runtime: {reason} Nothing was substituted for it.")
 
 
-def scope_for(domain_id: str, *, tenant_id: str = lake.DEFAULT_TENANT
-              ) -> dom.DomainScope:
-    """Everything one request needs to know about its book."""
+def scope_for(domain_id: str, *, tenant_id: str = lake.DEFAULT_TENANT,
+              release_id: str = "") -> dom.DomainScope:
+    """Everything one request needs to know about its book.
+
+    `release_id` names a PUBLISHED release to open instead of the one this
+    domain currently points at. It exists for reading history: a thread
+    pinned to a superseded release has to be openable against the release
+    it was pinned to, or the id stored on it is decoration.
+
+    It is not a way to choose a book for new work. `resolve` below never
+    passes it, so a new run still takes the domain's current release, and
+    the routes refuse a caller that tries to name one.
+    """
     domain_id = dom.parse(domain_id)
-    release_id = dom.DEFAULT_RELEASES[domain_id]
+    release_id = release_id or dom.DEFAULT_RELEASES[domain_id]
     try:
         catalog = cat.build(domain_id=domain_id, release_id=release_id,
                             tenant_id=tenant_id)

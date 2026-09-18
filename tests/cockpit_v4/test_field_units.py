@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.cockpit_v4 import catalog as cat
 from backend.cockpit_v4 import display as disp
 from backend.cockpit_v4 import schema as schema_mod
 from backend.cockpit_v4 import sql as v4_sql
@@ -95,7 +96,14 @@ def test_the_double_count_check_can_actually_see_a_notch():
     been a fix that fixed nothing.
     """
     assert "notches" in v4_sql._ADDITIVE_UNITS
-    measures = v4_sql.additive_measures("corporate", "corp_borrower_quarter")
+    # A catalogue with no published shape, which falls back to the domain's
+    # current schema -- the right reading here, because the question is
+    # about how `schema.py` classifies a unit, not about any release.
+    catalog = cat.Catalog(
+        domain_id="corporate", dataset_release_id="unit-test",
+        release_fingerprint="0" * 64,
+        calendar=cat.Calendar(slots=("2026Q2",), frequency="quarterly"))
+    measures = v4_sql.additive_measures(catalog, "corp_borrower_quarter")
     assert "rating_notches_moved" in measures, measures
 
 

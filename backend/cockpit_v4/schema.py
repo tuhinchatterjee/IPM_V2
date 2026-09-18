@@ -154,6 +154,68 @@ class Relation:
                 "fields": [f.to_dict() for f in self.fields]}
 
 
+def field_from_dict(payload: dict[str, Any]) -> Field:
+    """Rebuild a field from the form a RELEASE published it in.
+
+    The inverse of `Field.to_dict()`, and the reason a published release can
+    describe itself.
+
+    `to_dict` writes the RESOLVED `label` and `aggregation`. Both are
+    properties over a raw slot -- `label` falls back to the column name
+    tidied up, `additive` falls back to the unit -- so a round trip has to
+    decide what to do with a resolved value whose origin it cannot see. The
+    two are treated differently, because the two raw slots are read
+    differently:
+
+    `label` goes back verbatim. Nothing reads `business_label` except
+    `label` itself, so storing the published label reproduces exactly what
+    the release displayed, which is what a historical release is for. It is
+    optional: the three oldest manifests predate the key, and a release that
+    recorded none gets the derived label -- again what it was showing.
+
+    `aggregation` goes back only where it OVERRULES the unit. The raw slot
+    is a claim that an author overruled the unit, and `semantics.py`
+    publishes it to the analyst on that basis; filling it with a verdict the
+    unit already implies states something nobody said. It also costs: doing
+    that put a redundant `aggregation` on all thirty canonical measures and
+    994 bytes on every action request, over the payload bound.
+
+    Either way the rebuilt field renders identically -- same `label`, same
+    `additive` -- which is the property that matters for reading history.
+    """
+    name = str(payload["name"])
+    unit = str(payload.get("unit") or "")
+    published_aggregation = str(payload.get("aggregation") or "")
+    derived_aggregation = ("additive" if unit in ADDITIVE_UNITS
+                           else "not_additive")
+    return Field(
+        name=name,
+        dtype=str(payload.get("type") or payload.get("dtype") or ""),
+        unit=unit,
+        description=str(payload.get("description")
+                        or payload.get("definition") or ""),
+        group=str(payload.get("group") or ""),
+        aggregation=("" if published_aggregation == derived_aggregation
+                     else published_aggregation),
+        business_label=str(payload.get("label") or ""))
+
+
+def relation_from_dict(payload: dict[str, Any]) -> Relation:
+    """Rebuild a relation from the form a RELEASE published it in.
+
+    `Relation.to_dict()` records all six of its fields, so this round trip
+    is lossless. The derived `columns` property and `field()` lookup come
+    back with the rebuilt field list.
+    """
+    return Relation(
+        name=str(payload.get("relation") or payload.get("name") or ""),
+        grain=str(payload.get("grain") or ""),
+        period_column=str(payload.get("period_column") or ""),
+        key_columns=tuple(str(c) for c in (payload.get("key_columns") or ())),
+        description=str(payload.get("description") or ""),
+        fields=tuple(field_from_dict(f) for f in (payload.get("fields") or ())))
+
+
 def _f(name, dtype, unit, description, group="", label="", aggregation=""):
     return Field(name, dtype, unit, description, group, aggregation, label)
 
@@ -810,6 +872,7 @@ def domain_of_relation(name: str) -> str:
 
 __all__ = ["FREQUENCIES", "Field", "GOVERNANCE_FIELDS", "PERIOD_COLUMNS",
            "PERIOD_NOUNS", "RELATIONS", "Relation", "UnknownField",
-           "UnknownRelation", "domain_of_relation", "field", "frequency",
+           "UnknownRelation", "domain_of_relation", "field",
+           "field_from_dict", "frequency", "relation_from_dict",
            "period_column", "period_keys", "period_noun", "relation",
            "relation_names", "relations"]

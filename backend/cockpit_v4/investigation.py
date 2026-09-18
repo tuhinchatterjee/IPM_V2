@@ -229,7 +229,17 @@ def executable(*, catalog: Any, session: Any, question: dict[str, Any],
         return False, "the question names no relation"
     if schema_mod.domain_of_relation(relation) != domain_id:
         return False, f"{relation} belongs to another book"
-    columns = {f.name for f in schema_mod.relation(domain_id, relation).fields}
+    # THE CATALOGUE THIS FUNCTION WAS GIVEN. It took `catalog` as a keyword
+    # argument and then asked `schema_mod` for the domain's current columns,
+    # which is the one thing its own docstring says it does not do: on a
+    # superseded release it would call a chip executable because today's
+    # schema has the column, and the SQL would then fail at execution --
+    # exactly the "told the book holds something it does not" this exists
+    # to prevent.
+    try:
+        columns = set(catalog.columns(relation))
+    except Exception:  # noqa: BLE001 - a relation this release never had
+        return False, f"{relation} is not in this release"
 
     for column in question.get("required_fields") or []:
         if str(column) not in columns:

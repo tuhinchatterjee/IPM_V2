@@ -18,12 +18,12 @@
   "measurements": [
     {
       "what": "thread opens after asking",
-      "ms": 286,
+      "ms": 267,
       "budget_ms": 5000
     },
     {
       "what": "first process event on screen",
-      "ms": 292,
+      "ms": 270,
       "budget_ms": 10000
     },
     {
@@ -33,12 +33,12 @@
     },
     {
       "what": "transcript restored after reload",
-      "ms": 381,
+      "ms": 369,
       "budget_ms": 10000
     },
     {
       "what": "follow-up appears in the transcript",
-      "ms": 94,
+      "ms": 93,
       "budget_ms": 5000
     }
   ],
@@ -108,27 +108,27 @@
     {
       "name": "asking 'Who are you?' posts to the V4 run API and never to the legacy flow",
       "ok": true,
-      "ms": 2397
+      "ms": 2827
     },
     {
       "name": "the process panel appears and consumes the V4 event stream",
       "ok": true,
-      "ms": 2199
+      "ms": 2201
     },
     {
       "name": "progress events are rendered before the answer arrives",
       "ok": true,
-      "ms": 2247
+      "ms": 2249
     },
     {
       "name": "the final answer renders with its disposition",
       "ok": true,
-      "ms": 2192
+      "ms": 2228
     },
     {
       "name": "an evidence-bound analysis renders artifact links",
       "ok": true,
-      "ms": 3248
+      "ms": 3224
     },
     {
       "name": "a terminal failure renders explicitly with a support reference",
@@ -138,177 +138,177 @@
     {
       "name": "stop cancels the run through the V4 cancel endpoint",
       "ok": true,
-      "ms": 1879
+      "ms": 1897
     },
     {
       "name": "a browser refresh replays the same run instead of re-asking",
       "ok": true,
-      "ms": 1960
+      "ms": 1214
     },
     {
       "name": "optional landing widgets show a neutral state and request nothing",
       "ok": true,
-      "ms": 628
+      "ms": 578
     },
     {
       "name": "no request from the page goes to the legacy backend port",
       "ok": true,
-      "ms": 3695
+      "ms": 4199
     },
     {
       "name": "the process panel shows real stages, not 'not started' at 0s",
       "ok": true,
-      "ms": 2758
+      "ms": 2808
     },
     {
       "name": "the answer renders as Markdown, with no raw syntax left over",
       "ok": true,
-      "ms": 2225
+      "ms": 2200
     },
     {
       "name": "suggested-question chips stay interactive UI, not Markdown",
       "ok": true,
-      "ms": 2322
+      "ms": 2309
     },
     {
       "name": "a cut-off action shows the retry and then the real stages",
       "ok": true,
-      "ms": 5904
+      "ms": 5851
     },
     {
       "name": "a result survives an answer that could not be written",
       "ok": true,
-      "ms": 5598
+      "ms": 5583
     },
     {
       "name": "a failed attempt stays visible after a later attempt succeeds",
       "ok": true,
-      "ms": 4131
+      "ms": 4146
     },
     {
       "name": "asking from home opens a conversation at its own URL",
       "ok": true,
-      "ms": 906
+      "ms": 908
     },
     {
       "name": "the follow-up composer is waiting under the answer",
       "ok": true,
-      "ms": 2279
+      "ms": 2226
     },
     {
       "name": "a follow-up appends and does not replace what came before",
       "ok": true,
-      "ms": 3365
+      "ms": 3385
     },
     {
       "name": "a refresh restores the transcript without asking again",
       "ok": true,
-      "ms": 2633
+      "ms": 2481
     },
     {
       "name": "the thread header names the conversation and renames it",
       "ok": true,
-      "ms": 2599
+      "ms": 2710
     },
     {
       "name": "the way back to Cockpit is at the top left",
       "ok": true,
-      "ms": 2596
+      "ms": 2745
     },
     {
       "name": "browser back also returns to Cockpit",
       "ok": true,
-      "ms": 2306
+      "ms": 2244
     },
     {
       "name": "the conversation is named by the question, not 'New conversation'",
       "ok": true,
-      "ms": 3226
+      "ms": 3204
     },
     {
       "name": "a seeded thread opens on three to five questions, before anybody types (§31)",
       "ok": true,
-      "ms": 998
+      "ms": 1007
     },
     {
       "name": "the Ask next strip never overlaps what is behind it (§34)",
       "ok": true,
-      "ms": 3272
+      "ms": 3218
     },
     {
       "name": "follow-up chips sit directly above the composer and stay in the thread",
       "ok": true,
-      "ms": 3311
+      "ms": 3357
     },
     {
       "name": "a published figure is written once, the way a credit paper writes it",
       "ok": true,
-      "ms": 4737
+      "ms": 4727
     },
     {
       "name": "the conversation is quick to open, restore and ask again in",
       "ok": true,
-      "ms": 3708
+      "ms": 3734
     },
     {
       "name": "the conversation can be shared, and says how it was delivered",
       "ok": true,
-      "ms": 3826
+      "ms": 3852
     },
     {
       "name": "a conversation opens an investigation, and Projects are not faked",
       "ok": true,
-      "ms": 2299
+      "ms": 2362
     },
     {
       "name": "the conversation links to the trace of its latest answer",
       "ok": true,
-      "ms": 2200
+      "ms": 2194
     },
     {
       "name": "Investigate Further opens the conversation, not just the context",
       "ok": true,
-      "ms": 948
+      "ms": 981
     },
     {
       "name": "an analytical answer shows every chart it sent, and its table",
       "ok": true,
-      "ms": 3243
+      "ms": 3287
     },
     {
       "name": "the active stage counts seconds while it is working",
       "ok": true,
-      "ms": 2790
+      "ms": 2902
     },
     {
       "name": "segments requiring attention loads from the pinned release",
       "ok": true,
-      "ms": 661
+      "ms": 613
     },
     {
       "name": "latest-quarter ECL highlights load below it",
       "ok": true,
-      "ms": 601
+      "ms": 623
     },
     {
       "name": "clicking a segment card opens the right-side drawer",
       "ok": true,
-      "ms": 701
+      "ms": 715
     },
     {
       "name": "the drawer offers borrower drill-down and no invented subsegment",
       "ok": true,
-      "ms": 718
+      "ms": 717
     },
     {
       "name": "possible drivers are stated as association, never as cause",
       "ok": true,
-      "ms": 667
+      "ms": 702
     },
     {
       "name": "Investigate Further opens a seeded V4 thread",
       "ok": true,
-      "ms": 940
+      "ms": 959
     },
     {
       "name": "a follow-up uses the seeded context without restating it",
@@ -318,172 +318,172 @@
     {
       "name": "the seeded context load appears in the process panel",
       "ok": true,
-      "ms": 1562
+      "ms": 1591
     },
     {
       "name": "an ECL highlight opens the same drawer and investigates",
       "ok": true,
-      "ms": 985
+      "ms": 984
     },
     {
       "name": "a refresh keeps the open investigation",
       "ok": true,
-      "ms": 1332
+      "ms": 1362
     },
     {
       "name": "an attention-feed failure does not break Ask",
       "ok": true,
-      "ms": 2212
+      "ms": 2571
     },
     {
       "name": "the landing page greets, then asks what is on your mind",
       "ok": true,
-      "ms": 612
+      "ms": 642
     },
     {
       "name": "the Ask box is the primary element and spans the workspace",
       "ok": true,
-      "ms": 622
+      "ms": 656
     },
     {
       "name": "prompt chips render, ask when clicked, and can be dismissed",
       "ok": true,
-      "ms": 1241
+      "ms": 1238
     },
     {
       "name": "the Trace line is there and explains itself",
       "ok": true,
-      "ms": 711
+      "ms": 722
     },
     {
       "name": "Segments requiring attention shows its period and only segments",
       "ok": true,
-      "ms": 708
+      "ms": 729
     },
     {
       "name": "the two dashboards are distinct and share no card",
       "ok": true,
-      "ms": 666
+      "ms": 740
     },
     {
       "name": "switching the book asks the server again, it is not a filter",
       "ok": true,
-      "ms": 854
+      "ms": 736
     },
     {
       "name": "each book shows its own release, currency and ECL position",
       "ok": true,
-      "ms": 765
+      "ms": 745
     },
     {
       "name": "switching back shows the first book's numbers, not a cached other",
       "ok": true,
-      "ms": 814
+      "ms": 863
     },
     {
       "name": "Home states each book's own frequency, from the release",
       "ok": true,
-      "ms": 759
+      "ms": 806
     },
     {
       "name": "prompt chips are asked in the selected book's own period",
       "ok": true,
-      "ms": 811
+      "ms": 781
     },
     {
       "name": "Home and the dashboard under it agree on the calendar",
       "ok": true,
-      "ms": 803
+      "ms": 779
     },
     {
       "name": "five switch cycles leave no calendar behind",
       "ok": true,
-      "ms": 1446
+      "ms": 1453
     },
     {
       "name": "the drawer's seed note names the card's own period",
       "ok": true,
-      "ms": 921
+      "ms": 987
     },
     {
       "name": "a question asked in a book opens a thread badged with that book",
       "ok": true,
-      "ms": 6548
+      "ms": 6600
     },
     {
       "name": "both dashboards open the same right-hand drawer",
       "ok": true,
-      "ms": 895
+      "ms": 927
     },
     {
       "name": "Continue where you left off uses real V4 threads",
       "ok": true,
-      "ms": 2453
+      "ms": 2451
     },
     {
       "name": "an Arabic answer renders right-to-left without breaking the page",
       "ok": true,
-      "ms": 3181
+      "ms": 3187
     },
     {
       "name": "the landing page mounts the V4 Cockpit and nothing legacy",
       "ok": true,
-      "ms": 652
+      "ms": 647
     },
     {
       "name": "no page shows a currency the selected release does not use",
       "ok": true,
-      "ms": 639
+      "ms": 640
     },
     {
       "name": "attention cards and ECL highlights use the release's currency",
       "ok": true,
-      "ms": 607
+      "ms": 647
     },
     {
       "name": "borrower names in the drawer belong to the selected release",
       "ok": true,
-      "ms": 704
+      "ms": 698
     },
     {
       "name": "an answer, its table and its chart use one currency",
       "ok": true,
-      "ms": 3163
+      "ms": 3218
     },
     {
       "name": "the landing page fills a mac-16-inch window",
       "ok": true,
-      "ms": 614
+      "ms": 620
     },
     {
       "name": "the landing page fills a desktop-1440 window",
       "ok": true,
-      "ms": 587
+      "ms": 606
     },
     {
       "name": "the landing page fills a laptop-1280 window",
       "ok": true,
-      "ms": 612
+      "ms": 569
     },
     {
       "name": "the landing page fills a tablet-834 window",
       "ok": true,
-      "ms": 619
+      "ms": 596
     },
     {
       "name": "the landing page fills a phone-390 window",
       "ok": true,
-      "ms": 557
+      "ms": 575
     },
     {
       "name": "the navigation rail collapses itself on a phone",
       "ok": true,
-      "ms": 623
+      "ms": 581
     },
     {
       "name": "the greeting never addresses a deployment profile as a person",
       "ok": true,
-      "ms": 574
+      "ms": 555
     }
   ]
 }

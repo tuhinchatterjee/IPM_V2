@@ -201,7 +201,35 @@ async def start_run(body: StartRun, request: Request,
             # Does not reveal whether the thread exists for someone else.
             raise HTTPException(404, {"error_code": "NOT_FOUND",
                                       "message": "No such conversation."})
-        pinned = (store.thread_domain(thread_id) or {}).get("domain_id", "")
+        pin = store.thread_domain(thread_id) or {}
+        pinned = pin.get("domain_id", "")
+        # AND THE RELEASE IT WAS PINNED TO, not only the book.
+        #
+        # This read the thread's domain and threw its release away, so a
+        # follow-up asked in a thread pinned to a superseded release was
+        # accepted against the CURRENT one, with no warning and no note in
+        # the transcript. The thread then held two turns computed from two
+        # different books -- which is precisely what pinning the domain
+        # exists to prevent, one level down.
+        #
+        # A moved release is refused rather than rebased. Reading an old
+        # thread is history and is allowed; adding a new turn to it under
+        # different numbers is a substitution, and the reader would have no
+        # way to see it afterwards.
+        pinned_release = str(pin.get("release_id") or "")
+        current = dom_mod.DEFAULT_RELEASES.get(pinned or "", "")
+        if pinned_release and current and pinned_release != current:
+            raise HTTPException(409, {
+                "error_code": "RELEASE_SUPERSEDED",
+                "message": (
+                    f"This conversation was answered against "
+                    f"{pinned_release}, and this book now publishes "
+                    f"{current}. Its existing turns still open and still "
+                    f"render. A new question would be answered from "
+                    f"different numbers, so it belongs in a new "
+                    f"conversation rather than this one."),
+                "release_id": pinned_release,
+                "current_release_id": current})
 
     # The book, decided once. Inside a thread the thread wins; a request that
     # names a different one is REFUSED rather than obeyed or silently
@@ -565,7 +593,7 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
             # ninety-column relation listed as ninety columns is a list; the
             # same ninety columns under seven headings is a book someone can
             # find their way around.
-            "subject_areas": _subject_areas(catalog, domain_id),
+            "subject_areas": _subject_areas(catalog),
             "joins": catalog.joins(),
             "total_rows": sum(int(v) for v in counts.values()),
             "note": ("These are the relations this book publishes. A "
@@ -595,7 +623,7 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
         "rows": int(counts.get(spec.name, 0)),
         "joins": [j for j in catalog.joins()
                   if j["left"] == spec.name or j["right"] == spec.name],
-        "subject_areas": _subject_areas(catalog, domain_id, relation=name),
+        "subject_areas": _subject_areas(catalog, relation=name),
         # §15, §16, §41. Each column with the label a person reads, the
         # identifier SQL filters on, and -- where the column is a governed
         # category -- the values it may actually hold. A field inspector that
@@ -615,7 +643,7 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
 _SAMPLE_LIMIT = 12
 
 
-def _subject_areas(catalog: Any, domain_id: str,
+def _subject_areas(catalog: Any,
                    relation: str = "") -> list[dict[str, Any]]:
     """This book's columns grouped by what they are ABOUT.
 
@@ -623,10 +651,12 @@ def _subject_areas(catalog: Any, domain_id: str,
     grouping the analyst is shown. A second, page-only taxonomy here would
     be a second answer to "what does this book cover".
     """
-    from backend.cockpit_v4 import schema as schema_mod
-
+    # THROUGH THE CATALOGUE IT WAS HANDED, not around it. This took a
+    # `catalog` as its first argument and then asked `schema_mod` for the
+    # domain's CURRENT relations, so the subject areas of a superseded
+    # release counted columns that release never had.
     specs = ([catalog.spec(relation)] if relation
-             else list(schema_mod.relations(domain_id)))
+             else [catalog.spec(name) for name in catalog.relations()])
     areas: dict[str, dict[str, Any]] = {}
     for spec in specs:
         for column in spec.fields:

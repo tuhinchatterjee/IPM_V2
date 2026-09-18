@@ -785,6 +785,25 @@ def _measure_fields(family: Family) -> list[str]:
     return seen
 
 
+def _release_columns(scope: Any, relation: str) -> set[str]:
+    """What THIS scope's release holds on that relation.
+
+    Falls back to the domain's current schema only when the scope carries
+    no catalogue, which is the shape some older callers pass.
+    """
+    catalog = getattr(scope, "catalog", None)
+    if catalog is not None:
+        try:
+            return set(catalog.columns(relation))
+        except Exception:  # noqa: BLE001 - not a relation of this release
+            return set()
+    try:
+        return {f.name for f in schema_mod.relation(
+            scope.domain_id, relation).fields}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
 def _questions(candidate: Candidate, scope: dom.DomainScope,
                month: str) -> list[dict[str, Any]]:
     """What to ask next about THIS finding. Deterministic; no model call.
@@ -812,8 +831,11 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
     # covenant-breach card was offering "Split Leverage by region", a chip
     # that could not be executed and that told the reader the book held
     # something it does not.
-    mine = {f.name for f in schema_mod.relation(
-        scope.domain_id, family.relation).fields}
+    # THE RELEASE'S columns, not the domain's current ones. The paragraph
+    # above is right about why this filter exists and was reading the wrong
+    # list to do it: on a superseded release it would offer a split by a
+    # column added after that release was published.
+    mine = _release_columns(scope, family.relation)
     cross = [(field, label) for field, label in _CROSS.get(scope.domain_id, ())
              if field != family.dimension and field in mine]
 

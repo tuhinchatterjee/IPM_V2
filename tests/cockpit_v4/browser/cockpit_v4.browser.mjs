@@ -884,6 +884,23 @@ if (process.env.V4_THREAD_SHOTS) {
       await page.waitForSelector(
         '[data-testid="v4-relation-detail-retail_account_month"]',
         { timeout: 30_000 });
+
+      // THE ENRICHMENT, ON THE PAGE A READER ACTUALLY OPENS. The API test
+      // proves the endpoint serves these columns; this proves they are
+      // rendered, which is a different claim and the one a reader cares
+      // about. `sub_product` also carries its value list rather than a
+      // sample, because twelve sub-products are a category and not a
+      // catalogue of names.
+      for (const column of ["sub_product", "employment_type",
+                            "origination_channel",
+                            "delinquency_bucket_fine"]) {
+        await page.waitForSelector(`[data-testid="v4-field-${column}"]`,
+          { timeout: 15_000 });
+      }
+      const kind = await page.getAttribute(
+        '[data-testid="v4-field-values-sub_product"]', "data-kind");
+      assert.equal(kind, "governed",
+        "sub_product should be served as a governed value list");
       await shot(page, "data_relation_detail");
     } finally {
       await context.close();

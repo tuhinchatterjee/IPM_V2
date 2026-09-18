@@ -174,11 +174,30 @@ class Catalog:
     reporting_currency: str = lake.CURRENCY
     amount_scale: str = lake.AMOUNT_SCALE
     catalog_version: str = "v4.1"
+    #: THE RELEASE'S OWN SHAPE, read from its manifest by `build`.
+    #:
+    #: A published release records its full relation and field list, so it
+    #: describes itself and needs no help from the code that reads it. This
+    #: used to be answered by `schema_mod` keyed on the DOMAIN, which meant
+    #: today's schema was imposed on whatever release was opened: the
+    #: session builder selected today's columns from an older parquet and
+    #: DuckDB refused to bind them, so a book published before a column was
+    #: added stopped opening at all. A thread pinned to a release has to be
+    #: readable against the shape that release was published with, or the
+    #: release id on it is decoration.
+    #:
+    #: `build` fills it. Empty means a caller constructed a Catalog without
+    #: one, and the domain's current schema is the only answer available --
+    #: which is the old behaviour, kept for that case alone.
+    specs: tuple[schema_mod.Relation, ...] = ()
 
     # -- what is here ----------------------------------------------------
 
+    def _shape(self) -> tuple[schema_mod.Relation, ...]:
+        return self.specs or schema_mod.relations(self.domain_id)
+
     def relations(self) -> tuple[str, ...]:
-        return schema_mod.relation_names(self.domain_id)
+        return tuple(spec.name for spec in self._shape())
 
     def require_relation(self, relation: str) -> str:
         name = str(relation or "").strip().lower()
@@ -198,22 +217,35 @@ class Catalog:
                 f" A question about the other book is a question for a "
                 f"thread in that book. The relations here are: "
                 f"{', '.join(self.relations())}.")
+        # NAMED AGAINST THE RELEASE, not the domain. A relation this book
+        # gained after the pinned release was published is not a typo and
+        # not a missing feature -- it is a column that did not exist yet,
+        # and saying so is the difference between a reader hunting for a
+        # mistake and a reader reading history.
         raise schema_mod.UnknownRelation(
-            f"{relation!r} is not a relation of the "
-            f"{dom.LABELS[self.domain_id]} domain. Its relations are: "
-            f"{', '.join(self.relations())}.")
+            f"{relation!r} is not a relation of "
+            f"{self.dataset_release_id!r}, the "
+            f"{dom.LABELS[self.domain_id]} release this analysis is pinned "
+            f"to. Its relations are: {', '.join(self.relations())}.")
 
     def resolve(self, relation: str, column: str) -> schema_mod.Field:
-        return schema_mod.relation(
-            self.domain_id, self.require_relation(relation)).field(column)
+        return self.spec(relation).field(column)
 
     def columns(self, relation: str) -> tuple[str, ...]:
-        return schema_mod.relation(
-            self.domain_id, self.require_relation(relation)).columns
+        return self.spec(relation).columns
 
     def spec(self, relation: str) -> schema_mod.Relation:
-        return schema_mod.relation(self.domain_id,
-                                   self.require_relation(relation))
+        name = self.require_relation(relation)
+        for spec in self._shape():
+            if spec.name == name:
+                return spec
+        # Unreachable: `require_relation` already matched against the same
+        # list. Kept loud rather than returning None, because a silent
+        # miss here would be a catalogue describing a relation it cannot
+        # find.
+        raise schema_mod.UnknownRelation(
+            f"{name!r} is listed by {self.dataset_release_id!r} and has no "
+            f"specification in it.")
 
     def outline(self) -> dict[str, Any]:
         """This book at a glance: subject matter and size, not the dictionary.
@@ -236,13 +268,34 @@ class Catalog:
                            "period_column": spec.period_column,
                            "key_columns": list(spec.key_columns),
                            "columns": len(spec.fields)}
-                          for spec in schema_mod.relations(self.domain_id)],
+                          for spec in self._shape()],
             "joins": self.joins(),
         }
 
     def joins(self) -> list[dict[str, Any]]:
-        """How this book's relations connect. Facts, not suggestions."""
-        return JOINS.get(self.domain_id, [])
+        """How this book's relations connect. Facts, not suggestions.
+
+        FILTERED TO THIS RELEASE. The join graph is the one thing about a
+        book's shape that no manifest records -- it is authored here, and
+        `lake.publish` does not write it down -- so for a release published
+        before a join existed this constant is today's opinion about an
+        older book. Filtering to the relations and columns the release
+        actually holds is what keeps that opinion from becoming a false
+        statement: a join naming `corp_facility_quarter` is not a fact
+        about a release whose facilities are in `corp_facility_month`.
+        """
+        available = set(self.relations())
+        kept: list[dict[str, Any]] = []
+        for join in JOINS.get(self.domain_id, []):
+            left, right = str(join.get("left")), str(join.get("right"))
+            if left not in available or right not in available:
+                continue
+            on = [str(c) for c in (join.get("on") or ())]
+            if any(c not in self.columns(left) or c not in self.columns(right)
+                   for c in on):
+                continue
+            kept.append(join)
+        return kept
 
     def alternatives(self, relation: str, column: str, *,
                      limit: int = 6) -> tuple[str, ...]:
@@ -278,7 +331,7 @@ class Catalog:
             "reporting_periods": list(self.calendar.slots),
             "latest_period": self.calendar.latest,
             "relations": [spec.to_dict()
-                          for spec in schema_mod.relations(self.domain_id)],
+                          for spec in self._shape()],
         }
 
 
@@ -297,9 +350,21 @@ def build(*, domain_id: str, release_id: str = "",
             f"Release {release_id!r} was published for the "
             f"{dom.LABELS.get(published, published)} domain and was asked "
             f"for as {dom.LABELS[domain_id]}. Nothing was substituted.")
+    # THE RELEASE'S OWN RELATIONS, from the manifest that was written when
+    # it was published. Same argument as the calendar below and the same
+    # defect if it is skipped: a release read through a schema it was not
+    # published with is a release being described as something else.
+    #
+    # A manifest with no relations block is older than the block; the
+    # domain's current schema is then the only answer there is, and saying
+    # so here is better than an empty catalogue.
+    published_shape = [schema_mod.relation_from_dict(spec)
+                       for spec in (manifest.get("relations") or [])
+                       if isinstance(spec, dict) and spec.get("relation")]
     return Catalog(
         domain_id=domain_id,
         dataset_release_id=release_id,
+        specs=tuple(published_shape),
         release_fingerprint=str(manifest.get("release_fingerprint") or ""),
         # The DOMAIN decides the frequency, and the manifest records what
         # the release was actually built with. Falling back to a module

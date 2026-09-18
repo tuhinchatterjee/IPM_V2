@@ -140,23 +140,36 @@ def for_domain(domain_id: str, *, tenant_id: str = lake.DEFAULT_TENANT,
                release_fingerprint: str = "") -> AnalyticalRuntime:
     """Open a book. Refuses rather than substituting when it cannot.
 
-    `release_id` and `release_fingerprint` are the run's OWN record of what it
-    was accepted against. When they are given and disagree with what is
-    published now, the run is refused: a release was rebuilt under it, and
-    answering from the new bytes would silently change what the reader was
-    told they were asking about.
+    `release_id` is the run's OWN record of what it was accepted against,
+    and it SELECTS that release rather than merely asserting it. It used to
+    be an assertion only: any id but the domain's current one was refused,
+    so a thread pinned to a superseded release could not be opened at all
+    and every consumer that tried -- the transcript header, the trace, the
+    export lineage -- swallowed the refusal and published an empty release
+    block beside a release id it had just read. The stored id said one
+    thing and the header said nothing.
+
+    Opening a superseded release is READING HISTORY, and it is safe because
+    a published release is immutable and describes its own shape. It is not
+    a way to choose a book for new work: `resolve` never passes an id, so a
+    new run still takes the domain's current release.
+
+    `release_fingerprint` stays an assertion, and the strict one. A release
+    whose bytes moved under its own id is not the release this run was
+    accepted against, and answering from the new bytes would silently
+    change what the reader was told they were asking about.
     """
     domain_id = dom.parse(domain_id)
     try:
-        scope = resolver.scope_for(domain_id, tenant_id=tenant_id)
+        scope = resolver.scope_for(domain_id, tenant_id=tenant_id,
+                                   release_id=release_id)
     except resolver.DomainUnavailable as exc:
         raise AnalyticalRuntimeUnavailable(str(exc)) from exc
-
-    if release_id and release_id != scope.release_id:
+    except lake.ReleaseNotFound as exc:
         raise AnalyticalRuntimeUnavailable(
-            f"This run was accepted against release {release_id!r} and the "
-            f"{dom.LABELS[domain_id]} domain now publishes "
-            f"{scope.release_id!r}. Nothing was substituted.")
+            f"This run was accepted against release {release_id!r}, which is "
+            f"not published here. Nothing was substituted.") from exc
+
     if release_fingerprint and release_fingerprint != scope.release_fingerprint:
         raise AnalyticalRuntimeUnavailable(
             f"Release {scope.release_id!r} has been rebuilt since this run "
@@ -204,11 +217,26 @@ class LegacyRelease(RuntimeError):
 
 
 def domain_of_release(release_id: str) -> str:
-    """Which book publishes this release id, or empty if none does."""
+    """Which book published this release id, or empty if none did.
+
+    The CURRENT defaults first, because that is the common case and costs
+    no file read. Then the release's own manifest, which records the domain
+    it was published for -- a superseded release still belongs to the book
+    that wrote it, and matching only against today's defaults said it
+    belonged to neither. That is what made every thread pinned to a
+    superseded release look like a legacy release with no book at all.
+
+    An id nothing published still returns empty, and the caller still
+    refuses. Reading history is not the same as inventing it.
+    """
     for domain_id, known in dom.DEFAULT_RELEASES.items():
         if release_id == known:
             return domain_id
-    return ""
+    try:
+        published = str(lake.read_manifest(release_id).get("domain_id") or "")
+    except Exception:  # noqa: BLE001 - not published here
+        return ""
+    return published if published in dom.DEFAULT_RELEASES else ""
 
 
 def for_run(record: Any, *, store: Any = None) -> AnalyticalRuntime:
