@@ -367,6 +367,13 @@ def create_app() -> FastAPI:
 
     domain_status.install()
 
+    # A deterministic Playbook assistant, when an acceptance run has asked for
+    # one by naming a script file. It installs nothing unless that file exists,
+    # and says so loudly when it does — see backend/playbook/scripted.py.
+    from backend.playbook import scripted as scripted_chat
+
+    scripted_chat.install()
+
     logger.info("CreditProbe API ready (env=%s, cors=%s)", settings.env, list(settings.cors_origins))
     return app
 

@@ -225,6 +225,11 @@ class Status:
     model: str = ""
     inherited: bool = True
 
+    #: True when a scripted stand-in is answering instead of a model. Carried
+    #: here so an operator reading diagnostics cannot mistake fixture content
+    #: for a model's, and so a browser journey can assert it is on.
+    scripted: bool = False
+
     def as_dict(self) -> dict:
         return {
             "configured": self.configured,
@@ -232,12 +237,24 @@ class Status:
             "provider": self.provider,
             "model": self.model,
             "model_inherited": self.inherited,
+            "scripted": self.scripted,
         }
 
 
 def status() -> Status:
     """What an administrator needs to know, with nothing secret in it."""
     from backend.config import settings
+    from backend.playbook import scripted as scripted_chat
+
+    if scripted_chat.enabled():
+        # Said first and said plainly. A scripted server IS configured — it
+        # will answer — and every answer is fixture content.
+        author = role_config.role(role_config.AUTHOR)
+        return Status(
+            True,
+            "A scripted assistant is answering. Every reply and document on "
+            "this server is fixture content and no model is being called.",
+            "scripted", author.model, author.inherited, scripted=True)
 
     provider = (settings.ai_provider or "").strip().lower()
     author = role_config.role(role_config.AUTHOR)

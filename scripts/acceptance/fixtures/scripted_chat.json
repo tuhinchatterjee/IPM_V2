@@ -1,0 +1,20 @@
+{
+  "default": {
+    "say": "I can answer questions about your documents, or draft one for you. Tell me which you would like."
+  },
+  "difference between": {
+    "say": "A development report explains how a model was built: the sample, the variables, the fitting and the cut-offs. A validation report challenges it independently, with its own evidence, and states what it could not assess. The first is written by the modelling team; the second must not read as an endorsement of it."
+  },
+  "what does this paper cover": {
+    "say": "It covers staging and significant increase in credit risk, coverage by stage, and the post-model adjustments. It does not document the scenario weights, so anything about those would have to come from another source."
+  },
+  "write the auto loan development report": {
+    "opening": "I will draft that now.",
+    "say": "The report is drafted and both files are ready. Two sections are supported by what you attached; the out-of-time results are not in the evidence, so that section states the gap rather than filling it.",
+    "create": {
+      "formats": ["docx", "pdf"],
+      "instruction": "A detailed Auto Loan application scorecard development report.",
+      "markdown": "# Auto Loan Development Report\n\n## 1. Scope and model\n\nThis report covers the auto-loan application scorecard. The development sample runs to 1,050 accounts observed over twelve months.\n\n## 2. Data and population\n\nThe sample was drawn from originations in the period. Exclusions and their reasons are listed in the appendix to the supplied specification.\n\n## 3. Out-of-time results\n\nThe out-of-time testing evidence was not supplied, so this section records the gap rather than an untested result.\n"
+    }
+  }
+}

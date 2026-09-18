@@ -1,0 +1,21 @@
+{
+  "passed": [
+    "the server says it is answering from a script \u2014 {'configured': True, 'reason': 'A scripted assistant is answering. Every reply and document on this server is fixture content and no model is being called.', 'provider': '', 'model': '', 'model_inherited': False, 'scripted': True}",
+    "and reports itself configured, so the composer offers to send",
+    "an ordinary question is answered in the thread",
+    "the answer is prose, not a document",
+    "no document was created for a question \u2014 0",
+    "and no file card is on screen",
+    "the assistant reports the work it did",
+    "a document was created \u2014 1",
+    "with Word and PDF \u2014 ['docx', 'pdf']",
+    "the docx downloads as real bytes \u2014 38191 bytes",
+    "the pdf downloads as real bytes \u2014 2151 bytes",
+    "the document's own prose is not dumped into the thread",
+    "and the gap the evidence does not cover is stated",
+    "the conversation is still there after a reload \u2014 2 messages",
+    "and so is the document"
+  ],
+  "failed": [],
+  "note": "Driven against a scripted assistant; no provider call was made. See backend/playbook/scripted.py."
+}
