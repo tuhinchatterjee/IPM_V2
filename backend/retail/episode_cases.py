@@ -43,6 +43,7 @@ from backend.agentic import cases as rc
 from backend.agentic import severity as sv
 from backend.retail import episode_measures as em
 from backend.retail import episodes as ep
+from backend.retail import taxonomy as tax
 
 logger = logging.getLogger(__name__)
 
@@ -286,9 +287,9 @@ def draft(period: str = "", case_id: str = "") -> rc.Draft | None:
                         "period": at})
 
     signals = [
-        f"{_pct(pocket.get('incidence'))} incidence inside "
-        f"{episode.pocket_label} against {_pct(outside.get('incidence'))} "
-        f"outside it",
+        f"the named pocket is {episode.pocket_label}",
+        f"{_pct(pocket.get('incidence'))} incidence inside it against "
+        f"{_pct(outside.get('incidence'))} outside",
         f"{corroborated_n:,} of {view['affected']:,} alerts independently "
         f"corroborated",
         f"expected credit loss on the same facilities "
@@ -304,9 +305,21 @@ def draft(period: str = "", case_id: str = "") -> rc.Draft | None:
         title=f"{episode.title}: {episode.card_measure.lower()}",
         period=at,
         prior_period=risk.get("previous") or "",
-        entity=episode.pocket_label,
+        # The PRODUCT, not the pocket.
+        #
+        # `entity` is what the Cockpit groups and filters by, and every other
+        # rule puts a retail product label there. Putting the pocket in it —
+        # "Digital channel B / short employment tenure / approved exceptions"
+        # — made this story ungroupable with the rest of the book, and the
+        # repository's own gate says so: a case names a retail product.
+        #
+        # The pocket is not lost. It is the entity's KIND, it is in the
+        # conclusion's own sentence, it is a signal, and it is on the drawer
+        # under its own heading. What it is not is the name of the thing the
+        # case is about.
+        entity=tax.PRODUCT_LABELS.get(episode.product, episode.product),
         entity_id=case_id,
-        entity_kind="episode",
+        entity_kind="product",
         about=ABOUT,
         conclusion=conclusion,
         why=why,
@@ -342,9 +355,13 @@ def draft(period: str = "", case_id: str = "") -> rc.Draft | None:
             "research": view["research"],
             "sources": view["sources"],
             "narrative": episode.countercheck,
+            # The wording the repository's own gate looks for, verbatim.
+            # Every rule in this product says it the same way, so a reader who
+            # has learned to check for it on one card can check for it on all
+            # of them.
             "threshold_source": (
-                f"Synthetic demonstration thresholds, bank-configurable: at "
-                f"least {MIN_AFFECTED} affected observations and at least "
+                f"Synthetic demo thresholds, bank-configurable: at least "
+                f"{MIN_AFFECTED} affected observations and at least "
                 f"{MIN_MULTIPLE:.1f} times the comparator."),
         },
         evidence_coverage=round(corroborated_share, 4),
