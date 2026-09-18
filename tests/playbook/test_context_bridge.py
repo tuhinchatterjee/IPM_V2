@@ -30,6 +30,10 @@ from backend.playbook import document as D
 from backend.playbook import repository as repo
 from backend.playbook import service
 from backend.playbook.intelligence import adopt
+from backend.playbook.intelligence import binding as bind
+from backend.playbook.intelligence import context as ctx
+from backend.playbook.intelligence import governance as gov
+from backend.playbook.intelligence import sections as sect
 
 
 @contextlib.contextmanager
@@ -45,10 +49,7 @@ def _reuse(session):
 
 def _factory(session):
     return lambda: _reuse(session)
-from backend.playbook.intelligence import binding as bind
-from backend.playbook.intelligence import context as ctx
-from backend.playbook.intelligence import governance as gov
-from backend.playbook.intelligence import sections as sect
+
 
 ACTOR = "user:7"
 BODY = "considered judgement " * 15
