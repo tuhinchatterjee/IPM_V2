@@ -365,8 +365,8 @@ def start(session_factory: Callable[[], Any], scope, workspace_id: int,
             # been sent, so a projection that fails leaves a user with a
             # downloadable document and a status panel that says it is
             # updating, which is the honest pair.
-            projected = service.project_status(
-                session_factory, result.get("projection") or {})
+            projected = [service.project_status(session_factory, pending)
+                         for pending in (result.get("projections") or [])]
 
             writer.done({"message_id": result.get("message_id"),
                          "artifact_id": result.get("artifact_id"),
@@ -376,7 +376,12 @@ def start(session_factory: Callable[[], Any], scope, workspace_id: int,
                          # did not. A client re-reads because something
                          # changed rather than on a timer, and a stale panel
                          # is visible rather than silent.
-                         "dashboard": projected})
+                         "files": result.get("files") or [],
+                         "interrupted": bool(result.get("interrupted")),
+                         "dashboard": {
+                             "projected": projected,
+                             "ok": all(p.get("ok") for p in projected),
+                         }})
         HUB.forget(job_id)
 
     thread = threading.Thread(target=work, name=f"playbook-job-{job_id}",

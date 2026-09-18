@@ -109,3 +109,15 @@ def describe() -> dict:
             for c in REGISTRY.values()
         ]
     }
+
+
+def supported() -> tuple[str, ...]:
+    """The formats this deployment can actually produce.
+
+    A function rather than the constant, because chapter 02 asks the product to
+    state what is Implemented as opposed to Available but disabled, and that is
+    a runtime fact. Today every registered format has a local renderer, so the
+    answer is the whole set; when one stops being true this is the one place
+    that has to change.
+    """
+    return tuple(f for f in SUPPORTED if f in REGISTRY)

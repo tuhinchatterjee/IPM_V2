@@ -572,7 +572,9 @@ class TestATimeoutLeavesNothingBehind:
         return restore
 
     def test_a_timeout_writes_no_version_and_no_file(
-            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch,
+            scripted_author):
+        scripted_author(REPORT_MD, chunk=30)
         self._times_out(monkeypatch)
         with pytest.raises(provider.AuthoringTimeout):
             service.run_generation(
@@ -610,7 +612,9 @@ class TestATimeoutLeavesNothingBehind:
         assert len(repo.versions(db, good["artifact_id"])) == 1
 
     def test_the_partial_text_is_not_committed_as_the_answer(
-            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch,
+            scripted_author):
+        scripted_author(REPORT_MD, chunk=30)
         self._times_out(monkeypatch)
         writer = stream.Writer(session=db, job_id=job)
         with pytest.raises(provider.AuthoringTimeout):
@@ -625,9 +629,11 @@ class TestATimeoutLeavesNothingBehind:
         assert "markdown" not in assistant[0].content
 
     def test_the_browser_is_told_the_truth_about_it(
-            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch,
+            scripted_author):
         """And the half sentence is discarded rather than left on screen as
         though it were the answer — the `error` event carries no text."""
+        scripted_author(REPORT_MD, chunk=30)
         self._times_out(monkeypatch)
         writer = stream.Writer(session=db, job_id=job)
         try:
@@ -644,7 +650,9 @@ class TestATimeoutLeavesNothingBehind:
         assert stream.replay_text(events) == ""
 
     def test_a_timed_out_generation_is_retryable(
-            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch,
+            scripted_author):
+        scripted_author(REPORT_MD, chunk=30)
         self._times_out(monkeypatch)
         with pytest.raises(provider.AuthoringTimeout):
             service.run_generation(

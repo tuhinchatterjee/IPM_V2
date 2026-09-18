@@ -478,8 +478,10 @@ def send_message(workspace_id: int, body: MessageIn,
         # delivered document rather than taking it down with it.
         from backend.db.engine import get_session
 
-        result["dashboard"] = service.project_status(
-            get_session, result.pop("projection", None) or {})
+        projected = [service.project_status(get_session, pending)
+                     for pending in (result.pop("projections", None) or [])]
+        result["dashboard"] = {"projected": projected,
+                               "ok": all(p.get("ok") for p in projected)}
         return result
     except repo.NotFound as exc:
         raise _not_found(exc) from exc

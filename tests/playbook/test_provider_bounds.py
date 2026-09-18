@@ -95,6 +95,7 @@ def instant_deadline(monkeypatch):
     monkeypatch.setattr(provider, "RUN_DEADLINE_SECONDS", 0.05)
 
 
+@pytest.mark.real_provider_client
 class TestTheTransportIsBoundedInEveryPhase:
     def test_the_four_phases_are_set_separately(self, monkeypatch):
         """The bug: a bare float sets connect, read, write and pool to the

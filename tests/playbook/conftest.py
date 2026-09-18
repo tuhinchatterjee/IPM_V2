@@ -204,6 +204,61 @@ def workspace(db, scope):
     return ws
 
 
+@pytest.fixture(autouse=True)
+def _configured_author_model(request, monkeypatch):
+    """Give every Playbook test a configured assistant model.
+
+    The conversational runtime checks for one before it does anything, which
+    the old authoring path did not — it went straight to a patched
+    `provider.author`. Without this, a test that patches the provider but
+    never mentions a model now fails with a configuration error instead of
+    exercising what it is about.
+
+    `tests/conftest.py`'s `_offline_ai` still forces the offline provider, so
+    naming a model here cannot produce a network call. The one test that is
+    ABOUT a missing model overrides this deliberately.
+    """
+    from backend.llm import roles as role_config
+
+    # The real Role, with a model set. A hand-rolled stub drifts from the
+    # dataclass the moment a field is added, which is how this first went
+    # wrong: telemetry reads `role.inherited` and the stub had never heard
+    # of it.
+    configured = role_config.Role(name=role_config.AUTHOR,
+                                  model="scripted-author",
+                                  effort="standard", inherited=False)
+    monkeypatch.setattr("backend.playbook.assistant.role_config.role",
+                        lambda _name: configured, raising=False)
+
+    # And a client that cannot reach a network, whatever else a test forgets
+    # to patch.
+    #
+    # The first attempt here supplied a fake credential instead, so that the
+    # product's own configuration check would run for real. It did — and then
+    # a test that had not scripted `provider._call` built a genuine client and
+    # sent a genuine request, which came back 401. Nothing was generated and
+    # nothing was spent, but a test suite that can reach the provider at all is
+    # one outbound call away from spending money. So the boundary is closed
+    # here rather than guarded downstream: a test that wants a call must script
+    # `_call`, and one that forgets fails loudly against this object rather
+    # than quietly leaving the building.
+    if request.node.get_closest_marker("real_provider_client"):
+        # A test ABOUT the client builder has to get the real one. Marked
+        # rather than detected, so opting out is a decision in the test file
+        # and not a coincidence of its name.
+        return
+
+    class _NoNetwork:
+        def __getattr__(self, name):
+            raise AssertionError(
+                "This test reached the provider client. Script "
+                "`provider._call` (see the `scripted_author` fixture) rather "
+                "than letting a request leave the process.")
+
+    monkeypatch.setattr("backend.playbook.provider._client",
+                        lambda: _NoNetwork())
+
+
 @pytest.fixture
 def scripted_author(monkeypatch):
     """Stand in for the provider, so the pipeline around it can be tested.
@@ -251,14 +306,113 @@ def scripted_author(monkeypatch):
     monkeypatch.setattr(provider, "author", fake_author)
     monkeypatch.setattr("backend.playbook.service.provider.author", fake_author)
 
+    # ---- and the conversational runtime the real message path now uses ----
+    #
+    # A user's message reaches `assistant.converse`, which decides whether the
+    # turn needs a file by calling a tool. So the stand-in has to script that
+    # DECISION as well as the document: `makes_document` says whether the
+    # scripted assistant reaches for `create_document`, which is the one thing
+    # a test cannot infer from the Markdown it supplied.
+    #
+    # It defaults to True so that every journey written when authoring was the
+    # only path still means what it meant. A test for an ordinary question —
+    # the case that had no way to exist before — passes False.
+
+    class _Block:
+        def __init__(self, type_, **kw):
+            self.type = type_
+            for k, v in kw.items():
+                setattr(self, k, v)
+
+    class _Response:
+        def __init__(self, content, stop_reason, model):
+            self.content = content
+            self.stop_reason = stop_reason
+            self.model = model
+            self._request_id = "req_scripted_chat"
+            self.usage = type("U", (), {"input_tokens": 0, "output_tokens": 0})()
+
+    def fake_call(client, *, model, system, messages, tools, container,
+                  purpose, role, on_delta=None, is_cancelled=None,
+                  deadline=None, with_tools=False):
+        if is_cancelled and is_cancelled():
+            raise provider.Cancelled("stopped")
+        state.setdefault("chat_calls", []).append(
+            {"system": system, "messages": [dict(m) for m in messages],
+             "tools": [t["name"] for t in (tools or [])]})
+
+        # Whether a tool has already run IN THIS conversation, read from the
+        # messages rather than from a counter. A counter is global across
+        # generations, so the second message in a workspace would never reach
+        # the tool — which is how this first went wrong, silently turning a
+        # timeout test into a test of a chat reply.
+        already_used_a_tool = any(
+            isinstance(m.get("content"), list)
+            and any(isinstance(b, dict) and b.get("type") == "tool_result"
+                    for b in m["content"])
+            for m in messages)
+        wants = state.get("makes_document", True) and any(
+            t["name"] == "create_document" for t in (tools or []))
+        if wants and not already_used_a_tool:
+            # A real assistant says what it is about to do before it does it,
+            # and the interface shows that text while the document is being
+            # written. A stand-in that goes straight to the tool call would
+            # make the thread look frozen and would hide a streaming defect.
+            opening = "I will prepare that now."
+            if on_delta:
+                on_delta(opening)
+            return _Response(
+                [_Block("text", text=opening),
+                 _Block("tool_use", name="create_document", id="tu_chat",
+                        input={"instruction": "as asked",
+                               "formats": list(state.get("chat_formats")
+                                               or ["docx", "pdf"])})],
+                "tool_use", state["model"])
+
+        said = state.get("chat_text") or _plain(state["text"])
+        if on_delta:
+            size = state.get("chunk", 40)
+            for i in range(0, len(said), size):
+                if is_cancelled and is_cancelled():
+                    raise provider.Cancelled("stopped")
+                on_delta(said[i:i + size])
+                if state.get("pause"):
+                    time.sleep(state["pause"])
+        return _Response([_Block("text", text=said)], "end_turn", state["model"])
+
+    def _plain(markdown: str) -> str:
+        """What the assistant would say, as opposed to what it wrote."""
+        lines = [ln for ln in (markdown or "").splitlines()
+                 if ln.strip() and not ln.lstrip().startswith("#")]
+        return " ".join(lines)[:600] or "Done."
+
+    monkeypatch.setattr(provider, "_call", fake_call)
+    monkeypatch.setattr(provider, "_client", lambda: object())
+
+    # The autouse `_configured_author_model` fixture already installs a real
+    # Role with a model set, and this fixture runs inside it.
+
     def configure(text: str, files=None, model: str = "scripted-author",
-                  chunk: int = 40, pause: float = 0.0):
+                  chunk: int = 40, pause: float = 0.0,
+                  makes_document: bool = True, chat_text: str = "",
+                  chat_formats=None):
         state["text"] = text
         state["files"] = files or []
         state["model"] = model
         state["chunk"] = chunk
         state["pause"] = pause
+        state["makes_document"] = makes_document
+        state["chat_text"] = chat_text
+        state["chat_formats"] = chat_formats
+        state["chat_calls"] = []
         return state
 
     configure.state = state
     return configure
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "real_provider_client: needs the real provider._client builder rather "
+        "than the no-network stand-in; for tests ABOUT how the client is built")

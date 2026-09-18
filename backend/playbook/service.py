@@ -939,29 +939,31 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
                    is_cancelled=None) -> dict:
     """Do the work a claimed job stands for, and persist what came back.
 
-    Runs against a job that already exists, so the caller — a request, or a
-    worker thread the request started — has already been able to name it.
+    One conversational turn. Ordinary questions get ordinary answers; a turn
+    that needs a file gets one because the assistant asked for it, not because
+    this function decided in advance.
+
+    What used to happen here was a single unconditional call to
+    `author_document` with DEFAULT_FORMATS, so every message — including "what
+    is the difference between a development and a validation report?" — tried
+    to write a document and render Word and PDF, and failed the turn if either
+    could not be produced.
+
+    `task_kind`, `task_scope` and `formats` still arrive from callers that know
+    what they want (the dashboard's Ask bridge, a scripted journey). They are
+    carried into the turn as what the user asked for, NOT as a route: chapter
+    04 is explicit that the decision belongs to the assistant.
     """
     from backend.models.playbook import PlaybookJob
+    from backend.playbook import chat as chat_turn
 
     ws = repo.get_workspace(session, scope, workspace_id)
-    formats = list(formats or DEFAULT_FORMATS)
     job = session.get(PlaybookJob, job_id)
     if job is None or job.workspace_id != ws.id:
         raise repo.NotFound(f"No generation {job_id} in this workspace.")
 
     if is_cancelled is None:
         is_cancelled = cancellation_watcher(job.id)
-
-    # Rebuilt here rather than carried through the job payload: the context is
-    # a READ of the dashboard, so a generation that starts a minute later sees
-    # the state as it is now, not a copy of what a browser held.
-    chat_context = resolve_context(session, ws.id, kind=context_kind,
-                                   target=context_target)
-    ledger = ledger_for(session, scope, ws.id, source_ids=source_ids,
-                        export_revision_ids=export_revision_ids,
-                        calculations=calculations, artifact_id=artifact_id,
-                        chat_context=chat_context)
 
     def milestone(state: str, detail: str = "") -> None:
         job.state = state if state in {"reviewing_sources", "drafting",
@@ -971,19 +973,30 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
         if on_milestone:
             on_milestone(state, detail)
 
+    def tool_state(name: str, stage: str) -> None:
+        """An honest work state, derived from what is happening.
+
+        Chapter 15: event-derived, never a timer pretending to be progress.
+        """
+        milestone("drafting" if stage == "running" else "rendering",
+                  f"{name} {stage}")
+
+    asked = _what_was_asked(text, task_kind=task_kind, task_scope=task_scope,
+                            formats=formats)
     try:
-        outcome = author_document(
-            session, scope, ws.id, instruction=text, ledger=ledger,
-            title=ws.title, formats=formats, artifact_id=artifact_id,
-            base_version_id=base_version_id,
-            task_kind=task_kind, task_scope=task_scope,
-            on_milestone=milestone, on_delta=on_delta,
+        turn = chat_turn.turn(
+            session, scope, ws.id, text=asked,
+            source_ids=source_ids, export_revision_ids=export_revision_ids,
+            artifact_id=artifact_id, base_version_id=base_version_id,
+            context_kind=context_kind, context_target=context_target,
+            calculations=calculations,
+            on_milestone=milestone, on_delta=on_delta, on_tool=tool_state,
             is_cancelled=is_cancelled)
     except provider.Cancelled as exc:
         job.state = "cancelled"
         job.finished_at = _now()
         repo.add_message(session, ws.id, role="assistant",
-                         content={"text": "This generation was stopped. "
+                         content={"text": "This message was stopped. "
                                           "Nothing was saved."},
                          origin="system", job_id=job.id)
         raise exc
@@ -997,43 +1010,131 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             origin="system", job_id=job.id)
         raise
 
+    reply = turn["reply"]
     job.state = "ready"
-    job.model = outcome.model_served
-    job.provider_request_ids = list(outcome.request_ids)
-    job.usage = {"requests": len(outcome.request_ids)}
+    job.model = reply.model_served
+    job.provider_request_ids = list(reply.request_ids)
+    job.usage = {"requests": len(reply.request_ids),
+                 "input_tokens": reply.input_tokens,
+                 "output_tokens": reply.output_tokens}
     job.finished_at = _now()
 
-    assistant = repo.add_message(
+    produced = turn["produced"]
+    last = produced[-1] if produced else {}
+    message = repo.add_message(
         session, ws.id, role="assistant",
         content={
-            "text": outcome.document.plain_text() if outcome.document else "",
-            "markdown": _markdown_of(outcome.document),
-            "artifact_id": outcome.artifact_id,
-            "version_id": outcome.version_id,
-            "version": outcome.version,
-            "notes": list(outcome.notes),
-            "grounding": outcome.grounding.as_dict() if outcome.grounding else {},
-            "grounding_final": (outcome.grounding_final.as_dict()
-                                if outcome.grounding_final else {}),
-            "evidence_complete": ledger.complete,
-            "evidence_gaps": list(ledger.omissions),
-            # Deliberately not a claim about the dashboard. The status
-            # projection runs after this transaction commits, so at the moment
-            # this message is written the dashboard has not caught up yet and
-            # saying otherwise would be inventing state. The client re-reads
-            # the status itself, which is also what makes a stale or failed
-            # projection visible as "updating" rather than invisible.
+            # The assistant's own words, as it wrote them. Not a rendering of
+            # a document, and not rewritten by anything downstream.
+            "text": turn["text"],
+            "artifact_id": turn["artifact_id"],
+            "version_id": last.get("version_id"),
+            "version": last.get("version"),
+            # Every file this turn produced or failed to produce, so the
+            # thread can show a card per delivered format and say what
+            # happened to the rest. Chapter 07's three independent outcomes.
+            "files": list(produced),
+            "notes": [n for p in produced for n in p.get("review_notes", [])],
+            "tools": [{"name": r.name, "ok": r.ok, "detail": r.detail}
+                      for r in reply.tool_runs],
+            # Chapter 07: partial text is labelled, never presented as a
+            # finished answer.
+            "interrupted": reply.interrupted,
+            "evidence_complete": turn["evidence_complete"],
+            "evidence_gaps": list(turn["evidence_gaps"]),
+            # Not a claim about the dashboard. The projection runs after this
+            # transaction commits, so saying anything else here would be
+            # inventing state the client can simply read for itself.
             "dashboard": {"state": "updating"},
         },
-        origin="assistant_live", model=outcome.model_served,
-        request_ids=list(outcome.request_ids), usage=outcome.usage()
-        if hasattr(outcome, "usage") else {}, job_id=job.id)
+        origin="assistant_live", model=reply.model_served,
+        request_ids=list(reply.request_ids), job_id=job.id)
 
     return {"job_id": job.id, "state": "ready", "duplicate": False,
-            "message_id": assistant.id, "artifact_id": outcome.artifact_id,
-            "version_id": outcome.version_id,
-            "version": outcome.version, "notes": list(outcome.notes),
-            "projection": dict(outcome.pending_projection)}
+            "message_id": message.id, "artifact_id": turn["artifact_id"],
+            "version_id": last.get("version_id"),
+            "version": last.get("version", 0),
+            "interrupted": reply.interrupted,
+            "files": list(produced),
+            "notes": [n for p in produced for n in p.get("review_notes", [])],
+            # A list: one turn may write more than one version, and every one
+            # of them has to be projected or the next comparison is wrong.
+            "projections": list(turn["projections"])}
+
+
+def _what_was_asked(text: str, *, task_kind: str = "", task_scope: str = "",
+                    formats: list[str] | None = None) -> str:
+    """The user's message, plus what a caller separately said they wanted.
+
+    A caller that knows its own intent — the dashboard's Ask bridge, a
+    scripted journey — should not have to phrase it twice, and the assistant
+    should not have to guess it. But this is context, not a route: the turn
+    still reaches the assistant as a conversation, and the assistant still
+    decides whether a file is called for.
+    """
+    hints: list[str] = []
+    if task_kind:
+        hints.append(f"requested task: {task_kind}")
+    if task_scope:
+        hints.append(f"scope: {task_scope}")
+    if formats:
+        hints.append("requested file formats: " + ", ".join(formats))
+    if not hints:
+        return text
+    return f"{text}\n\n[The interface also recorded — {'; '.join(hints)}.]"
+
+
+def attach_formats(session, scope: repo.Scope, workspace_id: int,
+                   artifact_id: int, produced: dict) -> dict:
+    """Store additional formats against the version that already exists.
+
+    A conversion is the same document in another wrapper, so it belongs to the
+    version it was converted FROM — chapter 10: "record which source version
+    each conversion represents", and "an old PDF must not be labelled current
+    after only the Word file changes".
+
+    This is also what makes a retry cheap. Chapter 17 and journey 16 require
+    that retrying a failed PDF reuse the saved content rather than author the
+    report again, and no provider call is made here at all: re-authoring would
+    spend money to produce a DIFFERENT report under the same version number.
+
+    A format that already exists on the version is replaced, so a retry
+    supersedes the failed attempt instead of leaving two rows claiming to be
+    the PDF of version 3.
+    """
+    from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+
+    artifact = session.get(PlaybookArtifact, artifact_id)
+    ws = repo.get_workspace(session, scope, workspace_id)
+    if artifact is None or artifact.workspace_id != ws.id:
+        raise repo.NotFound(f"No artifact {artifact_id} in this workspace.")
+    version = (session.get(PlaybookArtifactVersion, artifact.current_version_id)
+               if artifact.current_version_id else None)
+    if version is None:
+        raise repo.NotFound("This document has no saved version.")
+
+    existing = {f.format: f for f in repo.files(session, version.id)}
+    delivered, failed = [], {}
+    for fmt, outcome in produced.items():
+        if not outcome.delivered:
+            failed[fmt] = "; ".join(outcome.issues) or "could not be produced"
+            continue
+        cap = capabilities.require(fmt)
+        filename = f"{_slug(artifact.title or ws.title)}-v{version.version}.{fmt}"
+        stored = store.put_artifact(ws.id, artifact.id, version.version,
+                                    filename, outcome.content)
+        if fmt in existing:
+            session.delete(existing[fmt])
+            session.flush()
+        repo.add_file(
+            session, version, fmt=fmt, bytes_path=stored.relative,
+            mime=cap.mime, filename=filename, size_bytes=stored.size_bytes,
+            sha256=stored.sha256, renderer=outcome.renderer,
+            validated=bool(outcome.validation is None or outcome.validation.ok))
+        delivered.append(fmt)
+
+    return {"version": version.version, "version_id": version.id,
+            "delivered": delivered, "failed": failed}
 
 
 def project_status(session_factory, pending: dict) -> dict:

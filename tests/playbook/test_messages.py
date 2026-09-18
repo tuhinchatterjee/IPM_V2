@@ -49,18 +49,37 @@ class TestOneTurn:
         assert assistant.origin == "assistant_live"
         assert assistant.model == "scripted-author"
 
-    def test_the_thread_shows_the_document_that_was_saved(
+    def test_the_thread_shows_the_answer_and_a_record_of_each_file(
             self, db, scope, workspace, scripted_author, ledger_calcs):
-        """Not the model's first draft — what survived grounding."""
-        scripted_author(REPORT_MD.replace(
-            "Weighted ECL was SAR 22.77 million.",
-            "Weighted ECL was SAR 22.77 million. Coverage hit 41.5 per cent."))
-        service.send_message(db, scope, workspace.id, text="Write it.",
-                             calculations=ledger_calcs)
+        """What the assistant said, plus what it produced.
+
+        This once asserted that the assistant's message carried the DOCUMENT
+        as Markdown, because the document was the only thing a turn could
+        produce. A conversation puts the assistant's own words in the thread
+        and the document in a file card beside it — chapter 03 — so the
+        message is checked for the answer, and the files for the files.
+        """
+        scripted_author(REPORT_MD, chat_text="I have drafted the report.")
+        result = service.send_message(db, scope, workspace.id, text="Write it.",
+                                      calculations=ledger_calcs)
         assistant = repo.messages(db, workspace.id)[1]
-        assert "41.5" not in assistant.content["markdown"]
-        assert "22.77" in assistant.content["markdown"]
-        assert assistant.content["grounding"]["ok"] is False
+
+        said = assistant.content["text"]
+        assert "I have drafted the report." in said, (
+            "the thread carries what the assistant said, not the document")
+        assert "22.77" not in said, (
+            "and not the document's own prose, which lives in the file")
+        assert assistant.content["interrupted"] is False
+        [record] = assistant.content["files"]
+        assert record["version"] == 1
+        assert sorted(record["delivered"]) == ["docx", "pdf"]
+        assert record["failed"] == {}
+
+        # And the document itself is where a document belongs.
+        versions = repo.versions(db, result["artifact_id"])
+        assert [v.version for v in versions] == [1]
+        assert sorted(f.format for f in repo.files(db, versions[0].id)) == [
+            "docx", "pdf"]
 
     def test_evidence_gaps_travel_with_the_answer(
             self, db, scope, workspace, scripted_author, ledger_calcs,
@@ -113,24 +132,64 @@ class TestSendingTwiceDoesNotGenerateTwice:
 
 
 class TestFailureLeavesAUsableThread:
-    def test_a_failed_generation_keeps_the_question_and_says_what_happened(
-            self, db, scope, workspace, scripted_author, ledger_calcs):
-        scripted_author("")
-        with pytest.raises(provider.AuthoringError):
-            service.send_message(db, scope, workspace.id, text="Write it.",
-                                 calculations=ledger_calcs)
-        messages = repo.messages(db, workspace.id)
-        assert messages[0].content["text"] == "Write it."
-        assert messages[1].content["failed"] is True
-        assert messages[1].origin == "system"
+    """A document that cannot be made no longer costs the user the turn.
 
-    def test_a_failed_generation_is_not_attributed_to_the_model(
+    These once asserted that an empty authoring result raised out of
+    `send_message` and left a system row saying so, because a turn WAS a
+    document: if the document failed, there was nothing else to deliver.
+
+    A conversation has something else to deliver. Chapter 07 makes the answer
+    and the file independent outcomes, so an authoring call that comes back
+    with nothing is reported to the assistant, which tells the user — and the
+    thread keeps the question, the explanation, and no invented success.
+    """
+
+    def test_a_document_that_could_not_be_made_is_explained_not_erased(
             self, db, scope, workspace, scripted_author, ledger_calcs):
-        scripted_author("")
-        with pytest.raises(provider.AuthoringError):
+        scripted_author("", chat_text="I could not produce that document.")
+        result = service.send_message(db, scope, workspace.id, text="Write it.",
+                                      calculations=ledger_calcs)
+
+        messages = repo.messages(db, workspace.id)
+        assert messages[0].content["text"] == "Write it.", "the question stays"
+        assert "I could not produce that document." in messages[1].content["text"]
+        assert messages[1].origin == "assistant_live"
+
+        # Nothing was invented: no file, no version, no claim of success.
+        assert result["files"] == []
+        assert repo.artifacts(db, workspace.id) == []
+        [tool] = messages[1].content["tools"]
+        assert tool["name"] == "create_document"
+        assert tool["ok"] is False
+        assert "no document" in tool["detail"].lower()
+
+    def test_the_runtime_failing_is_still_a_failed_turn(
+            self, db, scope, workspace, scripted_author, ledger_calcs,
+            monkeypatch):
+        """The distinction the change turns on.
+
+        A document that could not be written is a tool failure the
+        conversation survives. The RUNTIME being unavailable is not: there is
+        no assistant left to explain anything, and pretending otherwise would
+        spend another call to say so.
+        """
+        scripted_author(REPORT_MD)
+
+        def unavailable(*_a, **_kw):
+            raise provider.ProviderNotConfigured("no model configured")
+
+        monkeypatch.setattr(provider, "author", unavailable)
+        monkeypatch.setattr("backend.playbook.service.provider.author",
+                            unavailable)
+        with pytest.raises(provider.ProviderNotConfigured):
             service.send_message(db, scope, workspace.id, text="Write it.",
                                  calculations=ledger_calcs)
-        assert repo.messages(db, workspace.id)[1].origin == "system"
+
+        messages = repo.messages(db, workspace.id)
+        assert messages[0].content["text"] == "Write it.", "the question stays"
+        assert messages[1].content["failed"] is True
+        assert messages[1].origin == "system", (
+            "a runtime failure is not attributed to the assistant")
 
     def test_cancelling_saves_nothing_and_says_so(
             self, db, scope, workspace, scripted_author, ledger_calcs):

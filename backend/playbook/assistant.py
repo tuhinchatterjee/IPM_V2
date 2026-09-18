@@ -252,6 +252,16 @@ def converse(
                 run = ToolRun(name=name, request=dict(args), ok=True,
                               result=produced or {})
                 results.append(_result_block(use, produced or {}, ok=True))
+            except (provider.Cancelled, provider.AuthoringTimeout,
+                    provider.ProviderNotConfigured):
+                # A failure of the RUNTIME, not of this tool. Reporting it to
+                # the model as a tool result would spend another provider call
+                # to explain a deadline already exceeded, a stop the user
+                # asked for, or a credential that does not exist. The broad
+                # `except` below would otherwise contain all three, which is
+                # how a hard timeout quietly became a chat message saying the
+                # document could not be made.
+                raise
             except ToolFailed as exc:
                 run = ToolRun(name=name, request=dict(args), ok=False,
                               detail=str(exc))

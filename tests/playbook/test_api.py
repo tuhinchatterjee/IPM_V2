@@ -549,14 +549,25 @@ class TestReadingAVersionWithoutDownloadingIt:
 class TestTheTaskFramingOverHTTP:
     """PB-017. The route accepts a task and its scope."""
 
-    def test_a_task_and_scope_are_accepted(self, client, workspace_id):
+    def test_a_task_and_scope_are_accepted(self, client, workspace_id,
+                                           monkeypatch):
+        # Unconfigured on purpose. The suite now gives every Playbook test a
+        # configured model, because the conversational runtime checks for one
+        # before it does anything; a test about the UNCONFIGURED state has to
+        # ask for it rather than rely on the environment happening to lack it.
+        from backend.llm import roles as role_config
+
+        monkeypatch.setattr(
+            "backend.playbook.assistant.role_config.role",
+            lambda _n: role_config.Role(name=role_config.AUTHOR, model="",
+                                        effort="standard"))
         response = client.post(
             f"/api/v1/playbook/workspaces/{workspace_id}/messages",
             json={"text": "Say 'increased' rather than 'deteriorated'.",
                   "task": "edit", "scope": "1. Executive summary",
                   "idempotency_key": f"ws{workspace_id}:framed"})
-        # With no provider configured this is a 503, not a 422: the request was
-        # understood and the deployment cannot serve it.
+        # The request was understood and the deployment cannot serve it: a
+        # 503, not a 422 and not a crash.
         assert response.status_code == 503, response.text
         assert response.json()["detail"]["error"] == "provider_not_configured"
 
