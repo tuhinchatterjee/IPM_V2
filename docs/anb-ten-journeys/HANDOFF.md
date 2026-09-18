@@ -194,9 +194,26 @@ open launchers/anb2/start-anb2.command
 | `.env.anb2.example` | the environment to copy and edit; `.env.anb2` itself is git-ignored |
 | `docs/anb-ten-journeys/RUNBOOK.md` | how to give the demonstration |
 
-**Verified in this container:** stopped → start → stop → start. Both starts
-reached HTTP 200 on the frontend and on the health endpoint. The stop reported
-both ports free and named the three protected pairs it had not touched.
+**Verified in this container:** stopped → start → stop → start → stop → start.
+Every start reached HTTP 200 on the frontend and on the health endpoint; every
+stop reported both ports free and named the three protected pairs it had not
+touched. On the final start, under the launcher's own defaults, an
+unauthenticated read of `/api/v1/risk-cases` answers 401.
+
+### The state the database is handed over in
+
+| | |
+|---|---|
+| Risk cases | 16 — entities `Auto Finance`, `Credit Card`, `Home Finance`, `Personal Finance` |
+| Statuses | 15 NEW; 1 UNDER_INVESTIGATION (the Alpha card, attached to a seeded workspace investigation) |
+| Cohort snapshots | 0 |
+| Saved investigations | 0 |
+
+The verification runs leave tracks — nine cards moved to UNDER_INVESTIGATION
+with a thread attached, and a snapshot and a saved investigation per journey.
+A presenter should open the Cockpit on cards nobody has touched and create
+those objects themselves, so the harness's tracks were removed and the review
+replayed before the freeze.
 
 ---
 

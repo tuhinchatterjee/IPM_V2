@@ -816,9 +816,32 @@ there.
 Before binding anything it verifies: the virtual environment, the dataset
 manifest, the readiness check, the migrations, and a complete published bundle.
 
-**Verified in this container: stopped → start → stop → start.** Both starts
-reached HTTP 200 on the frontend and the health endpoint; the stop reported
-both ports free and named the three protected pairs it had not touched.
+**Verified in this container: stopped → start → stop → start → stop → start.**
+Every start reached HTTP 200 on the frontend and on the health endpoint;
+every stop reported both ports free and named the three protected pairs it
+had not touched. On the final start, under the launcher's own defaults, an
+unauthenticated read of `/api/v1/risk-cases` answers 401 — sign-in is on, as
+it should be for a demonstration.
+
+The browser harness is the exception and says so: it authenticates with the
+product's documented role headers, which need `REQUIRE_LOGIN=false` on the
+deployment it drives. The verification runs were done that way and the build
+was then cycled back to the launcher's defaults.
+
+### The database handed over
+
+The verification runs leave tracks — nine cards moved to UNDER_INVESTIGATION
+with a thread attached, and a cohort snapshot and a saved investigation for
+every journey. A presenter should open the Cockpit on cards nobody has
+touched and make those objects themselves, so the harness's tracks were
+removed and the review replayed. The delivered database holds:
+
+* **16 risk cases**, entities `Auto Finance`, `Credit Card`, `Home Finance`
+  and `Personal Finance`; fifteen NEW and one UNDER_INVESTIGATION, that one
+  being the Alpha card attached to a seeded workspace investigation rather
+  than anything this run made;
+* **0 cohort snapshots and 0 saved investigations** — the reader creates the
+  first of each.
 
 Because this is a remote container and not the user's Mac, the launcher is
 delivered as a **setup artifact** for the user to run there. Nothing in this
