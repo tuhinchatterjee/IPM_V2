@@ -162,3 +162,24 @@ The other half of the same line, and the half that changed: a table count that
 differs no longer destroys a good Word file. The draft is written, the file has
 real bytes, `Validation.ok` is False and `Validation.sound` is True, and the
 finding is surfaced in the outcome's notes rather than discarded.
+
+---
+
+### The same decoupling, in the harnesses
+
+Found later, when the soak harness and the live check were run against the
+current code rather than assumed to still fit it. Both were asserting the
+pipeline that chapter 16 retired.
+
+| Check | Was | Is now | Why |
+|---|---|---|---|
+| `scripts/playbook_soak.py::journey_a` | `outcome.grounding_final.ok` — the saved report is grounded | Two statements, both stronger: no figure was deleted from the delivered report, and each unsupported figure is recorded as a review item against a version sitting at `draft` | Ch. 16. The old check passed because `check(remove=True)` had DELETED the three figures the workbook alone does not support — so it was reading a hollowed document and calling it grounded. Restoring `remove=True` now fails it. |
+| `scripts/playbook_soak.py::journey_a` | `outcome.adoption["sections"] == 3` | `cycle.projection["sections"] == 3`, after `Cycle.generate` projects each turn as production does | Ch. 13. Adoption no longer shares the version's transaction, so `outcome.adoption` is empty by design and a harness that reads it is asserting the old coupling. |
+| `backend/validation/live_playbook.py::no_template_report` | `passed` required `grounding_final.ok` — a review finding withdrew the whole report | `passed` turns on sections, files, invented tests and the retention of 22.77. Findings are reported in full and prominently, and do not fail the check | Ch. 16 again. A live gate that withdrew the report over one unsourced figure would contradict the architecture it exists to verify. What still fails it: a report that cannot be read as a report, or the loss of a figure the evidence DOES support. |
+
+**Removed, because it had stopped meaning anything** —
+`AuthoringOutcome.grounding_final`, and the `attempted` / `saved` pair in the
+stored `validation.grounding` record. They date from a two-stage pipeline
+where the second was a re-check of a document that removal had edited.
+Nothing is removed now, so both names held the same object and the audit row
+implied a verification step that had not happened.
