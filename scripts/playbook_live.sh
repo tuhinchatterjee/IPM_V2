@@ -134,10 +134,18 @@ start_backend() {
   # Playbook on the other service's port — the one collision this script
   # exists to prevent. Baking the number into the command string closes that:
   # nothing .env contains can change it.
+  # `set -m` gives this background job its own process group, so `stop` can
+  # take down the whole tree. Without it `stop` kills the pid it recorded and
+  # any grandchild survives — which is exactly what happened with the web
+  # server: `next start` spawns `next-server`, the parent died, the child was
+  # re-parented to init and kept port 3000, and the next `start` would have
+  # found the port held by a stale build.
+  set -m
   bash -c "cd '$ROOT' && set -a && . ./.env && set +a && \
     exec .venv/bin/python -m uvicorn backend.api.main:app \
       --host 127.0.0.1 --port $API_PORT" >>"$LOGS/backend.log" 2>&1 &
   echo $! > "$RUN/backend.pid"
+  set +m
 
   for _ in $(seq 1 40); do
     curl -fsS -m 2 "http://127.0.0.1:$API_PORT/api/v1/playbook/capabilities" \
@@ -180,9 +188,11 @@ start_frontend() {
   fi
 
   info "starting the web server on $WEB_PORT"
+  set -m
   bash -c "cd '$ROOT/frontend' && exec npx next start --port $WEB_PORT" \
     >>"$LOGS/frontend.log" 2>&1 &
   echo $! > "$RUN/frontend.pid"
+  set +m
 
   for _ in $(seq 1 40); do
     curl -fsS -m 2 "http://127.0.0.1:$WEB_PORT/playbook" >/dev/null 2>&1 \
@@ -200,9 +210,15 @@ stop_one() {
   if ! kill -0 "$pid" 2>/dev/null; then
     rm -f "$RUN/$name.pid"; info "$name had already stopped"; return 0
   fi
-  kill "$pid" 2>/dev/null
+  # The group first, then the pid, because a service may have children that
+  # outlive it. A negative argument to kill means "this process group", and
+  # the group exists because `start` launched the job under `set -m`. The
+  # plain pid stays as the fallback for a pid file written before that.
+  kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
   for _ in $(seq 1 15); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
-  kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+  fi
   rm -f "$RUN/$name.pid"
   ok "stopped $name (pid $pid)"
 }
@@ -228,6 +244,16 @@ cmd_stop() {
   say "Playbook — stopping only what this script started"
   stop_one frontend
   stop_one backend
+
+  # Checked, not assumed. "stopped" that leaves the port held is the failure
+  # this check exists to catch, and it caught a real one.
+  sleep 1
+  for pair in "backend $API_PORT" "frontend $WEB_PORT"; do
+    set -- $pair
+    port_busy "$2" && warn "$2 is still held by $(port_owner "$2") — $1 left \
+something behind, or another process took the port"
+  done
+
   info "the PostgreSQL cluster is left running; stop it with"
   info "scripts/playbook_dev_env.sh stop"
 }
