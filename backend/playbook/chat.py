@@ -105,10 +105,15 @@ def _capability_note() -> str:
         lines.append(
             "Documents are rendered by CreditProbe's own renderer, not in a "
             "sandbox. Do not offer to run code.")
+    # Read from the registry rather than restated here, so the sentence the
+    # assistant is given and the row `GET /playbook/capabilities` publishes
+    # cannot drift apart. Two places saying what the product cannot do is one
+    # place too many.
     lines.append(
-        "You have no web search, no email, no connectors and no ability to "
-        "share anything outside this workspace. Say so if asked, rather than "
-        "implying that a search or a send happened.")
+        "You cannot do the following, and must say so plainly if asked "
+        "rather than implying it happened: "
+        + " ".join(capabilities.NOT_SUPPORTED[name]
+                   for name in sorted(capabilities.NOT_SUPPORTED)))
     return " ".join(lines)
 
 

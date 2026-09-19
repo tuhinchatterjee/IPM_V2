@@ -37,7 +37,7 @@ are historical evidence, not a certificate for this one.
 | DC-10 | PASS — deterministic | `test_reparse.py` — original bytes reused, old parse revision kept, no re-upload |
 | DC-11 | PASS — deterministic | `test_security.py` / `test_adversarial.py` — document text cannot authorise extraction or cross-tenant access |
 | DC-12 | PASS — deterministic | `test_messages.py`, `test_streaming.py` — regenerate is a new attempt; history is not rewritten |
-| DC-13 | **NOT IMPLEMENTED** | No research tool exists. `chat._capability_note()` tells the assistant so, and the capability audit reports it absent rather than faking it |
+| DC-13 | PASS — deterministic (the applicable half); **NOT IMPLEMENTED** (the other) | The criterion has two halves. *Disabled research is not simulated* — proven: `capabilities.NOT_SUPPORTED` declares research absent, `GET /playbook/capabilities` publishes it as `not_supported`, `chat._capability_note()` tells the assistant the same sentence from the same registry, and `test_document_path.py::TestWhatThisDeploymentCannotDo` pins all three together. *Enabled research is sourced and distinguished from files* — **not implemented**: there is no research tool to enable. The earlier claim here that the audit already reported it was wrong; it did not, until this was built |
 | DC-14 | PASS — deterministic | `test_document_path.py::test_the_audit_uses_chapter_02s_three_states`; `GET /playbook/capabilities` reports implemented / available-but-disabled |
 
 ## Files and progress (DC-15 – DC-28)
@@ -50,7 +50,7 @@ are historical evidence, not a certificate for this one.
 | DC-18 | PASS — deterministic | `test_render_and_validate.py`, `verify_playbook_artifacts.py` — real cells and formulas |
 | DC-19 | PASS — deterministic; PASS — browser scripted | `test_merge.py`, `test_service.py::TestAScopedEditIsScopedByConstruction`; browser journey **D** (v2 written, v1 retained) |
 | DC-20 | PASS — deterministic | `test_change_sets.py` — only selected stable ids applied, dependencies disclosed |
-| DC-21 | PASS — deterministic; PASS — browser scripted | `test_direct_chat_journeys.py` download checks; browser journey **C** (bytes begin `PK` / `%P`) |
+| DC-21 | PASS — deterministic; PASS — browser scripted | `test_direct_chat_journeys.py` download checks; browser journey **C** (bytes begin `PK` / `%P`) and **F** (a conversion reuses the stored version — *nothing was rewritten* — instead of re-rendering) |
 | DC-22 | PASS — deterministic; PASS — browser scripted | `test_direct_chat_journeys.py::TestOneFormatFailingKeepsTheOther`; browser journey **G** (Word delivered and downloadable, PDF named as failed, retry offered) |
 | DC-23 | PASS — deterministic; PASS — browser scripted | `test_progress.py::TestCountingWhatWasWritten`; browser journey **C** (`6 / 7` content, numerator and denominator in the payload) |
 | DC-24 | PASS — deterministic; PASS — browser scripted | `test_progress.py::TestNothingToCount`; browser journey **A** (*Not applicable*, never 0% or 100%) |
@@ -68,7 +68,7 @@ are historical evidence, not a certificate for this one.
 | DC-31 | PASS — deterministic; PASS — browser scripted | `test_streaming.py` replay; browser journey **K** (partial text marked incomplete, earlier report untouched) |
 | DC-32 | PASS — deterministic | `test_api.py` idempotency; migration `0040` scopes keys per workspace |
 | DC-33 | PASS — deterministic | `test_api.py` authorization matrix, `test_security.py` — foreign tenant, guessed id, direct download |
-| DC-34 | PASS — deterministic | `test_security.py::TestFailureLeavesTheLastGoodVersionAlone` — an unopenable file is never delivered and completed chat survives |
+| DC-34 | PASS — deterministic; PASS — browser scripted | `test_security.py::TestFailureLeavesTheLastGoodVersionAlone` — an unopenable file is never delivered and completed chat survives; browser journey **H** (the document tool fails outright, the assistant says plainly that nothing was saved, no artifact is written, the failure is recorded on the message, and the next question is answered normally) |
 | DC-35 | PASS — deterministic | `test_title_is_not_a_section.py`, `test_structural_numerals.py`; `Validation.integrity` separates a wrapped heading from a corrupt file |
 | DC-36 | PASS — deterministic | `test_structural_numerals.py`, `test_render_and_validate.py`; `test_security.py::test_a_content_finding_leaves_the_draft_downloadable` |
 | DC-37 | PASS — deterministic | `test_grounding_gate.py::TestTheLedgerAndTheDocumentUseOneRule` — an identifier or date in the evidence cannot excuse a claim |
@@ -85,11 +85,26 @@ are historical evidence, not a certificate for this one.
 | | |
 |---|---|
 | PASS — deterministic | **39** |
-| PASS — browser scripted | **13** (all of which are also deterministic) |
+| PASS — browser scripted | **16** |
 | PASS — live verified | **0** |
 | BLOCKED | **2** — DC-41, DC-42 |
-| NOT IMPLEMENTED | **1** — DC-13 |
+| NOT IMPLEMENTED | **1 half of one row** — DC-13's *enabled research* clause |
 
-39 + 2 + 1 = 42. No row is counted twice in the totals: the browser column is
-a second, stronger proof of rows already counted as deterministic, not an
-additional row.
+How that adds to 42, without a row being counted twice:
+
+* 39 rows are proven deterministically. One of them, DC-13, is proven only
+  for the half of its criterion that applies to this deployment; the other
+  half has nothing to prove because the capability does not exist.
+* DC-17 is proven in the browser and only in the browser, which makes 40.
+* DC-41 and DC-42 are blocked, which makes 42.
+
+The 16 browser rows are **not** an addition. Fifteen of them are rows already
+counted as deterministic, proven a second and stronger way through the real
+`/playbook` UI; the sixteenth is DC-17, which the count above adds once.
+
+All eleven journeys A–K carry evidence, and every one is cited by at least one
+row: A (DC-01, DC-24), B (DC-04), C (DC-15, DC-21, DC-23, DC-25, DC-28),
+D (DC-02, DC-19), E (DC-17), F (DC-21), G (DC-22), H (DC-34), I (DC-27),
+J (DC-02), K (DC-31).
+
+**Live is still nought**, and no arithmetic here changes that.

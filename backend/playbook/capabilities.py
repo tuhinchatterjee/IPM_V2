@@ -107,8 +107,42 @@ def describe() -> dict:
                 "description": c.description,
             }
             for c in REGISTRY.values()
-        ]
+        ],
+        "unsupported": unsupported(),
     }
+
+
+#: Things a reader might reasonably expect a chat assistant to do, which this
+#: deployment does not do at all. Chapter 02's third state, and the reason it
+#: is written down: an audit that lists only what exists cannot distinguish
+#: "we looked and there is no web search" from "nobody asked". DC-13 turns on
+#: exactly that distinction — disabled research must not be simulated — and
+#: `chat._capability_note()` tells the assistant the same thing, so a question
+#: about a search gets a plain no rather than a description of one.
+#:
+#: A capability moves off this list by being built, not by being promised.
+NOT_SUPPORTED: dict[str, str] = {
+    "research": "There is no web search or browsing. Nothing in a Playbook "
+                "answer comes from outside the workspace's own files, "
+                "exported analyses and conversation.",
+    "email": "Playbook cannot send mail.",
+    "connectors": "There are no third-party connectors.",
+    "sharing": "Playbook cannot share anything outside the workspace. Files "
+               "are downloaded by a person who is already permitted to see "
+               "them.",
+}
+
+#: Deliberately NOT on that list: code execution. It is a real capability with
+#: two runtime states, and `documents.report()` already publishes which one
+#: this deployment is in. Naming it here as well would put the same question
+#: in two places that can disagree — the failure this registry exists to
+#: prevent.
+
+
+def unsupported() -> dict:
+    """The capabilities this deployment does not have, said out loud."""
+    return {name: {"state": "not_supported", "detail": detail}
+            for name, detail in sorted(NOT_SUPPORTED.items())}
 
 
 def supported() -> tuple[str, ...]:

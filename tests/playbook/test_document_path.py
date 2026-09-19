@@ -99,3 +99,49 @@ class TestAnUnavailableToolNeverBreaksTheConversation:
         [file] = repo.files(db, outcome.version_id)
         assert file.renderer == documents.LOCAL, (
             "the answer travels with the artifact, not only with the run")
+
+
+class TestWhatThisDeploymentCannotDo:
+    """Chapter 02's third state, and DC-13. A capability that does not exist
+    must be reported as absent — not omitted, and above all not simulated."""
+
+    def test_research_is_declared_absent_rather_than_left_unmentioned(self):
+        from backend.playbook import capabilities
+
+        report = capabilities.describe()["unsupported"]
+        assert report["research"]["state"] == "not_supported"
+        assert "no web search" in report["research"]["detail"].lower()
+
+    def test_the_assistant_is_told_the_same_thing_the_audit_publishes(self):
+        """One registry, two readers, so they cannot drift apart.
+
+        Before this, the runtime instruction listed what was missing in a
+        sentence of its own and the capability endpoint said nothing at all.
+        The matrix claimed the audit reported research as absent; it did not.
+        """
+        from backend.playbook import capabilities, chat
+
+        note = chat._capability_note()
+        for name, detail in capabilities.NOT_SUPPORTED.items():
+            assert detail in note, f"{name} is published but not told"
+
+    def test_code_execution_is_not_in_two_places_at_once(self):
+        """It has two runtime states, and `documents.report()` owns them.
+
+        Listing it as flatly unsupported as well would make the audit
+        contradict itself the moment the Skill path is enabled.
+        """
+        from backend.playbook import capabilities
+
+        assert "code_execution" not in capabilities.NOT_SUPPORTED
+        assert set(documents.report()["paths"]) == {documents.SKILL,
+                                                    documents.LOCAL}
+
+    def test_a_capability_leaves_the_list_by_being_built(self, monkeypatch):
+        """The inverse, so the test is not merely describing today's dict."""
+        from backend.playbook import capabilities, chat
+
+        monkeypatch.setitem(capabilities.NOT_SUPPORTED, "telepathy",
+                            "Playbook cannot read minds.")
+        assert "telepathy" in capabilities.describe()["unsupported"]
+        assert "cannot read minds" in chat._capability_note()
