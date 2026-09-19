@@ -1023,6 +1023,37 @@ class ConfirmManyIn(BaseModel):
     confidence: str = Field(default="", max_length=16)
 
 
+@router.get("/workspaces/{workspace_id}/progress")
+def workspace_progress(workspace_id: int,
+                       principal: Principal = RequireAnalyst) -> dict:
+    """What was asked for, what exists, what remains. Chapter 12.
+
+    Deliberately separate from `/intelligence`: this is the compact panel
+    every Playbook has from the moment it is created, counted from rows, and
+    it must answer for a workspace that has no document, no metrics and no
+    committee. The richer Document Intelligence dashboard stays behind Know
+    the Status for the documents that want it.
+
+    A failure here is reported as a failure of the panel, never of the
+    conversation — chapter 13 — so the route answers 200 with
+    `available: false` rather than taking a thread down with it.
+    """
+    from backend.playbook import progress as progress_module
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return progress_module.of(session, workspace_id).as_dict()
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except Exception as exc:  # noqa: BLE001 — the panel fails, not the chat
+        logger.exception("Playbook progress failed for %s", workspace_id)
+        return {"available": False,
+                "reason": "Status is updating and could not be read just now.",
+                "error": type(exc).__name__}
+
+
 @router.get("/workspaces/{workspace_id}/intelligence")
 def document_intelligence(workspace_id: int,
                           principal: Principal = RequireAnalyst) -> dict:
