@@ -60,11 +60,21 @@ DEFAULT_RELEASES: dict[str, str] = {
     # Monthly, because retail risk is behavioural and behaviour is a monthly
     # signal.
     #
-    # `-v4` for the same reason: sub-product, employment type, origination
-    # channel and a collections-grain arrears band are new columns, Buy Now
-    # Pay Later is a product with no rows before 2026-03, and the population
-    # is more than twice the size.
-    RETAIL: "v4-saudi-retail-20m-v4",
+    # `-v4` gained sub-product, employment type, origination channel and a
+    # collections-grain arrears band as new columns, Buy Now Pay Later as a
+    # product with no rows before 2026-03, and more than twice the
+    # population.
+    #
+    # `-v5` is not about the data. `-v4` holds all of that and holds it
+    # DIFFERENTLY depending on the interpreter that built it: the
+    # customer-level mean ran through the builtin `sum`, whose float
+    # behaviour CPython changed in 3.12, and its inputs were already
+    # rounded to two places, so the mean sat on a rounding tie and fell
+    # either way. Two machines at the same commit published two books under
+    # one id. `-v5` is that book with the aggregation made exact, so every
+    # interpreter produces it. The id is new because the old one cannot be
+    # told apart from itself.
+    RETAIL: "v4-saudi-retail-20m-v5",
 }
 
 #: Which book a question belongs to when nothing has said. Corporate, because

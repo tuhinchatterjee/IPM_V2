@@ -205,6 +205,7 @@ def report(release_id: str, *, values: bool) -> dict[str, object]:
         "reporting_frequency": manifest.get("reporting_frequency", ""),
         "reporting_currency": manifest.get("reporting_currency", ""),
         "amount_scale": manifest.get("amount_scale", ""),
+        "built_with": dict(manifest.get("built_with") or {}),
     }
     if values:
         body["categoricals"] = categorical_values(release_id)
@@ -231,6 +232,13 @@ def _print(body: dict[str, object]) -> None:
           f"{body['periods']}  ({body['reporting_frequency']})")
     print(f"    amounts            {body['reporting_currency']} "
           f"{body['amount_scale']}")
+    built = dict(body.get("built_with") or {})
+    if built:
+        # Recorded so that a disagreement between two machines is a lookup
+        # rather than a day's forensics. It is NOT a licence to treat two
+        # releases as interchangeable because their versions look close.
+        print("    built with         " + "  ".join(
+            f"{k}={v}" for k, v in sorted(built.items())))
     categoricals = body.get("categoricals")
     if categoricals:
         print("    categorical columns, as the Data Builder serves them:")

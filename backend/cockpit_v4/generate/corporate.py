@@ -43,6 +43,7 @@ from typing import Any
 from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import lake
 from backend.cockpit_v4.generate import quarter_range, quarters_between
+from backend.cockpit_v4.generate.totals import exact_total, whole_total
 
 SEED = 20260803
 
@@ -478,7 +479,10 @@ COHORT_WEIGHTS: tuple[int, ...] = (60, 15, 13, 6, 4, 2)
 
 def cohort_of(name: str) -> str:
     """Which story this name is in. A pure function of the name."""
-    draw = _stable(f"cohort|{name}", sum(COHORT_WEIGHTS))
+    # AN INTEGER MODULUS, and it has to stay one. `_stable` takes the
+    # remainder against this, so a float here would reassign every name in
+    # the book to a different story and fail nothing on the way out.
+    draw = _stable(f"cohort|{name}", whole_total(COHORT_WEIGHTS))
     running = 0
     for cohort, weight in zip(COHORTS, COHORT_WEIGHTS):
         running += weight
@@ -524,9 +528,9 @@ def cohort_drift(cohort: str, ramp: float) -> float:
 
 
 def _cohort_mean(ramp: float) -> float:
-    total = sum(COHORT_WEIGHTS)
-    return sum(cohort_shape(c, ramp) * w
-               for c, w in zip(COHORTS, COHORT_WEIGHTS)) / total
+    total = whole_total(COHORT_WEIGHTS)
+    return exact_total(cohort_shape(c, ramp) * w
+                       for c, w in zip(COHORTS, COHORT_WEIGHTS)) / total
 
 
 # ---- helpers -----------------------------------------------------------
@@ -621,7 +625,9 @@ def _product_for(sector: str, key: str) -> str:
         max(1, int(round(base * PRODUCT_SECTOR_BIAS.get(product, {})
                          .get(sector, 1.0))))
         for product, base in zip(PRODUCT_TYPES, PRODUCT_WEIGHTS) if base > 0)
-    return _pick(options, weights, _stable(key, sum(weights)))
+    # Integer weights, and an integer modulus for the same reason as
+    # `cohort_of` above: a float here would repick every facility's product.
+    return _pick(options, weights, _stable(key, whole_total(weights)))
 
 
 def _migration(moved: int) -> str:
@@ -1132,7 +1138,8 @@ def build(release_id: str = "",
         "corp_collateral_quarter": pd.DataFrame(collateral_rows),
         "corp_covenant_quarter": pd.DataFrame(covenant_rows),
     }
-    products = {p: sum(1 for f in facilities if f["product_type"] == p)
+    products = {p: whole_total(1 for f in facilities
+                               if f["product_type"] == p)
                 for p in PRODUCT_TYPES}
     return lake.Build(
         domain_id=dom.CORPORATE, release_id=release_id, periods=quarters,
@@ -1153,7 +1160,8 @@ def build(release_id: str = "",
                # The stories the book was written with. Here rather than in a
                # column, because a real book does not publish a field saying
                # which of its borrowers were authored to default.
-               "cohorts": {c: sum(1 for b in borrowers if b["cohort"] == c)
+               "cohorts": {c: whole_total(1 for b in borrowers
+                                          if b["cohort"] == c)
                            for c in COHORTS}})
 
 

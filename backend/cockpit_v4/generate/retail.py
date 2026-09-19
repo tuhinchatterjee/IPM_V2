@@ -31,6 +31,7 @@ from typing import Any
 from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import lake
 from backend.cockpit_v4.generate import month_range, months_between
+from backend.cockpit_v4.generate.totals import exact_mean, exact_total, whole_total
 
 SEED = 20260802
 
@@ -49,7 +50,15 @@ FROZEN_RELEASES: frozenset[str] = frozenset({
     # -20m-v3 is the book before sub-product, employment type, the fine
     # arrears bands and Buy Now Pay Later. Published, readable, and not
     # rebuildable from here.
-    "v4-saudi-retail-20m-v3"})
+    "v4-saudi-retail-20m-v3",
+    # -20m-v4 is the book this generator built back when the customer mean
+    # went through the builtin `sum`, whose float behaviour CPython changed
+    # in 3.12. The id therefore names one book on an interpreter before
+    # 3.12 and a different one after it, and an id that means two things is
+    # an id nothing can be pinned to. Frozen rather than corrected: the
+    # copies already published under it are real and still readable, and
+    # rebuilding it here could only produce one of its two meanings.
+    "v4-saudi-retail-20m-v4"})
 
 
 class FrozenRelease(ValueError):
@@ -795,7 +804,11 @@ def build(release_id: str = "",
 
         for customer_id, rows in per_customer.items():
             customer = by_id[customer_id]
-            score = sum(r["behaviour_score"] for r in rows) / len(rows)
+            # THE MEAN THAT COST A RELEASE. Its inputs are already rounded
+            # to two places, so it lands on a half-cent tie constantly and
+            # `round(score, 2)` below is decided by the last bit of the
+            # sum -- which the builtin changed in CPython 3.12.
+            score = exact_mean(r["behaviour_score"] for r in rows)
             prior = previous_score.get(customer_id, score)
             previous_score[customer_id] = score
             band, prior_band = _band(score), _band(prior)
@@ -815,9 +828,9 @@ def build(release_id: str = "",
                                     else "IMPROVED" if score > prior + 2
                                     else "STABLE"),
                 "total_ead_sar_mn": round(
-                    sum(r["ead_sar_mn"] for r in rows), 5),
+                    exact_total(r["ead_sar_mn"] for r in rows), 5),
                 "total_ecl_sar_mn": round(
-                    sum(r["ecl_sar_mn"] for r in rows), 6),
+                    exact_total(r["ecl_sar_mn"] for r in rows), 6),
                 "worst_stage": max(r["stage"] for r in rows),
                 "worst_dpd_days": max(r["dpd_days"] for r in rows),
             })
@@ -833,7 +846,8 @@ def build(release_id: str = "",
         frames=frames,
         counts={"customers": len(customers), "accounts": len(accounts),
                 "products": len(PRODUCTS),
-                "sub_products": sum(len(v) for v in SUB_PRODUCTS.values()),
+                "sub_products": whole_total(
+                    len(v) for v in SUB_PRODUCTS.values()),
                 "employment_types": len(EMPLOYMENT_TYPES),
                 "regions": len(REGIONS)},
         notes={"score_bands": list(BANDS),

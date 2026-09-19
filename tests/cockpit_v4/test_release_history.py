@@ -68,9 +68,17 @@ P = "/api/v1/cockpit-v4"
 HISTORICAL: dict[str, str] = {
     "v4-saudi-corporate-20q-v3": dom.CORPORATE,
     "v4-saudi-retail-20m-v3": dom.RETAIL,
+    # Superseded not because its shape changed but because its id was
+    # ambiguous: the generator's customer mean went through the builtin
+    # `sum`, so this id names one book before CPython 3.12 and another
+    # after. Whichever of the two a machine holds, it still has to open and
+    # still has to replay -- an analysis saved against it is no less real
+    # for the id having been retired.
+    "v4-saudi-retail-20m-v4": dom.RETAIL,
 }
 
-#: The columns the enrichment added to Retail. v4 has them; v3 must not.
+#: The columns the enrichment added to Retail. v4 and v5 have them; v3 must
+#: not.
 ADDED_TO_RETAIL = ("sub_product", "employment_type", "origination_channel",
                    "delinquency_bucket_fine")
 
@@ -384,44 +392,89 @@ def test_a_thread_on_the_current_release_still_accepts_a_question(
 
 # ---- nothing was rewritten ---------------------------------------------
 
-#: What each release fingerprinted and digested BEFORE this change. A fix
-#: for how a release is READ must not alter a byte of one.
-RECORDED: dict[str, tuple[str, str]] = {
-    "v4-saudi-corporate-20q-v3": ("46962675d801ed4e", "a95ae093fe4964b6"),
-    "v4-saudi-corporate-20q-v4": ("e37236d0f6d4e494", "40c05896f0ef2f17"),
-    "v4-saudi-retail-20m-v3": ("95fa5d3e2c6b979b", "166955d9705e6f2b"),
-    "v4-saudi-retail-20m-v4": ("e2f6794dd0d4b61f", "65524d5dd04d2d2e"),
+#: Content digests for the releases whose generator is EXACT, so these are
+#: facts about the data rather than about the machine that built it.
+#:
+#: Two earlier versions of this table were unsound and passed here for the
+#: wrong reason.
+#:
+#: It recorded a byte FINGERPRINT per release. That hashes the parquet, and
+#: parquet encodes compression, row-group layout and writer version, so the
+#: same data fingerprints differently on different machines -- this
+#: container has corporate v3 at 46962675 where a Mac building the same
+#: release has c74cef8f. Both are correct and neither is assertable. The
+#: sound check is `lake.verify`, which compares a release against the
+#: fingerprint IT recorded, and it is below.
+#:
+#: It also recorded content digests for the FROZEN releases (v1, v3, and
+#: the superseded retail v4). Those came out of the generator while its
+#: customer mean still went through the builtin `sum`, whose float
+#: behaviour CPython changed in 3.12 -- so what a machine holds under one
+#: of those ids depends on the interpreter that first seeded it there.
+#: `git log -S` puts that line in cd2f8fa, before v3 was cut. Asserting a
+#: digest for them states a machine's history as if it were the release's.
+RECORDED: dict[str, str] = {
+    "v4-saudi-corporate-20q-v4": "40c05896f0ef2f17",
+    "v4-saudi-retail-20m-v5": "54b77d6d0baf4a49",
 }
+
+#: Frozen, and readable, and NOT digest-assertable -- see above.
+FROZEN = ("v4-saudi-corporate-20m-v1", "v4-saudi-corporate-20m-v2",
+          "v4-saudi-corporate-20q-v3", "v4-saudi-retail-20m-v1",
+          "v4-saudi-retail-20m-v3", "v4-saudi-retail-20m-v4")
 
 
 @pytest.mark.parametrize("pinned", sorted(RECORDED))
-def test_the_bytes_and_the_content_did_not_move(pinned):
+def test_the_content_of_the_current_releases_is_what_was_published(pinned):
+    """The digest is a fact about the values, and these two generators are
+    exact arithmetic, so it is the same number on every interpreter. That is
+    what makes it assertable at all -- and it is pinned by
+    `test_generator_determinism.py`, which builds the book under every
+    interpreter on the machine and compares."""
     _published(pinned)
-    expected_fingerprint, expected_digest = RECORDED[pinned]
 
     assert lake.verify(pinned), "the bytes no longer match the manifest"
-    assert lake.fingerprint(pinned).startswith(expected_fingerprint)
 
-    # The portable digest, computed from the VALUES rather than from the
-    # parquet encoding. The fingerprint is machine-specific; this is not,
-    # and it is the one a second machine can compare against.
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]
                            / "scripts" / "cockpit_v4"))
     import release_report  # noqa: PLC0415
 
-    assert release_report.content_digest(pinned).startswith(
-        expected_digest)
+    assert release_report.content_digest(pinned).startswith(RECORDED[pinned])
+
+
+@pytest.mark.parametrize("pinned", sorted(FROZEN))
+def test_a_frozen_release_still_matches_the_fingerprint_it_recorded(pinned):
+    """The check that IS sound for a superseded release.
+
+    It asks whether these bytes are the bytes this copy was published with,
+    which is the question immutability is about, and it asks it against the
+    release's own recorded fingerprint rather than against a constant
+    written down by whichever machine happened to build it.
+    """
+    _published(pinned)
+    assert lake.verify(pinned), (
+        f"{pinned} is published and immutable; its bytes no longer match "
+        f"the fingerprint recorded in its own manifest")
 
 
 def test_the_seeder_still_names_only_the_current_releases():
-    """v3 cannot be rebuilt, with or without --overwrite, because the
-    seeder never names it and both generators refuse the id."""
+    """A superseded release cannot be rebuilt, with or without --overwrite,
+    because the seeder never names it and both generators refuse the id.
+
+    Retail v4 is on this list for a different reason from the rest. The
+    others are shapes this generator outgrew. v4 is an id that means two
+    books depending on the interpreter, and the generator could only ever
+    rebuild one of them -- so rebuilding it would not restore it, it would
+    pick a side and call the result the original.
+    """
     from backend.cockpit_v4.generate import corporate as corp_gen
     from backend.cockpit_v4.generate import retail as retail_gen
 
     assert "v4-saudi-corporate-20q-v3" in corp_gen.FROZEN_RELEASES
     assert "v4-saudi-retail-20m-v3" in retail_gen.FROZEN_RELEASES
+    assert "v4-saudi-retail-20m-v4" in retail_gen.FROZEN_RELEASES
     for gen, release_id in ((corp_gen, "v4-saudi-corporate-20q-v3"),
-                            (retail_gen, "v4-saudi-retail-20m-v3")):
+                            (retail_gen, "v4-saudi-retail-20m-v3"),
+                            (retail_gen, "v4-saudi-retail-20m-v4")):
         with pytest.raises(gen.FrozenRelease):
             gen.build(release_id)

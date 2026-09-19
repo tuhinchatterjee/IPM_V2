@@ -77,19 +77,50 @@ float is where platforms disagree; missing values hash as a separate mask, so
 a null and a zero cannot collide. Nothing about how the bytes were laid down
 can reach it, and a single changed value does.
 
+Two things it does **not** mean, both learned the hard way:
+
+* **It is not invariant to the release id.** `dataset_release_id` is a
+  stored column on every row, so republishing identical data under a new id
+  gives a different digest. That is correct — a row says which release it
+  belongs to — but it means comparing digests across two ids answers nothing
+  about whether the data matches.
+* **A matching digest needs the same generator behaviour, not just the same
+  commit.** `v4-saudi-retail-20m-v4` digested `65524d5dd04d2d2e` built on
+  Python 3.10/3.11 and `9d444d6969e5e860` on 3.12/3.13 — same commit, same
+  seed. Its customer-level mean went through the builtin `sum`, whose float
+  behaviour CPython changed in 3.12, over inputs already rounded to two
+  places, so the mean sat on a rounding tie and fell either way. Row counts,
+  entity counts and field counts were identical, so both manifests looked
+  right and only a digest of the values caught it.
+
+`-v5` is that book with the aggregation made exact (`generate/totals.py`),
+and it is the same book on every interpreter. `-v4` is frozen rather than
+corrected: an id that names two books cannot be rebuilt into one.
+
 ```
 python3 scripts/cockpit_v4/release_report.py \
   --release v4-saudi-corporate-20q-v4 \
-  --release v4-saudi-retail-20m-v4 \
+  --release v4-saudi-retail-20m-v5 \
   --release v4-saudi-corporate-20q-v3 \
   --release v4-saudi-retail-20m-v3 \
   --no-values
 ```
 
-Read only. Nothing it does writes to the lake.
+Read only. Nothing it does writes to the lake. Releases published from here
+on also record a `built_with` block — Python, pandas, numpy, pyarrow — so the
+next disagreement of that kind is a lookup rather than an investigation. It
+is there to diagnose, never to justify treating two releases as
+interchangeable because their versions look close.
 
 ## Where this is pinned
 
 `tests/cockpit_v4/test_release_history.py`, including a case parametrised
 over `lake.releases()` — so a release published tomorrow is covered without
 anybody remembering to add it.
+
+`tests/cockpit_v4/test_generator_determinism.py` pins the other half: no
+generator may add floats with the builtin `sum`, and the Retail book is
+rebuilt under every `python3.x` on the machine and compared. That second
+test is calibrated — at 300 customers the pre-fix code still diverges
+between 3.11 and 3.12 — so the reduced book it builds is small enough to be
+quick and large enough to catch what it is for.

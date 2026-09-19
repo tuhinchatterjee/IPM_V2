@@ -6,7 +6,7 @@ reaches it, and — for each one — the **wrong answer sitting next to the
 right one**, because a book where every question has one obvious answer
 tests nothing.
 
-Releases: `v4-saudi-retail-20m-v4` (2025-01 … 2026-08) and
+Releases: `v4-saudi-retail-20m-v5` (2025-01 … 2026-08) and
 `v4-saudi-corporate-20q-v4` (2021Q3 … 2026Q2). Both are synthetic. No real
 institution is described, and the credit policy in `credit_policy.json` is
 authored for this product rather than taken from anyone's rule book.

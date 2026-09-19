@@ -126,6 +126,35 @@ def fingerprint(release_id: str) -> str:
     return str(read_manifest(release_id).get("release_fingerprint") or "")
 
 
+def _built_with() -> dict[str, str]:
+    """What produced this release, recorded on it.
+
+    A release is supposed to be one book. `v4-saudi-retail-20m-v4` was two:
+    the generator's customer-level mean went through the builtin `sum`,
+    whose float behaviour CPython changed in 3.12, so a 3.11 machine and a
+    3.13 machine published different numbers under one id and both
+    manifests looked right -- same rows, same entities, same fields. It
+    took a day to find because nothing on the release said what had made
+    it.
+
+    So each release now says. The generators are exact arithmetic again and
+    this block should never be the answer to anything; it is here so that
+    the NEXT divergence of that kind is a lookup rather than an
+    investigation. Nothing reads it to make a decision -- substituting a
+    release because its versions look close enough is the failure this
+    whole area exists to prevent.
+    """
+    import sys
+
+    out = {"python": ".".join(str(n) for n in sys.version_info[:3])}
+    for name in ("pandas", "numpy", "pyarrow"):
+        try:  # noqa: SIM105 - an absent optional library is not an error here
+            out[name] = str(__import__(name).__version__)
+        except Exception:  # noqa: BLE001 - not installed, and it need not be
+            pass
+    return out
+
+
 @dataclass(frozen=True)
 class Build:
     """A domain release, in memory, on its way to being published."""
@@ -193,6 +222,7 @@ def publish(build: Build, *, overwrite: bool = False,
                        for name in sorted(build.frames)},
         "entity_counts": dict(build.counts),
         "notes": dict(build.notes),
+        "built_with": _built_with(),
     }
     # The digest covers the parquet bytes. The manifest then records it, so
     # reading the fingerprint back is a lookup rather than a re-hash of a
