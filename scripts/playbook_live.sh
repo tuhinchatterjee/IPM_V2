@@ -151,12 +151,33 @@ start_backend() {
 start_frontend() {
   claim_port frontend "$WEB_PORT" || return 1
   ours frontend && return 0
-  [ -d "$ROOT/frontend/.next" ] || {
-    fail "there is no build in frontend/.next — run: npm --prefix frontend run build"
-    say  "        The build bakes in which backend it talks to, so it has to be"
-    say  "        made with NEXT_PUBLIC_API_URL pointing at $API_PORT."
-    return 1
-  }
+
+  # The build decides which backend the browser calls: Next bakes
+  # NEXT_PUBLIC_* in at build time, so a build made against 8000 will talk to
+  # the main CreditProbe backend however this script starts it. The stamp
+  # records what the last build was pointed at, and a mismatch rebuilds rather
+  # than starting something that would quietly call the wrong service.
+  local want="http://127.0.0.1:$API_PORT/api/v1"
+  local stamp="$RUN/frontend-api-url"
+  local have=""
+  [ -f "$stamp" ] && have="$(cat "$stamp" 2>/dev/null)"
+
+  if [ ! -d "$ROOT/frontend/.next" ] || [ "$have" != "$want" ]; then
+    if [ -d "$ROOT/frontend/.next" ]; then
+      info "the existing build points at ${have:-an unrecorded backend}; rebuilding for $want"
+    else
+      info "no build yet; building the frontend for $want"
+    fi
+    ( cd "$ROOT/frontend" && NEXT_PUBLIC_API_URL="$want" npm run build ) \
+      >>"$LOGS/frontend-build.log" 2>&1 || {
+        fail "the frontend build failed. See $LOGS/frontend-build.log"
+        return 1
+      }
+    printf '%s' "$want" > "$stamp"
+    ok "built the frontend against $want"
+  else
+    ok "the existing build already points at $want"
+  fi
 
   info "starting the web server on $WEB_PORT"
   bash -c "cd '$ROOT/frontend' && exec npx next start --port $WEB_PORT" \
@@ -236,6 +257,7 @@ cmd_doctor() {
   printf '  commit        %s\n' "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)"
   printf '  python        %s\n' "$([ -x "$ROOT/.venv/bin/python" ] && "$ROOT/.venv/bin/python" -V 2>&1 || echo 'no .venv')"
   printf '  frontend      %s\n' "$([ -d "$ROOT/frontend/.next" ] && echo 'built' || echo 'NOT BUILT')"
+  printf '  build points  %s\n' "$(cat "$RUN/frontend-api-url" 2>/dev/null || echo 'not recorded — start will rebuild')"
   printf '  .env          %s\n' "$([ -f "$ROOT/.env" ] && echo 'present' || echo 'MISSING')"
   for key in DATABASE_URL ANTHROPIC_API_KEY AI_AUTHOR_MODEL NEXT_PUBLIC_API_URL; do
     if [ -f "$ROOT/.env" ] && grep -q "^${key}=." "$ROOT/.env" 2>/dev/null; then
