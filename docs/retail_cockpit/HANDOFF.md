@@ -114,6 +114,17 @@ Also: the catalogue the model sees names this book only; a corporate field id
 comes back without its definition; a run may not name its own release;
 another tenant's thread and artifact are unreadable.
 
+**The retail app's own default-deny covers the Cockpit.** With
+`REQUIRE_LOGIN=true`, every proxied route answers 401 without a session —
+`/cockpit-v4/domains`, `/session`, `/attention` and `POST /threads` — while
+`/api/v1/health` stays public. Measured, on a server started for the purpose.
+The proxy is inside the app's security boundary, not beside it.
+
+The retail suite's own allowlist sweep (`test_no_route_answers_that_is_not_on_the_allowlist`)
+skips parameterised paths, so it would not have caught a mistake here either
+way; this is why it was checked directly rather than assumed from a green
+suite.
+
 ## 7. Numerical oracles
 
 **28 of 28 agree.** Each computed with pandas from the *source book* by a
