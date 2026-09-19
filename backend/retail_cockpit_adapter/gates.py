@@ -195,7 +195,81 @@ def check_month(projected, month, *, tenant_id: str, release_id: str,
                                         f"values of this book"))
 
     findings.extend(_denomination(frames, month))
+    findings.extend(_score_migration(frames, month))
     findings.extend(_cross_relation(frames, month))
+    return findings
+
+
+def _score_migration(frames: dict[str, Any], month) -> list[Finding]:
+    """The customer score movement says what the engine's contract says.
+
+    `attention_v2.segment_score_decline` reads `score_migration` and
+    `compute()` has no per-family guard, so a column that is absent, or
+    carries a label the family does not compare against, takes the whole
+    Home feed down with a binder error rather than degrading.
+    """
+    import pandas as pd
+
+    findings: list[Finding] = []
+    customers = frames.get(sm.CUSTOMER)
+    if customers is None or customers.empty:
+        return findings
+
+    required = ("behaviour_score", "behaviour_score_previous",
+                "behaviour_score_change", "score_band",
+                "score_band_previous", "score_migration")
+    missing = [c for c in required if c not in customers.columns]
+    if missing:
+        findings.append(Finding(
+            "score migration", sm.CUSTOMER,
+            f"{missing} are not projected, and the attention feed reads "
+            f"them by name"))
+        return findings
+
+    stray = sorted(set(customers["score_migration"].dropna())
+                   - set(sm.MIGRATION_LABELS))
+    if stray:
+        findings.append(Finding(
+            "score migration", sm.CUSTOMER,
+            f"score_migration carries {stray[:3]}, which is not one of "
+            f"{list(sm.MIGRATION_LABELS)}"))
+
+    # The label IS the dead band, recomputed here from the published
+    # movement rather than trusted from the projection that wrote it.
+    change = pd.to_numeric(customers["behaviour_score_change"],
+                           errors="coerce")
+    band = sm.SCORE_MIGRATION_BAND
+    expected = pd.Series("STABLE", index=customers.index, dtype="object")
+    expected = expected.mask(change < -band, "DETERIORATED")
+    expected = expected.mask(change > band, "IMPROVED")
+    expected = expected.where(change.notna())
+    published = customers["score_migration"]
+    disagree = int((published.fillna("~") != expected.fillna("~")).sum())
+    if disagree:
+        findings.append(Finding(
+            "score migration", sm.CUSTOMER,
+            f"{disagree} customer(s) in {month.reporting_month} carry a "
+            f"migration label that is not the +/-{band:g} point dead band "
+            f"applied to their own published movement"))
+
+    # The movement is the two scores, and a null score is a null movement:
+    # "not scored" and "did not move" are different facts.
+    score = pd.to_numeric(customers["behaviour_score"], errors="coerce")
+    prior = pd.to_numeric(customers["behaviour_score_previous"],
+                          errors="coerce")
+    drift = (change - (score - prior)).abs()
+    if len(drift) and float(drift.max(skipna=True) or 0.0) > 1e-9:
+        findings.append(Finding(
+            "score migration", sm.CUSTOMER,
+            "behaviour_score_change is not behaviour_score less "
+            "behaviour_score_previous"))
+    unscored_but_labelled = int(((score.isna() | prior.isna())
+                                 & published.notna()).sum())
+    if unscored_but_labelled:
+        findings.append(Finding(
+            "score migration", sm.CUSTOMER,
+            f"{unscored_but_labelled} customer(s) with no score in one of "
+            f"the two months carry a migration label anyway"))
     return findings
 
 

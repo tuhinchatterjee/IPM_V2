@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 #: The release this correction produced. Named as a literal: a test that
 #: followed the configured release id would pass against the defective one.
-RELEASE = "cockpitdata-r1.2.0-c1.0.0-s20260910-p5"
+RELEASE = "cockpitdata-r1.2.0-c1.0.0-s20260910-p7"
 
 #: The reconciliation the Mac reported, to the precision a float sum is
 #: reproducible to across machines. The EXACT equality that matters is
@@ -295,14 +295,6 @@ def test_the_ecl_panel_still_reads_its_own_columns(monkeypatch, tmp_path):
         session.close()
 
 
-#: The one retail attention family this book cannot serve, and why. It reads
-#: `retail_customer_month.score_migration`; the source publishes a
-#: behavioural score at FACILITY grain and no customer-level migration, so
-#: the projection has no column to put there. Nothing to do with the
-#: denomination, and present in every revision including the first.
-UNSERVED_FAMILY = "segment_score_decline"
-
-
 def _referenced(expression: str) -> set[str]:
     import re
 
@@ -310,46 +302,173 @@ def _referenced(expression: str) -> set[str]:
             if name.islower() and "_" in name}
 
 
-def test_every_money_column_the_attention_feed_reads_is_published(
-        monkeypatch, tmp_path):
-    """The feed's money SQL is the point: it sums `*_sar_mn` by name."""
+def test_every_column_the_attention_feed_reads_is_published(monkeypatch,
+                                                            tmp_path):
+    """Every retail family, not all-but-one. The feed sums `*_sar_mn` by name.
+
+    `_check_families()` validates against the STATIC schema at import, never
+    against the release, which is why a column this book does not publish
+    reaches DuckDB instead of failing to start. This is the check that is
+    actually bound to the release.
+    """
     from backend.cockpit_v4 import attention_v2 as att
 
     catalog, session = _session(monkeypatch, tmp_path)
     try:
-        served = 0
         for family in att.FAMILIES["retail"]:
-            if family.key == UNSERVED_FAMILY:
-                continue
             columns = set(catalog.columns(family.relation))
             missing = (_referenced(family.expression)
-                       | _referenced(family.size_expression)) - columns
+                       | _referenced(family.size_expression)
+                       | {family.dimension}) - columns
             assert not missing, (family.key, sorted(missing))
             for sql in (family.expression, family.size_expression):
                 session.connection.execute(
                     f"SELECT {sql} FROM {family.relation}").fetchone()
-            served += 1
-        assert served == len(att.FAMILIES["retail"]) - 1
     finally:
         session.close()
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "retail_customer_month.score_migration is not published by this book, "
-    "so attention_v2.compute raises on the segment_score_decline family and "
-    "the whole Home feed is unavailable. Recorded, not worked around. When "
-    "the gap is closed this test XPASSes and must be promoted."))
 def test_the_whole_retail_attention_feed_computes(monkeypatch, tmp_path):
+    """The Home feed, end to end. Was an xfail; the gap is closed.
+
+    `attention_v2.compute()` has no per-family guard and `routes.py` catches
+    only `AttentionUnavailable`, so one unpublished column is not a degraded
+    card -- it is an unhandled 500 on the home page.
+    """
     from backend.cockpit_v4 import attention_v2 as att
+    from backend.cockpit_v4 import domain_resolver
 
-    catalog, session = _session(monkeypatch, tmp_path)
+    _, session = _session(monkeypatch, tmp_path)
     try:
-        from backend.cockpit_v4 import domain_resolver
-
         scope = domain_resolver.scope_for("retail", tenant_id="demo-tenant",
                                           release_id=RELEASE)
         feed = att.compute(session=session, scope=scope)
         assert feed["segments_requiring_attention"]
+        assert feed["amount_scale"] == "million"
+    finally:
+        session.close()
+
+
+# ---- the money rule reaches the model BEFORE it acts -------------------
+
+def test_the_denomination_rule_is_in_the_starting_packet(monkeypatch,
+                                                         tmp_path):
+    """Not after a catalogue call. Before the first action, or it is no use.
+
+    `context.build` carries a closed list of fields: a relation's
+    description is not in it and a field's definition is read and then
+    overwritten by the engine's own hard-coded measure text. Relation GRAIN
+    is the one piece of manifest prose that reaches the model on every turn,
+    and it lands twice -- in `catalog_index` and on every canonical measure.
+    """
+    import json
+
+    from backend.cockpit_v4 import config as cfg_mod
+    from backend.cockpit_v4 import context as ctx
+    from backend.cockpit_v4 import domain_resolver
+    from backend.cockpit_v4 import semantics as sem
+
+    manifest = _manifest()
+    catalog, session = _session(monkeypatch, tmp_path)
+    try:
+        scope = domain_resolver.scope_for("retail", tenant_id="demo-tenant",
+                                          release_id=RELEASE)
+        question = ("What is the outstanding balance on facility "
+                    "RF-000123 this month?")
+        packet = ctx.build(
+            question=question, principal={"user_id": "u1", "role": "analyst"},
+            scope=scope, catalog=catalog,
+            limits=cfg_mod.ANALYTICAL_STANDARD_LIMITS, mode="analysis",
+            release_summary=manifest, session=session, analytical=True)
+        text = (json.dumps(packet.system_blocks, default=str)
+                + packet.first_user_message)
+
+        # The rule itself, and the two column names it steers between.
+        assert "`*_sar` columns, which are riyals" in text
+        assert "SAR 0 million" in text
+        assert "never add the two together" in text.lower()
+
+        # And it is there on the path the analyst actually takes: readiness
+        # says go straight to execute_analysis, so a catalogue call is NOT
+        # what carries the rule.
+        state = sem.readiness(catalog, question)
+        assert state["sufficient"] is True
+        assert state["normal_first_action"] == "execute_analysis"
+    finally:
+        session.close()
+
+
+def test_the_rule_is_carried_by_grain_not_by_borrowed_metadata():
+    """It lives in the one field whose meaning it actually is.
+
+    `origin`, `not_client_data` and `geography_name` also reach the packet
+    and are none of them a statement about how to read a row, so the rule is
+    not in them. Grain says what one row IS; this is a fact about money on
+    one row.
+    """
+    from backend.retail_cockpit_adapter import publish as pub
+
+    manifest = _manifest()
+    for relation in manifest["relations"]:
+        if relation["relation"] in ("retail_account_month",
+                                    "retail_customer_month",
+                                    "retail_collateral_month"):
+            assert "riyals" in relation["grain"]
+    assert "riyals" not in str(manifest["origin"])
+    assert "riyals" not in str(manifest["not_client_data"])
+    assert "riyals" not in str(manifest["geography_name"])
+    assert pub.ORIGIN == "RETAIL_COCKPIT_DATA"
+
+
+# ---- the customer score, to the engine's own definition ----------------
+
+def test_the_customer_score_is_the_mean_of_the_facilities(monkeypatch,
+                                                          tmp_path):
+    _, session = _session(monkeypatch, tmp_path)
+    try:
+        rows = session.connection.execute(
+            "SELECT c.customer_id, c.behaviour_score, AVG(a.behaviour_score) "
+            "FROM retail_customer_month c "
+            "JOIN retail_account_month a "
+            "  ON a.customer_id = c.customer_id "
+            " AND a.reporting_month = c.reporting_month "
+            f"WHERE c.reporting_month = '{LATEST_MONTH}' "
+            "GROUP BY c.customer_id, c.behaviour_score "
+            "HAVING c.behaviour_score IS NOT NULL "
+            "LIMIT 500").fetchall()
+        assert rows
+        for _, declared, rolled in rows:
+            assert abs(float(declared) - float(rolled)) < 1e-9
+    finally:
+        session.close()
+
+
+def test_score_migration_is_the_engines_own_dead_band(monkeypatch, tmp_path):
+    from backend.retail_cockpit_adapter import semantic_map as sm_mod
+
+    _, session = _session(monkeypatch, tmp_path)
+    try:
+        labels = {r[0] for r in session.connection.execute(
+            "SELECT DISTINCT score_migration FROM retail_customer_month "
+            "WHERE score_migration IS NOT NULL").fetchall()}
+        assert labels <= set(sm_mod.MIGRATION_LABELS)
+        assert "DETERIORATED" in labels
+
+        band = sm_mod.SCORE_MIGRATION_BAND
+        wrong = session.connection.execute(
+            "SELECT COUNT(*) FROM retail_customer_month WHERE "
+            "behaviour_score_change IS NOT NULL AND score_migration <> "
+            f"(CASE WHEN behaviour_score_change < -{band} THEN "
+            f"'DETERIORATED' WHEN behaviour_score_change > {band} THEN "
+            "'IMPROVED' ELSE 'STABLE' END)").fetchone()[0]
+        assert wrong == 0
+
+        # Not scored is not the same fact as did not move.
+        mislabelled = session.connection.execute(
+            "SELECT COUNT(*) FROM retail_customer_month WHERE "
+            "(behaviour_score IS NULL OR behaviour_score_previous IS NULL) "
+            "AND score_migration IS NOT NULL").fetchone()[0]
+        assert mislabelled == 0
     finally:
         session.close()
 

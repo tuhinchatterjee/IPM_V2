@@ -286,6 +286,25 @@ def publish(snapshot: Snapshot, *, lake_root: Path, release_id: str = "",
         "reporting_frequency": "monthly",
         "reporting_periods": list(snapshot.periods),
         "latest_period": snapshot.latest_period,
+        # The pre-domain compatibility block.
+        #
+        # `cockpit_v4.service.load_release` -- the V4 PREFLIGHT, which decides
+        # `release_ready` and therefore `sql_analysis_ready` -- resolves its
+        # release through `cockpit_agentic.store`, the pre-domain V3 reader,
+        # even for a V4 domain deployment. That reader wants a `calendar`
+        # block under its own field names. Publishing one here is what lets
+        # this release satisfy the preflight, so the candidate needs no
+        # second, fake pre-domain release and no edit to the frozen engine.
+        #
+        # The values are this release's own periods and nothing else. The
+        # V4 path never reads this block -- `catalog.build` reads
+        # `reporting_periods` above -- and `populated_quarters` is the V3
+        # field's name, not a claim that these months are quarters.
+        "calendar": {
+            "reporting_slots": list(snapshot.periods),
+            "populated_quarters": list(snapshot.periods),
+            "data_cutoff_at": {},
+        },
         "relations": [
             {"relation": relation,
              "grain": sm.RELATION_SPEC[relation]["grain"],

@@ -80,6 +80,8 @@ var/retail/
 
 # The retail installation environment. Real values, never committed.
 .env.retail
+# The retail Cockpit candidate environment. Same rule.
+.env.retail-candidate
 
 # Candidate Cockpit integration: generated books, projected releases and runtime
 var/retail-candidate-book/

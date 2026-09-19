@@ -88,6 +88,30 @@ class Settings:
     analytics_dir: Path
     metadata_dir: Path
 
+    # ---- the ported Cockpit packages ----
+    #
+    # `backend/cockpit_agentic/` reads both of these and is carried byte
+    # identical from the AdvancedCockpit source, so the two fields live here
+    # rather than there. Without them every attribute read raises
+    # AttributeError -- `Settings` is frozen and has no `__getattr__` -- and
+    # that error escapes `cockpit_v4.service.load_release`, which catches
+    # only ReleaseNotFound, and `cockpit_v4.app.create_app`, which catches
+    # only PreflightFailed. The Cockpit process then fails to start, and it
+    # does so ONLY when the deployment is otherwise correctly configured,
+    # because a missing credential raises PreflightFailed earlier.
+    #
+    # `cockpit_agentic_v3` is the WRITE switch: `cockpit_agentic.store`
+    # refuses every build and seed path while it is false. This deployment
+    # publishes a V4 domain release and never a pre-domain one, so it stays
+    # false and the V3 lake is read-only by construction.
+    cockpit_agentic_v3: bool
+    #: The directory name the V3 store reads and writes under, beside the
+    #: analytics directory. Never the shared `cockpit_agentic_v3`: a stray
+    #: seed under that name is what left an untracked directory in the demo
+    #: worktree, and a namespace of this deployment's own cannot collide
+    #: with it.
+    cockpit_agentic_v3_namespace: str
+
     @property
     def is_prod(self) -> bool:
         return self.env.lower() == "prod"
@@ -147,6 +171,10 @@ def _load() -> Settings:
         curated_dir=_resolve_dir(_get("DATA_CURATED_DIR", "data/curated")),
         analytics_dir=_resolve_dir(_get("DATA_ANALYTICS_DIR", "data/analytics")),
         metadata_dir=_resolve_dir(_get("METADATA_DIR", "metadata")),
+        cockpit_agentic_v3=_get("COCKPIT_AGENTIC_V3", "false").strip().lower()
+        in ("1", "true", "yes", "on"),
+        cockpit_agentic_v3_namespace=_get("COCKPIT_AGENTIC_V3_NAMESPACE",
+                                          "cockpit_agentic_v3"),
     )
 
 

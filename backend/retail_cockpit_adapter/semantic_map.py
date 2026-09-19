@@ -178,6 +178,35 @@ def _fine_bucket(frame: Any) -> Any:
     return out
 
 
+#: The engine's own definition of a behavioural score migration, read from
+#: `backend/cockpit_v4/generate/retail.py:805-829` -- which is the contract
+#: `attention_v2.segment_score_decline` is written against.
+#:
+#: A dead band of +/-2 SCORE POINTS on the raw score, not a band comparison,
+#: and both comparisons are strict, so exactly +/-2 is STABLE.
+SCORE_MIGRATION_BAND = 2.0
+MIGRATION_LABELS = ("IMPROVED", "STABLE", "DETERIORATED")
+
+#: The engine compares this month's customer mean against LAST MONTH'S
+#: customer mean, carried across months. This projection compares it against
+#: the mean of the same facilities' `behavioural_score_previous_month`, which
+#: the book publishes for exactly this purpose ("held on the row so a movement
+#: can be read without joining to the previous month").
+#:
+#: The difference is deliberate and it is the better comparison here. The
+#: engine's carry-forward compares two DIFFERENT facility sets whenever a
+#: customer opens or closes a facility, so a customer who simply took out a
+#: new loan can register as a deterioration. Reading both scores off the same
+#: rows is like-for-like. It also keeps `publish.py` streaming one month at a
+#: time, which is what lets this book be projected in 2.5 minutes instead of
+#: held in memory whole.
+MIGRATION_BASIS = (
+    "Compared against the mean of the same facilities' "
+    "behavioural_score_previous_month, so both sides of the movement are the "
+    "same facilities. A customer who opened or closed a facility this month "
+    "therefore does not register a movement they did not have.")
+
+
 def _limit_sar(frame: Any) -> Any:
     """The sanctioned limit, or the original advance where there is no limit.
 
@@ -323,10 +352,13 @@ GAPS: tuple[tuple[str, str], ...] = (
      "published, so none is projected."),
     ("retail_account_month.ecl_lifetime_sar_mn",
      "As above: the lifetime allowance is not published as its own column."),
-    ("retail_customer_month.behaviour_score",
-     "The behavioural score is published at FACILITY grain and this book "
-     "records no customer-level score. Aggregating one would be authoring a "
-     "score, not reading one, so the customer relation carries none."),
+    ("retail_customer_month.behaviour_score_recorded",
+     "This book records no customer-level behavioural score of its own: the "
+     "score is published at FACILITY grain. The customer column IS derived, "
+     "because the engine's own generator defines that aggregate exactly -- "
+     "the unweighted mean of the customer's facility scores -- so computing "
+     "it is reading a published contract rather than authoring a score. The "
+     "derivation is stated on every column it produces."),
     ("retail_customer_month.accounts_held",
      "Projected as `facilities_held`: this book's entity is a facility, and "
      "calling it an account in a customer roll-up would name a thing the "
@@ -640,6 +672,53 @@ CUSTOMER_MAP: tuple[Mapping, ...] = (
        label="Debt burden ratio",
        lineage="retail_facility_month.debt_burden_ratio, one value per "
                "customer-month."),
+    # The behavioural score at customer grain, to the engine's own
+    # definition. `score_migration` is what `attention_v2`'s
+    # `segment_score_decline` family reads: without it the WHOLE Home feed
+    # raises a binder error, because `compute()` has no per-family guard.
+    _m(CUSTOMER, "behaviour_score", "behavioural_score", unit="index",
+       group="Behaviour score", label="Behavioural score",
+       definition="The customer's behavioural score this month: the "
+                  "unweighted mean of the behavioural scores of the "
+                  "facilities they hold. Facilities the book has not scored "
+                  "are left out of the mean rather than counted as zero.",
+       lineage="Mean of retail_facility_month.behavioural_score over the "
+               "customer's scored facilities in the month."),
+    _m(CUSTOMER, "behaviour_score_previous", "behavioural_score_previous_month",
+       unit="index", group="Behaviour score",
+       label="Prior behavioural score",
+       definition="The same mean, over the same facilities, taken on last "
+                  "month's score.",
+       lineage="Mean of "
+               "retail_facility_month.behavioural_score_previous_month over "
+               "the customer's scored facilities in the month. "
+               + MIGRATION_BASIS),
+    _m(CUSTOMER, "behaviour_score_change", unit="index",
+       group="Behaviour score", label="Behavioural score movement",
+       definition="This month's mean less last month's. Already a "
+                  "difference: do not difference it again.",
+       lineage="behaviour_score - behaviour_score_previous."),
+    _m(CUSTOMER, "score_band", group="Behaviour score",
+       label="Behavioural score band",
+       definition="The band the customer's mean score falls in, on this "
+                  "book's governed edges.",
+       lineage="backend.retail.scorecards.score_band_array(behaviour_score). "
+               "The same function that produced the published facility "
+               "band, which it reproduces exactly."),
+    _m(CUSTOMER, "score_band_previous", group="Behaviour score",
+       label="Prior behavioural score band",
+       definition="The band last month's mean fell in.",
+       lineage="backend.retail.scorecards.score_band_array("
+               "behaviour_score_previous)."),
+    _m(CUSTOMER, "score_migration", group="Behaviour score",
+       label="Behavioural score migration",
+       definition="IMPROVED, STABLE or DETERIORATED. A movement of more "
+                  "than two score points either way; anything smaller is "
+                  "stable. Null where the book has not scored any of the "
+                  "customer's facilities in one of the two months.",
+       lineage="DETERIORATED where behaviour_score_change < -2, IMPROVED "
+               "where it is > 2, STABLE otherwise -- the dead band the "
+               "engine's own retail generator uses. " + MIGRATION_BASIS),
     _m(CUSTOMER, "total_ead_sar_mn", "ead_base_sar", unit="rcy",
        group="Exposure", label="Exposure at default, all facilities",
        definition="This customer's base-scenario exposure at default, summed "
@@ -921,19 +1000,52 @@ MONEY_PAIRS: dict[str, tuple[tuple[str, str], ...]] = {
     for relation, mappings in MAPS.items()
 }
 
+#: The denomination rule, carried where the analyst will actually read it.
+#:
+#: The frozen engine builds its starting packet from a closed list of fields.
+#: A relation's DESCRIPTION is not in it; a field's DEFINITION is read and
+#: then overwritten by the engine's own hard-coded measure text; the manifest
+#: `notes` block is read by nothing at all. Relation GRAIN is the one piece
+#: of manifest prose that reaches the model before its first action, and it
+#: reaches it twice -- once in `context._catalog_index` and once on every
+#: canonical measure via `semantics._relation_facts`.
+#:
+#: Grain is also the right place for it on the merits, rather than a slot
+#: borrowed because it was empty: grain says what one row IS, and this is a
+#: statement about money on one row. A facility is a small fraction of a
+#: million riyals, so the millions column rounds it to SAR 0 million; the
+#: riyal column does not. That is a fact about reading a row at this grain.
+MONEY_AT_THIS_GRAIN = (
+    " Money on one row of this relation is in the `*_sar` columns, which are "
+    "riyals. The `*_sar_mn` columns are the same amounts in millions and are "
+    "for portfolio and segment totals only: one row of this relation is a "
+    "small fraction of a million and publishes as SAR 0 million. Read one "
+    "denomination or the other and never add the two together.")
+
+#: Said on the relations whose rows are aggregates already, where the
+#: millions column is the natural one and the riyal column is the exception.
+MONEY_AT_CUSTOMER_GRAIN = (
+    " Money on one row of this relation is in the `*_sar` columns, which are "
+    "riyals. The `*_sar_mn` columns are the same amounts in millions and are "
+    "for portfolio and segment totals only: one customer's exposure is a "
+    "small fraction of a million and publishes as SAR 0 million. Read one "
+    "denomination or the other and never add the two together.")
+
 #: Grain, keys and period column per projected relation, in the engine's own
 #: vocabulary. `catalog.JOINS` states how these four join; keeping the names
 #: and the key columns is what keeps its repetition warnings true here.
 RELATION_SPEC: dict[str, dict[str, Any]] = {
     ACCOUNT: {
-        "grain": "one row per retail facility per reporting month",
+        "grain": ("one row per retail facility per reporting month."
+                  + MONEY_AT_THIS_GRAIN),
         "key_columns": ("account_id", "reporting_month"),
         "description": ("The retail facility as at a month end: product, "
                         "balances, IFRS 9 position, delinquency and score. "
                         "Projected read-only from the Cockpit Data domain."),
     },
     CUSTOMER: {
-        "grain": "one row per retail customer per reporting month",
+        "grain": ("one row per retail customer per reporting month."
+                  + MONEY_AT_CUSTOMER_GRAIN),
         "key_columns": ("customer_id", "reporting_month"),
         "description": ("The customer as at a month end: segment, "
                         "affordability, and their facilities rolled up. "
@@ -958,7 +1070,8 @@ RELATION_SPEC: dict[str, dict[str, Any]] = {
                         "the facility is live."),
     },
     COLLATERAL: {
-        "grain": "one row per secured retail facility per reporting month",
+        "grain": ("one row per secured retail facility per reporting "
+                  "month." + MONEY_AT_THIS_GRAIN),
         "key_columns": ("account_id", "reporting_month"),
         "description": ("Security on secured retail lending. An unsecured "
                         "facility has no row here at all, rather than a row "
@@ -993,6 +1106,8 @@ __all__ = ["ACCOUNT", "ACCOUNT_MAP", "ORIGINATION", "ORIGINATION_MAP",
            "CUSTOMER", "CUSTOMER_MAP", "FINE_BINS", "GAPS", "MAPS",
            "Mapping", "RELATION_SPEC", "SAR_PER_MILLION", "SECURED_PRODUCTS",
            "UNIT_FROM_CONTRACT", "UNIT_SAR", "MONEY_PAIRS", "RIYAL_DERIVE",
+           "MONEY_AT_THIS_GRAIN", "MONEY_AT_CUSTOMER_GRAIN",
+           "SCORE_MIGRATION_BAND", "MIGRATION_LABELS", "MIGRATION_BASIS",
            "SOURCE_RELATION", "MILLIONS_NOTE", "RIYALS_NOTE",
            "all_source_columns",
            "engine_unit", "millions_name", "riyal_lineage", "riyal_name",

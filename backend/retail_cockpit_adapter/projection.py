@@ -122,7 +122,7 @@ def relation_fields(relation: str, snapshot: Snapshot,
             unit = _unit_for(mapping, snapshot)
             dtype = {"rcy": "number", "percent": "number", "ratio": "number",
                      "probability_0_1": "number", "times": "number",
-                     "percentage points": "number",
+                     "percentage points": "number", "index": "number",
                      "count": "integer", "days": "integer",
                      "months": "integer"}.get(unit, "string")
         entry = {
@@ -229,6 +229,42 @@ def project_month(snapshot: Snapshot, reporting_month: str, *,
                      source_rows=int(len(book)))
 
 
+def _bands(scores: Any) -> Any:
+    """The governed band of a score. The target's own function, not a copy.
+
+    `scorecards.score_band_array` is what produced the published facility
+    band, and it reproduces it exactly on every scored row of the latest
+    month -- which is why it is the right instrument for the customer mean
+    rather than a second set of edges written here.
+    """
+    import pandas as pd
+
+    from backend.retail import scorecards
+
+    values = pd.to_numeric(scores, errors="coerce").to_numpy(dtype="float64")
+    return pd.Series(scorecards.score_band_array(values), index=scores.index,
+                     dtype="object")
+
+
+def _migration(change: Any) -> Any:
+    """IMPROVED, STABLE or DETERIORATED, on the engine's own dead band.
+
+    Null where either month has no scored facility: "the book did not score
+    this customer" and "this customer did not move" are different facts, and
+    the second one is a finding somebody might act on.
+    """
+    import numpy as np
+    import pandas as pd
+
+    values = pd.to_numeric(change, errors="coerce")
+    band = sm.SCORE_MIGRATION_BAND
+    out = pd.Series(
+        np.where(values < -band, "DETERIORATED",
+                 np.where(values > band, "IMPROVED", "STABLE")),
+        index=change.index, dtype="object")
+    return out.where(values.notna())
+
+
 def _customer_frame(book: Any, *, snapshot: Snapshot, tenant_id: str,
                     release_id: str, domain_id: str) -> Any:
     """One row per customer-month, rolled up from their facilities."""
@@ -260,6 +296,31 @@ def _customer_frame(book: Any, *, snapshot: Snapshot, tenant_id: str,
         "disposable_income_sar"].astype("float64")
     out["disposable_income_sar_mn"] = sm._money(out["disposable_income_sar"])
     out["debt_burden_ratio"] = first["debt_burden_ratio"]
+
+    # -- the behavioural score at customer grain ------------------------
+    #
+    # The engine's own generator defines this aggregate as the UNWEIGHTED
+    # mean of the customer's facility scores, and `attention_v2`'s
+    # `segment_score_decline` family reads the migration it produces. The
+    # family is not optional: `attention_v2.compute()` has no per-family
+    # guard, so a missing column takes the whole Home feed down with a
+    # binder error.
+    #
+    # `mean()` rather than `math.fsum`: this book publishes the score at full
+    # float64 precision, not rounded to two places, so the half-cent tie that
+    # the engine's generator records as "the mean that cost a release" cannot
+    # arise here. Measured on the latest month: no customer mean sits within
+    # 1e-9 of a rounding tie, and pandas and `fsum` agree to 1.1e-13 against
+    # a dead band of two whole score points.
+    scored = grouped["behavioural_score"]
+    previous = grouped["behavioural_score_previous_month"]
+    out["behaviour_score"] = scored.mean()
+    out["behaviour_score_previous"] = previous.mean()
+    out["behaviour_score_change"] = (out["behaviour_score"]
+                                     - out["behaviour_score_previous"])
+    out["score_band"] = _bands(out["behaviour_score"])
+    out["score_band_previous"] = _bands(out["behaviour_score_previous"])
+    out["score_migration"] = _migration(out["behaviour_score_change"])
     out["total_ead_sar"] = grouped["ead_base_sar"].sum().astype("float64")
     out["total_ead_sar_mn"] = sm._money(out["total_ead_sar"])
     out["total_ecl_sar"] = grouped["ecl_final_sar"].sum().astype("float64")

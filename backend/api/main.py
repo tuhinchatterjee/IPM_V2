@@ -32,6 +32,9 @@ from backend.api.routers import retail as retail_router
 from backend.api.routers import ask as ask_router
 from backend.api.routers import assurance as assurance_router
 from backend.api.routers import brain as brain_router
+from backend.api.routers import (
+    cockpit_v4_proxy as cockpit_v4_proxy_router,
+)
 from backend.api.routers import cases as cases_router
 from backend.api.routers import (
     continuous_learning as continuous_learning_router,
@@ -493,6 +496,14 @@ def create_app() -> FastAPI:
     app.include_router(workspace_router.router, prefix=API_PREFIX)
     app.include_router(validation_router.router, prefix=API_PREFIX)
     app.include_router(exports_router.runs_router, prefix=API_PREFIX)
+    # The candidate Cockpit. Mounted LAST and matched by a catch-all,
+    # so it can only ever serve paths no other router claims, and
+    # only under its own prefix. The engine runs as its own process:
+    # this is the authenticated door onto it, never the engine
+    # itself, so the engine's own compat route for /api/v1/health --
+    # which this app already serves -- is never mounted here.
+    app.include_router(cockpit_v4_proxy_router.router,
+                       prefix=API_PREFIX)
     app.include_router(exports_router.trace_router, prefix=API_PREFIX)
 
     @app.get("/", include_in_schema=False)
