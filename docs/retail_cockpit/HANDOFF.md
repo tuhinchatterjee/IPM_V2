@@ -164,8 +164,43 @@ defect, in §19.
 
 ## 12. Retail non-regression
 
-See §20 — the comparison against the session baseline was still running when
-this was written; the number goes here.
+`tests/retail`, same environment, same book, run at HEAD and at the session
+baseline `ec8835d4`:
+
+| | passed | skipped | failed | errored |
+|---|---|---|---|---|
+| baseline `ec8835d4` | 1,172 | 1,500 | 48 | 60 |
+| HEAD | 1,176 | 1,484 | 62 | 58 |
+
+The two failure sets differ **in both directions** — four tests fail at HEAD
+and not at the baseline, and several fail at the baseline and not at HEAD.
+That asymmetry is the signature of order- and state-dependence, not of a
+regression, and it was chased down rather than explained away.
+
+The cause: during the HEAD run an ad-hoc backend was up on 8328 with
+`REQUIRE_LOGIN=false`, and the workspace was partially seeded. The baseline
+run had neither. The access-control tests reach out to a live backend and
+**skip** when none is answering, so they can only fail when one is running
+open.
+
+Re-run at HEAD with nothing else running:
+
+- `TestTheAPIIsDefaultDeny` — every test passes or skips. Neither
+  `test_bank_content_needs_a_signed_in_caller` nor
+  `test_no_route_answers_that_is_not_on_the_allowlist` fails.
+- `TestTheWorkspaceIsNotEmpty` — one failure,
+  `test_the_seeder_reports_ready` ("retail working messages: 0 of 3"), which
+  is the **identical single failure the baseline produces** when run the same
+  way. An unseeded workspace, at both commits.
+
+**So none of the four is caused by this integration.** The proxy is also
+covered directly rather than inferred: with `REQUIRE_LOGIN=true` every
+Cockpit route answers 401 without a session (§6).
+
+One caveat worth stating: this container has no seeded workspace and no
+Early Warning model records, so a large block of `tests/retail` cannot pass
+here at either commit. The comparison is like-for-like and that is what makes
+it meaningful; it is not a claim that the retail suite is green.
 
 ## 13. Export / save / project / investigation
 
@@ -299,6 +334,9 @@ not something a scripted provider can tell us.
 ## 20. Status
 
 **READY FOR MAC ACCEPTANCE — PROVIDER TEST STILL REQUIRED.**
+
+The retail regression comparison in §12 is complete: no test fails because of
+this integration.
 
 Not "done", and not "verified": no answer this Cockpit would give a credit
 officer has been produced, because no model was called. The architecture that
