@@ -35,6 +35,11 @@ from backend.retail_cockpit_adapter.source import Snapshot
 #: SAR million. A tenth of a riyal.
 MONEY_TOLERANCE = 1e-7
 
+#: The same tolerance, expressed in riyals, for the riyal columns the release
+#: publishes beside the millions ones. A tenth of a riyal either way,
+#: whichever denomination the column is written in.
+RIYAL_TOLERANCE = MONEY_TOLERANCE * sm.SAR_PER_MILLION
+
 #: Counts are exact. A tolerance on a count would hide a row.
 COUNT_TOLERANCE = 0
 
@@ -68,22 +73,24 @@ def _million(value: float) -> float:
 
 
 def q01_ead_by_product(snapshot: Snapshot, period: str = "") -> Expected:
-    """Latest-month exposure at default by product."""
+    """Latest-month exposure at default by product, in BOTH denominations."""
     period = period or snapshot.latest_period
     book = snapshot.read_month(period, columns=["product_label", "ead_base_sar",
                                                 "facility_id"])
     grouped = book.groupby("product_label")
     rows = [{"product": product,
+             "ead_sar": float(grouped["ead_base_sar"].sum()[product]),
              "ead_sar_mn": _million(grouped["ead_base_sar"].sum()[product]),
              "facilities": int(grouped.size()[product])}
             for product in sorted(grouped.groups)]
-    total = _million(book["ead_base_sar"].sum())
+    total = float(book["ead_base_sar"].sum())
     return Expected(
         question="Latest-month EAD by product",
         period=period, grain="one row per facility per month",
-        unit="SAR million",
+        unit="SAR million and SAR",
         denominator=f"all {len(book):,} facilities published in {period}",
-        rows=rows + [{"product": "TOTAL", "ead_sar_mn": total,
+        rows=rows + [{"product": "TOTAL", "ead_sar": total,
+                      "ead_sar_mn": _million(total),
                       "facilities": int(len(book))}],
         note="Base-scenario EAD. The product totals reconcile to the whole "
              "book because every facility carries exactly one product and "
@@ -133,6 +140,7 @@ def q03_ecl_coverage(snapshot: Snapshot, period: str = "") -> Expected:
         ecl = float(part["ecl_final_sar"].sum())
         gca = float(part["gross_carrying_amount_sar"].sum())
         rows.append({"product": product, "stage": int(stage),
+                     "ecl_sar": ecl, "balance_sar": gca,
                      "ecl_sar_mn": _million(ecl),
                      "gca_sar_mn": _million(gca),
                      "coverage": (ecl / gca) if gca else 0.0,
@@ -141,7 +149,7 @@ def q03_ecl_coverage(snapshot: Snapshot, period: str = "") -> Expected:
     return Expected(
         question="ECL and coverage by product and IFRS 9 stage",
         period=period, grain="one row per facility per month",
-        unit="SAR million; coverage is a fraction",
+        unit="SAR million and SAR; coverage is a fraction",
         denominator="gross carrying amount of the same population",
         rows=rows,
         note="Coverage is the summed ECL over the summed gross carrying "

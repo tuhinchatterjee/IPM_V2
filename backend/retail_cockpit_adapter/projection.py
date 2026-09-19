@@ -53,6 +53,10 @@ def _apply(mapping: sm.Mapping, frame: Any) -> Any:
     unit = mapping.unit
     if unit == "rcy":
         return sm._money(column)
+    if unit == sm.UNIT_SAR:
+        # The riyal twin. Cast, never divided: this column is the source
+        # book's own figure and it reconciles to it exactly.
+        return column.astype("float64")
     if unit == "percent":
         return sm._to_percent(column)
     if pd.api.types.is_bool_dtype(column) or (
@@ -91,6 +95,15 @@ def relation_fields(relation: str, snapshot: Snapshot,
         # from.
         spec = (snapshot.column(mapping.source) if mapping.source else {})
         definition = mapping.definition or str(spec.get("definition") or "")
+        # A money column and its riyal twin each carry the other's name in
+        # their own definition. The analyst reads the catalogue, not this
+        # module, so the grain rule has to travel in the release.
+        if mapping.unit == "rcy":
+            definition = (definition + sm.MILLIONS_NOTE.format(
+                twin=sm.riyal_name(mapping.column))).strip()
+        elif mapping.unit == sm.UNIT_SAR:
+            definition = (definition + sm.RIYALS_NOTE.format(
+                base=sm.millions_name(mapping.column))).strip()
         label = mapping.label or str(spec.get("business_name") or "")
         dtype = str(spec.get("data_type") or "")
         if dtype == "boolean":
@@ -99,7 +112,7 @@ def relation_fields(relation: str, snapshot: Snapshot,
             dtype, unit_override = "integer", "count"
         else:
             unit_override = ""
-        if mapping.unit in ("rcy", "percent"):
+        if mapping.unit in ("rcy", sm.UNIT_SAR, "percent"):
             dtype = "number"
         elif not dtype:
             # A column the projection computes has no published column to
@@ -234,13 +247,23 @@ def _customer_frame(book: Any, *, snapshot: Snapshot, tenant_id: str,
         "boolean").astype("Int64")
     out["tenure_months"] = first["customer_tenure_months"]
     out["facilities_held"] = grouped.size()
-    out["income_sar_mn"] = sm._money(first["verified_total_monthly_income_sar"])
-    out["obligations_sar_mn"] = sm._money(
-        first["monthly_total_credit_obligations_sar"])
-    out["disposable_income_sar_mn"] = sm._money(first["disposable_income_sar"])
+    # Each money roll-up is computed ONCE, in riyals, and divided once. The
+    # millions column is the riyal column over a million and nothing else,
+    # so the pair cannot disagree about the underlying sum.
+    out["income_sar"] = first[
+        "verified_total_monthly_income_sar"].astype("float64")
+    out["income_sar_mn"] = sm._money(out["income_sar"])
+    out["obligations_sar"] = first[
+        "monthly_total_credit_obligations_sar"].astype("float64")
+    out["obligations_sar_mn"] = sm._money(out["obligations_sar"])
+    out["disposable_income_sar"] = first[
+        "disposable_income_sar"].astype("float64")
+    out["disposable_income_sar_mn"] = sm._money(out["disposable_income_sar"])
     out["debt_burden_ratio"] = first["debt_burden_ratio"]
-    out["total_ead_sar_mn"] = sm._money(grouped["ead_base_sar"].sum())
-    out["total_ecl_sar_mn"] = sm._money(grouped["ecl_final_sar"].sum())
+    out["total_ead_sar"] = grouped["ead_base_sar"].sum().astype("float64")
+    out["total_ead_sar_mn"] = sm._money(out["total_ead_sar"])
+    out["total_ecl_sar"] = grouped["ecl_final_sar"].sum().astype("float64")
+    out["total_ecl_sar_mn"] = sm._money(out["total_ecl_sar"])
     out["worst_stage"] = grouped["ifrs9_stage"].max()
     out["worst_dpd_days"] = grouped["dpd"].max()
 

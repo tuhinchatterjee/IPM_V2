@@ -41,12 +41,20 @@ def main() -> int:
                     default=ROOT / "data" / "retail" / "analytics")
     ap.add_argument("--metadata-dir", type=Path,
                     default=ROOT / "metadata" / "retail")
-    ap.add_argument("--tenant", default="retail-demo")
+    ap.add_argument("--tenant", default=None,
+                    help="the tenant the release was stamped with")
+    ap.add_argument("--release", default="",
+                    help="a published release to check instead of the one "
+                         "this runtime is configured for")
     ap.add_argument("--only", default="", help="one case id, e.g. Q01")
     args = ap.parse_args()
 
+    from backend.cockpit_v4 import lake as lake_mod
+
+    tenant = args.tenant or lake_mod.DEFAULT_TENANT
     snapshot = open_snapshot(args.analytics_dir, args.metadata_dir)
-    catalog = cat.build(domain_id="retail", tenant_id=args.tenant)
+    catalog = cat.build(domain_id="retail", release_id=args.release,
+                        tenant_id=tenant)
     session = cat.open_session(catalog=catalog)
     latest = catalog.calendar.latest
     previous = catalog.calendar.previous
@@ -86,6 +94,7 @@ def main() -> int:
 
 def build_cases(latest: str, previous: str) -> dict:
     """Each case: the engine-side SQL, and how the two sides are compared."""
+    from backend.retail_cockpit_adapter import oracle as orc
 
     def by_key(keys, values):
         def compare(expected, actual):
@@ -110,21 +119,31 @@ def build_cases(latest: str, previous: str) -> dict:
                     continue
                 for column in values:
                     a, b = want[key][column], got[key][column]
-                    if not _close(a, b, expected.tolerance):
+                    # A riyal column is compared at the same absolute
+                    # tolerance expressed in riyals. Comparing it at the
+                    # millions tolerance would demand agreement to a ten
+                    # millionth of a riyal, which is not a finding about
+                    # the projection.
+                    tolerance = (orc.RIYAL_TOLERANCE
+                                 if column.endswith("_sar")
+                                 else expected.tolerance)
+                    if not _close(a, b, tolerance):
                         problems.append(
                             f"{key}.{column}: oracle {a!r} vs engine {b!r} "
-                            f"(tolerance {expected.tolerance})")
+                            f"(tolerance {tolerance})")
             return problems
         return compare
 
     return {
         "Q01": {
             "sql": f"""SELECT product, SUM(ead_sar_mn) AS ead_sar_mn,
+                              SUM(ead_sar) AS ead_sar,
                               COUNT(*) AS facilities
                        FROM retail_account_month
                        WHERE reporting_month = '{latest}'
                        GROUP BY product""",
-            "compare": by_key(("product",), ("ead_sar_mn", "facilities")),
+            "compare": by_key(("product",),
+                              ("ead_sar_mn", "ead_sar", "facilities")),
         },
         "Q02": {
             "sql": f"""SELECT product,
@@ -136,18 +155,23 @@ def build_cases(latest: str, previous: str) -> dict:
             "compare": by_key(("product",), ("customers", "facilities")),
         },
         "Q03": {
+            # Coverage is computed from the RIYAL columns: it is a ratio of
+            # two sums and must come out identical either way, which is the
+            # point of checking it against an oracle that used neither.
             "sql": f"""SELECT product, stage,
                               SUM(ecl_sar_mn) AS ecl_sar_mn,
                               SUM(balance_sar_mn) AS gca_sar_mn,
-                              SUM(ecl_sar_mn) / NULLIF(SUM(balance_sar_mn), 0)
+                              SUM(ecl_sar) AS ecl_sar,
+                              SUM(balance_sar) AS balance_sar,
+                              SUM(ecl_sar) / NULLIF(SUM(balance_sar), 0)
                                   AS coverage,
                               COUNT(*) AS facilities
                        FROM retail_account_month
                        WHERE reporting_month = '{latest}'
                        GROUP BY product, stage""",
             "compare": by_key(("product", "stage"),
-                              ("ecl_sar_mn", "gca_sar_mn", "coverage",
-                               "facilities")),
+                              ("ecl_sar_mn", "gca_sar_mn", "ecl_sar",
+                               "balance_sar", "coverage", "facilities")),
         },
         "Q05": {
             "sql": f"""

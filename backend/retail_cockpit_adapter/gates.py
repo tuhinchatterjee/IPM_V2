@@ -42,6 +42,23 @@ SIGNED_MONEY: frozenset[str] = frozenset({
     "disposable_income_sar_mn",
 })
 
+#: Each signed money column and its riyal twin, because the sign rule is a
+#: fact about the quantity and not about the denomination it is written in.
+SIGNED_MONEY = SIGNED_MONEY | frozenset(
+    sm.riyal_name(name) for name in SIGNED_MONEY)
+
+#: The largest riyal amount this book could hold and still be a retail
+#: figure. A facility is six figures and a customer roll-up is seven; ten
+#: trillion is the bound that catches a denomination defect -- a riyal
+#: column that was multiplied instead of copied -- without bounding a real
+#: number.
+RIYAL_CEILING = 1e13
+
+#: How far the two denominations of one quantity may disagree. They are the
+#: same float divided by a power of ten, so the only permitted difference is
+#: the division's own rounding.
+DENOMINATION_TOLERANCE = 1e-9
+
 #: Percentage columns that compare two quantities rather than expressing one
 #: as a share of a whole. A loan-to-value above 100 is a real loan, and
 #: bounding it would be a misreading rather than a check.
@@ -140,6 +157,9 @@ def check_month(projected, month, *, tenant_id: str, release_id: str,
             if column.endswith("_sar_mn") and column not in SIGNED_MONEY:
                 _bounded(frame, relation, column, 0.0, 1e7, findings,
                          "amounts non-negative")
+            elif column.endswith("_sar") and column not in SIGNED_MONEY:
+                _bounded(frame, relation, column, 0.0, RIYAL_CEILING,
+                         findings, "riyal amounts non-negative")
             elif column.startswith(("pd_", "prob_")):
                 _bounded(frame, relation, column, 0.0, 1.0, findings,
                          "probability bounds")
@@ -174,7 +194,51 @@ def check_month(projected, month, *, tenant_id: str, release_id: str,
                                         f"products {bad} are not governed "
                                         f"values of this book"))
 
+    findings.extend(_denomination(frames, month))
     findings.extend(_cross_relation(frames, month))
+    return findings
+
+
+def _denomination(frames: dict[str, Any], month) -> list[Finding]:
+    """The two denominations of one quantity must be the same quantity.
+
+    Every money column is published twice, in millions for the frozen
+    engine's own SQL and in riyals for anything read at facility or customer
+    grain. The pair is the defect this gate exists for: a riyal column that
+    was divided, or a millions column that was not, is invisible in the data
+    and wrong in every answer built on it.
+    """
+    import pandas as pd
+
+    findings: list[Finding] = []
+    for relation, pairs in sm.MONEY_PAIRS.items():
+        frame = frames.get(relation)
+        if frame is None or frame.empty:
+            continue
+        for millions, riyals in pairs:
+            if millions not in frame.columns or riyals not in frame.columns:
+                findings.append(Finding(
+                    "denomination pair", relation,
+                    f"{millions} and {riyals} are declared as a pair and "
+                    f"only one of them is projected"))
+                continue
+            left = pd.to_numeric(frame[millions], errors="coerce")
+            right = pd.to_numeric(frame[riyals], errors="coerce")
+            if int((left.isna() != right.isna()).sum()):
+                findings.append(Finding(
+                    "denomination nulls", relation,
+                    f"{millions} and {riyals} disagree about which rows the "
+                    f"book records a value for"))
+            expected = right / sm.SAR_PER_MILLION
+            drift = (left - expected).abs()
+            scale = expected.abs().clip(lower=1.0)
+            worst = float((drift / scale).max()) if len(drift) else 0.0
+            if worst > DENOMINATION_TOLERANCE:
+                findings.append(Finding(
+                    "denomination", relation,
+                    f"{millions} is not {riyals} over 1,000,000 in "
+                    f"{month.reporting_month}: worst relative difference "
+                    f"{worst:.3e}"))
     return findings
 
 
@@ -189,15 +253,22 @@ def _cross_relation(frames: dict[str, Any], month) -> list[Finding]:
     # The roll-up IS the facilities, added up. This is the check that stops a
     # customer total being counted once per facility, which is the defect
     # this book's own catalogue warns about.
-    for rolled_column, source_column in (("total_ead_sar_mn", "ead_sar_mn"),
-                                         ("total_ecl_sar_mn", "ecl_sar_mn")):
+    # Both denominations of it, because a roll-up that is right in millions
+    # and wrong in riyals is still a wrong answer to a customer question.
+    # The tolerance is stated per denomination: a tenth of a riyal either
+    # way, written in the units the column is actually in.
+    for rolled_column, source_column, tolerance in (
+            ("total_ead_sar_mn", "ead_sar_mn", 1e-7),
+            ("total_ecl_sar_mn", "ecl_sar_mn", 1e-7),
+            ("total_ead_sar", "ead_sar", 0.1),
+            ("total_ecl_sar", "ecl_sar", 0.1)):
         rolled = accounts.groupby("customer_id")[source_column].sum().round(9)
         declared = customers.set_index("customer_id")[rolled_column].round(9)
         joined = declared.to_frame("declared").join(
             rolled.to_frame("rolled"), how="outer")
         mismatched = int(((joined["declared"].fillna(-1)
                            - joined["rolled"].fillna(-2)).abs()
-                          > 1e-7).sum())
+                          > tolerance).sum())
         if mismatched:
             findings.append(Finding(
                 "customer roll-up", sm.CUSTOMER,
@@ -262,6 +333,44 @@ def _cross_relation(frames: dict[str, Any], month) -> list[Finding]:
     return findings
 
 
+def check_source_totals(snapshot: Any, projected: Any,
+                        month: Any) -> list[Finding]:
+    """The riyal columns are the source book's own figures, unchanged.
+
+    Read from the source a second time, by a different route from the
+    projection, and summed. The account relation is the whole published
+    facility population of the month, so a riyal total that is not the
+    source total EXACTLY is a projection defect -- not a rounding one,
+    because no arithmetic was supposed to happen at all.
+    """
+    import pandas as pd
+
+    findings: list[Finding] = []
+    wanted: dict[str, list[str]] = {}
+    for mapping in sm.MAPS[sm.ACCOUNT]:
+        # A DERIVED money column is a rule over two source columns and has
+        # no single source total to reconcile against; `_denomination` and
+        # the bounds checks cover it, and its rule is published as lineage.
+        if mapping.unit == "rcy" and mapping.source:
+            wanted.setdefault(mapping.source, []).append(
+                sm.riyal_name(mapping.column))
+    frame = projected.frames[sm.ACCOUNT]
+    book = snapshot.read_month(month.reporting_month,
+                               columns=sorted(wanted))
+    for source, columns in sorted(wanted.items()):
+        expected = float(pd.to_numeric(book[source], errors="coerce").sum())
+        for column in columns:
+            actual = float(pd.to_numeric(frame[column],
+                                         errors="coerce").sum())
+            if actual != expected:
+                findings.append(Finding(
+                    "source reconciliation", sm.ACCOUNT,
+                    f"{column} sums to {actual!r} in "
+                    f"{month.reporting_month} and "
+                    f"{sm.SOURCE_RELATION}.{source} sums to {expected!r}"))
+    return findings
+
+
 class GatesFailed(RuntimeError):
     """A projection that failed its own gates. Never published."""
 
@@ -270,5 +379,6 @@ class GatesFailed(RuntimeError):
         super().__init__("; ".join(str(f) for f in findings[:8]))
 
 
-__all__ = ["COMPARISON_PERCENTS", "Finding", "GatesFailed", "SIGNED_MONEY",
-           "check_month"]
+__all__ = ["COMPARISON_PERCENTS", "DENOMINATION_TOLERANCE", "Finding",
+           "GatesFailed", "RIYAL_CEILING", "SIGNED_MONEY", "check_month",
+           "check_source_totals"]

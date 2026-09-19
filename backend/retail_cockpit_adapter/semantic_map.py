@@ -15,24 +15,41 @@ recorded; a concept it does not publish at all is a GAP and is absent from
 the release, which is what makes the engine say "this book does not carry
 that" instead of answering from a column of nulls.
 
-Why the amounts are converted to millions
------------------------------------------
-The retail book is denominated in riyals. The engine's book is denominated in
-`SAR million` -- the manifest says so, `ead_sar_mn` says so in its own name,
-and `display.py` writes every monetary figure at zero decimal places on that
-basis. Publishing riyals under those names would make the column name and the
-released denomination disagree, and the first analyst to read `ead_sar_mn`
-would write "SAR million" over a figure in riyals.
+Why every amount is published TWICE, in two denominations
+---------------------------------------------------------
+The retail book is denominated in riyals. The engine is frozen and it is
+denominated in `SAR million`, in places a release cannot reach: `ecl.py` sums
+`ead_sar_mn` and `ecl_sar_mn` and labels the result with the release's scale;
+`attention_v2.py` carries the literal unit "SAR million" on two retail
+families; `semantics.py` tells the analyst "in SAR million" in the compact
+starting packet; and `export.py` writes "million" into the footer when a
+release declares no scale at all. So the release-level `amount_scale` is not
+a free choice -- it has to agree with what that hard-coded SQL sums, and that
+SQL sums `*_sar_mn`.
 
-So the conversion is real and it is recorded on every field it touches:
-`<target column> ÷ 1,000,000`. Nothing is relabelled.
+Publishing ONLY millions is what the first revision did, and it is wrong for
+a retail book: at the frozen zero-decimal money policy a facility balance of
+about a hundred thousand riyals publishes as `SAR 0 million`. Every
+account-level and customer-level monetary answer collapses to zero.
 
-The consequence is inherited, and it is stated rather than hidden: at the
-source's approved precision policy a monetary figure shows no decimals, so an
-amount below half a million riyals publishes as `SAR 0 million`. That is how
-the frozen engine already renders its own retail book, it is the display
-policy this integration was told to preserve exactly, and it is recorded in
-the limitations rather than worked around with a precision override.
+Publishing ONLY riyals is worse. It would either put riyals under names and
+prose that say millions, or rename the columns -- and a rename takes the ECL
+panel and the attention feed down with a DuckDB binder error, silently empties
+the canonical measure table, and can only be repaired by editing seven frozen
+modules.
+
+So both are published, and each one is true about itself:
+
+* `*_sar_mn` -- genuinely millions, declared `unit="rcy"`, which the engine
+  resolves to the release's own `SAR million`. Every frozen consumer reads
+  these and every one of them is correct.
+* `*_sar` -- the same quantity in riyals, undivided, declared `unit="SAR"`
+  explicitly. `display.unit_for_field` returns a declared unit verbatim
+  unless it is `rcy`, so these render at zero decimals IN RIYALS regardless
+  of the release scale, and a facility balance reads `SAR 102,340`.
+
+Both carry the cross-reference in their own definition, so the analyst is
+told which one to use at which grain and told never to sum the pair.
 """
 
 from __future__ import annotations
@@ -45,9 +62,24 @@ from typing import Any
 #: Riyals to the engine's declared scale. One place, named.
 SAR_PER_MILLION = 1_000_000.0
 
-#: What the published release declares itself to be denominated in.
+#: What the published release declares itself to be denominated in. Forced by
+#: the frozen engine, not chosen: `ecl.py` and `attention_v2.py` sum the
+#: `*_sar_mn` columns and label the result with this scale, so the scale has
+#: to be the one those columns are actually in.
 CURRENCY = "SAR"
 AMOUNT_SCALE = "million"
+
+#: The unit declared on the riyal twin of every money column. NOT "rcy":
+#: `display.unit_for_field` resolves `rcy` to the release's own denomination
+#: and returns anything else verbatim, so an explicit "SAR" is what lets one
+#: release hold both denominations and render each one correctly.
+#: `display.classify("SAR")` matches its money pattern, so a riyal figure is
+#: still governed by the same zero-decimal money policy.
+UNIT_SAR = "SAR"
+
+#: The source book every mapping below reads from, named once so lineage and
+#: findings quote the same thing.
+SOURCE_RELATION = "retail_facility_month"
 
 # The engine's relation names. Keeping them is what keeps `catalog.JOINS`,
 # `schema.domain_of_relation` and the retail semantic table pointing at real
@@ -146,16 +178,21 @@ def _fine_bucket(frame: Any) -> Any:
     return out
 
 
-def _limit(frame: Any) -> Any:
+def _limit_sar(frame: Any) -> Any:
     """The sanctioned limit, or the original advance where there is no limit.
 
     A card has a credit limit; an amortising facility has an original
     finance amount and no revolving limit. The book publishes both columns
     and leaves the inapplicable one null, so the rule is a coalesce and it is
-    published as one.
+    published as one. In riyals, which is how the book records both columns.
     """
-    return _money(frame["current_credit_limit_sar"].fillna(
-        frame["original_finance_amount_sar"]))
+    return frame["current_credit_limit_sar"].fillna(
+        frame["original_finance_amount_sar"]).astype("float64")
+
+
+def _limit(frame: Any) -> Any:
+    """`_limit_sar` in millions. One rule, stated once, divided once."""
+    return _money(_limit_sar(frame))
 
 
 # ---- the map -----------------------------------------------------------
@@ -198,6 +235,81 @@ class Mapping:
 
 def _m(relation: str, column: str, source: str = "", **kw: Any) -> Mapping:
     return Mapping(relation=relation, column=column, source=source, **kw)
+
+
+# ---- the riyal twin ----------------------------------------------------
+#
+# Every money column is published twice. The `*_sar_mn` mapping is authored
+# by hand, because it is the one the frozen engine reads by name; its riyal
+# twin is GENERATED from it, so the pair can never drift apart in source,
+# label, group or additivity. Only the division differs.
+
+#: The undivided derivation for a money column that is computed rather than
+#: read. A derived money mapping with no entry here is refused at import
+#: rather than published as a copy of its own millions form.
+RIYAL_DERIVE: dict[str, Callable[[Any], Any]] = {"limit_sar_mn": _limit_sar}
+
+_DIVISION = re.compile(r",?\s*÷\s*1,000,000")
+
+#: Appended to the definition of a millions column, and to its twin's. The
+#: analyst is told which one belongs at which grain, in the release itself,
+#: because the catalogue is the only place a frozen engine will read it from.
+MILLIONS_NOTE = (
+    " Millions of riyals. A monetary figure is published with no decimal "
+    "places, so at facility or customer grain read `{twin}` instead: it is "
+    "the same quantity in riyals, and one facility is a small fraction of a "
+    "million and publishes here as SAR 0 million.")
+
+RIYALS_NOTE = (
+    " In riyals, exactly as the source book records it, for facility- and "
+    "customer-level figures. The same quantity as `{base}` x 1,000,000 -- "
+    "report one or the other and never the sum of the pair.")
+
+
+def riyal_name(column: str) -> str:
+    """The riyal twin's name. `ead_sar_mn` -> `ead_sar`."""
+    if not column.endswith("_sar_mn"):
+        raise ValueError(f"{column!r} is denominated in the reporting "
+                         f"currency but is not named `*_sar_mn`, so its "
+                         f"riyal twin cannot be named without guessing.")
+    return column[:-3]
+
+
+def millions_name(column: str) -> str:
+    """The millions column a riyal twin restates. `ead_sar` -> `ead_sar_mn`."""
+    return column + "_mn"
+
+
+def riyal_lineage(text: str) -> str:
+    """The twin's lineage: its base's, with the division taken back out."""
+    return (_DIVISION.sub("", text).strip() + " Riyals, undivided.").strip()
+
+
+def riyal_twin(base: Mapping) -> Mapping:
+    """The riyal twin of one millions mapping. Same source, no division."""
+    derive = RIYAL_DERIVE.get(base.column)
+    if base.is_derived and derive is None:
+        raise ValueError(
+            f"{base.column!r} is a DERIVED money column and no undivided "
+            f"derivation is declared for it in RIYAL_DERIVE, so its riyal "
+            f"twin would silently repeat the millions figure.")
+    return Mapping(
+        relation=base.relation, column=riyal_name(base.column),
+        source=base.source, unit=UNIT_SAR, label=base.label,
+        definition=base.definition, group=base.group,
+        aggregation=base.aggregation,
+        lineage=riyal_lineage(base.lineage),
+        derive=derive, needs=base.needs)
+
+
+def with_riyals(mappings: tuple[Mapping, ...]) -> tuple[Mapping, ...]:
+    """Every money mapping followed immediately by its riyal twin."""
+    out: list[Mapping] = []
+    for mapping in mappings:
+        out.append(mapping)
+        if mapping.unit == "rcy":
+            out.append(riyal_twin(mapping))
+    return tuple(out)
 
 
 #: Concepts the engine's retail book declares that THIS book does not carry.
@@ -736,7 +848,7 @@ def feature_mappings(columns: dict[str, dict[str, Any]]) -> tuple[Mapping, ...]:
             definition=str(spec.get("definition") or ""),
             group=FEATURE_GROUPS["beh"],
             lineage=f"retail_facility_month.{name}, carried verbatim."))
-    return tuple(out)
+    return with_riyals(tuple(out))
 
 
 def origination_mappings(columns: dict[str, dict[str, Any]]
@@ -778,9 +890,19 @@ def origination_mappings(columns: dict[str, dict[str, Any]]
             group=FEATURE_GROUPS["app"],
             lineage=f"retail_facility_month.{name}, carried verbatim from "
                     f"the facility's first published month."))
-    return tuple(out)
+    return with_riyals(tuple(out))
 
 ORIGINATION_MAP: tuple[Mapping, ...] = ()
+
+# Each money mapping above is authored once, in millions, because that is the
+# name and the denomination the frozen engine reads. The riyal twin is added
+# here, generated from it, so the two can never disagree about anything but
+# the division. A relation with no money column passes through unchanged.
+ACCOUNT_MAP = with_riyals(ACCOUNT_MAP)
+CUSTOMER_MAP = with_riyals(CUSTOMER_MAP)
+BEHAVIOUR_MAP = with_riyals(BEHAVIOUR_MAP)
+COLLATERAL_MAP = with_riyals(COLLATERAL_MAP)
+ORIGINATION_MAP = with_riyals(ORIGINATION_MAP)
 
 MAPS: dict[str, tuple[Mapping, ...]] = {
     ACCOUNT: ACCOUNT_MAP,
@@ -788,6 +910,15 @@ MAPS: dict[str, tuple[Mapping, ...]] = {
     CUSTOMER: CUSTOMER_MAP,
     BEHAVIOUR: BEHAVIOUR_MAP,
     COLLATERAL: COLLATERAL_MAP,
+}
+
+#: Every money column of the release, as (millions column, riyal column)
+#: pairs. Read by the gates, the oracles and the contract document, so none
+#: of them has to re-derive which columns are the pair.
+MONEY_PAIRS: dict[str, tuple[tuple[str, str], ...]] = {
+    relation: tuple((m.column, riyal_name(m.column))
+                    for m in mappings if m.unit == "rcy")
+    for relation, mappings in MAPS.items()
 }
 
 #: Grain, keys and period column per projected relation, in the engine's own
@@ -861,5 +992,8 @@ __all__ = ["ACCOUNT", "ACCOUNT_MAP", "ORIGINATION", "ORIGINATION_MAP",
            "FEATURE_PATTERN", "SCORE_COMPONENT_PATTERN", "feature_mappings",
            "CUSTOMER", "CUSTOMER_MAP", "FINE_BINS", "GAPS", "MAPS",
            "Mapping", "RELATION_SPEC", "SAR_PER_MILLION", "SECURED_PRODUCTS",
-           "UNIT_FROM_CONTRACT", "all_source_columns", "engine_unit",
-           "source_columns"]
+           "UNIT_FROM_CONTRACT", "UNIT_SAR", "MONEY_PAIRS", "RIYAL_DERIVE",
+           "SOURCE_RELATION", "MILLIONS_NOTE", "RIYALS_NOTE",
+           "all_source_columns",
+           "engine_unit", "millions_name", "riyal_lineage", "riyal_name",
+           "riyal_twin", "source_columns", "with_riyals"]

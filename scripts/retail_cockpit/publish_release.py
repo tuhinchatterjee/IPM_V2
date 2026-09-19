@@ -38,7 +38,11 @@ def main() -> int:
                     help="the Cockpit lake to WRITE (default: the V4 lake "
                          "this runtime is configured for)")
     ap.add_argument("--tenant", default=pub.DEFAULT_TENANT)
-    ap.add_argument("--revision", type=int, default=1)
+    # Revision 5. `p1` is the millions-only release kept as failed
+    # evidence; `p2` and `p3` were superseded candidate builds and `p4` is
+    # the one the memory benchmark ran against. A revision number is never
+    # reused, on any machine, so a release id always names one set of bytes.
+    ap.add_argument("--revision", type=int, default=5)
     ap.add_argument("--overwrite", action="store_true",
                     help="rewrite a published release. Deliberate only.")
     ap.add_argument("--verify", action="store_true",
@@ -84,6 +88,9 @@ def main() -> int:
             projected, month, tenant_id=args.tenant, release_id=release_id,
             domain_id=pub.ENGINE_DOMAIN, currency=snapshot.currency,
             governed=governed)
+        # Read the source a second time and reconcile the riyal totals to
+        # it. The projection is not trusted to report on itself.
+        findings += gates.check_source_totals(snapshot, projected, month)
         if findings:
             raise gates.GatesFailed(findings)
 

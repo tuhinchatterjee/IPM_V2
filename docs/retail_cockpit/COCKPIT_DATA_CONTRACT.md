@@ -24,7 +24,7 @@ The retail facility as at a month end: product, balances, IFRS 9 position, delin
 
 - Grain: one row per retail facility per reporting month
 - Key: `account_id, reporting_month`
-- Columns: 60
+- Columns: 74
 
 | column | unit | from | lineage |
 |---|---|---|---|
@@ -43,10 +43,15 @@ The retail facility as at a month end: product, balances, IFRS 9 position, delin
 | `salary_transfer_flag` | count | `salary_transfer_flag` | retail_facility_month.salary_transfer_flag |
 | `region` | — | `region_label` | retail_facility_month.region_label |
 | `limit_sar_mn` | rcy | computed | Derived: current_credit_limit_sar, falling back to original_finance_amount_sar where it is null, ÷ 1,000,000. |
+| `limit_sar` | SAR | computed | Derived: current_credit_limit_sar, falling back to original_finance_amount_sar where it is null. Riyals, undivided. |
 | `balance_sar_mn` | rcy | `gross_carrying_amount_sar` | retail_facility_month.gross_carrying_amount_sar ÷ 1,000,000. |
+| `balance_sar` | SAR | `gross_carrying_amount_sar` | retail_facility_month.gross_carrying_amount_sar. Riyals, undivided. |
 | `ead_sar_mn` | rcy | `ead_base_sar` | retail_facility_month.ead_base_sar ÷ 1,000,000. |
+| `ead_sar` | SAR | `ead_base_sar` | retail_facility_month.ead_base_sar. Riyals, undivided. |
 | `undrawn_sar_mn` | rcy | `undrawn_commitment_sar` | retail_facility_month.undrawn_commitment_sar ÷ 1,000,000. |
+| `undrawn_sar` | SAR | `undrawn_commitment_sar` | retail_facility_month.undrawn_commitment_sar. Riyals, undivided. |
 | `overdue_amount_sar_mn` | rcy | `overdue_amount_sar` | retail_facility_month.overdue_amount_sar ÷ 1,000,000. |
+| `overdue_amount_sar` | SAR | `overdue_amount_sar` | retail_facility_month.overdue_amount_sar. Riyals, undivided. |
 | `utilisation_pct` | percent | `utilisation_ratio` | retail_facility_month.utilisation_ratio × 100. |
 | `stage` | count | `ifrs9_stage` | retail_facility_month.ifrs9_stage |
 | `previous_stage` | count | `previous_month_stage` | retail_facility_month.previous_month_stage |
@@ -70,15 +75,23 @@ The retail facility as at a month end: product, balances, IFRS 9 position, delin
 | `pd_ttc_12m` | probability_0_1 | `pd_ttc_12m` | retail_facility_month.pd_ttc_12m |
 | `lgd_pct` | percent | `lgd_base` | retail_facility_month.lgd_base × 100. |
 | `ecl_sar_mn` | rcy | `ecl_final_sar` | retail_facility_month.ecl_final_sar ÷ 1,000,000. |
+| `ecl_sar` | SAR | `ecl_final_sar` | retail_facility_month.ecl_final_sar. Riyals, undivided. |
 | `ecl_weighted_sar_mn` | rcy | `ecl_weighted_sar` | retail_facility_month.ecl_weighted_sar ÷ 1,000,000. |
+| `ecl_weighted_sar` | SAR | `ecl_weighted_sar` | retail_facility_month.ecl_weighted_sar. Riyals, undivided. |
 | `ecl_overlay_sar_mn` | rcy | `management_overlay_sar` | retail_facility_month.management_overlay_sar ÷ 1,000,000. |
+| `ecl_overlay_sar` | SAR | `management_overlay_sar` | retail_facility_month.management_overlay_sar. Riyals, undivided. |
 | `ecl_base_sar_mn` | rcy | `ecl_base_sar` | retail_facility_month.ecl_base_sar ÷ 1,000,000. |
+| `ecl_base_sar` | SAR | `ecl_base_sar` | retail_facility_month.ecl_base_sar. Riyals, undivided. |
 | `ecl_upturn_sar_mn` | rcy | `ecl_upturn_sar` | retail_facility_month.ecl_upturn_sar ÷ 1,000,000. |
+| `ecl_upturn_sar` | SAR | `ecl_upturn_sar` | retail_facility_month.ecl_upturn_sar. Riyals, undivided. |
 | `ecl_downturn_sar_mn` | rcy | `ecl_downturn_sar` | retail_facility_month.ecl_downturn_sar ÷ 1,000,000. |
+| `ecl_downturn_sar` | SAR | `ecl_downturn_sar` | retail_facility_month.ecl_downturn_sar. Riyals, undivided. |
 | `ecl_horizon_type` | — | `ecl_horizon_type` | retail_facility_month.ecl_horizon_type |
 | `ecl_coverage_ratio` | ratio | `ecl_coverage_ratio` | retail_facility_month.ecl_coverage_ratio |
 | `write_off_sar_mn` | rcy | `writeoff_amount_month_sar` | retail_facility_month.writeoff_amount_month_sar ÷ 1,000,000. |
+| `write_off_sar` | SAR | `writeoff_amount_month_sar` | retail_facility_month.writeoff_amount_month_sar. Riyals, undivided. |
 | `recovery_sar_mn` | rcy | `recovery_amount_month_sar` | retail_facility_month.recovery_amount_month_sar ÷ 1,000,000. |
+| `recovery_sar` | SAR | `recovery_amount_month_sar` | retail_facility_month.recovery_amount_month_sar. Riyals, undivided. |
 | `behaviour_score` | index | `behavioural_score` | retail_facility_month.behavioural_score |
 | `behaviour_score_previous` | index | `behavioural_score_previous_month` | retail_facility_month.behavioural_score_previous_month |
 | `score_band` | — | `behavioural_score_band` | retail_facility_month.behavioural_score_band |
@@ -87,6 +100,7 @@ The retail facility as at a month end: product, balances, IFRS 9 position, delin
 | `facility_status` | — | `facility_status` | retail_facility_month.facility_status |
 | `closure_reason` | — | `closure_reason` | retail_facility_month.closure_reason |
 | `customer_income_sar_mn` | rcy | `verified_total_monthly_income_sar` | retail_facility_month.verified_total_monthly_income_sar ÷ 1,000,000. Customer grain. |
+| `customer_income_sar` | SAR | `verified_total_monthly_income_sar` | retail_facility_month.verified_total_monthly_income_sar. Customer grain. Riyals, undivided. |
 | `debt_burden_ratio` | ratio | `debt_burden_ratio` | retail_facility_month.debt_burden_ratio. Customer grain. |
 
 ### `retail_behaviour_month`
@@ -223,7 +237,7 @@ Security on secured retail lending. An unsecured facility has no row here at all
 
 - Grain: one row per secured retail facility per reporting month
 - Key: `account_id, reporting_month`
-- Columns: 8
+- Columns: 10
 
 | column | unit | from | lineage |
 |---|---|---|---|
@@ -232,7 +246,9 @@ Security on secured retail lending. An unsecured facility has no row here at all
 | `reporting_month` | — | `reporting_month` | retail_facility_month.reporting_month |
 | `product` | — | `product_label` | retail_facility_month.product_label |
 | `collateral_value_sar_mn` | rcy | `collateral_value_current_sar` | retail_facility_month.collateral_value_current_sar ÷ 1,000,000. |
+| `collateral_value_sar` | SAR | `collateral_value_current_sar` | retail_facility_month.collateral_value_current_sar. Riyals, undivided. |
 | `collateral_value_origination_sar_mn` | rcy | `collateral_value_origination_sar` | retail_facility_month.collateral_value_origination_sar ÷ 1,000,000. |
+| `collateral_value_origination_sar` | SAR | `collateral_value_origination_sar` | retail_facility_month.collateral_value_origination_sar. Riyals, undivided. |
 | `ltv_pct` | percent | `ltv_current_ratio` | retail_facility_month.ltv_current_ratio × 100. |
 | `ltv_origination_pct` | percent | `ltv_origination_ratio` | retail_facility_month.ltv_origination_ratio × 100. |
 
@@ -242,7 +258,7 @@ The customer as at a month end: segment, affordability, and their facilities rol
 
 - Grain: one row per retail customer per reporting month
 - Key: `customer_id, reporting_month`
-- Columns: 16
+- Columns: 21
 
 | column | unit | from | lineage |
 |---|---|---|---|
@@ -255,11 +271,16 @@ The customer as at a month end: segment, affordability, and their facilities rol
 | `tenure_months` | months | `customer_tenure_months` | retail_facility_month.customer_tenure_months, one value per customer-month. |
 | `facilities_held` | count | computed | Derived: count of that customer's rows in the month. |
 | `income_sar_mn` | rcy | `verified_total_monthly_income_sar` | retail_facility_month.verified_total_monthly_income_sar ÷ 1,000,000, one value per customer-month. Additive ACROSS customers here, because this relation holds one row each. |
+| `income_sar` | SAR | `verified_total_monthly_income_sar` | retail_facility_month.verified_total_monthly_income_sar, one value per customer-month. Additive ACROSS customers here, because this relation holds one row each. Riyals, undivided. |
 | `obligations_sar_mn` | rcy | `monthly_total_credit_obligations_sar` | retail_facility_month.monthly_total_credit_obligations_sar ÷ 1,000,000, one value per customer-month. |
+| `obligations_sar` | SAR | `monthly_total_credit_obligations_sar` | retail_facility_month.monthly_total_credit_obligations_sar, one value per customer-month. Riyals, undivided. |
 | `disposable_income_sar_mn` | rcy | `disposable_income_sar` | retail_facility_month.disposable_income_sar ÷ 1,000,000, one value per customer-month. |
+| `disposable_income_sar` | SAR | `disposable_income_sar` | retail_facility_month.disposable_income_sar, one value per customer-month. Riyals, undivided. |
 | `debt_burden_ratio` | ratio | `debt_burden_ratio` | retail_facility_month.debt_burden_ratio, one value per customer-month. |
 | `total_ead_sar_mn` | rcy | `ead_base_sar` | Sum of retail_facility_month.ead_base_sar over the customer's facilities in the month, ÷ 1,000,000. |
+| `total_ead_sar` | SAR | `ead_base_sar` | Sum of retail_facility_month.ead_base_sar over the customer's facilities in the month. Riyals, undivided. |
 | `total_ecl_sar_mn` | rcy | `ecl_final_sar` | Sum of retail_facility_month.ecl_final_sar over the customer's facilities in the month, ÷ 1,000,000. |
+| `total_ecl_sar` | SAR | `ecl_final_sar` | Sum of retail_facility_month.ecl_final_sar over the customer's facilities in the month. Riyals, undivided. |
 | `worst_stage` | count | `ifrs9_stage` | Maximum of retail_facility_month.ifrs9_stage over the customer's facilities in the month. |
 | `worst_dpd_days` | days | `dpd` | Maximum of retail_facility_month.dpd over the customer's facilities in the month. |
 
