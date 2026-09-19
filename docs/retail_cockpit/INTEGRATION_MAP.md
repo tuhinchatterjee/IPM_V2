@@ -1,5 +1,9 @@
 # Integration map — what was added, and what was not touched
 
+Candidate baseline: `c0db151f62c34e84b4f7df5faf81e5c9b0c9f647`, the commit the
+running retail demo serves from. See `TARGET_BASELINE.md` for the
+reconciliation against `861f5707`.
+
 ## Ported verbatim from the frozen source
 
 `19dc143c433eff190de7d304e53b7e941c96735b` (`claude/cockpit-single-agent-v4-h8fsbq`).

@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Repository | `github.com/tuhinchatterjee/IPM_V2` |
-| Baseline commit | `861f570746b2a7df4049486554163a32e9dafc95` (`claude/funny-dirac-6n8f0o`, 2026-09-17) |
+| Baseline commit | `c0db151f62c34e84b4f7df5faf81e5c9b0c9f647` — **the commit the demo actually runs** (`claude/funny-dirac-6n8f0o`, 2026-09-14) |
 | Candidate branch | `claude/modest-rubin-cm037o`, started from that commit |
 | Profile | `CREDITPROBE_PRODUCT_PROFILE=retail` (`backend/retail/profile.py::is_retail`) |
 | Frontend / API | 5328 / 8328 (`.env.retail.example`, `launchers/retail/start-retail.command`) |
@@ -29,6 +29,49 @@ canonical book, and this integration reads none of them.
 
 Cockpit Data publishes one dataset, `retail_facility_month`, described in
 `COCKPIT_DATA_CONTRACT.md`.
+
+## Reconciled against the running demo
+
+The Mac reports the demo serving from `/Users/tuhinchatterjee/Desktop/IPM_V2`
+at `c0db151f`, on a detached HEAD. That is **not another line**: it is an
+ancestor of `861f5707` on the same branch, which is 37 commits ahead of it and
+0 behind. The candidate was rebased onto it, so the cutover delta is the
+Cockpit integration and nothing else.
+
+What those 37 commits change, in the areas this integration touches:
+
+| Area | Change |
+|---|---|
+| Retail launcher, `.env.retail.example`, `check_retail_ready.py` | none |
+| Frontend shell and home (`app/page.tsx`, `app/layout.tsx`, `components/layout/**`) | none |
+| Auth and principal (`api/auth.py`, `api/permissions.py`, `db/models.py`) | none |
+| Backend API | +1,376/−29 across `retail.py`, `scorecard_validation.py`, `workspace.py`, `ask.py`, `main.py` (two startup warm-up threads; no router, auth or middleware change) |
+| Data Builder | `backend/retail/domains.py` +60/−1 — staleness stamping for the four derived views; the canonical dataset and the Cockpit Data entry untouched |
+| Cockpit routes and components | `prompt_bank.py` +399, `story_router.py` +254, `ask.py` +73, `composer.tsx` +6 |
+
+The published book is identical at both commits — manifest, contract,
+catalogue, generator and schema are byte-identical — and the only
+data-vocabulary file that differs, `taxonomy.py`, differs solely in
+`resolve_product()`'s word-boundary matching. The product codes, labels,
+secured set, DPD buckets and score bands are unchanged, so **the adapter and
+its oracles are invariant across the 37 commits**, which was verified by
+re-running them on the rebased tree.
+
+Whether to move the demo itself to its branch tip is a separate decision, on
+its own merits, and is not part of this integration.
+
+### An untracked directory in the live worktree
+
+`data/cockpit_agentic_v3/` is not produced by anything the demo runs:
+`backend/cockpit_agentic` and `backend/cockpit_v4` are both absent at
+`c0db151f`. It is the V3 lake root — `store.root()` is
+`analytics_dir.parent / "cockpit_agentic_v3"`, which resolves to exactly that
+path under the DEFAULT `data/analytics` rather than the retail profile's
+`data/retail/analytics` — created by `store.py`'s own `mkdir` on a write path
+that requires `COCKPIT_AGENTIC_V3=true`. So a Cockpit branch was checked out in
+that worktree at some point and a seed ran there without the retail profile.
+Inert: untracked, unread by any retail code path, and outside everything this
+integration touches.
 
 ## What was verified here, and how
 

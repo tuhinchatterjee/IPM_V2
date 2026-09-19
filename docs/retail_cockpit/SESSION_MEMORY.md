@@ -65,6 +65,54 @@ correct row counts, no exception, wall time equal to the slower of the two
 (64–76 ms) with the simple query still finishing in 4.5 ms. The shared
 connection serialises rather than failing.
 
+## What the Mac actually has, and what that changes
+
+Measured on the demo machine: **16 GB physical, 3,033 MiB available**, with the
+retail API at 105 MiB and the frontend at 18 MiB. Against the peak RSS above:
+
+| Limit | Peak RSS | Against 3,033 MiB available | Verdict |
+|---|---|---|---|
+| 1536MB | 1,658 MiB | leaves ~1,375 MiB | safe |
+| 2048MB | 2,187 MiB | leaves ~846 MiB | acceptable on a quiet machine |
+| 2560MB | 2,796 MiB | leaves ~237 MiB | compresses and swaps |
+| 3072MB | 3,063 MiB | exceeds available | do not run |
+| 3584MB | 3,290 MiB | exceeds available | do not run |
+
+**The 3072MB recommendation is withdrawn for this machine.** It answered "which
+limit removes spilling" correctly and "what can this Mac afford" not at all,
+and the second is the question that decides.
+
+The cost is not transient. The book is materialised at application startup and
+cached, so the figure above is the engine's steady-state resident size, sitting
+beside the demo and the browser on a machine with 13 GB already in use.
+
+So the affordable option is the honest one: **1536MB, the engine default, with
+no override at all.** Query latency is flat across the entire range whether the
+book spills or not; the only cost is the materialisation, paid once by the
+launcher before it prints READY, with spill on an SSD inside the candidate
+runtime directory.
+
+**Decision rule, against the Mac's own figure in demo-ready state:**
+
+- available ≥ 3,500 MiB → `2048MB` (~12 s start, ~2.2 GB resident)
+- available < 3,500 MiB → **no override**; the engine's own 1536MB
+- 2560MB and above → only with ≥ 5 GB free, which this machine does not have
+
+`benchmark_session.py` now refuses a limit this machine cannot hold — projected
+resident size at 1.15× the limit, plus 512 MiB left for the machine itself —
+and records the refusal instead of running it. A benchmark that swaps measures
+the swap. `--allow-unsafe` overrides it deliberately.
+
+## A caveat on the 1536MB cold open
+
+The 45.0 s above was the first run against a freshly written lake, with the
+file cache cold. A later run of the same limit on the same machine, with the
+parquet in the page cache, opened in **18.3 s**. Both are true: the first start
+after a reboot is the slow case, and the figure to expect on the Mac is
+somewhere in that range rather than a single number. It changes nothing about
+the ordering — the higher limits are ~11 s either way — but a 45 s launcher
+wait quoted as fact would be one.
+
 ## The choice
 
 The rule, written down before the numbers: *the lowest limit whose session-open
@@ -72,23 +120,24 @@ spill is zero; failing that, the lowest whose spill falls by at least 90% agains
 1536MB with aggregation latency within noise of the best; subject to peak RSS
 leaving a margin on the machine that runs it.*
 
-**Provisional recommendation: `3072MB`** — the lowest value in the approved set
-that materially reduces spilling (−91%), at 3,063 MiB peak RSS for this process.
-`3584MB` is where spilling stops entirely, for 227 MiB more.
+On this container the rule chose `3072MB`: the lowest value in the approved set
+that materially reduced spilling (−91%), at 3,063 MiB peak RSS.
 
-It is provisional because condition 7 is about the machine that will run it, and
-this is not that machine: this container had 16 GB and nothing else in it, while
-the demo Mac also carries the retail API, a Next dev server and a browser. The
-same benchmark runs there with one command:
+**On the Mac it chooses differently, and the Mac is the machine that matters.**
+At 3,033 MiB available, 3072MB does not fit and 2560MB leaves the machine
+nothing. The candidate therefore ships with **no override** — the engine's own
+1536MB — until a run on that machine, in demo-ready state, says otherwise. The
+safe benchmark there is two limits:
 
 ```
-.venv/bin/python scripts/retail_cockpit/publish_release.py
 .venv/bin/python scripts/retail_cockpit/benchmark_session.py \
-    --limits 1536MB,2048MB,2560MB,3072MB,3584MB
+    --limits 1536MB,2048MB --repeat 3
 ```
 
-Neither touches the retail domain: the first reads `data/retail/analytics` and
-writes only into the candidate Cockpit lake, the second only opens sessions.
+which the guard will trim further if the machine is busier than it was. Neither
+that nor the publisher touches the retail domain: the publisher reads
+`data/retail/analytics` and writes only into the candidate Cockpit lake, and
+the benchmark only opens sessions.
 
 ## Against the ported budgets
 

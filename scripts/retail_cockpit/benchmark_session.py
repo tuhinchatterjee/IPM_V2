@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import resource
 import subprocess
 import sys
@@ -29,6 +30,51 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+
+from mac_preflight import MIB, available_bytes, physical_ram_bytes  # noqa: E402
+
+#: What is left for everything else. The machine still has to run the demo it
+#: is being measured for, a browser and itself, and a benchmark that takes the
+#: last megabyte is measuring a machine nobody will ever use.
+MACHINE_RESERVE = 512 * 1024 * 1024
+
+#: How much more than its limit a session's process actually holds. Measured
+#: rather than guessed: across 1536MB to 4096MB the peak RSS ran 1.07 to 1.08
+#: times the limit, so 1.15 is that with room, and a limit this machine cannot
+#: afford at 1.15 is one it cannot afford.
+RSS_OVER_LIMIT = 1.15
+
+_SIZE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>[KMGT])i?B$",
+                   re.IGNORECASE)
+_SCALE = {"K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
+
+
+def limit_bytes(limit: str) -> int:
+    """The limit as a number, for comparing against what the machine has."""
+    match = _SIZE.match(limit.strip())
+    if not match:
+        raise ValueError(f"{limit!r} is not a size DuckDB states.")
+    return int(float(match.group("value"))
+               * _SCALE[match.group("unit").upper()])
+
+
+def affordable(limit: str, *, available: int) -> tuple[bool, str]:
+    """Whether this machine can hold that limit without going to swap.
+
+    A benchmark that swaps measures the swap. The refusal is the measurement
+    in that case, so it is recorded rather than attempted.
+    """
+    if available <= 0:
+        return True, "available memory could not be measured; not refusing"
+    wanted = limit_bytes(limit) * RSS_OVER_LIMIT
+    if wanted + MACHINE_RESERVE <= available:
+        return True, ""
+    return False, (
+        f"needs about {wanted / MIB:,.0f} MiB resident plus "
+        f"{MACHINE_RESERVE / MIB:,.0f} MiB left for the machine, and this one "
+        f"has {available / MIB:,.0f} MiB available")
 
 #: The evidence class the source's own performance files declare, so a reader
 #: knows what a number here is worth.
@@ -231,6 +277,9 @@ def main() -> int:
     ap.add_argument("--out", type=Path,
                     default=ROOT / "docs" / "retail_cockpit" / "evidence"
                     / "session_memory_benchmark.json")
+    ap.add_argument("--allow-unsafe", action="store_true",
+                    help="run a limit this machine cannot afford. It will "
+                         "swap, and the numbers will be about the swap.")
     ap.add_argument("--child", default="", help=argparse.SUPPRESS)
     args = ap.parse_args()
 
@@ -239,8 +288,18 @@ def main() -> int:
         return 0
 
     limits = [x.strip() for x in args.limits.split(",") if x.strip()]
-    runs = []
+    available, how = available_bytes()
+    print(f"  machine: {physical_ram_bytes() / MIB:,.0f} MiB physical, "
+          f"{available / MIB:,.0f} MiB available  [{how}]")
+    runs, refused = [], []
     for limit in limits:
+        ok, why = affordable(limit, available=available)
+        if not ok and not args.allow_unsafe:
+            print(f"  {limit} REFUSED: {why}")
+            refused.append({"limit": limit, "reason": why})
+            continue
+        if not ok:
+            print(f"  {limit} unsafe, running anyway (--allow-unsafe): {why}")
         print(f"  {limit} ...", flush=True)
         environment = dict(os.environ)
         environment["COCKPIT_V4_SQL_MEMORY_LIMIT"] = limit
@@ -278,7 +337,11 @@ def main() -> int:
             "session_cold_open (test_dual_domain_performance.py)": 6000.0,
             "session_open (test_performance_gates.py)": 5000.0,
         },
-        "machine": _machine(),
+        "machine": {**_machine(),
+                    "physical_ram_mib": round(physical_ram_bytes() / MIB),
+                    "available_mib": round(available / MIB),
+                    "available_read_as": how},
+        "refused": refused,
         "runs": runs,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
