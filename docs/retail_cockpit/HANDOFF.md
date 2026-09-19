@@ -174,6 +174,18 @@ ported suite's `test_collaboration_and_threads.py` and `test_export.py`
 (passing). End-to-end through the browser needs a real answer to save, so it
 is **NOT VERIFIED LIVE**.
 
+## 13b. The boundary between the proxy and the engine
+
+`tests/retail_cockpit/test_host.py`, **19 passed**, no server needed. No
+secret is not a principal; a wrong secret is not a principal; a principal
+without an id is not a principal whatever the body looks like; the tenant
+comes from the deployment rather than the caller, because a caller who could
+choose it could read another deployment's rows; and a caller cannot
+contribute either boundary header under any spelling — the outbound header
+dict is lowercased as it is built and the two names are dropped before they
+are written, so the property does not depend on the framework underneath
+normalising names.
+
 ## 14. SSE, Stop, reconnect
 
 `scripts/retail_cockpit/check_transport.py`: **PASS, 0 findings**. Through
