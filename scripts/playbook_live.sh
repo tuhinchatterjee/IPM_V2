@@ -160,28 +160,48 @@ start_frontend() {
   claim_port frontend "$WEB_PORT" || return 1
   ours frontend && return 0
 
-  # The build decides which backend the browser calls: Next bakes
-  # NEXT_PUBLIC_* in at build time, so a build made against 8000 will talk to
-  # the main CreditProbe backend however this script starts it. The stamp
-  # records what the last build was pointed at, and a mismatch rebuilds rather
-  # than starting something that would quietly call the wrong service.
-  local want="http://127.0.0.1:$API_PORT/api/v1"
+  # The build decides which backend the browser calls, by TWO routes, and
+  # both are fixed at build time:
+  #
+  #   NEXT_PUBLIC_API_URL    what the application's own client calls
+  #   BACKEND_INTERNAL_URL   where next.config.ts rewrites same-origin
+  #                          /api/... requests, which Next resolves during
+  #                          `next build`, not at start
+  #
+  # Both default to 8000. Setting only the first leaves the rewrite pointing
+  # at the main CreditProbe backend, so anything using the same-origin path —
+  # a diagnostic, a curl against :3000, an acceptance script — silently reads
+  # and writes the other service's data. That is the collision this script
+  # exists to prevent, so both are set and both are stamped.
+  # ORIGIN ONLY, no /api/v1. `src/lib/api.ts` holds the prefix itself —
+  # `API_BASE_URL` is the origin and `API_PREFIX = "/api/v1"` is appended to
+  # every path. Including it here produced /api/v1/api/v1/playbook/home, every
+  # request 404'd, and the page rendered a shell with "Backend offline" and no
+  # working composer. It looked like a broken product; it was a doubled path.
+  local want="http://127.0.0.1:$API_PORT"
+  local want_internal="http://127.0.0.1:$API_PORT"
+  # The stamp carries BOTH addresses. A build made before the rewrite was
+  # pointed at the Playbook API stamped only the first one, and would
+  # otherwise be accepted as current while its /api proxy still went to 8000.
+  local stamped="$want $want_internal"
   local stamp="$RUN/frontend-api-url"
   local have=""
   [ -f "$stamp" ] && have="$(cat "$stamp" 2>/dev/null)"
 
-  if [ ! -d "$ROOT/frontend/.next" ] || [ "$have" != "$want" ]; then
+  if [ ! -d "$ROOT/frontend/.next" ] || [ "$have" != "$stamped" ]; then
     if [ -d "$ROOT/frontend/.next" ]; then
-      info "the existing build points at ${have:-an unrecorded backend}; rebuilding for $want"
+      info "the existing build points at ${have:-an unrecorded backend};"
+      info "rebuilding for $stamped"
     else
       info "no build yet; building the frontend for $want"
     fi
-    ( cd "$ROOT/frontend" && NEXT_PUBLIC_API_URL="$want" npm run build ) \
+    ( cd "$ROOT/frontend" && NEXT_PUBLIC_API_URL="$want" \
+        BACKEND_INTERNAL_URL="$want_internal" npm run build ) \
       >>"$LOGS/frontend-build.log" 2>&1 || {
         fail "the frontend build failed. See $LOGS/frontend-build.log"
         return 1
       }
-    printf '%s' "$want" > "$stamp"
+    printf '%s' "$stamped" > "$stamp"
     ok "built the frontend against $want"
   else
     ok "the existing build already points at $want"
@@ -189,7 +209,8 @@ start_frontend() {
 
   info "starting the web server on $WEB_PORT"
   set -m
-  bash -c "cd '$ROOT/frontend' && exec npx next start --port $WEB_PORT" \
+  bash -c "cd '$ROOT/frontend' && BACKEND_INTERNAL_URL='$want_internal' \
+    exec npx next start --port $WEB_PORT" \
     >>"$LOGS/frontend.log" 2>&1 &
   echo $! > "$RUN/frontend.pid"
   set +m
