@@ -24,6 +24,7 @@ import io
 import json
 import pathlib
 import sys
+import time
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
@@ -115,8 +116,36 @@ def _clean_up() -> int:
     return removed
 
 
-async def _state(page, workspace: int) -> dict:
+async def _raw_state(page, workspace: int) -> dict:
     return (await _api(page, f"/api/v1/playbook/workspaces/{workspace}"))["body"]
+
+
+async def _state(page, workspace: int, timeout_ms: int = 30_000) -> dict:
+    """The workspace as the API has it, once the turn is actually stored.
+
+    The DOM and the database do not become true at the same instant. Text
+    streams into the thread delta by delta, and the assistant's row is written
+    when the turn ends, so a read taken the moment `_settle` sees the sentence
+    can still return a thread whose last message is the user's question.
+
+    That is not hypothetical: on a cold server the first journey failed on
+    exactly this, twice, while the product was behaving correctly — the same
+    journey passed on the second cycle, which is the wrong direction for a
+    state-leakage signal and was worth chasing down.
+
+    So this waits, bounded, for the assistant's row to arrive, and then
+    returns whatever the API says. It never invents a pass: if the row never
+    appears, the last read is returned and the check fails on the truth.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    state = await _raw_state(page, workspace)
+    while time.monotonic() < deadline:
+        messages = state.get("messages") or []
+        if messages and messages[-1]["role"] == "assistant":
+            return state
+        await asyncio.sleep(0.25)
+        state = await _raw_state(page, workspace)
+    return state
 
 
 async def _progress(page, workspace: int) -> dict:
@@ -619,14 +648,15 @@ async def main() -> int:
         finally:
             await browser.close()
             # Even if a journey raised: a run that leaves rows behind breaks
-            # the next suite rather than its own.
+            # the next suite rather than its own. Reported here and nowhere
+            # else — an earlier second call outside this block always printed
+            # nought, because the list it counted had just been emptied.
             try:
-                _clean_up()
-            except Exception:  # noqa: BLE001 — reported, never fatal
-                print("  note  could not clean up; workspaces may remain")
-
-    removed = _clean_up()
-    print(f"\nCleaned up {removed} workspace(s) this run created.")
+                removed = _clean_up()
+                print(f"\nCleaned up {removed} workspace(s) this run "
+                      f"created.")
+            except Exception as exc:  # noqa: BLE001 — reported, never fatal
+                print(f"  note  could not clean up ({exc}); workspaces remain")
 
     print("\n" + "=" * 72)
     print(f"{len(ok)} passed, {len(bad)} failed. Evidence: "
