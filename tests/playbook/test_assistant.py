@@ -364,3 +364,189 @@ class TestTheEdges:
              "result": {"artifact_id": 7}}]
         assert payload["interrupted"] is False
         assert payload["request_ids"] == ["req_scripted", "req_scripted"]
+
+
+# ==========================================================================
+# A turn that promises a document and produces none.
+#
+# This is the class of failure that reached a user. A real model, asked to
+# draft a report, answered:
+#
+#     "I'll draft the full committee report now. Before the tool call, two
+#      things shape how I've written it…"
+#
+# and called nothing. The turn was recorded as a complete, successful answer,
+# the Files panel said "Nothing generated yet", and the user pressed Send
+# three more times.
+#
+# Nothing in the suite could catch it, because the scripted fixture decides
+# whether a tool is called: it proves the plumbing works WHEN the tool is
+# called, never that a model reaches for it. These tests script the refusal
+# instead.
+# ==========================================================================
+
+
+class TestADeclaredDocumentTaskMustProduceOne:
+
+    def test_the_first_turn_requires_a_tool_when_the_caller_declared_one(
+            self, scripted):
+        state = scripted(calls("create_document", {"instruction": "Write it."}),
+                         says("Both files are ready."))
+        assistant.converse(system="s", messages=[{"role": "user",
+                                                  "content": "Draft it."}],
+                           tools=[a_tool()], require_tool=True)
+
+        assert state["choices"][0] == {"type": "any"}, (
+            "the user clicked a control that says what it does; the model "
+            "must reach for a tool rather than describe the document")
+
+    def test_the_choice_is_open_between_the_tools_on_offer(self, scripted):
+        """`any`, never a named tool.
+
+        Which document operation this is — create, revise, convert — is still
+        the assistant's decision. Naming one here would be the routing
+        chapter 04 forbids.
+        """
+        state = scripted(calls("create_document", {"instruction": "Write it."}),
+                         says("Done."))
+        assistant.converse(system="s", messages=[{"role": "user", "content": "x"}],
+                           tools=[a_tool()], require_tool=True)
+        assert state["choices"][0] == {"type": "any"}
+        assert "name" not in state["choices"][0]
+
+    def test_later_turns_are_free(self, scripted):
+        """Forcing a tool on every turn would loop the assistant for ever."""
+        state = scripted(calls("create_document", {"instruction": "Write it."}),
+                         says("Both files are ready."))
+        assistant.converse(system="s", messages=[{"role": "user", "content": "x"}],
+                           tools=[a_tool()], require_tool=True)
+        assert state["choices"][1] is None
+
+    def test_nothing_is_forced_when_no_task_was_declared(self, scripted):
+        """An ordinary question must never be turned into a document."""
+        state = scripted(says("A development report explains how it was built."))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "What is the "
+                                                              "difference?"}],
+            tools=[a_tool()])
+        assert state["choices"] == [None]
+        assert reply.tool_runs == []
+
+    def test_nothing_is_forced_when_there_are_no_tools(self, scripted):
+        """`tool_choice` without `tools` is a request the provider rejects."""
+        scripted(says("Fine."))
+        assistant.converse(system="s", messages=[{"role": "user", "content": "x"}],
+                           tools=[], require_tool=True)
+
+
+class TestAPromiseWithNoToolCall:
+
+    def test_a_promise_with_no_tool_call_is_corrected_once(self, scripted):
+        state = scripted(
+            says("I'll draft the full committee report now. Before the tool "
+                 "call, two things shape how I've written it."),
+            calls("create_document", {"instruction": "Write it."}),
+            says("Both files are ready."))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "Draft it."}],
+            tools=[a_tool()])
+
+        assert reply.nudged is True
+        assert [r.name for r in reply.tool_runs] == ["create_document"]
+        assert reply.made_document is True
+        assert reply.broke_its_promise is False
+        # The correction went back as a user turn the model can act on, and
+        # says plainly what is not true rather than only "try again".
+        last_sent = state["sent"][1][-1]
+        assert "no file exists" in last_sent["content"]
+
+    def test_it_is_corrected_once_and_not_twice(self, scripted):
+        """A model that will not call is not made to by repetition. One
+        bounded extra call; the turn then ends and says what happened."""
+        scripted(says("I'll draft that now."),
+                 says("I have written the report."))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "Draft it."}],
+            tools=[a_tool()])
+
+        assert reply.nudged is True
+        assert reply.turns == 2, "one correction, not a loop"
+        assert reply.broke_its_promise is True
+
+    def test_a_broken_promise_is_recorded_for_the_interface(self, scripted):
+        scripted(says("I'll draft that now."), says("I've drafted it."))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "Draft it."}],
+            tools=[a_tool()])
+
+        assert reply.as_dict()["no_file"] is True, (
+            "an answer that reads like success beside an empty Files panel is "
+            "the failure that started this")
+        assert reply.as_dict()["nudged"] is True
+
+    def test_an_ordinary_answer_is_never_corrected(self, scripted):
+        """The detector reads the ASSISTANT's claim, never the user's words.
+
+        "Draft the report" from the user is a request; only the assistant
+        saying it has drafted one is a claim that can be false.
+        """
+        state = scripted(says("A development report explains how the scorecard "
+                              "was built; a validation report challenges it."))
+        reply = assistant.converse(
+            system="s",
+            messages=[{"role": "user", "content": "Draft the report for me?"}],
+            tools=[a_tool()])
+
+        assert reply.nudged is False
+        assert reply.broke_its_promise is False
+        assert len(state["sent"]) == 1, "no second call was spent"
+
+    def test_a_promise_kept_is_not_a_broken_one(self, scripted):
+        scripted(calls("create_document", {"instruction": "Write it."},
+                       said="I'll draft that now."),
+                 says("Both files are ready."))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "Draft it."}],
+            tools=[a_tool()])
+
+        assert reply.promised_document is True
+        assert reply.made_document is True
+        assert reply.broke_its_promise is False
+
+    def test_a_failed_tool_is_not_a_kept_promise(self, scripted):
+        """The tool ran and could not do it. The user has no file, and the
+        turn must not imply otherwise."""
+        scripted(calls("create_document", {"instruction": "Write it."},
+                       said="I'll draft that now."),
+                 says("The Word file could not be produced."))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "Draft it."}],
+            tools=[a_tool(raises=assistant.ToolFailed("no renderer"))])
+
+        assert reply.made_document is False
+        assert reply.broke_its_promise is True
+
+    def test_a_truncated_promise_is_not_corrected(self, scripted):
+        """A turn cut off at max_tokens is interrupted, not disobedient.
+        Spending another call on it would pay twice for the same stall."""
+        scripted(says("I'll draft that now.", stop_reason="max_tokens"))
+        reply = assistant.converse(
+            system="s", messages=[{"role": "user", "content": "Draft it."}],
+            tools=[a_tool()])
+
+        assert reply.interrupted is True
+        assert reply.nudged is False
+
+    @pytest.mark.parametrize("said,expected", [
+        ("I'll draft the full committee report now.", True),
+        ("Before the tool call, two things shape how I've written it.", True),
+        ("I have what I need. Drafting now — the report will carry every "
+         "supplied figure exactly.", True),
+        ("I've prepared the paper.", True),
+        ("A development report explains how the scorecard was built.", False),
+        ("What would you like the report to cover?", False),
+        ("I cannot draft that without the methodology.", False),
+    ])
+    def test_the_detector_reads_claims_and_not_topics(self, said, expected):
+        """The two live replies are in here verbatim, and both must match."""
+        assert assistant.promised_a_document(said) is expected

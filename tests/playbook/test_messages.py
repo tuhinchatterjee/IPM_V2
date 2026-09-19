@@ -131,6 +131,155 @@ class TestSendingTwiceDoesNotGenerateTwice:
         assert len(repo.messages(db, workspace.id)) == 2
 
 
+class TestADifferentKeyIsStillNotASecondGeneration:
+    """The gap the key alone left open, and what a user paid for.
+
+    The browser's key is POSITIONAL — `ws7:turn12`, derived from the thread's
+    length — so the same sentence sent again after the thread reloads gets a
+    different key. The key check could not see it, nothing else looked, and a
+    second generation started beside the first: two provider runs on one
+    conversation, both charged, with only the newer one visible because
+    `running_job` returns the newest.
+
+    A real thread has four identical "Draft the report from the attached
+    sources." messages in it. This is that thread, in a test.
+    """
+
+    def _live(self, db, workspace, key="first", scope=None):
+        """A generation that has started and not finished."""
+        from backend.models.playbook import PlaybookJob
+
+        job = PlaybookJob(workspace_id=workspace.id,
+                          tenant=scope.tenant if scope else workspace.tenant,
+                          idempotency_key=key, state="drafting")
+        db.add(job)
+        db.flush()
+        return job
+
+    def test_a_new_key_is_refused_while_a_generation_is_live(
+            self, db, scope, workspace):
+        live = self._live(db, workspace)
+        second = service.begin_generation(
+            db, scope, workspace.id,
+            text="Draft the report from the attached sources.",
+            idempotency_key="ws1:turn12")
+
+        assert second["duplicate"] is True
+        assert second["job_id"] == live.id
+        assert "already running" in second["message"]
+
+    def test_the_refused_send_writes_no_question(self, db, scope, workspace):
+        """An orphan user message with no reply is what the thread showed."""
+        self._live(db, workspace)
+        before = len(repo.messages(db, workspace.id))
+        service.begin_generation(db, scope, workspace.id, text="Again.",
+                                 idempotency_key="ws1:turn12")
+        assert len(repo.messages(db, workspace.id)) == before
+
+    def test_the_database_refuses_it_even_if_the_check_is_skipped(
+            self, db, workspace):
+        """The check can be raced; the index cannot.
+
+        Two requests can both read "nothing is running" before either writes.
+        This asserts the constraint underneath, which is why the check is
+        allowed to be optimistic.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        from backend.models.playbook import PlaybookJob
+
+        self._live(db, workspace)
+        db.add(PlaybookJob(workspace_id=workspace.id, tenant=workspace.tenant,
+                           idempotency_key="raced", state="queued"))
+        with pytest.raises(IntegrityError):
+            db.flush()
+        db.rollback()
+
+    def test_a_finished_generation_does_not_block_the_next_one(
+            self, db, scope, workspace):
+        job = self._live(db, workspace)
+        job.finished_at = service._now()
+        db.flush()
+
+        started = service.begin_generation(db, scope, workspace.id,
+                                           text="Now a follow-up.",
+                                           idempotency_key="ws1:turn14")
+        assert started["duplicate"] is False
+
+    def test_a_generation_nobody_has_heard_from_is_closed_not_obeyed(
+            self, db, scope, workspace):
+        """A constraint with no way out is a workspace that can be bricked.
+
+        If the process running a generation is killed, its row keeps
+        `finished_at IS NULL` for ever and every later send is refused with no
+        way for the user to clear it.
+        """
+        from datetime import timedelta
+
+        # Two hours, an absolute age. An earlier version of this test used
+        # `STALE_AFTER_SECONDS + 60`, which scaled with the constant it was
+        # meant to be checking: raising the threshold to a billion seconds
+        # left the test passing and the workspace permanently bricked. A
+        # number the code cannot move is the whole point.
+        job = self._live(db, workspace)
+        job.heartbeat_at = (service.datetime.now(service.UTC)
+                            - timedelta(hours=2))
+        db.flush()
+
+        started = service.begin_generation(db, scope, workspace.id,
+                                           text="Try again.",
+                                           idempotency_key="ws1:turn16")
+        assert started["duplicate"] is False, "a dead job must not block"
+
+        db.refresh(job)
+        assert job.finished_at is not None
+        assert job.state == "failed"
+        # Said in the thread, not only in a column: a user who comes back to a
+        # silent workspace deserves to read why.
+        said = [m for m in repo.messages(db, workspace.id)
+                if m.role == "assistant"]
+        assert any("stopped without finishing" in (m.content.get("text") or "")
+                   for m in said)
+
+    def test_a_working_generation_is_not_mistaken_for_a_dead_one(
+            self, db, scope, workspace):
+        """The threshold has to clear the longest legitimate silence.
+
+        A sandbox read can sit quiet for 420 seconds inside a 600-second run
+        deadline. Closing a job that is still working would orphan a live
+        provider call and let a second one start beside it — the exact failure
+        this mechanism exists to prevent.
+        """
+        from datetime import timedelta
+
+        # Bounded at BOTH ends, and both bounds have a reason. Below the run
+        # deadline it would close working generations; above an hour a killed
+        # process locks the workspace for longer than anybody will wait.
+        assert 600 < service.STALE_AFTER_SECONDS <= 3600
+
+        job = self._live(db, workspace)
+        job.heartbeat_at = (service.datetime.now(service.UTC)
+                            - timedelta(seconds=420))
+        db.flush()
+
+        blocked = service.begin_generation(db, scope, workspace.id, text="x",
+                                           idempotency_key="ws1:turn18")
+        assert blocked["duplicate"] is True
+        assert blocked["job_id"] == job.id
+
+    def test_what_is_running_and_what_is_refused_are_one_fact(
+            self, db, scope, workspace):
+        """Two readings of "in flight" would mean a workspace that refuses to
+        send while reporting that nothing is running."""
+        live = self._live(db, workspace, scope=scope)
+        shown = service.running_job(db, scope, workspace.id)
+        assert shown is not None and shown["id"] == live.id
+
+        refused = service.begin_generation(db, scope, workspace.id, text="x",
+                                           idempotency_key="ws1:turn20")
+        assert refused["job_id"] == shown["id"]
+
+
 class TestFailureLeavesAUsableThread:
     """A document that cannot be made no longer costs the user the turn.
 
