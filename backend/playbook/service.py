@@ -39,6 +39,7 @@ from sqlalchemy import select
 
 from backend.playbook import (
     capabilities,
+    documents,
     grounding,
     ingest,
     merge,
@@ -81,6 +82,8 @@ class Outcome:
     #: document rather than edited out of it: chapter 16 wants "Draft created
     #: — 2 review items", not "nothing saved".
     review_items: list[dict] = field(default_factory=list)
+    #: Which path was chosen to make this artifact, and why.
+    document_path: dict = field(default_factory=dict)
     #: What the model ATTEMPTED: the first pass, whose findings name every
     #: unsupported figure it wrote and what was done about it. `ok` is False
     #: when the draft reached for something the evidence did not support,
@@ -482,8 +485,16 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     ws = repo.get_workspace(session, scope, workspace_id)
     outcome = Outcome(workspace_id=ws.id)
 
+    # Which path makes this artifact, decided once and recorded. Chapter 08
+    # wants the better path per task rather than a blanket switch, and wants
+    # the answer stored: `playbook_artifact_files.renderer` carries it per
+    # file, and `_usable` may still fall back for one format without
+    # disturbing the others.
+    path = documents.choose()
+    outcome.document_path = path.as_dict()
+
     system = prompts.system(formats=formats,
-                            document_tools=provider.SKILL_RENDERING)
+                            document_tools=path.path == documents.SKILL)
     parts = [_framed(task_kind, instruction, task_scope, ws.document_family)]
     current = _current_document(session, artifact_id)
     if current is not None:
@@ -501,6 +512,7 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
         system=system,
         messages=[{"role": "user", "content": user}],
         formats=formats,
+        document_tools=path.path == documents.SKILL,
         on_milestone=on_milestone,
         on_delta=on_delta,
         is_cancelled=is_cancelled,

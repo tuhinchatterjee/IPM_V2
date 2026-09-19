@@ -274,7 +274,7 @@ def scripted_author(monkeypatch):
 
     def fake_author(*, system, messages, formats, purpose="playbook_authoring",
                     container_id="", on_milestone=None, on_delta=None,
-                    is_cancelled=None):
+                    is_cancelled=None, document_tools=None):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("stopped")
         if on_milestone:

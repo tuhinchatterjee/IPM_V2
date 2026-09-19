@@ -205,12 +205,16 @@ def get_capabilities(principal: Principal = RequireAnalyst) -> dict:
     them to an administrator, and the telemetry ledger still records which
     model produced which answer — the ban is on the screen, not on the machine.
     """
-    from backend.playbook import provider
+    from backend.playbook import documents, provider
     from backend.release import product_copy
 
     del principal
     return product_copy.withhold_identity(
-        {**capabilities.describe(), "provider": provider.status().as_dict()})
+        {**capabilities.describe(),
+         "provider": provider.status().as_dict(),
+         # Chapter 02: Implemented, Available but disabled, or Not supported —
+         # and which path a document would actually take today.
+         "document_paths": documents.report()})
 
 
 @router.get("/home")
