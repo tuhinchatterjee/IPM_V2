@@ -188,8 +188,24 @@ start_frontend() {
   local have=""
   [ -f "$stamp" ] && have="$(cat "$stamp" 2>/dev/null)"
 
-  if [ ! -d "$ROOT/frontend/.next" ] || [ "$have" != "$stamped" ]; then
-    if [ -d "$ROOT/frontend/.next" ]; then
+  # A build can also be out of date because the SOURCE moved. That is not a
+  # theoretical case: an interface change was made, `start` saw a matching
+  # address stamp, served the previous bundle, and the browser suite then
+  # failed on text that was sitting in the working tree. A stale build is
+  # worse than a slow start, because it looks like a product defect.
+  local stale_source=""
+  if [ -d "$ROOT/frontend/.next" ]; then
+    stale_source="$(find "$ROOT/frontend/src" "$ROOT/frontend/next.config.ts" \
+      "$ROOT/frontend/package.json" -newer "$ROOT/frontend/.next/BUILD_ID" \
+      -type f -print -quit 2>/dev/null || true)"
+  fi
+
+  if [ ! -d "$ROOT/frontend/.next" ] || [ "$have" != "$stamped" ] \
+     || [ -n "$stale_source" ]; then
+    if [ -n "$stale_source" ] && [ "$have" = "$stamped" ]; then
+      info "the build is older than the source; rebuilding"
+      info "(first file newer than the build: ${stale_source#"$ROOT"/})"
+    elif [ -d "$ROOT/frontend/.next" ]; then
       info "the existing build points at ${have:-an unrecorded backend};"
       info "rebuilding for $stamped"
     else

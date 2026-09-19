@@ -1,5 +1,5 @@
 """
-The Direct Chat conversation, in a real browser. Journeys A–K.
+The Direct Chat conversation, in a real browser. Journeys A–M.
 
     PLAYBOOK_SCRIPTED_CHAT=scripts/acceptance/fixtures/scripted_chat.json \
         .venv/bin/python -m uvicorn backend.api.main:app --port 8000
@@ -562,8 +562,107 @@ async def journey_k(page, *, shoot: bool) -> None:
           last.get("files") in ([], None), str(last.get("files")))
     check("[K] the earlier report is untouched",
           _formats(await _state(page, workspace)) == before, str(before))
+    # The DOM, not only the stored flag. This check asserted `interrupted` on
+    # the row and never that anybody could see it — and the thread had no
+    # branch for it at all, so a turn cut short looked exactly like a
+    # finished one for as long as the flag has existed.
+    check("[K] and the thread says so, not only the row",
+          "cut short" in await _answer(page))
     if shoot:
         await _shoot(page, "chat-k-interrupted")
+
+
+# ==========================================================================
+# L — the assistant promises a document and does not call the tool
+# ==========================================================================
+
+
+async def journey_l(page, *, shoot: bool) -> None:
+    """The failure that reached a user, driven through the real interface.
+
+    A live model answered "I'll draft the full committee report now. Before
+    the tool call…" and called nothing. The turn was recorded as a complete
+    success and the Files panel said "Nothing generated yet".
+    """
+    workspace = await _new_workspace(page, "L — a promise with no tool call")
+    await _open(page, workspace)
+    await _send(page, "Draft the report from the attached sources.")
+
+    check("[L] the turn still ends with a document",
+          await _settle(page, "both files are ready", 150_000))
+    state = await _state(page, workspace)
+    check("[L] the correction happened rather than the promise standing",
+          state["messages"][-1]["content"].get("nudged") is True,
+          str(state["messages"][-1]["content"].get("nudged")))
+    check("[L] and the file is real", _formats(state) == ["docx", "pdf"],
+          str(_formats(state)))
+    check("[L] nothing is marked as having produced no file",
+          state["messages"][-1]["content"].get("no_file") is not True)
+
+    # And when it will not call at all, the interface says so rather than
+    # showing an answer that reads like success beside an empty panel.
+    stubborn = await _new_workspace(page, "L — it never calls")
+    await _open(page, stubborn)
+    await _send(page, "Draft it and never actually write it.")
+    check("[L] a turn that never calls still answers",
+          await _settle(page, "Drafting now", 150_000))
+    state = await _state(page, stubborn)
+    check("[L] no document was written", state["artifacts"] == [])
+    check("[L] the turn is marked as having produced no file",
+          state["messages"][-1]["content"].get("no_file") is True,
+          str(state["messages"][-1]["content"].get("no_file")))
+    check("[L] and the thread says so in words",
+          "produced no file" in await _answer(page))
+    if shoot:
+        await _shoot(page, "chat-l-promise-no-file")
+
+
+# ==========================================================================
+# M — a second send while a generation is running
+# ==========================================================================
+
+
+async def journey_m(page, *, shoot: bool) -> None:
+    """Four identical messages in one thread is what the absence of this
+    looked like, and each one was a second paid generation."""
+    workspace = await _new_workspace(page, "M — a second send")
+    await _open(page, workspace)
+
+    # Refused by the server, whatever the interface does. The interface is
+    # checked below; this is the guarantee underneath it.
+    started = await _api(
+        page, f"/api/v1/playbook/workspaces/{workspace}/messages", "POST",
+        {"text": "Write it slowly.", "stream": True,
+         "idempotency_key": f"m:{workspace}:1"})
+    check("[M] the first send starts a generation",
+          started["status"] in (200, 201), str(started["status"]))
+
+    again = await _api(
+        page, f"/api/v1/playbook/workspaces/{workspace}/messages", "POST",
+        {"text": "Write it slowly.", "stream": True,
+         # A DIFFERENT key, exactly as the browser mints one: the client's key
+         # is positional, so the same sentence sent again gets a new one.
+         "idempotency_key": f"m:{workspace}:2"})
+    body = again["body"] if isinstance(again["body"], dict) else {}
+    check("[M] a second send with a new key is refused",
+          body.get("duplicate") is True, str(body)[:160])
+    check("[M] and is pointed at the generation already running",
+          body.get("job_id") == (started["body"] or {}).get("job_id"),
+          str(body.get("job_id")))
+
+    # Reload before watching: this generation was started through the API
+    # rather than the composer, so the page was never attached to its stream.
+    # A refresh mid-generation is exactly what the product has to survive, so
+    # it is the right way to wait for it here.
+    await _open(page, workspace)
+    check("[M] the first generation finishes normally",
+          await _settle(page, "both files are ready", 150_000))
+    state = await _state(page, workspace)
+    asked = [m for m in state["messages"] if m["role"] == "user"]
+    check("[M] the refused send left no second question",
+          len(asked) == 1, f"{len(asked)} user message(s)")
+    if shoot:
+        await _shoot(page, "chat-m-second-send")
 
 
 # ==========================================================================
@@ -594,6 +693,10 @@ async def run_once(browser, *, shoot: bool, methodology: bytes) -> None:
     await journey_j(page, shoot=shoot)
     print("\n-- K — an interrupted turn " + "-" * 33)
     await journey_k(page, shoot=shoot)
+    print("\n-- L — a promise with no tool call " + "-" * 25)
+    await journey_l(page, shoot=shoot)
+    print("\n-- M — a second send while one is running " + "-" * 18)
+    await journey_m(page, shoot=shoot)
 
     await context.close()
 

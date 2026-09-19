@@ -63,11 +63,24 @@ def _script() -> dict:
         return {}
 
 
+#: The runtime's own correction, which arrives as a user turn and is not one.
+#: `assistant.converse` sends it when a reply promised a document and called
+#: no tool; matching the fixture against it would lose the entry the person's
+#: message selected and answer the correction from `default`.
+_CORRECTION = "no file exists"
+
+
 def _match(script: dict, messages: list[dict]) -> dict:
-    """The entry for this turn, by substring of the last user message."""
+    """The entry for this turn, by substring of the last user message.
+
+    "User" meaning the person. Some user-role turns are the runtime speaking
+    — the correction above — and they must not reselect the fixture.
+    """
     last = ""
     for message in reversed(messages):
         if message.get("role") == "user" and isinstance(message.get("content"), str):
+            if _CORRECTION in message["content"]:
+                continue
             last = message["content"].lower()
             break
     for key, entry in script.items():
@@ -105,7 +118,7 @@ def faults() -> dict:
 def call(client: Any, *, model: str, system: str, messages: list[dict],
          tools: list[dict], container: dict, purpose: str, role: Any,
          on_delta=None, is_cancelled=None, deadline=None,
-         with_tools: bool = False) -> Any:
+         with_tools: bool = False, tool_choice: dict | None = None) -> Any:
     """Stand in for `provider._call`. Same signature, no network."""
     logger.warning(
         "Playbook is answering from a SCRIPTED assistant (%s). "
@@ -118,6 +131,21 @@ def call(client: Any, *, model: str, system: str, messages: list[dict],
     entry = _match(_script(), messages)
     _CURRENT.clear()
     _CURRENT.update(entry)
+
+    # A generation that takes a measurable amount of time. Everything else
+    # here answers instantly, which is right for a fixture and useless for the
+    # one journey that has to send a second message WHILE the first is still
+    # running. Without it that journey is a race it would usually lose.
+    if entry.get("slow_seconds"):
+        import time as _time
+
+        deadline_at = _time.monotonic() + float(entry["slow_seconds"])
+        while _time.monotonic() < deadline_at:
+            if is_cancelled and is_cancelled():
+                from backend.playbook import provider
+
+                raise provider.Cancelled("stopped")
+            _time.sleep(0.05)
 
     if entry.get("interrupt"):
         # Chapter 07: a turn the model did not finish. The partial text is
@@ -142,6 +170,29 @@ def call(client: Any, *, model: str, system: str, messages: list[dict],
                   ("revise", "revise_document"),
                   ("convert", "convert_document"))
                  if entry.get(key) and tool in offered), None)
+
+    # A fixture may refuse to call a tool while saying it has written the
+    # document — the failure that reached a user, which no scripted journey
+    # could reproduce before. Two escapes, and both are the product's own
+    # rules rather than conveniences:
+    #
+    #   `tool_choice: any`  the provider would not permit a text-only reply,
+    #                       so neither does this. A declared task cannot stall.
+    #   the correction      once `converse` has said "no file exists", the
+    #                       fixture proceeds unless it is set to stall always.
+    corrected = any(m.get("role") == "user"
+                    and isinstance(m.get("content"), str)
+                    and _CORRECTION in m["content"]
+                    for m in messages)
+    forced = bool(tool_choice)
+    stalls = entry.get("stalls")
+    if stalls and not forced and not used_a_tool and (
+            stalls == "always" or not corrected):
+        said = entry.get("stall_say") or "I'll draft that now."
+        if on_delta:
+            on_delta(said)
+        return _Response([_Block(type="text", text=said)], "end_turn",
+                         model or "scripted-assistant")
 
     if plan and not used_a_tool:
         key, tool_name = plan
