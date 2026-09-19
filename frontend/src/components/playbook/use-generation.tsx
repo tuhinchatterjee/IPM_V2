@@ -17,7 +17,20 @@ import { assemble, type PlaybookStreamEvent } from "@/lib/stream";
  * `seq` is the cursor. On a reconnect it is sent as `after`, so the server
  * replays exactly what was missed rather than the whole run again.
  */
-export function useGeneration(workspaceId: number, onFinished: () => void) {
+export function useGeneration(
+  workspaceId: number,
+  onFinished: () => void,
+  /**
+   * A version and its files have just committed, mid-run.
+   *
+   * Separate from `onFinished` because it happens earlier and means something
+   * else: the deliverable exists and can be shown. Without it the Files panel
+   * read "Nothing generated yet" for the whole of a generation and flipped at
+   * the last moment, although the backend had announced the artifact the
+   * instant it was durable.
+   */
+  onArtifact: () => void = () => {},
+) {
   const [jobId, setJobId] = React.useState<number | null>(null);
   const [events, setEvents] = React.useState<PlaybookStreamEvent[]>([]);
   const [connectionError, setConnectionError] = React.useState("");
@@ -29,6 +42,10 @@ export function useGeneration(workspaceId: number, onFinished: () => void) {
   React.useEffect(() => {
     finished.current = onFinished;
   }, [onFinished]);
+  const delivered = React.useRef(onArtifact);
+  React.useEffect(() => {
+    delivered.current = onArtifact;
+  }, [onArtifact]);
 
   const view = assemble(events);
 
@@ -51,6 +68,9 @@ export function useGeneration(workspaceId: number, onFinished: () => void) {
             onEvent: (event) => {
               cursor = event.seq || cursor;
               setEvents((current) => [...current, event]);
+              if (event.kind === "artifact") {
+                delivered.current();
+              }
               if (event.kind === "done" || event.kind === "error") {
                 live = false;
                 finished.current();

@@ -114,8 +114,15 @@ export default function PlaybookThreadPage({
   const [error, setError] = React.useState("");
   const [stopping, setStopping] = React.useState(false);
 
-  const generation = useGeneration(workspaceId, () =>
-    setRefresh((n) => n + 1),
+  const generation = useGeneration(
+    workspaceId,
+    () => setRefresh((n) => n + 1),
+    // The Files panel used to wait for the run to END, so it said "Nothing
+    // generated yet" for the whole of a generation and flipped at the last
+    // moment — although the backend announces the artifact the instant the
+    // version and its files commit. The card is the point of the turn; it
+    // should appear when it exists.
+    () => setRefresh((n) => n + 1),
   );
 
   // What the dashboard handed over, if anything. §22.
