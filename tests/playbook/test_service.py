@@ -146,19 +146,28 @@ class TestVersionsAreImmutableAndLineal:
 
 
 class TestGroundingIsEnforcedOnTheWayToDisk:
-    def test_an_invented_figure_never_reaches_the_file(
+    def test_an_invented_figure_is_flagged_and_the_draft_is_delivered(
             self, db, scope, workspace, ledger, scripted_author):
+        """Inverted deliberately. It used to assert the figure was deleted.
+
+        Chapter 16 keeps the authored draft and records the issue beside it,
+        so the check still finds exactly what it found before and the sentence
+        reaches the reviewer who can judge it. What is not allowed is calling
+        such a draft checked, which `review` state covers.
+        """
         scripted_author(REPORT_MD.replace(
             "Post-model adjustments are outside scope.",
             "Coverage reached 41.5 per cent."))
         outcome = _run(db, scope, workspace, ledger)
 
-        assert outcome.grounding.ok is False
-        assert "41.5" not in outcome.document.plain_text()
+        assert outcome.grounding.ok is False, "still caught"
+        assert "41.5" in outcome.document.plain_text(), "no longer deleted"
+        assert [i["figures"] for i in outcome.review_items] == [["41.5"]]
+
         from backend.playbook.ingest import docx_reader
         text = " ".join(c.text for c in
                         docx_reader.read(outcome.files["docx"]).chunks)
-        assert "41.5" not in text
+        assert "41.5" in text, "and the file says what the document says"
 
     def test_the_removal_is_reported_to_the_user(
             self, db, scope, workspace, ledger, scripted_author):
@@ -515,8 +524,12 @@ class TestARevisionMayRestateWhatTheApprovedVersionSaid:
             base_version_id=first.version_id,
             task_kind="edit", task_scope="1. Summary")
 
-        assert second.grounding.ok is False
-        assert "88.30" not in second.document.plain_text()
+        assert second.grounding.ok is False, "still caught"
+        assert "88.30" in second.document.plain_text(), (
+            "recorded as a review item rather than edited out")
+        # `88.3`, not `88.30`: the extractor strips trailing zeros so that a
+        # document and its evidence compare as numbers rather than as strings.
+        assert any("88.3" in i["figures"] for i in second.review_items)
 
     def test_a_revision_that_re_rounds_is_still_caught(
             self, db, scope, workspace, scripted_author):
@@ -539,8 +552,12 @@ class TestARevisionMayRestateWhatTheApprovedVersionSaid:
             base_version_id=first.version_id,
             task_kind="edit", task_scope="1. Summary")
 
-        assert second.grounding.ok is False
-        assert "8.9 per cent" not in second.document.plain_text()
+        assert second.grounding.ok is False, (
+            "no tolerance was smuggled in: 8.95 stated as 8.9 is still caught")
+        assert "8.9 per cent" in second.document.plain_text(), (
+            "and is flagged rather than rewritten to what the evidence says — "
+            "silently correcting a figure is its own kind of fabrication")
+        assert any("8.9" in i["figures"] for i in second.review_items)
 
 
 class TestAScopedEditIsScopedByConstruction:
@@ -616,7 +633,7 @@ class TestAScopedEditIsScopedByConstruction:
         assert second.rejected_sections == ["2. Limitations"]
         assert any("without being asked" in n for n in second.notes)
 
-    def test_an_invented_figure_INSIDE_the_scope_is_still_removed(
+    def test_an_invented_figure_INSIDE_the_scope_is_still_flagged(
             self, db, scope, workspace, ledger, scripted_author):
         """The merge bounds the blast radius; it does not lower the bar."""
         first = self._v1(db, scope, workspace, ledger, scripted_author)
@@ -627,8 +644,9 @@ class TestAScopedEditIsScopedByConstruction:
             "## 2. Limitations\n\nPost-model adjustments are outside scope.\n")
         second = self._revise(db, scope, workspace, ledger, first, None)
 
-        assert second.grounding.ok is False
-        assert "88.30" not in second.document.plain_text()
+        assert second.grounding.ok is False, "the bar is not lowered"
+        assert "88.30" in second.document.plain_text()
+        assert any("88.3" in i["figures"] for i in second.review_items)
 
     def test_a_scope_that_matches_nothing_is_refused_not_ignored(
             self, db, scope, workspace, ledger, scripted_author):

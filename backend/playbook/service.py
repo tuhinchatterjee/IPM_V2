@@ -29,7 +29,6 @@ thing here as a "completed" version whose files do not open.
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import logging
 import time
@@ -38,7 +37,19 @@ from typing import Any
 
 from sqlalchemy import select
 
-from backend.playbook import capabilities, grounding, ingest, merge, prompts, provider, render, reparse, store, validate
+from backend.playbook import (
+    capabilities,
+    grounding,
+    ingest,
+    merge,
+    prompts,
+    provider,
+    render,
+    reparse,
+    review,
+    store,
+    validate,
+)
 from backend.playbook import document as D
 from backend.playbook import evidence as ev
 from backend.playbook import repository as repo
@@ -66,6 +77,10 @@ class Outcome:
     #: holds only the ones with real bytes, so a caller that iterates it can
     #: never hand out a download for a format that failed.
     formats: dict = field(default_factory=dict)
+    #: Suspected issues in the draft, with where they are. Recorded beside the
+    #: document rather than edited out of it: chapter 16 wants "Draft created
+    #: — 2 review items", not "nothing saved".
+    review_items: list[dict] = field(default_factory=list)
     #: What the model ATTEMPTED: the first pass, whose findings name every
     #: unsupported figure it wrote and what was done about it. `ok` is False
     #: when the draft reached for something the evidence did not support,
@@ -550,44 +565,35 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     # that removal actually produced, and nothing is persisted or rendered
     # unless that second pass is clean. A model is allowed to reach for a
     # figure it should not have; a saved report is not allowed to contain one.
-    before = copy.deepcopy(doc)
-    ground = grounding.check(doc, ledger, scope=drafted_only)
-    outcome.grounding = ground
-    if ground.note():
-        outcome.notes.append(ground.note())
-
-    verified = grounding.check(doc, ledger, remove=False, scope=drafted_only)
-    outcome.grounding_final = verified
-    if not verified.ok:
-        # Removal did not converge. Refuse rather than persist a document
-        # whose own check does not pass — the one outcome worse than failing
-        # is a stored report that looks grounded and is not.
-        raise provider.AuthoringError(
-            "The report still stated figures that are in no evidence after "
-            "the unsupported ones were removed, so nothing was saved. "
-            + verified.report(),
-            category="grounding",
-        )
-
-    hollow = grounding.emptied_sections(before, doc, scope=drafted_only)
-    if hollow:
-        raise provider.AuthoringError(
-            "Removing the unsupported figures would have left "
-            + ", ".join(hollow)
-            + " with nothing to say, so nothing was saved. The evidence does "
-              "not support the report that was asked for.",
-            category="grounding_incoherent",
-        )
+    # Evidence is CHECKED, and nothing is rewritten.
+    #
+    # What used to happen: `check(remove=True)` deleted every figure the
+    # ledger did not support, a second pass refused the whole turn if removal
+    # had not converged, a third refused it if removal had hollowed a section,
+    # and any removal at all threw away the provider's files so they could be
+    # re-rendered from the edited prose. A draft that was 95% right was
+    # destroyed to avoid shipping the other 5%, and the author's sentences
+    # were edited by a regular expression before anybody read them.
+    #
+    # Chapter 16 retires that for ordinary drafting: preserve the authored
+    # draft and record suspected issues separately, with their locations.
+    # Chapter 03's ladder — DRAFT, REVIEWED, GOVERNED, APPROVED — is what
+    # carries the difference between "written" and "checked by a person", and
+    # a review finding now moves a document down that ladder instead of
+    # deleting it. A corrupt file, a security failure or an unreadable
+    # artifact still stops delivery; a figure that wants a source does not.
+    review = grounding.check(doc, ledger, remove=False, scope=drafted_only)
+    outcome.grounding = review
+    outcome.grounding_final = review
+    outcome.review_items = [
+        {"kind": "unsupported_figure", "section": f.section,
+         "figures": list(f.figures), "detail": f.line()}
+        for f in review.findings
+    ]
+    if review.note():
+        outcome.notes.append(review.note())
 
     skill_files = {f.format: f.content for f in result.files}
-    if not ground.ok:
-        # The Skill wrote its files from prose that has since had a figure
-        # removed. Those files now disagree with the document, so they go.
-        skill_files = {}
-        outcome.notes.append(
-            "The generated files were re-rendered after unsupported figures "
-            "were removed, so that every format states the same thing."
-        )
 
     render_began = time.monotonic()
     produced = _usable(skill_files, doc, formats)
@@ -671,6 +677,11 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
                 "saved": (outcome.grounding_final.as_dict()
                           if outcome.grounding_final else {}),
             },
+            # Where this version sits on chapter 03's ladder, and what a
+            # reviewer would want to look at. A new version is always a draft
+            # — writing is not reviewing — and the findings travel with it
+            # rather than having been edited out of it.
+            "review": review.initial(outcome.review_items),
         },
     )
 

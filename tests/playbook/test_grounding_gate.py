@@ -31,6 +31,7 @@ from backend.playbook import document as D
 from backend.playbook import evidence as ev
 from backend.playbook import grounding, provider, service, validate
 from backend.playbook import repository as repo
+from backend.playbook import review
 
 TITLE = "IFRS 9 Committee Report — Q2 2026"
 
@@ -146,24 +147,42 @@ class TestTheLedgerAndTheDocumentUseOneRule:
         assert grounding.check(doc, led).ok is True
 
 
-# ======================================================== the two-stage gate
+# ==================================== what a review finding does to a draft
 
 @pytest.mark.usefixtures("db")
-class TestTheSavedReportIsGrounded:
+class TestAReviewFindingDoesNotDestroyTheDraft:
+    """The supersession chapter 16 asks for, stated as its opposite.
 
-    def test_the_draft_attempt_and_the_saved_result_are_reported_apart(
+    These once asserted a two-stage repair gate: the first pass DELETED every
+    figure the ledger did not support, the second refused the whole turn if
+    the deletion had not converged, and a third refused it if deletion had
+    hollowed a section. The effect was that a draft which was 95% right was
+    destroyed to avoid shipping the other 5%, and the author's sentences were
+    edited by a regular expression before anyone read them.
+
+    Chapter 16 retires that for ordinary drafting: preserve the authored draft
+    and record suspected issues separately, with their locations. So the
+    expectation is inverted, not relaxed — the check still runs, still finds
+    exactly what it found before, and its findings are now evidence for a
+    reviewer rather than a licence to edit. What still stops delivery is a
+    corrupt file, which `test_security.py` covers.
+    """
+
+    def test_the_unsupported_figure_is_recorded_and_the_draft_survives(
             self, db, scope, workspace, ledger, scripted_author):
         scripted_author(REPORT_MD.replace(
             "Post-model adjustments are outside scope.",
             "Coverage reached 41.5 per cent."))
         outcome = _run(db, scope, workspace, ledger)
 
-        assert outcome.grounding.ok is False       # the model attempted it
-        assert outcome.grounding_final.ok is True  # the saved report is clean
+        assert outcome.grounding.ok is False, "the check still finds it"
+        assert outcome.version == 1, "and the draft was still written"
+        assert [i["figures"] for i in outcome.review_items] == [["41.5"]]
+        assert outcome.review_items[0]["section"]
 
-    def test_the_persisted_version_passes_grounding_when_read_back(
+    def test_the_sentence_the_author_wrote_is_still_there(
             self, db, scope, workspace, ledger, scripted_author):
-        """Not the in-memory object — the row. This is the product contract."""
+        """The point of the change. It used to be silently deleted."""
         scripted_author(REPORT_MD.replace(
             "Post-model adjustments are outside scope.",
             "Coverage reached 41.5 per cent."))
@@ -171,61 +190,76 @@ class TestTheSavedReportIsGrounded:
 
         stored = D.Document.from_dict(
             repo.versions(db, outcome.artifact_id)[0].content)
-        assert grounding.check(stored, ledger, remove=False).ok is True
+        assert "41.5" in stored.plain_text(), (
+            "the figure is flagged for review, not edited out")
+        assert "22.77" in validate.figures(stored.plain_text()), (
+            "and the supported figure is untouched, as it always was")
 
-    def test_the_supported_figure_survives_the_repair(
+    def test_the_version_is_a_draft_with_its_items_attached(
             self, db, scope, workspace, ledger, scripted_author):
         scripted_author(REPORT_MD.replace(
             "Post-model adjustments are outside scope.",
             "Coverage reached 41.5 per cent."))
         outcome = _run(db, scope, workspace, ledger)
-        assert "22.77" in validate.figures(outcome.document.plain_text())
 
-    def test_a_clean_draft_needs_no_repair(
+        version = repo.versions(db, outcome.artifact_id)[0]
+        state = review.of(version)
+        assert state.state == review.DRAFT, "writing is not reviewing"
+        assert state.open_items == 1
+        assert state.summary() == "Draft — 1 review item", (
+            "chapter 16's sentence, rather than 'nothing saved'")
+
+    def test_a_clean_draft_carries_no_items(
             self, db, scope, workspace, ledger, scripted_author):
         scripted_author(REPORT_MD)
         outcome = _run(db, scope, workspace, ledger)
         assert outcome.grounding.ok is True
-        assert outcome.grounding_final.ok is True
+        assert outcome.review_items == []
+        version = repo.versions(db, outcome.artifact_id)[0]
+        assert review.of(version).summary() == "Draft"
 
-    def test_the_audit_record_keeps_both_passes(
+    def test_the_audit_record_keeps_what_was_found(
             self, db, scope, workspace, ledger, scripted_author):
         scripted_author(REPORT_MD.replace(
             "Post-model adjustments are outside scope.",
             "Coverage reached 41.5 per cent."))
         outcome = _run(db, scope, workspace, ledger)
+
         stored = repo.versions(db, outcome.artifact_id)[0].validation
-        assert stored["grounding"]["attempted"]["ok"] is False
-        assert stored["grounding"]["saved"]["ok"] is True
         classified = stored["grounding"]["attempted"]["classified"]
         assert classified[0]["figures"][0]["token"] == "41.5"
         assert classified[0]["figures"][0]["kind"] == validate.PERCENTAGE
+        assert stored["review"]["state"] == "draft"
+        assert stored["review"]["open_items"] == 1
 
-    def test_a_run_whose_repair_does_not_converge_is_refused(
-            self, db, scope, workspace, ledger, scripted_author, monkeypatch):
-        """The refusal that makes the gate a gate. If the second pass is not
-        clean, nothing is saved — a stored report that looks grounded and is
-        not is the one outcome worse than a failure."""
-        real = grounding.check
-        calls = {"n": 0}
+    def test_a_document_that_would_have_been_hollow_is_now_delivered(
+            self, db, scope, workspace, ledger, scripted_author):
+        """The case the old gate refused outright.
 
-        def stubborn(*args, **kwargs):
-            result = real(*args, **kwargs)
-            calls["n"] += 1
-            if calls["n"] == 2:          # the verification pass
-                result.findings.append(grounding.Finding(
-                    locator_free_text="Coverage reached 41.5 per cent.",
-                    figures=["41.5"], section="3. Limitations",
-                    action="flagged", block_kind="paragraph"))
-            return result
+        Every figure in the drafted section is unsupported, so removal would
+        have left it with nothing to say and the turn was abandoned. The
+        reviewer now gets the section and the findings, and decides.
+        """
+        hollow = REPORT_MD.replace(
+            "Post-model adjustments are outside scope.",
+            "Coverage reached 41.5 per cent and Stage 2 reached 88.3 per cent.")
+        scripted_author(hollow)
+        outcome = _run(db, scope, workspace, ledger)
 
-        monkeypatch.setattr(service.grounding, "check", stubborn)
-        scripted_author(REPORT_MD)
-        with pytest.raises(provider.AuthoringError) as raised:
-            _run(db, scope, workspace, ledger)
-        assert raised.value.category == "grounding"
-        assert "41.5" in str(raised.value)
-        assert not repo.artifacts(db, workspace.id)
+        assert outcome.version == 1
+        flagged = {f for i in outcome.review_items for f in i["figures"]}
+        assert {"41.5", "88.3"} <= flagged
+
+    def test_nothing_claims_the_draft_was_checked(
+            self, db, scope, workspace, ledger, scripted_author):
+        scripted_author(REPORT_MD.replace(
+            "Post-model adjustments are outside scope.",
+            "Coverage reached 41.5 per cent."))
+        outcome = _run(db, scope, workspace, ledger)
+        version = repo.versions(db, outcome.artifact_id)[0]
+
+        assert review.of(version).state != review.APPROVED
+        assert review.of(version).by == "", "no person has signed anything"
 
 
 # ========================================================= coherence
@@ -279,16 +313,30 @@ class TestRemovalMayNotProduceAHollowReport:
         assert grounding.emptied_sections(before, after) == []
 
     @pytest.mark.usefixtures("db")
-    def test_a_hollow_report_is_refused_and_nothing_is_saved(
+    def test_a_report_that_removal_would_have_hollowed_is_now_delivered(
             self, db, scope, workspace, scripted_author):
+        """`emptied_sections` is still right; it is no longer a refusal.
+
+        Everything above still holds — the function correctly identifies a
+        section that removal would empty, and those cases stay. What changed
+        is what the SAVE PATH does with that knowledge. It used to abandon the
+        turn, which meant the one report most in need of a reviewer's eye was
+        the one nobody ever saw. The section is delivered with both figures
+        flagged.
+        """
         scripted_author("# R\n\n## 1. Summary\n\nECL was SAR 22.77 million.\n"
                         "\n## 3. Findings\n\n- Losses were 41.5\n"
                         "- Coverage was 88.1\n")
-        with pytest.raises(provider.AuthoringError) as raised:
-            _run(db, scope, workspace, self._ledger())
-        assert raised.value.category == "grounding_incoherent"
-        assert "3. Findings" in str(raised.value)
-        assert not repo.artifacts(db, workspace.id)
+        outcome = _run(db, scope, workspace, self._ledger())
+
+        assert outcome.version == 1
+        stored = D.Document.from_dict(
+            repo.versions(db, outcome.artifact_id)[0].content)
+        text = stored.plain_text()
+        assert "41.5" in text and "88.1" in text, "nothing was edited out"
+        flagged = {f for i in outcome.review_items for f in i["figures"]}
+        assert {"41.5", "88.1"} <= flagged, "and both are flagged for review"
+        assert review.of(repo.versions(db, outcome.artifact_id)[0]).open_items >= 1
 
 
 # ========================================================= the diagnostic

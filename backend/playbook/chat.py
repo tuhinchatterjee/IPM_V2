@@ -172,6 +172,11 @@ class _Documents:
             # Content findings, carried so the assistant can mention them
             # rather than presenting a draft as checked. They never block.
             "review_notes": list(outcome.notes),
+            # Chapter 03: a written document is a DRAFT. Handing the assistant
+            # the count rather than the findings keeps it from restating a
+            # finding as though it had checked it.
+            "review_state": "draft",
+            "review_items": len(outcome.review_items),
         }
         self.produced.append(dict(result))
         del service

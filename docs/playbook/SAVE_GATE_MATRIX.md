@@ -32,7 +32,7 @@ source.
 | 6 | Global numeric collision | grounding | `tests/playbook/test_grounding_gate.py::TestTheLedgerAndTheDocumentUseOneRule::test_an_identifier_in_the_evidence_cannot_excuse_a_claim` | A number that appears in the evidence as a date, a version or an identifier cannot ground a financial claim; both sides are classified by the same rule | PASS |
 | 7 | Re-rounded unsupported numeric value | grounding | `tests/playbook/test_grounding.py::TestReRoundingIsInvention::test_a_re_rounded_percentage_does_not_survive` | `8.95 → 8.9` is an invention and is removed; the exact figure survives; trailing zeros are the same figure, not a new one | PASS |
 | 8 | Canonical vs rendered figure mismatch | rendering | `tests/playbook/test_spreadsheet_precision.py::TestTheReportSurvivesTheSaveGate::test_the_governed_value_is_rendered_consistently` | What the canonical document states is what the DOCX and the PDF state; classification is the same on both sides | PASS |
-| 9 | Unsupported figure sanitisation | grounding | `tests/playbook/test_grounding_gate.py::TestTheSavedReportIsGrounded::test_the_persisted_version_passes_grounding_when_read_back` | Removal happens before commit, and the SAVED version passes the check when read back — not merely the draft after repair | PASS |
+| 9 | Unsupported figure sanitisation | grounding | `tests/playbook/test_grounding_gate.py::TestAReviewFindingDoesNotDestroyTheDraft::test_the_sentence_the_author_wrote_is_still_there` | **Expectation superseded by Direct Chat ch. 16.** The figure is still found and is now recorded as a review item on a DRAFT version rather than deleted from the author's prose. The original defect — an unsupported figure reaching a file unremarked — is still covered: the finding is on the version, the draft is not marked reviewed, and `test_the_version_is_a_draft_with_its_items_attached` pins it | PASS |
 | 10 | Missing substantive section | rendered-file validation | `tests/playbook/test_title_is_not_a_section.py::TestWhatMustStillFail::test_a_missing_substantive_section_fails` | A section the document carries but the file does not still fails, in DOCX and PDF alike | PASS |
 | 11 | Title mismatch | rendered-file validation | `tests/playbook/test_title_is_not_a_section.py::TestWhatMustStillFail::test_a_wrong_title_fails_with_a_title_diagnostic` | A wrong or absent title fails with a title-specific diagnostic, not as "a missing section" | PASS |
 | 12 | Parser re-read | source parsing | `tests/playbook/test_reparse.py::TestReReading::test_a_re_read_uses_the_stored_bytes_and_makes_a_new_revision` | Re-reading uses the stored immutable bytes, needs no upload and no provider call, writes a new revision and supersedes the old one without deleting it | PASS |
@@ -68,7 +68,7 @@ was reported.
   (older is stale, newer is left alone, unparseable counts as stale), lineage
   across a re-read, that a re-read reaches no provider and writes no document
   version, and that re-reading closes the evidence gap.
-* **6, 7, 9** — `test_grounding_gate.py::TestRemovalMayNotProduceAHollowReport`
+* **6, 7, 9** — `test_grounding_gate.py::TestRemovalMayNotProduceAHollowReport` (the `emptied_sections` cases still hold; the SAVE REFUSAL they once drove is superseded — see row 9)
   pins that sanitisation may not leave an empty document standing as a clean
   one, and `test_a_run_whose_repair_does_not_converge_is_refused` that the
   gate fails rather than saving.
