@@ -69,10 +69,16 @@ _GAP_PHRASES = (
     "awaiting", "tbd", "placeholder",
 )
 
-#: Below this, a section is too short to be an account of anything, whatever
-#: it says. Deliberately generous — the aim is to catch a stub, not to grade
-#: brevity.
-_THIN = 160
+#: Below this a section is a stub: too short to be an account of anything.
+#: Deliberately small. An earlier version used 160 and marked a perfectly
+#: good 108-character conclusion as unfinished, which is grading brevity
+#: rather than detecting absence — a short section can be a complete one.
+_STUB = 60
+
+#: A gap phrase only decides the matter while it is the SUBSTANCE of the
+#: section. Above this the section is an account that happens to mention
+#: scope, not a note saying evidence is missing.
+_GAP_DOMINATES = 240
 
 
 @dataclass
@@ -163,9 +169,9 @@ def _section_state(section) -> tuple[str, str]:
         return NOT_STARTED, "nothing written yet"
     lowered = text.lower()
     hit = next((p for p in _GAP_PHRASES if p in lowered), "")
-    if hit and len(text) < _THIN:
+    if hit and len(text) < _GAP_DOMINATES:
         return NEEDS_INPUT, f"states that evidence is missing ({hit!r})"
-    if len(text) < _THIN:
+    if len(text) < _STUB:
         return IN_PROGRESS, f"only {len(text)} characters so far"
     return DELIVERED, ""
 

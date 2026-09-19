@@ -90,6 +90,18 @@ class _Response:
         self.usage = type("U", (), {"input_tokens": 0, "output_tokens": 0})()
 
 
+#: The entry matched for the turn in flight, so a fault named in the script
+#: can be applied deeper in the stack than the conversation reaches — a format
+#: that will not validate, a tool that fails, a dashboard that is down.
+#: Acceptance-only state, and it exists because the alternative is a browser
+#: suite that can only ever test the happy path.
+_CURRENT: dict = {}
+
+
+def faults() -> dict:
+    return dict(_CURRENT)
+
+
 def call(client: Any, *, model: str, system: str, messages: list[dict],
          tools: list[dict], container: dict, purpose: str, role: Any,
          on_delta=None, is_cancelled=None, deadline=None,
@@ -104,25 +116,50 @@ def call(client: Any, *, model: str, system: str, messages: list[dict],
         raise provider.Cancelled("stopped")
 
     entry = _match(_script(), messages)
+    _CURRENT.clear()
+    _CURRENT.update(entry)
+
+    if entry.get("interrupt"):
+        # Chapter 07: a turn the model did not finish. The partial text is
+        # returned and labelled, never presented as an answer.
+        said = entry.get("say") or "The coverage ratio moved because"
+        if on_delta:
+            on_delta(said)
+        return _Response([_Block(type="text", text=said)], "max_tokens",
+                         model or "scripted-assistant")
+
     used_a_tool = any(
         isinstance(m.get("content"), list)
         and any(isinstance(b, dict) and b.get("type") == "tool_result"
                 for b in m["content"])
         for m in messages)
 
-    wants = entry.get("create") and any(
-        t.get("name") == "create_document" for t in (tools or []))
-    if wants and not used_a_tool:
+    # Which tool this entry reaches for, if any. One key per tool, so a
+    # fixture reads as what the assistant decided to do.
+    offered = {t.get("name") for t in (tools or [])}
+    plan = next(((key, tool) for key, tool in
+                 (("create", "create_document"),
+                  ("revise", "revise_document"),
+                  ("convert", "convert_document"))
+                 if entry.get(key) and tool in offered), None)
+
+    if plan and not used_a_tool:
+        key, tool_name = plan
+        spec = entry[key]
+        arguments: dict[str, Any] = {
+            "formats": spec.get("formats", ["docx", "pdf"])}
+        if tool_name != "convert_document":
+            arguments["instruction"] = spec.get("instruction", "as asked")
+        if spec.get("scope"):
+            arguments["scope"] = spec["scope"]
+
         opening = entry.get("opening") or "I will prepare that now."
         if on_delta:
             on_delta(opening)
         return _Response(
             [_Block(type="text", text=opening),
-             _Block(type="tool_use", name="create_document", id="tu_scripted",
-                    input={"instruction": entry["create"].get(
-                               "instruction", "as asked"),
-                           "formats": entry["create"].get(
-                               "formats", ["docx", "pdf"])})],
+             _Block(type="tool_use", name=tool_name, id="tu_scripted",
+                    input=arguments)],
             "tool_use", model or "scripted-assistant")
 
     said = entry.get("say") or "Done."
@@ -143,14 +180,22 @@ def author(*, system: str, messages: list[dict], formats: list[str], **kw) -> An
     """Stand in for `provider.author`, for the document a tool asks for."""
     from backend.playbook import provider
 
-    script = _script()
-    entry = _match(script, [{"role": "user", "content": kw.get("instruction", "")}])
+    # The document comes from the entry that is in flight, so a revision
+    # returns the revised text rather than the text of whichever entry
+    # happened to be first in the file.
+    current = _CURRENT or _match(
+        _script(), [{"role": "user", "content": kw.get("instruction", "")}])
     markdown = ""
-    for value in script.values():
-        if isinstance(value, dict) and value.get("create", {}).get("markdown"):
-            markdown = value["create"]["markdown"]
+    for key in ("revise", "create"):
+        candidate = (current.get(key) or {}).get("markdown")
+        if candidate:
+            markdown = candidate
             break
-    markdown = (entry.get("create") or {}).get("markdown") or markdown
+    if _CURRENT.get("tool_error"):
+        # A document that could not be written. The conversation survives it
+        # and the assistant explains — chapter 07's three outcomes.
+        raise provider.AuthoringError(str(_CURRENT["tool_error"]),
+                                      category="empty_output")
     logger.warning("Playbook is AUTHORING from a scripted document.")
     return provider.AuthoringResult(
         text=markdown or "# Report\n\n## 1. Scope\n\nScripted content.\n",
@@ -175,7 +220,46 @@ def install() -> bool:
     provider._call = call            # type: ignore[assignment]
     provider._client = lambda: object()  # type: ignore[assignment]
     provider.author = author         # type: ignore[assignment]
+
+    _install_faults()
     logger.warning(
         "Playbook SCRIPTED CHAT is active from %s. Every answer and document "
         "on this server is fixture content, not a model's.", SCRIPT_PATH)
     return True
+
+
+def _install_faults() -> None:
+    """Let the script break one format, or the dashboard, on purpose.
+
+    Both failures have to be reachable from a browser or the journeys that
+    matter most — a PDF that fails while Word survives, a status projection
+    that is down while files still download — can only ever be asserted in a
+    unit test. Each wraps the real function and defers to it unless the
+    matched script entry asked for the failure.
+    """
+    from backend.playbook import service, validate
+    from backend.playbook.intelligence import adopt
+
+    real_validate = validate.validate
+
+    def validate_with_faults(content: bytes, fmt: str, doc: Any) -> Any:
+        broken = {f.lower() for f in (_CURRENT.get("fail_formats") or [])}
+        if fmt.lower() in broken:
+            result = validate.Validation(format=fmt)
+            result.fail(
+                f"the generated file could not be reopened: scripted fault "
+                f"for {fmt}", integrity=True)
+            return result
+        return real_validate(content, fmt, doc)
+
+    validate.validate = validate_with_faults          # type: ignore[assignment]
+    service.validate.validate = validate_with_faults  # type: ignore[assignment]
+
+    real_adopt = adopt.adopt
+
+    def adopt_with_faults(*args: Any, **kw: Any) -> Any:
+        if _CURRENT.get("break_dashboard"):
+            raise RuntimeError("scripted fault: the status indexer is down")
+        return real_adopt(*args, **kw)
+
+    adopt.adopt = adopt_with_faults                   # type: ignore[assignment]

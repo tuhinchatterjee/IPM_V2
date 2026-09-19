@@ -2,19 +2,80 @@
   "default": {
     "say": "I can answer questions about your documents, or draft one for you. Tell me which you would like."
   },
-  "difference between": {
-    "say": "A development report explains how a model was built: the sample, the variables, the fitting and the cut-offs. A validation report challenges it independently, with its own evidence, and states what it could not assess. The first is written by the modelling team; the second must not read as an endorsement of it."
+
+  "difference between a scorecard development report": {
+    "say": "A development report explains how the scorecard was built: the sample, the target definition, the variable treatment, the fitting and the cut-offs chosen. A validation report challenges it independently, on its own evidence, and states plainly what it could not assess. The first is written by the modelling team; the second must not read as an endorsement of it."
   },
-  "what does this paper cover": {
-    "say": "It covers staging and significant increase in credit risk, coverage by stage, and the post-model adjustments. It does not document the scenario weights, so anything about those would have to come from another source."
+
+  "summarise the methodology": {
+    "say": "The methodology sets out the target definition, the observation and performance windows, and the treatment of exclusions. Two things appear incomplete: there is no statement of how rejects were inferred, and the out-of-time window is named but never defined. I have not created a file — say the word if you want this written up."
   },
-  "write the auto loan development report": {
+
+  "create a detailed scorecard development report": {
     "opening": "I will draft that now.",
-    "say": "The report is drafted and both files are ready. Two sections are supported by what you attached; the out-of-time results are not in the evidence, so that section states the gap rather than filling it.",
+    "say": "The report is drafted and both files are ready. Six sections are supported by what you attached; the out-of-time results are not in the evidence, so that section records the gap rather than filling it.",
     "create": {
       "formats": ["docx", "pdf"],
       "instruction": "A detailed Auto Loan application scorecard development report.",
-      "markdown": "# Auto Loan Development Report\n\n## 1. Scope and model\n\nThis report covers the auto-loan application scorecard. The development sample runs to 1,050 accounts observed over twelve months.\n\n## 2. Data and population\n\nThe sample was drawn from originations in the period. Exclusions and their reasons are listed in the appendix to the supplied specification.\n\n## 3. Out-of-time results\n\nThe out-of-time testing evidence was not supplied, so this section records the gap rather than an untested result.\n"
+      "markdown": "# Auto Loan Scorecard Development Report\n\n## 1. Executive summary\n\nThe auto-loan application scorecard was developed on originations observed over twelve months, covering 1,050 accounts after exclusions. Discrimination and calibration are within the thresholds agreed with the risk committee, and the implementation reconciliation is complete for the scoring engine.\n\n## 2. Methodology\n\nThe target definition follows the ninety-day delinquency standard applied across the retail book. The observation window runs to twelve months from origination and the performance window to a further twelve, with exclusions listed in the appendix to the supplied specification.\n\n## 3. Development sample\n\nThe development sample covers originations in the period, split into development and holdout partitions on a random assignment stratified by origination month. Exclusion reasons and their counts are carried through from the source workbook.\n\n## 4. Performance\n\nDiscrimination is reported on the holdout partition using the measures agreed in the methodology. The scorecard separates the target population across the score range without a reversal in any band.\n\n## 5. Calibration\n\nCalibration is assessed against observed rates by score band over the performance window. No band shows a systematic departure that would require a recalibration before the next review.\n\n## 6. Out-of-time results\n\nThe requested out-of-time testing evidence is missing.\n\n## 7. Conclusions\n\nThe scorecard is fit for the use described, subject to the out-of-time evidence being supplied and reviewed.\n"
     }
+  },
+
+  "shorten the executive summary": {
+    "opening": "Editing that section only.",
+    "say": "The executive summary is shorter and framed for a committee reader. Version 2 is saved; version 1 is still there, and nothing outside that section changed.",
+    "revise": {
+      "formats": ["docx"],
+      "scope": "1. Executive summary",
+      "markdown": "# Auto Loan Scorecard Development Report\n\n## 1. Executive summary\n\nThe scorecard performs within the thresholds the committee set. One item is outstanding: out-of-time testing evidence has not been supplied, and the conclusion is conditional on it.\n\n## 2. Methodology\n\nThe target definition follows the ninety-day delinquency standard applied across the retail book. The observation window runs to twelve months from origination and the performance window to a further twelve, with exclusions listed in the appendix to the supplied specification.\n\n## 3. Development sample\n\nThe development sample covers originations in the period, split into development and holdout partitions on a random assignment stratified by origination month. Exclusion reasons and their counts are carried through from the source workbook.\n\n## 4. Performance\n\nDiscrimination is reported on the holdout partition using the measures agreed in the methodology. The scorecard separates the target population across the score range without a reversal in any band.\n\n## 5. Calibration\n\nCalibration is assessed against observed rates by score band over the performance window. No band shows a systematic departure that would require a recalibration before the next review.\n\n## 6. Out-of-time results\n\nThe requested out-of-time testing evidence is missing.\n\n## 7. Conclusions\n\nThe scorecard is fit for the use described, subject to the out-of-time evidence being supplied and reviewed.\n"
+    }
+  },
+
+  "committee presentation": {
+    "opening": "Building the deck from the latest report.",
+    "say": "The deck is ready as PowerPoint, built from the current report rather than written again, so the caveats travel with it.",
+    "create": {
+      "formats": ["pptx"],
+      "instruction": "A twelve-slide committee presentation derived from the current report.",
+      "markdown": "# Auto Loan Scorecard — Committee Summary\n\n## 1. What we are asking\n\nThe committee is asked to note the scorecard's performance and the one outstanding evidence item.\n\n## 2. What changed\n\nDiscrimination and calibration are within the agreed thresholds on the holdout partition.\n\n## 3. What is outstanding\n\nOut-of-time testing evidence has not been supplied; the conclusion is conditional on it.\n"
+    }
+  },
+
+  "give me a pdf": {
+    "say": "Here is the PDF, converted from the Word file that is already saved. Nothing was rewritten, so it says exactly what the report says.",
+    "convert": {"formats": ["pdf"]}
+  },
+
+  "write it with a broken pdf": {
+    "opening": "Drafting now.",
+    "say": "The Word draft is ready and you can download it. The PDF conversion could not be completed — the converted file would not reopen. Ask me to retry the PDF and I will convert it again from the saved Word content.",
+    "fail_formats": ["pdf"],
+    "create": {
+      "formats": ["docx", "pdf"],
+      "instruction": "The development report.",
+      "markdown": "# Auto Loan Scorecard Development Report\n\n## 1. Executive summary\n\nThe scorecard performs within the thresholds the committee set, on the sample supplied and over the window agreed in the methodology.\n\n## 2. Methodology\n\nThe target definition follows the ninety-day delinquency standard applied across the retail book, with the observation and performance windows as documented.\n"
+    }
+  },
+
+  "write it and fail": {
+    "say": "I could not produce that document — the authoring step came back with nothing usable, so there is no file and I have not saved anything. The conversation is unaffected and you can ask me to try again.",
+    "tool_error": "The author returned no document. Nothing was saved.",
+    "create": {"formats": ["docx"], "instruction": "A report."}
+  },
+
+  "write it with the dashboard down": {
+    "opening": "Drafting now.",
+    "say": "The report is drafted and both files are ready to download. The status panel is behind — it could not update — but that does not affect the document.",
+    "break_dashboard": true,
+    "create": {
+      "formats": ["docx", "pdf"],
+      "instruction": "The development report.",
+      "markdown": "# Auto Loan Scorecard Development Report\n\n## 1. Executive summary\n\nThe scorecard performs within the thresholds the committee set, on the sample supplied and over the window agreed in the methodology.\n\n## 2. Methodology\n\nThe target definition follows the ninety-day delinquency standard applied across the retail book, with the observation and performance windows as documented.\n"
+    }
+  },
+
+  "explain the movement": {
+    "interrupt": true,
+    "say": "The coverage ratio moved because"
   }
 }
