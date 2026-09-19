@@ -57,18 +57,35 @@ def calls(name: str, args: dict, *, said: str = "", id_: str = "tu_1") -> Respon
     return Response(content=content, stop_reason="tool_use")
 
 
+def _signatures_match(stand_in, real) -> None:
+    """Refuse a stub the product would call differently."""
+    import inspect
+
+    wanted = set(inspect.signature(real).parameters)
+    have = set(inspect.signature(stand_in).parameters)
+    missing = wanted - have - {"args", "kwargs"}
+    assert not missing, (
+        f"the stub for {real.__name__}() is missing {sorted(missing)}; add "
+        f"it, or every test using this fixture fails with a TypeError that "
+        f"looks like a product defect")
+
+
 @pytest.fixture
 def scripted(monkeypatch):
     """Queue responses; capture what the loop sent back each turn."""
-    state: dict = {"queue": [], "sent": [], "tools": []}
+    state: dict = {"queue": [], "sent": [], "tools": [], "choices": []}
 
     def fake_call(client, *, model, system, messages, tools, container,
                   purpose, role, on_delta=None, is_cancelled=None,
-                  deadline=None, with_tools=False):
+                  deadline=None, with_tools=False, tool_choice=None):
         state["sent"].append([dict(m) for m in messages])
         state["tools"] = list(tools)
         state["container"] = dict(container)
         state["with_tools"] = with_tools
+        # One entry per turn, so a test can assert not only THAT a tool was
+        # required but on which turn — forcing one after a tool has already
+        # run would loop the assistant forever.
+        state["choices"].append(tool_choice)
         if not state["queue"]:
             raise AssertionError("the loop asked for more turns than scripted")
         response = state["queue"].pop(0)
@@ -77,6 +94,12 @@ def scripted(monkeypatch):
                 if block.type == "text":
                     on_delta(block.text)
         return response
+
+    # The same drift that broke the soak harness: a stub whose signature has
+    # fallen behind the real function fails deep inside the first test that
+    # calls it, with a TypeError that reads like a product fault. Caught here,
+    # at import of the fixture, naming the parameter.
+    _signatures_match(fake_call, provider._call)
 
     monkeypatch.setattr(provider, "_call", fake_call)
     monkeypatch.setattr(provider, "_client", lambda: object())

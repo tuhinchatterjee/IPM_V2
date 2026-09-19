@@ -85,6 +85,23 @@ class Reply:
     #: Set when the model stopped mid-answer. Chapter 07: partial text is
     #: labelled interrupted, never presented as a finished answer.
     interrupted: bool = False
+    #: The turn's own words said a document was written or was being written.
+    promised_document: bool = False
+    #: A document tool actually ran and succeeded.
+    made_document: bool = False
+    #: The turn was given one corrective second chance (see `_PROMISES`).
+    nudged: bool = False
+
+    @property
+    def broke_its_promise(self) -> bool:
+        """Said a document exists, produced none.
+
+        The product rule is already written down — "a document is not created
+        because you mention its filename" — and this is that rule turned into
+        a fact the interface can act on, instead of a sentence the model may
+        or may not honour.
+        """
+        return self.promised_document and not self.made_document
 
     @property
     def downgraded(self) -> bool:
@@ -99,6 +116,8 @@ class Reply:
             "request_ids": list(self.request_ids),
             "turns": self.turns,
             "interrupted": self.interrupted,
+            "nudged": self.nudged,
+            "no_file": self.broke_its_promise,
             "tools": [
                 {"name": r.name, "ok": r.ok, "detail": r.detail,
                  "result": r.result}
@@ -145,12 +164,47 @@ def _result_block(use: Any, payload: dict, *, ok: bool) -> dict:
     }
 
 
+#: Things a turn says when it believes it has written, or is writing, a
+#: document. Short and literal on purpose — this is not an attempt to read the
+#: model's intent, only to notice the one claim the product already forbids
+#: making falsely: "a document is not created because you mention its
+#: filename".
+#:
+#: Note what is NOT matched here: the user's wording. This reads the
+#: ASSISTANT's own sentence and compares it against what the tools actually
+#: did, which is a check on an outcome rather than a guess at a request.
+_PROMISES = (
+    "i'll draft", "i will draft", "i'm drafting", "i am drafting",
+    "drafting now", "i'll write", "i will write", "i'm writing",
+    "i've drafted", "i have drafted", "i've written", "i have written",
+    "i'll create", "i will create", "i'll produce", "i will produce",
+    "i'll prepare", "i will prepare", "i've prepared", "i have prepared",
+    "before the tool call", "i'll put that together",
+    "the report will", "the document will", "here is the report",
+)
+
+#: Sent back to the model when it promised and did not call. One turn, once.
+_NOT_DONE = (
+    "No document tool was called, so no file exists and nothing was saved. "
+    "Your last message describes a document that does not exist. If the user "
+    "asked for a document, call the tool now and let it do the writing. If "
+    "they did not, say so plainly and do not describe a document as written."
+)
+
+
+def promised_a_document(text: str) -> bool:
+    """Whether this turn's own words claim a document was or is being made."""
+    lowered = (text or "").lower()
+    return any(phrase in lowered for phrase in _PROMISES)
+
+
 def converse(
     *,
     system: str,
     messages: list[dict],
     tools: list[Tool] | None = None,
     purpose: str = "playbook_chat",
+    require_tool: bool = False,
     on_delta: Callable[[str], None] | None = None,
     on_tool: Callable[[str, str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
@@ -165,6 +219,24 @@ def converse(
     Raises only for a turn that genuinely could not happen: no configured
     model, a provider error, cancellation. A tool that fails is reported to the
     model and the turn continues.
+
+    `require_tool`
+    --------------
+    The caller declared that this turn is document work — the user clicked
+    "Draft the report from these sources", or a caller that knows its own
+    intent said so. The first turn is then sent with `tool_choice: any`, so the
+    assistant must reach for one of the tools it has rather than describing the
+    document it would write.
+
+    This is not keyword routing, and it does not take the decision away from
+    the assistant: `any` leaves the choice between `create_document`,
+    `revise_document` and `convert_document` entirely open. What it removes is
+    the fourth option — announcing the work and doing none of it — which is
+    what a real model did on the first live run, twice, leaving a thread that
+    read like success and a workspace with no file in it.
+
+    Only the FIRST turn is constrained. Once a tool has run, the assistant
+    needs to be free to report what happened in prose.
     """
     tools = list(tools or [])
     by_name = {t.name: t for t in tools}
@@ -184,17 +256,24 @@ def converse(
     reply = Reply(model_requested=model)
     convo = list(messages)
     declared = [t.declaration() for t in tools]
+    used_a_tool = False
 
     for turn in range(1, MAX_TOOL_TURNS + 1):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("This message was stopped.")
         provider._check_clock(started, f"starting turn {turn}")
 
+        # First turn only, and only when the caller declared document work.
+        # After a tool has run the assistant must be free to answer in prose;
+        # forcing a tool on every turn would loop it forever.
+        choice = ({"type": "any"}
+                  if require_tool and declared and turn == 1 and not used_a_tool
+                  else None)
         response = provider._call(
             client, model=model, system=system, messages=convo,
             tools=declared, container={}, purpose=purpose, role=role,
             on_delta=on_delta, is_cancelled=is_cancelled, deadline=started,
-            with_tools=bool(declared))
+            with_tools=bool(declared), tool_choice=choice)
         reply.turns = turn
 
         rid = getattr(response, "_request_id", "") or ""
@@ -225,8 +304,24 @@ def converse(
         if stop != "tool_use" or not uses:
             if stop == "max_tokens":
                 reply.interrupted = True
+                break
+            # The turn is over as far as the model is concerned. Before
+            # accepting that, check the one thing the product forbids: a
+            # message that describes a document nobody made. One correction,
+            # once, and only when a tool was available to call and none has
+            # run. A false positive costs exactly one bounded call; the
+            # alternative is what happened live — an answer that reads like
+            # success beside an empty Files panel.
+            if (declared and not used_a_tool and not reply.nudged
+                    and promised_a_document(text)):
+                reply.nudged = True
+                convo.append({"role": "assistant",
+                              "content": response.content})
+                convo.append({"role": "user", "content": _NOT_DONE})
+                continue
             break
 
+        used_a_tool = True
         convo.append({"role": "assistant", "content": response.content})
         results = []
         for use in uses:
@@ -287,6 +382,13 @@ def converse(
         # artifacts because a later step did not converge.
         reply.interrupted = True
         reply.text = (reply.text or "").strip()
+
+    reply.promised_document = promised_a_document(reply.text)
+    reply.made_document = any(r.ok for r in reply.tool_runs)
+    if reply.broke_its_promise:
+        logger.warning(
+            "Playbook turn described a document and called no tool "
+            "(nudged=%s, stop=%s).", reply.nudged, reply.stop_reason)
 
     reply.provider_ms = int((time.monotonic() - started) * 1000)
     if reply.downgraded:

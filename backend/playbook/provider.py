@@ -580,7 +580,8 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
           on_delta: Callable[[str], None] | None = None,
           is_cancelled: Callable[[], bool] | None = None,
           deadline: float | None = None,
-          with_tools: bool = False) -> Any:
+          with_tools: bool = False,
+          tool_choice: dict | None = None) -> Any:
     """One provider call, with bounded retries and honest telemetry.
 
     Streamed, always. The completed message is still what the caller gets back —
@@ -612,6 +613,12 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             # is a sandbox nobody asked to start.
             if with_tools and tools:
                 kwargs["tools"] = tools
+                # Only ever alongside real tools. `tool_choice` without
+                # `tools` is a request the provider rejects, and sending it
+                # when the caller did not ask would turn every ordinary
+                # question into a forced document.
+                if tool_choice:
+                    kwargs["tool_choice"] = tool_choice
             if with_tools and container:
                 kwargs["container"] = container
             if model:

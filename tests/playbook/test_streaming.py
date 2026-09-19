@@ -526,8 +526,39 @@ class TestTheWireFormat:
         assert '"text":"hi"' in line
         assert line.endswith("\n\n")
 
-    def test_a_heartbeat_is_a_comment_and_carries_nothing(self):
-        assert stream.sse({"kind": "ping"}) == ": keep-alive\n\n"
+    def test_a_heartbeat_reaches_the_client_rather_than_only_the_proxy(self):
+        """Superseded deliberately, and made stronger.
+
+        This used to assert the heartbeat was a bare `: keep-alive` comment
+        carrying nothing. That is a correct SSE comment and it was useless:
+        every conforming parser discards comments — including this product's
+        own, at `stream.ts` — so it proved the connection was open to a proxy
+        and to nobody else. The screen stayed frozen through seven-minute runs
+        with no way to tell a working generation from a dead one.
+
+        It is now a named event as well, so the client re-renders and can say
+        how long the worker has been quiet. The comment is kept because some
+        proxies flush only on one of the two.
+        """
+        line = stream.sse({"kind": "ping", "data": {"quiet_for": 12.4}})
+        assert line.startswith(": keep-alive\n"), "the comment is still there"
+        assert "event: ping\n" in line, "and it is now addressed to the client"
+        assert '"quiet_for":12.4' in line, "carrying how long it has been quiet"
+        assert line.endswith("\n\n") and line.count("\n\n") == 1
+
+    def test_a_heartbeat_with_no_payload_is_still_a_valid_frame(self):
+        """Constructed in more than one place; none of them may break the wire."""
+        assert stream.sse({"kind": "ping"}) == (
+            ": keep-alive\nevent: ping\ndata: {}\n\n")
+
+    def test_a_heartbeat_carries_no_sequence_number(self):
+        """It is not part of the log, so it must not move the client's cursor.
+
+        A ping with an `id:` would make a reconnecting browser resume from a
+        heartbeat and skip whatever real event came next.
+        """
+        assert "id:" not in stream.sse({"kind": "ping", "seq": 41,
+                                        "data": {"quiet_for": 1.0}})
 
     def test_a_newline_in_the_text_cannot_break_the_frame(self):
         """A raw newline in a `data:` line would end the event early and put

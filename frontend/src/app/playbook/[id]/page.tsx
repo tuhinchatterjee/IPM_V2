@@ -337,6 +337,18 @@ export default function PlaybookThreadPage({
                         {n}
                       </p>
                     ))}
+                  {message.content.interrupted === true && (
+                    <p className="text-xs text-warning">
+                      This answer was cut short. What is above is what
+                      arrived; nothing further was saved.
+                    </p>
+                  )}
+                  {message.content.no_file === true && (
+                    <p className="rounded-md border border-warning/40 bg-surface-warning p-2 text-xs text-text-primary">
+                      This turn described a document but produced no file.
+                      Nothing was saved. Ask again, and it will be written.
+                    </p>
+                  )}
                   {message.content.evidence_complete === false && (
                     <p className="text-xs text-warning">
                       Some attached evidence was not fully read; conclusions

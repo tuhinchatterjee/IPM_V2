@@ -52,6 +52,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -725,6 +726,11 @@ class PlaybookJob(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Stamped by the worker as it writes each event. A job that has not been
+    #: heard from is dead, not busy — without this the index below could brick
+    #: a workspace whose process was killed mid-generation. See migration 0041.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Per WORKSPACE, not per deployment. A key identifies one send within
@@ -733,6 +739,13 @@ class PlaybookJob(Base):
         # the first workspace's job. See migration 0040.
         UniqueConstraint("workspace_id", "idempotency_key",
                          name="uq_playbook_job_idempotency"),
+        # At most one generation in flight per workspace. The key above stops
+        # a refresh or a double-click; it cannot stop a genuinely new key,
+        # and a second live job means two provider runs on one conversation,
+        # both charged, with only the newer one visible. A check-then-insert
+        # would race; a partial unique index cannot. See migration 0041.
+        Index("uq_playbook_job_one_live_per_workspace", "workspace_id",
+              unique=True, postgresql_where=text("finished_at IS NULL")),
         Index("ix_playbook_jobs_workspace", "workspace_id", "created_at"),
     )
 
@@ -743,6 +756,9 @@ EVENT_KINDS = (
     "state",       # the job moved to a named state
     "milestone",   # a real step within a state, with its detail
     "delta",       # user-visible answer text, as it arrives
+    "draft_delta", # the DOCUMENT being written, as it is written — never the
+                   # chat answer, and never merged into the stored message
+    "plan",        # the steps this turn intends, named before it takes them
     "artifact",    # a version and its files were written
     "done",        # the run finished; the thread now holds the answer
     "error",       # the run failed or was stopped; nothing was saved

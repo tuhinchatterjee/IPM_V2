@@ -39,7 +39,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import func, select
@@ -55,6 +55,12 @@ DELTA_CHARS = 120
 #: …or this long, whichever comes first, so a slow generation still shows
 #: movement rather than appearing to stall.
 DELTA_SECONDS = 0.35
+
+#: The draft is flushed less often than the answer. It is glanced at in
+#: a collapsed pane rather than read as it arrives, so a coarser grain
+#: costs nothing and keeps the event log from being mostly document.
+DRAFT_CHARS = 400
+DRAFT_SECONDS = 1.0
 
 #: How long a reader waits on the in-process signal before checking the
 #: database anyway. The poll is not redundant: a worker in another process
@@ -170,6 +176,13 @@ class Writer:
     job_id: int
     _buffer: str = ""
     _last_flush: float = 0.0
+    #: When this generation started, so every event can carry the offset it
+    #: happened at. Without it the interface has no way to say how long
+    #: anything took, which is how a working seven-minute run became
+    #: indistinguishable from a hung one.
+    _began: float = field(default_factory=time.monotonic)
+    _draft: str = ""
+    _last_draft: float = 0.0
 
     def state(self, name: str, detail: str = "") -> None:
         self.flush()
@@ -197,12 +210,51 @@ class Writer:
         self._last_flush = time.time()
         self._write("delta", {"text": text})
 
+    def plan(self, steps: list[str]) -> None:
+        """The steps this turn intends, named before any of them happens.
+
+        Derived from the tool's own arguments — which formats were asked for —
+        so it is a statement about the work, not a prediction about time. The
+        interface ticks them off; it never fills a bar between them.
+        """
+        self.flush()
+        self._write("plan", {"steps": list(steps)})
+
+    def draft(self, text: str) -> None:
+        """The document being written, as it is written.
+
+        A separate event kind from `delta` on purpose. `delta` is the chat
+        answer and is stored as the assistant's message; this is the
+        deliverable taking shape, shown in its own pane and never merged into
+        the thread. Without it the longest part of a generation — minutes —
+        emits nothing at all, which is how a working run became
+        indistinguishable from a dead one.
+
+        Not buffered through `flush`: that buffer belongs to the answer, and
+        interleaving the two would corrupt both.
+        """
+        if not text:
+            return
+        self._draft += text
+        if (len(self._draft) >= DRAFT_CHARS
+                or time.time() - self._last_draft >= DRAFT_SECONDS):
+            self.flush_draft()
+
+    def flush_draft(self) -> None:
+        if not self._draft:
+            return
+        text, self._draft = self._draft, ""
+        self._last_draft = time.time()
+        self._write("draft_delta", {"text": text})
+
     def artifact(self, payload: dict) -> None:
         self.flush()
+        self.flush_draft()
         self._write("artifact", payload)
 
     def done(self, payload: dict) -> None:
         self.flush()
+        self.flush_draft()
         self._write("done", payload)
 
     def error(self, message: str, *, category: str = "",
@@ -215,8 +267,20 @@ class Writer:
                               "cancelled": cancelled})
 
     def _write(self, kind: str, data: dict) -> None:
+        from backend.playbook.service import heartbeat as service_heartbeat
+
         try:
-            emit(self.session, self.job_id, kind, data)
+            # Seconds since this generation started, on every event. Chapter
+            # 15 allows elapsed time and forbids a timer that pretends to be
+            # progress: this is the former, measured, and the interface
+            # derives both the per-step and the total figure from it.
+            emit(self.session, self.job_id, kind,
+                 {**data, "at": round(time.monotonic() - self._began, 2)})
+            # The same write says the worker is alive. `begin_generation`
+            # refuses a second generation while one is live, so something has
+            # to distinguish "still working" from "the process was killed" —
+            # otherwise a crash locks the workspace for good.
+            service_heartbeat(self.session, self.job_id)
             self.session.commit()
         except Exception:  # noqa: BLE001
             # A log that cannot be written must not take the generation with
@@ -287,7 +351,12 @@ def follow(session_factory: Callable[[], Any], job_id: int, *,
             return
         if now - last_beat >= HEARTBEAT_SECONDS:
             last_beat = now
-            yield {"seq": cursor, "kind": "ping", "data": {}}
+            # Carries how long the reader has been waiting since the last real
+            # event, so the interface can say "still connected · last event 3s
+            # ago" instead of showing a frozen screen. `follow` runs in the
+            # request, not the worker, so this is the reader's own clock.
+            yield {"seq": cursor, "kind": "ping",
+                   "data": {"quiet_for": round(now - last_event, 1)}}
 
         HUB.wait(job_id, POLL_SECONDS)
 
@@ -306,7 +375,15 @@ def sse(event: dict) -> str:
     import json
 
     if event["kind"] == "ping":
-        return ": keep-alive\n\n"
+        # A named event, not only a comment. A bare `: keep-alive` is
+        # discarded by every conforming parser — including this product's own
+        # — so it could prove the connection was open to a proxy and to
+        # nobody else. The comment stays as well, because some proxies only
+        # flush on one.
+        return (": keep-alive\n"
+                f"event: ping\n"
+                f"data: {json.dumps(event.get('data') or {}, separators=(',', ':'))}"
+                "\n\n")
     return (f"id: {event['seq']}\n"
             f"event: {event['kind']}\n"
             f"data: {json.dumps(event['data'], separators=(',', ':'))}\n\n")
@@ -344,6 +421,8 @@ def start(session_factory: Callable[[], Any], scope, workspace_id: int,
                     on_milestone=lambda state, detail="": writer.state(
                         state, detail),
                     on_delta=writer.delta,
+                    on_draft=writer.draft,
+                    on_plan=writer.plan,
                     is_cancelled=service.cancellation_watcher(job_id),
                     **request,
                 )

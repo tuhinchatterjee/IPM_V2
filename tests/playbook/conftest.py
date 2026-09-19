@@ -12,6 +12,25 @@ import time
 import pytest
 
 
+def _stub_matches(stand_in, real) -> None:
+    """Refuse a stand-in the product would call differently.
+
+    A stub whose signature has fallen behind the real function fails deep
+    inside whichever test happens to call it first, with a TypeError that
+    reads like a product defect. It has cost real time twice — once here and
+    once in the soak harness — so the mismatch is caught at patch time,
+    naming the parameter that is missing.
+    """
+    import inspect
+
+    wanted = set(inspect.signature(real).parameters)
+    have = set(inspect.signature(stand_in).parameters)
+    missing = wanted - have - {"args", "kwargs"}
+    assert not missing, (
+        f"the stub for {real.__name__}() is missing {sorted(missing)}; add "
+        f"it rather than letting every test that uses this fixture fail")
+
+
 @pytest.fixture
 def committee_report_docx() -> bytes:
     """A previous-period committee report, with the structure Playbook edits."""
@@ -334,12 +353,13 @@ def scripted_author(monkeypatch):
 
     def fake_call(client, *, model, system, messages, tools, container,
                   purpose, role, on_delta=None, is_cancelled=None,
-                  deadline=None, with_tools=False):
+                  deadline=None, with_tools=False, tool_choice=None):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("stopped")
         state.setdefault("chat_calls", []).append(
             {"system": system, "messages": [dict(m) for m in messages],
-             "tools": [t["name"] for t in (tools or [])]})
+             "tools": [t["name"] for t in (tools or [])],
+             "tool_choice": tool_choice})
 
         # Whether a tool has already run IN THIS conversation, read from the
         # messages rather than from a counter. A counter is global across
@@ -386,6 +406,7 @@ def scripted_author(monkeypatch):
                  if ln.strip() and not ln.lstrip().startswith("#")]
         return " ".join(lines)[:600] or "Done."
 
+    _stub_matches(fake_call, provider._call)
     monkeypatch.setattr(provider, "_call", fake_call)
     monkeypatch.setattr(provider, "_client", lambda: object())
 

@@ -33,9 +33,11 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from backend.playbook import (
     capabilities,
@@ -811,6 +813,8 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
                  calculations: list | None = None,
                  on_milestone=None,
                  on_delta=None,
+                 on_draft=None,
+                 on_plan=None,
                  is_cancelled=None) -> dict:
     """One turn: persist what was asked, do it, persist what came back.
 
@@ -838,7 +842,8 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
         base_version_id=base_version_id, task_kind=task_kind,
         task_scope=task_scope, context_kind=context_kind,
         context_target=context_target, calculations=calculations,
-        on_milestone=on_milestone, on_delta=on_delta,
+        on_milestone=on_milestone, on_delta=on_delta, on_draft=on_draft,
+        on_plan=on_plan,
         is_cancelled=is_cancelled)
 
 
@@ -899,11 +904,37 @@ def begin_generation(session, scope: repo.Scope, workspace_id: int, *,
                 "duplicate": True,
                 "message": "This request is already running."}
 
+    # The same key cannot start twice; a DIFFERENT key still could, and did.
+    # The client's key is positional — `ws7:turn12` — so the same sentence
+    # sent again after the thread reloads gets a new key and was accepted as
+    # new work. Four identical messages in one live thread is what that looks
+    # like, and each one was a second provider run on the same conversation,
+    # charged, with only the newest visible to the user.
+    live = _live_job(session, ws.id)
+    if live is not None:
+        return {"job_id": live.id, "state": live.state, "duplicate": True,
+                "message": "A generation is already running in this "
+                           "Playbook. Wait for it to finish, or stop it."}
+
     job = PlaybookJob(workspace_id=ws.id, tenant=scope.tenant,
                       idempotency_key=key, state="queued",
-                      requested_by=scope.user_id)
+                      requested_by=scope.user_id,
+                      heartbeat_at=_now())
     session.add(job)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        # Two requests raced past the check above and the partial unique index
+        # caught the loser. The winner is the running generation; report it as
+        # the duplicate it is rather than failing the request.
+        session.rollback()
+        ws = repo.get_workspace(session, scope, workspace_id)
+        live = _live_job(session, ws.id)
+        if live is None:
+            raise
+        return {"job_id": live.id, "state": live.state, "duplicate": True,
+                "message": "A generation is already running in this "
+                           "Playbook. Wait for it to finish, or stop it."}
 
     # What the turn refers to travels ON the message, so reopening the thread
     # a month later still shows which finding "draft an answer to this" meant.
@@ -947,6 +978,8 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
                    calculations: list | None = None,
                    on_milestone=None,
                    on_delta=None,
+                   on_draft=None,
+                   on_plan=None,
                    is_cancelled=None) -> dict:
     """Do the work a claimed job stands for, and persist what came back.
 
@@ -1000,8 +1033,9 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             source_ids=source_ids, export_revision_ids=export_revision_ids,
             artifact_id=artifact_id, base_version_id=base_version_id,
             context_kind=context_kind, context_target=context_target,
-            calculations=calculations,
-            on_milestone=milestone, on_delta=on_delta, on_tool=tool_state,
+            task_kind=task_kind, calculations=calculations,
+            on_milestone=milestone, on_delta=on_delta, on_draft=on_draft,
+            on_plan=on_plan, on_tool=tool_state,
             is_cancelled=is_cancelled)
     except provider.Cancelled as exc:
         job.state = "cancelled"
@@ -1051,6 +1085,12 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             # Chapter 07: partial text is labelled, never presented as a
             # finished answer.
             "interrupted": reply.interrupted,
+            # The turn's own words described a document and no tool made one.
+            # Recorded on the message so the thread can say so, rather than
+            # leaving an answer that reads like success beside an empty Files
+            # panel — which is exactly what the first live run produced.
+            "no_file": reply.broke_its_promise,
+            "nudged": reply.nudged,
             "evidence_complete": turn["evidence_complete"],
             "evidence_gaps": list(turn["evidence_gaps"]),
             # Not a claim about the dashboard. The projection runs after this
@@ -1066,6 +1106,7 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             "version_id": last.get("version_id"),
             "version": last.get("version", 0),
             "interrupted": reply.interrupted,
+            "no_file": reply.broke_its_promise,
             "files": list(produced),
             "notes": [n for p in produced for n in p.get("review_notes", [])],
             # A list: one turn may write more than one version, and every one
@@ -1210,6 +1251,81 @@ def _now():
     from sqlalchemy import func
 
     return func.now()
+
+
+#: How long a generation may go unheard-from before it is treated as dead.
+#: Comfortably longer than the longest legitimate silence — a sandbox read can
+#: sit quiet for `provider.SKILL_READ_TIMEOUT_SECONDS` (420) inside a 600s run
+#: deadline — because closing a job that is still working would orphan a live
+#: provider call and let a second one start beside it, which is the exact
+#: failure this whole mechanism exists to prevent.
+STALE_AFTER_SECONDS = 1200
+
+
+def _live_job(session, workspace_id: int):
+    """The generation actually running in this workspace, or None.
+
+    "Actually" is the point. A constraint with no way out is a workspace that
+    can be bricked: if the process running a generation is killed, its row
+    keeps `finished_at IS NULL` for ever and every later send is refused with
+    no way for the user to clear it.
+
+    So a job that has not been heard from within `STALE_AFTER_SECONDS` is
+    closed here — finished, marked failed, with a sentence in the thread
+    saying so — and this returns None. That is a fact about the row, not a
+    guess: the worker stamps `heartbeat_at` as it writes each event.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    job = session.execute(
+        select(PlaybookJob)
+        .where(PlaybookJob.workspace_id == workspace_id,
+               PlaybookJob.finished_at.is_(None))
+        .order_by(PlaybookJob.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if job is None:
+        return None
+
+    last = job.heartbeat_at or job.created_at
+    if last is None:
+        return job
+    age = (datetime.now(UTC) - last).total_seconds()
+    if age <= STALE_AFTER_SECONDS:
+        return job
+
+    # Dead, not busy. Said in the thread rather than only in a column, because
+    # a user who comes back to a silent workspace deserves to read why.
+    job.state = "failed"
+    job.error = (f"This generation stopped without finishing. Nothing was "
+                 f"heard from it for {int(age)} seconds.")
+    job.finished_at = _now()
+    repo.add_message(
+        session, workspace_id, role="assistant",
+        content={"text": "This generation stopped without finishing, and "
+                         "nothing was saved. Ask again when you are ready.",
+                 "failed": True},
+        origin="assistant_live", job_id=job.id)
+    session.flush()
+    return None
+
+
+def heartbeat(session, job_id: int) -> None:
+    """Say the job is still alive. Cheap, and called on every streamed event.
+
+    Deliberately tolerant: a heartbeat that raises would fail a generation
+    that is working perfectly well, which is a worse outcome than a missed
+    stamp. The next event writes one.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    try:
+        job = session.get(PlaybookJob, job_id)
+        if job is not None and job.finished_at is None:
+            job.heartbeat_at = _now()
+    except Exception:  # noqa: BLE001 — never fail a turn over a timestamp
+        logger.debug("Playbook heartbeat failed for job %s", job_id,
+                     exc_info=True)
 
 
 def _markdown_of(doc: D.Document | None) -> str:
@@ -1529,17 +1645,14 @@ def running_job(session, scope: repo.Scope, workspace_id: int) -> dict | None:
     attach to without having to guess an idempotency key. Without it, the only
     way to find a running job would be to send the message again, which is the
     one thing that must not happen.
-    """
-    from backend.models.playbook import PlaybookJob
 
+    Shares `_live_job`'s definition of "in flight" with `begin_generation`, so
+    what the interface shows as running and what the server will refuse a
+    second generation for are the same fact. Two readings of that would mean a
+    workspace that refuses to send while reporting nothing is running.
+    """
     ws = repo.get_workspace(session, scope, workspace_id)
-    job = session.execute(
-        select(PlaybookJob)
-        .where(PlaybookJob.workspace_id == ws.id,
-               PlaybookJob.finished_at.is_(None))
-        .order_by(PlaybookJob.id.desc())
-        .limit(1)
-    ).scalar_one_or_none()
+    job = _live_job(session, ws.id)
     if job is None:
         return None
     return job_status(session, scope, job.id)

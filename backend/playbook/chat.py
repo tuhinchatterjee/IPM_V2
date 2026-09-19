@@ -41,6 +41,12 @@ HISTORY_TURNS = 20
 #: of producing a file nobody can open.
 DOCUMENT_FORMATS = ("docx", "pdf", "pptx", "xlsx")
 
+#: Task framings that mean "this turn is document work". A caller that sends
+#: one of these is not guessing from the user's wording — it is reporting
+#: which control the user operated. "coverage" and "propose" are deliberately
+#: absent: both answer in prose about a document without writing one.
+DOCUMENT_TASKS = frozenset({"create", "update", "present", "edit"})
+
 
 def _history(session, workspace_id: int) -> list[dict]:
     """The recent conversation, as the provider wants it.
@@ -128,7 +134,7 @@ class _Documents:
 
     def __init__(self, session, scope, ws, *, artifact_id=None,
                  base_version_id=None, ledger=None, on_milestone=None,
-                 is_cancelled=None):
+                 on_draft=None, on_plan=None, is_cancelled=None):
         self.session = session
         self.scope = scope
         self.ws = ws
@@ -136,6 +142,12 @@ class _Documents:
         self.base_version_id = base_version_id
         self.ledger = ledger
         self.on_milestone = on_milestone
+        #: The document as it is written. Separate from the chat answer, and
+        #: shown in its own pane — see `stream.Writer.draft`.
+        self.on_draft = on_draft
+        #: The steps a document tool is about to take, named before it takes
+        #: them, from the formats the model actually asked for.
+        self.on_plan = on_plan
         self.is_cancelled = is_cancelled
         #: Every version this turn wrote, in order, for the projection that
         #: runs after the commit. A turn may write more than one.
@@ -156,6 +168,39 @@ class _Documents:
                 f"{', '.join(unknown)} is not a format this workspace can "
                 f"produce. Supported: {', '.join(DOCUMENT_FORMATS)}.")
         return wanted
+
+    def _nested_milestone(self, state: str, detail: str = "") -> None:
+        """Milestones from inside a document tool, kept inside it.
+
+        `provider.author` opens with `reviewing_sources`, which is true of the
+        authoring run and wrong for the turn: the outer step list had already
+        moved to Writing, and re-emitting it made the interface go backwards —
+        "Writing" flipping back to "Reading the sources" minutes in.
+
+        So a nested state becomes a DETAIL of the step that is running, not a
+        step of its own. The turn moved on; the document is what is working.
+        """
+        if not self.on_milestone:
+            return
+        inner = {"reviewing_sources": "reading the evidence",
+                 "drafting": "writing", "rendering": "building the file",
+                 "validating": "checking the file"}.get(state, state)
+        self.on_milestone("drafting",
+                          f"{inner} — {detail}" if detail else inner)
+
+    def _announce(self, what: str, formats: list[str]) -> None:
+        """The steps this call will take, before it takes any of them.
+
+        Read off the arguments the model actually passed, so it is a statement
+        about the work rather than a guess. Deliberately not a percentage:
+        writing takes most of the time and is one step, so a bar would sit
+        near empty for the whole run — the same lie as one stuck at 95%.
+        """
+        if not self.on_plan:
+            return
+        self.on_plan([what]
+                     + [f"Build the {f.upper()} file" for f in formats]
+                     + ["Check the files open", "Save the version"])
 
     def _record(self, outcome) -> dict:
         """Turn an authoring outcome into something the model can act on."""
@@ -203,12 +248,17 @@ class _Documents:
                 base_version_id=base_version_id,
                 task_kind=task_kind,
                 task_scope=task_scope,
-                on_milestone=self.on_milestone,
-                # Deliberately not streamed into the chat. The answer the user
-                # reads is the assistant's own prose; streaming the document
-                # here as well would put the whole report in the message
-                # column beside the file card that already holds it.
-                on_delta=None,
+                on_milestone=self._nested_milestone,
+                # Not streamed into the CHAT — the answer the user reads is
+                # the assistant's own prose, and putting the whole report in
+                # the message column beside the file card that already holds
+                # it would be two copies of the same thing.
+                #
+                # It is streamed as `draft_delta`, which the interface shows
+                # in its own collapsed pane. Without that, the longest part of
+                # a generation emitted nothing for minutes and a working run
+                # was indistinguishable from a dead one.
+                on_delta=self.on_draft,
                 is_cancelled=self.is_cancelled)
         except provider.Cancelled:
             # A stop is the user's decision, not a tool failure. It ends the
@@ -234,9 +284,11 @@ class _Documents:
         if not instruction:
             raise assistant.ToolFailed(
                 "Say what the document should contain.")
+        formats = self._formats(args.get("formats"))
+        self._announce("Write the document", formats)
         outcome = self._author(
             instruction=instruction,
-            formats=self._formats(args.get("formats")),
+            formats=formats,
             task_kind="create")
         return self._record(outcome)
 
@@ -247,9 +299,11 @@ class _Documents:
         instruction = str(args.get("instruction") or "").strip()
         if not instruction:
             raise assistant.ToolFailed("Say what should change.")
+        formats = self._formats(args.get("formats"))
+        self._announce("Revise the document", formats)
         outcome = self._author(
             instruction=instruction,
-            formats=self._formats(args.get("formats")),
+            formats=formats,
             task_kind="edit",
             task_scope=str(args.get("scope") or "").strip(),
             artifact_id=self.artifact_id,
@@ -270,6 +324,10 @@ class _Documents:
         if not self.artifact_id:
             raise assistant.ToolFailed("There is no document to convert yet.")
         formats = self._formats(args.get("formats"))
+        # No "write" step: a conversion reuses the version that exists.
+        if self.on_plan:
+            self.on_plan([f"Build the {f.upper()} file" for f in formats]
+                         + ["Check the files open", "Save the version"])
 
         current = service._current_document(self.session, self.artifact_id)
         if current is None:
@@ -360,9 +418,12 @@ def turn(session, scope, workspace_id: int, *,
          base_version_id: int | None = None,
          context_kind: str = "",
          context_target: str = "",
+         task_kind: str = "",
          calculations: list | None = None,
          on_milestone=None,
          on_delta=None,
+         on_draft=None,
+         on_plan=None,
          on_tool=None,
          is_cancelled=None) -> dict:
     """Run one conversational turn against the real workspace.
@@ -397,7 +458,8 @@ def turn(session, scope, workspace_id: int, *,
     documents = _Documents(
         session, scope, ws, artifact_id=artifact,
         base_version_id=base_version_id, ledger=ledger,
-        on_milestone=on_milestone, is_cancelled=is_cancelled)
+        on_milestone=on_milestone, on_draft=on_draft, on_plan=on_plan,
+        is_cancelled=is_cancelled)
 
     active = ""
     if current_doc is not None:
@@ -417,14 +479,22 @@ def turn(session, scope, workspace_id: int, *,
     if on_milestone:
         on_milestone("reviewing_sources", "")
 
+    # The user clicked something that says what it does — "Draft the report
+    # from these sources", "Turn it into slides" — or a caller that knows its
+    # own intent said so. That is a declaration, not a guess at wording, so
+    # the turn is sent with the tools required rather than merely offered.
+    # `assistant.converse` explains why that is not a route.
     reply = assistant.converse(
         system=system, messages=messages, tools=documents.tools(),
+        require_tool=task_kind in DOCUMENT_TASKS,
         on_delta=on_delta, on_tool=on_tool, is_cancelled=is_cancelled)
 
     return {
         "text": reply.text,
         "reply": reply,
         "interrupted": reply.interrupted,
+        "no_file": reply.broke_its_promise,
+        "nudged": reply.nudged,
         "artifact_id": documents.artifact_id,
         "produced": list(documents.produced),
         "projections": list(documents.projections),
