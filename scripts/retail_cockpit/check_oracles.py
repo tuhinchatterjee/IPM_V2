@@ -68,7 +68,7 @@ def main() -> int:
         expected = orc.ORACLES[case_id](snapshot)
         rows = session.connection.execute(case["sql"]).fetchall()
         names = [d[0] for d in session.connection.description]
-        actual = [dict(zip(names, row)) for row in rows]
+        actual = [dict(zip(names, row, strict=True)) for row in rows]
         problems = case["compare"](expected, actual)
         status = "OK  " if not problems else "FAIL"
         print(f"{status} {case_id}  {expected.question}")

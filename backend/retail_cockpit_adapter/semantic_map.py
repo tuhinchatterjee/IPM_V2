@@ -38,9 +38,9 @@ the limitations rather than worked around with a precision override.
 from __future__ import annotations
 
 import re
-
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 #: Riyals to the engine's declared scale. One place, named.
 SAR_PER_MILLION = 1_000_000.0

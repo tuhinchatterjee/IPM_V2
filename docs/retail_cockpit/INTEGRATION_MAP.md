@@ -33,18 +33,30 @@ engine does not import, are untouched.
 
 ## Changed in the protected core
 
-One file, one approved change.
+Two files, two approved changes, each recorded with the reason it was needed.
 
-`backend/cockpit_v4/domains.py` (+24 lines): `DEFAULT_RELEASES` may be overridden
+**C1 — `backend/cockpit_v4/domains.py` (+24 lines):** `DEFAULT_RELEASES` may be overridden
 per book by `COCKPIT_V4_<DOMAIN>_RELEASE_ID`. Unset — which is every other
 deployment — the value is exactly the constant that was there, and nothing about
 the runtime changes. It was needed because `domain_resolver.scope_for` takes
 `release_id or DEFAULT_RELEASES[domain_id]` and `resolve`, the path every new
 thread takes, never passes one, while `routes.py` refuses a caller-named release.
 
+**C2 — `backend/cockpit_v4/catalog.py`:** the DuckDB session's memory limit and
+temp directory, hard-coded in `_build_session`, become configurable through
+`COCKPIT_V4_SQL_MEMORY_LIMIT` and `COCKPIT_V4_SQL_TEMP_DIR`. Unset, the executed
+statement is character-for-character the one that was there, and the comment
+recording the 1536MB measurement moved to the default it justifies. Needed
+because this book materialises 2,968 MiB against that limit and spilled to the
+process working directory — outside the runtime directory the engine otherwise
+confines itself to. Both values are validated before they reach SQL and the temp
+directory's containment is checked by `config.check_write_target`. The
+measurements that chose the candidate's value are in `SESSION_MEMORY.md`.
+
 Nothing else under `backend/cockpit_v4/` or `backend/cockpit_agentic/` differs
 from the source. `git diff` against the source commit over those two trees shows
-that one hunk and nothing else.
+those two hunks and nothing else — asserted by
+`tests/retail_cockpit/test_session_seam.py::test_the_core_diff_is_the_two_approved_files`.
 
 ## Not touched
 

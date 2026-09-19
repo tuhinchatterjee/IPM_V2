@@ -23,7 +23,8 @@ if str(ROOT) not in sys.path:
 
 def main() -> int:
     from backend.retail import scorecards, taxonomy
-    from backend.retail_cockpit_adapter import gates, publish as pub
+    from backend.retail_cockpit_adapter import gates
+    from backend.retail_cockpit_adapter import publish as pub
     from backend.retail_cockpit_adapter.source import open_snapshot
 
     ap = argparse.ArgumentParser(description=__doc__)
@@ -53,8 +54,9 @@ def main() -> int:
     release_id = pub.release_id_for(snapshot, revision=args.revision)
 
     if args.verify:
-        from backend.retail_cockpit_adapter.publish import MANIFEST, digest
         import json
+
+        from backend.retail_cockpit_adapter.publish import MANIFEST, digest
 
         directory = Path(lake_root) / release_id
         manifest_path = directory / MANIFEST

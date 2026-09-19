@@ -34,9 +34,12 @@ is a check that can be skipped.
 from __future__ import annotations
 
 import difflib
+import os
+import re
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from backend.cockpit_v4 import domains as dom
@@ -44,6 +47,93 @@ from backend.cockpit_v4 import lake
 from backend.cockpit_v4 import schema as schema_mod
 
 MAX_CACHED_SESSIONS = 4
+
+#: How much memory ONE materialised book may hold.
+#:
+#: RAISED FROM 512MB, DELIBERATELY AND ON A MEASUREMENT.
+#:
+#: The whole release is materialised into in-memory tables when a session is
+#: built, so the base tables are a fixed cost paid before a single query runs.
+#: On the enriched Retail book -- 1.9 million rows across four relations --
+#: `duckdb_memory()` reported 486 MiB of IN_MEMORY_TABLE against a 488 MiB
+#: effective limit. Queries still returned, because DuckDB streams and spills
+#: rather than failing outright, but a group-by that wants a hash table had
+#: nothing left to build it in, and a limit a workload sits exactly on is one
+#: that fails on the day the book gains a relation.
+#:
+#: 1.5GB is not a licence to grow: it is the measured footprint of THAT book
+#: plus working room for the widest group-by an analyst can author. The figure
+#: to watch is IN_MEMORY_TABLE.
+#:
+#: It is the DEFAULT rather than the law because the figure is a property of
+#: the book, not of the engine, and a deployment carrying a larger one has to
+#: be able to say so. A deployment that says nothing gets exactly this.
+DEFAULT_SQL_MEMORY_LIMIT = "1536MB"
+
+#: The two settings a deployment may state, and nothing else. Read from the
+#: server's environment at session build; a request cannot reach them.
+SQL_MEMORY_LIMIT_VAR = "COCKPIT_V4_SQL_MEMORY_LIMIT"
+SQL_TEMP_DIR_VAR = "COCKPIT_V4_SQL_TEMP_DIR"
+
+#: Where a session that outgrows its limit spills, relative to the V4 runtime
+#: directory. Left unset, DuckDB spills beside the database -- and for an
+#: in-memory database that is the PROCESS WORKING DIRECTORY, which is the one
+#: place this runtime promises never to write.
+SQL_TEMP_DIR_NAME = "duckdb-temp"
+
+#: What DuckDB will accept as a size, matched before it is interpolated into
+#: a statement. Both settings reach SQL as text, so both are proved to be what
+#: they claim before they get there.
+_MEMORY_LIMIT = re.compile(r"^\d+(\.\d+)?\s*(K|M|G|T)i?B$", re.IGNORECASE)
+
+
+def _sql_memory_limit() -> str:
+    """The session memory limit this deployment is configured for."""
+    from backend.cockpit_v4 import config as config_mod
+
+    stated = os.environ.get(SQL_MEMORY_LIMIT_VAR, "").strip()
+    if not stated:
+        return DEFAULT_SQL_MEMORY_LIMIT
+    if not _MEMORY_LIMIT.match(stated):
+        raise config_mod.ConfigurationInvalid(
+            f"{SQL_MEMORY_LIMIT_VAR} is {stated!r}, which is not a size "
+            f"DuckDB states -- a number and a unit, like '2560MB' or '3GB'. "
+            f"Nothing was substituted for it and no session was built.",
+            variables=(SQL_MEMORY_LIMIT_VAR,))
+    return stated
+
+
+def _sql_temp_directory() -> str:
+    """Where this session may spill, proved to be inside the runtime dir.
+
+    Containment is CHECKED rather than trusted, by the same function that
+    guards every other V4 write. A spill file is data from the book: it
+    belongs where the rest of this runtime's state belongs, and a
+    misconfiguration that would put it somewhere else is refused rather than
+    obeyed.
+    """
+    from backend.cockpit_v4 import config as config_mod
+
+    cfg = config_mod.load()
+    stated = os.environ.get(SQL_TEMP_DIR_VAR, "").strip()
+    target = (Path(stated).expanduser() if stated
+              else cfg.runtime_dir / SQL_TEMP_DIR_NAME)
+    # It is interpolated into a statement, so a quote in it is refused rather
+    # than escaped: no legitimate directory needs one.
+    if "'" in str(target) or '"' in str(target):
+        raise config_mod.ConfigurationInvalid(
+            f"{SQL_TEMP_DIR_VAR} contains a quote. It is refused rather than "
+            f"escaped.", variables=(SQL_TEMP_DIR_VAR,))
+    target = config_mod.check_write_target(target, cfg)
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise config_mod.ConfigurationInvalid(
+            f"The Cockpit could not create {target}, where a session spills "
+            f"when it outgrows its memory. It refuses to fall back to the "
+            f"working directory: {exc.strerror}.",
+            variables=(SQL_TEMP_DIR_VAR,)) from exc
+    return str(target)
 
 #: How each book's relations join. Stated, because a model guessing a join
 #: key across a six-hundred-thousand-row retail book produces a cross product
@@ -449,22 +539,11 @@ def _build_session(catalog: Catalog) -> Session:
 
     connection = duckdb.connect(database=":memory:")
     connection.execute("SET threads TO 2")
-    # RAISED FROM 512MB, DELIBERATELY AND ON A MEASUREMENT.
-    #
-    # The whole release is materialised into in-memory tables below, so the
-    # base tables are a fixed cost paid before a single query runs. On the
-    # enriched Retail book -- 1.9 million rows across four relations --
-    # `duckdb_memory()` reported 486 MiB of IN_MEMORY_TABLE against a
-    # 488 MiB effective limit. Queries still returned, because DuckDB
-    # streams and spills rather than failing outright, but a group-by that
-    # wants a hash table had nothing left to build it in, and a limit a
-    # workload sits exactly on is one that fails on the day the book gains
-    # a relation.
-    #
-    # 1.5GB is not a licence to grow: it is the measured footprint plus
-    # working room for the widest group-by an analyst can author. The
-    # figure to watch is IN_MEMORY_TABLE.
-    connection.execute("SET memory_limit = '1536MB'")
+    # The limit this deployment states, or the measured default. Set BEFORE
+    # the materialisation below, because that is where a book larger than the
+    # limit first spills -- and so is the temp directory, for the same reason.
+    connection.execute(f"SET memory_limit = '{_sql_memory_limit()}'")
+    connection.execute(f"SET temp_directory = '{_sql_temp_directory()}'")
 
     built: list[str] = []
     for relation in catalog.relations():
@@ -495,5 +574,7 @@ def reset_sessions() -> None:
         _SESSIONS.clear()
 
 
-__all__ = ["Calendar", "Catalog", "CrossDomainAccess", "MAX_CACHED_SESSIONS",
+__all__ = ["Calendar", "Catalog", "CrossDomainAccess",
+           "DEFAULT_SQL_MEMORY_LIMIT", "MAX_CACHED_SESSIONS",
+           "SQL_MEMORY_LIMIT_VAR", "SQL_TEMP_DIR_NAME", "SQL_TEMP_DIR_VAR",
            "Session", "build", "open_session", "reset_sessions"]

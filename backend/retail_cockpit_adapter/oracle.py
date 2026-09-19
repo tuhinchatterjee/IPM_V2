@@ -240,7 +240,6 @@ def q06_fine_arrears(snapshot: Snapshot, period: str = "",
 def q16_stage_migration(snapshot: Snapshot, period: str = "",
                         comparison: str = "") -> Expected:
     """Stage 1/2/3 migration as a count matrix, with entrants and exits."""
-    import pandas as pd
 
     periods = snapshot.periods
     period = period or snapshot.latest_period

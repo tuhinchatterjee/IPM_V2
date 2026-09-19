@@ -1,0 +1,338 @@
+{
+  "evidence_class": "NO MODEL \u00b7 REAL DATABASE \u00b7 REAL RELEASE",
+  "paid_provider_calls": 0,
+  "what_is_measured": "One analytical session over the projected Cockpit Data book, at each memory limit, in a fresh process: cold open, warm reopen, materialised footprint, spill, peak RSS, a simple aggregation, a multi-relation diagnostic, and two questions issued at once on the one connection the engine shares.",
+  "what_is_not_measured": "Provider latency, answer quality, and anything about the machine this did not run on. Peak RSS is this process only: the retail API, the frontend dev server and a browser are not in it. The two limits above the approved set (3584MB, 4096MB) are a CONTROL, run to establish whether zero spill is reachable at all on this book; they are not candidates unless you choose one.",
+  "ported_budgets_ms": {
+    "session_cold_open (test_dual_domain_performance.py)": 6000.0,
+    "session_open (test_performance_gates.py)": 5000.0
+  },
+  "machine": {
+    "python": "3.12.3",
+    "platform": "linux",
+    "cpus": 4,
+    "memtotal": "16481980 kB",
+    "memavailable": "15571036 kB"
+  },
+  "runs": [
+    {
+      "limit": "1536MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 45002.5,
+      "built_seconds": 41.463,
+      "spill_bytes_materialising": 745603072,
+      "effective_limit": "1.4 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 1392.7,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p4",
+      "warm_reopen_ms": 0.011,
+      "simple_aggregation": {
+        "samples": 5,
+        "min_ms": 3.992,
+        "median_ms": 4.163,
+        "p90_ms": 9.833,
+        "max_ms": 9.833,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 745603072,
+      "multi_relation_diagnostic": {
+        "samples": 5,
+        "min_ms": 53.874,
+        "median_ms": 54.732,
+        "p90_ms": 66.964,
+        "max_ms": 66.964,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 745603072,
+      "concurrent_two_questions": {
+        "wall_ms": 76.3,
+        "spill_bytes": 745603072,
+        "simple": {
+          "ms": 4.5,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 75.7,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 1658.0,
+      "python": "3.12.3"
+    },
+    {
+      "limit": "2048MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 11863.1,
+      "built_seconds": 11.805,
+      "spill_bytes_materialising": 572162048,
+      "effective_limit": "1.9 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 1881.0,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p4",
+      "warm_reopen_ms": 0.011,
+      "simple_aggregation": {
+        "samples": 5,
+        "min_ms": 4.455,
+        "median_ms": 4.761,
+        "p90_ms": 7.168,
+        "max_ms": 7.168,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 572162048,
+      "multi_relation_diagnostic": {
+        "samples": 5,
+        "min_ms": 53.471,
+        "median_ms": 57.78,
+        "p90_ms": 64.869,
+        "max_ms": 64.869,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 572162048,
+      "concurrent_two_questions": {
+        "wall_ms": 65.3,
+        "spill_bytes": 572162048,
+        "simple": {
+          "ms": 4.5,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 64.7,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 2187.1,
+      "python": "3.12.3"
+    },
+    {
+      "limit": "2560MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 11279.0,
+      "built_seconds": 11.219,
+      "spill_bytes_materialising": 305823744,
+      "effective_limit": "2.3 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 2369.2,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p4",
+      "warm_reopen_ms": 0.012,
+      "simple_aggregation": {
+        "samples": 5,
+        "min_ms": 4.1,
+        "median_ms": 4.175,
+        "p90_ms": 4.566,
+        "max_ms": 4.566,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 305823744,
+      "multi_relation_diagnostic": {
+        "samples": 5,
+        "min_ms": 52.58,
+        "median_ms": 54.281,
+        "p90_ms": 59.43,
+        "max_ms": 59.43,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 305823744,
+      "concurrent_two_questions": {
+        "wall_ms": 64.0,
+        "spill_bytes": 305823744,
+        "simple": {
+          "ms": 4.5,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 63.3,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 2796.5,
+      "python": "3.12.3"
+    },
+    {
+      "limit": "3072MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 11197.9,
+      "built_seconds": 11.137,
+      "spill_bytes_materialising": 65437696,
+      "effective_limit": "2.8 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 2857.4,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p4",
+      "warm_reopen_ms": 0.011,
+      "simple_aggregation": {
+        "samples": 5,
+        "min_ms": 3.99,
+        "median_ms": 4.196,
+        "p90_ms": 6.894,
+        "max_ms": 6.894,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 65437696,
+      "multi_relation_diagnostic": {
+        "samples": 5,
+        "min_ms": 54.962,
+        "median_ms": 57.691,
+        "p90_ms": 59.904,
+        "max_ms": 59.904,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 65437696,
+      "concurrent_two_questions": {
+        "wall_ms": 66.8,
+        "spill_bytes": 65437696,
+        "simple": {
+          "ms": 4.8,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 66.3,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 3063.2,
+      "python": "3.12.3"
+    },
+    {
+      "limit": "3584MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 12974.2,
+      "built_seconds": 12.915,
+      "spill_bytes_materialising": 0,
+      "effective_limit": "3.3 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 2968.5,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p4",
+      "warm_reopen_ms": 0.011,
+      "simple_aggregation": {
+        "samples": 5,
+        "min_ms": 3.888,
+        "median_ms": 4.166,
+        "p90_ms": 4.44,
+        "max_ms": 4.44,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 0,
+      "multi_relation_diagnostic": {
+        "samples": 5,
+        "min_ms": 53.785,
+        "median_ms": 54.955,
+        "p90_ms": 59.032,
+        "max_ms": 59.032,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 0,
+      "concurrent_two_questions": {
+        "wall_ms": 67.0,
+        "spill_bytes": 0,
+        "diagnostic": {
+          "ms": 65.9,
+          "rows": 28,
+          "error": ""
+        },
+        "simple": {
+          "ms": 66.4,
+          "rows": 0,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 3290.5,
+      "python": "3.12.3"
+    },
+    {
+      "limit": "4096MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 10479.6,
+      "built_seconds": 10.419,
+      "spill_bytes_materialising": 0,
+      "effective_limit": "3.8 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 2972.2,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p4",
+      "warm_reopen_ms": 0.012,
+      "simple_aggregation": {
+        "samples": 5,
+        "min_ms": 3.909,
+        "median_ms": 4.678,
+        "p90_ms": 5.604,
+        "max_ms": 5.604,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 0,
+      "multi_relation_diagnostic": {
+        "samples": 5,
+        "min_ms": 56.13,
+        "median_ms": 56.908,
+        "p90_ms": 60.899,
+        "max_ms": 60.899,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 0,
+      "concurrent_two_questions": {
+        "wall_ms": 64.5,
+        "spill_bytes": 0,
+        "simple": {
+          "ms": 4.6,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 63.6,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 3286.2,
+      "python": "3.12.3"
+    }
+  ],
+  "choice_rule": "Stated before the numbers: the lowest limit whose session-open spill is zero; failing that, the lowest whose spill falls by at least 90 per cent against 1536MB with aggregation latency within noise of the best. Subject to peak RSS leaving a stated margin on the machine that runs it."
+}

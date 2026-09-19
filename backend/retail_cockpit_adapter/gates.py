@@ -180,7 +180,6 @@ def check_month(projected, month, *, tenant_id: str, release_id: str,
 
 def _cross_relation(frames: dict[str, Any], month) -> list[Finding]:
     """The checks that are about two relations agreeing with each other."""
-    import pandas as pd
 
     findings: list[Finding] = []
     accounts = frames[sm.ACCOUNT]

@@ -41,10 +41,8 @@ from typing import Any
 
 from backend.cockpit_v4 import lake as lake_mod
 from backend.retail_cockpit_adapter import semantic_map as sm
-from backend.retail_cockpit_adapter.projection import (project_month,
-                                                       relation_fields)
-from backend.retail_cockpit_adapter.source import (DATASET, DOMAIN_DISPLAY,
-                                                   DOMAIN_ID, Snapshot)
+from backend.retail_cockpit_adapter.projection import project_month, relation_fields
+from backend.retail_cockpit_adapter.source import DATASET, DOMAIN_DISPLAY, DOMAIN_ID, Snapshot
 
 MANIFEST = "manifest.json"
 
@@ -105,9 +103,8 @@ def arrow_schema(fields: list[dict[str, Any]]) -> Any:
 
 def to_table(frame: Any, schema: Any) -> Any:
     """One month of one relation, as the declared schema holds it."""
-    import pyarrow as pa
-
     import pandas as pd
+    import pyarrow as pa
 
     arrays = []
     for field in schema:
