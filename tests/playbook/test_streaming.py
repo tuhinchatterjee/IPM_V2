@@ -553,7 +553,7 @@ class TestATimeoutLeavesNothingBehind:
 
         def _slow(*, system, messages, formats, purpose="playbook_authoring",
                   container_id="", on_milestone=None, on_delta=None,
-                  is_cancelled=None):
+                  is_cancelled=None, document_tools=None):
             if on_delta:
                 on_delta("Weighted ECL rose to ")
             raise provider.AuthoringTimeout(
