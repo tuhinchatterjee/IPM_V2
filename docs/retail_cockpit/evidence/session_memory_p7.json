@@ -1,0 +1,129 @@
+{
+  "evidence_class": "NO MODEL \u00b7 REAL DATABASE \u00b7 REAL RELEASE",
+  "paid_provider_calls": 0,
+  "what_is_measured": "One analytical session over the projected Cockpit Data book, at each memory limit, in a fresh process: cold open, warm reopen, materialised footprint, spill, peak RSS, a simple aggregation, a multi-relation diagnostic, and two questions issued at once on the one connection the engine shares.",
+  "what_is_not_measured": "Provider latency, answer quality, and anything about the machine this did not run on. Peak RSS is this process only: the retail API, the frontend dev server and a browser are not in it.",
+  "ported_budgets_ms": {
+    "session_cold_open (test_dual_domain_performance.py)": 6000.0,
+    "session_open (test_performance_gates.py)": 5000.0
+  },
+  "machine": {
+    "python": "3.12.3",
+    "platform": "linux",
+    "cpus": 4,
+    "memtotal": "16481980 kB",
+    "memavailable": "11630876 kB",
+    "physical_ram_mib": 16096,
+    "available_mib": 11561,
+    "available_read_as": "/proc/meminfo MemAvailable"
+  },
+  "refused": [],
+  "runs": [
+    {
+      "limit": "1536MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 14660.6,
+      "built_seconds": 14.594,
+      "spill_bytes_materialising": 1149042688,
+      "effective_limit": "1.4 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 1392.5,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p7",
+      "warm_reopen_ms": 0.012,
+      "simple_aggregation": {
+        "samples": 3,
+        "min_ms": 3.719,
+        "median_ms": 3.978,
+        "p90_ms": 4.54,
+        "max_ms": 4.54,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 1149042688,
+      "multi_relation_diagnostic": {
+        "samples": 3,
+        "min_ms": 57.102,
+        "median_ms": 57.86,
+        "p90_ms": 58.158,
+        "max_ms": 58.158,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 1149042688,
+      "concurrent_two_questions": {
+        "wall_ms": 64.6,
+        "spill_bytes": 1149042688,
+        "simple": {
+          "ms": 4.5,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 63.8,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 1993.5,
+      "python": "3.12.3"
+    },
+    {
+      "limit": "2048MB",
+      "temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "cold_open_ms": 11254.9,
+      "built_seconds": 11.19,
+      "spill_bytes_materialising": 903446528,
+      "effective_limit": "1.9 GiB",
+      "effective_temp_directory": "/home/user/IPM_V2/var/retail-cockpit-candidate/runtime/duckdb-temp",
+      "materialised_mib": 1880.7,
+      "relations": [
+        "retail_account_month",
+        "retail_behaviour_month",
+        "retail_collateral_month",
+        "retail_customer_month",
+        "retail_origination_facility"
+      ],
+      "release_id": "cockpitdata-r1.2.0-c1.0.0-s20260910-p7",
+      "warm_reopen_ms": 0.011,
+      "simple_aggregation": {
+        "samples": 3,
+        "min_ms": 3.71,
+        "median_ms": 3.991,
+        "p90_ms": 6.05,
+        "max_ms": 6.05,
+        "rows": 4
+      },
+      "spill_bytes_simple_aggregation": 903446528,
+      "multi_relation_diagnostic": {
+        "samples": 3,
+        "min_ms": 57.158,
+        "median_ms": 58.038,
+        "p90_ms": 66.473,
+        "max_ms": 66.473,
+        "rows": 28
+      },
+      "spill_bytes_multi_relation_diagnostic": 903446528,
+      "concurrent_two_questions": {
+        "wall_ms": 67.5,
+        "spill_bytes": 903446528,
+        "simple": {
+          "ms": 4.7,
+          "rows": 4,
+          "error": ""
+        },
+        "diagnostic": {
+          "ms": 66.7,
+          "rows": 28,
+          "error": ""
+        }
+      },
+      "peak_rss_mib": 2324.5,
+      "python": "3.12.3"
+    }
+  ]
+}

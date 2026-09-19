@@ -48,6 +48,40 @@ class OfflineProvider:
             "absent.")
 
 
+def _own_spill_directory(port: int) -> None:
+    """Give THIS process its own DuckDB temp directory.
+
+    The C2 seam points `temp_directory` at `<runtime_dir>/duckdb-temp`, which
+    is right for one engine and wrong for two. DuckDB names an in-memory
+    database's spill files after the database, not the process, so a second
+    engine sharing a runtime directory writes
+    `duckdb_temp_storage_DEFAULT-0.tmp` over the first one's. The first
+    engine then reads back bytes that are not its own and every query that
+    touched a spilled table fails with
+
+        IO Error: Could not read enough bytes from file ...
+
+    which surfaces as a 500 on the ECL panel and the attention feed -- not
+    as a message about temp files. Found exactly that way.
+
+    A stale engine somebody forgot to stop is the ordinary case, so this is
+    made impossible rather than documented: the directory carries the port,
+    which is already unique per engine because the launcher refuses a port
+    that is in use. Set explicitly by an operator, their value wins.
+    """
+    import os
+
+    from backend.cockpit_v4 import catalog as cat
+    from backend.cockpit_v4 import config as config_mod
+
+    if os.environ.get(cat.SQL_TEMP_DIR_VAR):
+        return
+    directory = (config_mod.default_runtime_dir() / cat.SQL_TEMP_DIR_NAME
+                 / f"engine-{port}")
+    directory.mkdir(parents=True, exist_ok=True)
+    os.environ[cat.SQL_TEMP_DIR_VAR] = str(directory)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8414)
@@ -59,6 +93,8 @@ def main() -> int:
     args = parser.parse_args()
 
     import uvicorn
+
+    _own_spill_directory(args.port)
 
     from backend.retail_cockpit_host.engine_app import build_app
 

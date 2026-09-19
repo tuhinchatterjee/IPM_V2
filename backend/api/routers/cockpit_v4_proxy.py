@@ -33,6 +33,7 @@ disconnect propagates upstream, so the engine's own
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any
@@ -120,6 +121,38 @@ def _inbound(response: httpx.Response) -> dict[str, str]:
             if k.lower() not in _DROP}
 
 
+def _published_books(path: str, payload: bytes,
+                     upstream: httpx.Response) -> tuple[bytes, dict[str, str]]:
+    """This deployment offers the books it publishes, and no others.
+
+    The engine enumerates every book it KNOWS ABOUT, ready or not, so a
+    deployment that publishes one still reports two -- and the Cockpit's own
+    book switcher suppresses itself only when it is offered fewer than two.
+    It therefore rendered, with a disabled Corporate control and a tooltip
+    naming a release this installation has no business mentioning.
+
+    So the list is narrowed HERE, at the deployment's own boundary, rather
+    than by hiding the control with a stylesheet: a control that is hidden
+    is still in the page, still focusable, and still telling a reader about
+    a book that is not part of this product. Nothing is concealed by it --
+    a book that is not published is not a capability this installation has.
+    """
+    headers = _inbound(upstream)
+    if not path.startswith("domains") or upstream.status_code != 200:
+        return payload, headers
+    try:
+        body = json.loads(payload)
+        books = [b for b in (body.get("domains") or []) if b.get("ready")]
+    except Exception:  # noqa: BLE001 - an unreadable body is forwarded as is
+        return payload, headers
+    if not books or len(books) == len(body.get("domains") or []):
+        return payload, headers
+    body["domains"] = books
+    narrowed = json.dumps(body).encode("utf-8")
+    headers.pop("content-length", None)
+    return narrowed, headers
+
+
 async def _forward(request: Request, path: str,
                    caller: Principal) -> Response:
     try:
@@ -152,8 +185,9 @@ async def _forward(request: Request, path: str,
             payload = await upstream.aread()
         finally:
             await upstream.aclose()
+        payload, headers = _published_books(path, payload, upstream)
         return Response(content=payload, status_code=upstream.status_code,
-                        headers=_inbound(upstream),
+                        headers=headers,
                         media_type=upstream.headers.get("content-type"))
 
     async def relay():
