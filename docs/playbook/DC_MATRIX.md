@@ -7,6 +7,7 @@ Status vocabulary, used exactly:
 | **PASS — deterministic** | proven by a test against the real code, no browser, no provider |
 | **PASS — browser scripted** | driven through the real `/playbook` UI against the scripted assistant |
 | **PASS — live verified** | proven against a real model on this code |
+| **FAIL — live, remediated here, awaiting live retest** | run against a real model on this code and did not pass. The cause is fixed and covered, and the row stays FAIL until it is re-run live |
 | **BLOCKED** | cannot be proven here; the blocker is named |
 | **NOT IMPLEMENTED** | the behaviour does not exist |
 
@@ -14,10 +15,24 @@ Two rules this table keeps. A route-level test is **not** browser-tested, and
 a scripted run is **not** live. Where a row has both, both are named, and the
 stronger claim never absorbs the weaker one.
 
-**Live: nothing on this code.** `scripts/playbook_live_smoke.py` is written,
-bounded and resumable; it refuses to run without a credential and refuses to
-run against a scripted server. Six live criteria passed on *earlier* code and
-are historical evidence, not a certificate for this one.
+**Live: one journey has now been run, and it failed.** DC-42 was executed
+against the real Auto Loan pack with a real credential and produced no
+document at all. The cause is diagnosed, fixed and covered by tests below; the
+row stays FAIL until it is re-run live, because a scripted pass is not a live
+one.
+
+That failure is also the answer to a question this table could not previously
+answer: **a scripted browser run cannot prove a live model calls a tool.** The
+fixture decides. Sixteen rows of browser evidence and 144 green checks
+coexisted with a total failure on first live contact, and nothing here was
+wrong — the column simply does not mean what it is easy to read it as
+meaning. Journey **L** now scripts the *refusal* rather than the call, which
+is the nearest a fixture can get.
+
+`scripts/playbook_live_smoke.py` remains the bounded, resumable paid path: it
+refuses to run without a credential and refuses to run against a scripted
+server. The six live criteria that passed on *earlier* code are historical
+evidence, not a certificate for this one.
 
 ---
 
@@ -63,9 +78,9 @@ are historical evidence, not a certificate for this one.
 
 | ID | Status | Evidence |
 |---|---|---|
-| DC-29 | PASS — deterministic | `test_streaming.py` — refresh rejoins the same job; no second generation, no duplicate message |
+| DC-29 | PASS — deterministic; PASS — browser scripted | `test_streaming.py` — refresh rejoins the same job; `test_messages.py::TestADifferentKeyIsStillNotASecondGeneration` — a *different* key is refused too, which the idempotency key alone never caught: the client's key is positional, so the same sentence sent again got a new one and started a second charged generation. Migration `0041` makes one-live-job-per-workspace a database guarantee. Browser journey **M** |
 | DC-30 | PASS — deterministic | `test_streaming.py::TestATimeoutLeavesNothingBehind`; `assistant.converse` lets runtime failures end the turn rather than containing them |
-| DC-31 | PASS — deterministic; PASS — browser scripted | `test_streaming.py` replay; browser journey **K** (partial text marked incomplete, earlier report untouched) |
+| DC-31 | PASS — deterministic; PASS — browser scripted | `test_streaming.py` replay; browser journey **K** (partial text arrives, the turn is marked incomplete **in the thread**, earlier report untouched). Narrowed and then re-earned: journey K asserted the stored `interrupted` flag and never the DOM, and the thread had no branch to render it — so a turn cut short looked exactly like a finished one. Both are fixed |
 | DC-32 | PASS — deterministic | `test_api.py` idempotency; migration `0040` scopes keys per workspace |
 | DC-33 | PASS — deterministic | `test_api.py` authorization matrix, `test_security.py` — foreign tenant, guessed id, direct download |
 | DC-34 | PASS — deterministic; PASS — browser scripted | `test_security.py::TestFailureLeavesTheLastGoodVersionAlone` — an unopenable file is never delivered and completed chat survives; browser journey **H** (the document tool fails outright, the assistant says plainly that nothing was saved, no artifact is written, the failure is recorded on the message, and the next question is answered normally) |
@@ -76,7 +91,7 @@ are historical evidence, not a certificate for this one.
 | DC-39 | PASS — deterministic | `test_seed.py`, dashboard browser suite — the three seeded workspaces, their files and advanced records all still open |
 | DC-40 | PASS — deterministic | `test_document_path.py`; `test_api.py::test_a_task_and_scope_are_accepted` (503 `provider_not_configured`); `test_product_copy.py` (no credential in any payload) |
 | DC-41 | **BLOCKED** | The launcher's `doctor` reports worktree, branch, commit, build target and migration head, and the scripted server is named in `capabilities`. What is missing is the *served build* identifier in the UI, which needs the macOS worktree to confirm end to end |
-| DC-42 | **BLOCKED** | The original Auto Loan evidence pack is not in this repository. The journey is exercised with a synthetic methodology of the same shape (browser journey **B** and **C**); running it on the real pack needs the file and a credential |
+| DC-42 | **FAIL — live, remediated here, awaiting live retest** | No longer blocked: the pack and a credential exist on the user's machine, and the journey was run. It **failed** — seven sources read, two assistant replies announcing the work, no tool call, no file. Root cause and fix: `tool_choice` on a declared task, a bounded correction when a turn promises a document and calls nothing, and `no_file` on the message so a turn that produced nothing cannot read as success. Proven deterministically (`test_assistant.py::TestAPromiseWithNoToolCall`, with both live replies in the detector's cases verbatim) and in the browser (journey **L**). It is not marked PASS on a scripted run |
 
 ---
 
@@ -85,10 +100,11 @@ are historical evidence, not a certificate for this one.
 | | |
 |---|---|
 | PASS — deterministic | **39** |
-| PASS — browser scripted | **16** |
+| PASS — browser scripted | **17** |
 | PASS — live verified | **0** |
-| BLOCKED | **2** — DC-41, DC-42 |
-| NOT IMPLEMENTED | **1 half of one row** — DC-13's *enabled research* clause |
+| FAIL — live, fixed, awaiting retest | **1** — DC-42 |
+| BLOCKED | **1** — DC-41 |
+| NOT IMPLEMENTED | **one half of one row** — DC-13's *enabled research* clause |
 
 How that adds to 42, without a row being counted twice:
 
@@ -96,15 +112,16 @@ How that adds to 42, without a row being counted twice:
   for the half of its criterion that applies to this deployment; the other
   half has nothing to prove because the capability does not exist.
 * DC-17 is proven in the browser and only in the browser, which makes 40.
-* DC-41 and DC-42 are blocked, which makes 42.
+* DC-41 is blocked and DC-42 failed live, which makes 42.
 
-The 16 browser rows are **not** an addition. Fifteen of them are rows already
-counted as deterministic, proven a second and stronger way through the real
-`/playbook` UI; the sixteenth is DC-17, which the count above adds once.
+The 17 browser rows are **not** an addition. Sixteen of them are rows already
+counted as deterministic, proven a second way through the real `/playbook`
+UI; the seventeenth is DC-17, which the count above adds once.
 
-All eleven journeys A–K carry evidence, and every one is cited by at least one
-row: A (DC-01, DC-24), B (DC-04), C (DC-15, DC-21, DC-23, DC-25, DC-28),
+All thirteen journeys A–M carry evidence, and every one is cited by at least
+one row: A (DC-01, DC-24), B (DC-04), C (DC-15, DC-21, DC-23, DC-25, DC-28),
 D (DC-02, DC-19), E (DC-17), F (DC-21), G (DC-22), H (DC-34), I (DC-27),
-J (DC-02), K (DC-31).
+J (DC-02), K (DC-31), L (DC-42), M (DC-29).
 
-**Live is still nought**, and no arithmetic here changes that.
+**Live verified is still nought.** One live row has been RUN; it did not pass.
+No arithmetic here changes either fact.

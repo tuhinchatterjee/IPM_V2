@@ -36,7 +36,7 @@ ACCEPTANCE = (REPO / "scripts" / "acceptance"
 #: `test_thing.py`. Backticked in the matrix, which is how they are found.
 _CITED = re.compile(r"`([A-Za-z0-9_/.]+\.py)(?:::([A-Za-z0-9_]+))?`")
 _ROW = re.compile(r"^\| (DC-\d\d) \|([^|]*)\|(.*)\|\s*$", re.M)
-_JOURNEY = re.compile(r"journey[s]?\s+\*\*([A-K])\*\*")
+_JOURNEY = re.compile(r"journey[s]?\s+\*\*([A-M])\*\*")
 
 #: The other two browser suites. A row may cite one of these instead of a
 #: chat journey — DC-05's selection-survives-preview evidence is in the
@@ -148,6 +148,26 @@ class TestEveryBrowserClaimNamesARealJourney:
         for name, path in _SUITES.items():
             assert path.is_file(), f"{name} cites {path}, which is not there"
 
+    def test_a_live_failure_is_never_dressed_as_a_pass(self):
+        """A row that FAILED live may not also claim to pass deterministically
+        without saying which is which.
+
+        The temptation is real: the fix IS proven deterministically and in the
+        browser, and writing "PASS — deterministic" alone would be true and
+        deeply misleading — the criterion is about the live journey, and the
+        live journey has not been re-run.
+        """
+        for row_id, status, evidence in _rows():
+            if "FAIL" not in status:
+                continue
+            assert "awaiting live retest" in status, (
+                f"{row_id} records a live failure; say plainly that it is "
+                f"waiting to be re-run rather than leaving the reader to "
+                f"infer it")
+            assert "not marked PASS on a scripted run" in evidence, (
+                f"{row_id} must say why the deterministic and browser "
+                f"evidence below it does not amount to a pass")
+
     def test_no_row_claims_live_verification(self):
         """Not a style rule. No live call has been made on this code, so a
         live claim here would be false; when one is made, this test is the
@@ -187,7 +207,7 @@ class TestTheTotalsAddUp:
         unaccounted = [
             row_id for row_id, status, _ in _rows()
             if not ("PASS" in status or "BLOCKED" in status
-                    or "NOT IMPLEMENTED" in status)]
+                    or "FAIL" in status or "NOT IMPLEMENTED" in status)]
         assert not unaccounted, (
             f"these rows state no status at all: {unaccounted}")
 
@@ -240,10 +260,10 @@ class TestTheCheckerItselfWorks:
                 .test_a_row_claiming_the_browser_names_where_to_look()
 
     def test_a_wrong_total_is_caught(self, monkeypatch, tmp_path):
-        fake = self._with(tmp_path, "| PASS — browser scripted | **16** |",
-                          "| PASS — browser scripted | **25** |")
+        fake = self._with(tmp_path, "| PASS — browser scripted | **17** |",
+                          "| PASS — browser scripted | **26** |")
         monkeypatch.setitem(globals(), "MATRIX", fake)
-        with pytest.raises(AssertionError, match="the table says 25"):
+        with pytest.raises(AssertionError, match="the table says 26"):
             TestTheTotalsAddUp() \
                 .test_the_stated_totals_are_the_counted_totals()
 

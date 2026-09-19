@@ -44,6 +44,10 @@ has actually reached.
 
 | Behaviour | Implemented | Browser, scripted | Live | Not verified |
 |---|---|---|---|---|
+| A declared document task produces a document | ✅ | ✅ L | **failed, fixed** | live retest |
+| A second send cannot start a second paid run | ✅ | ✅ M | | live |
+| Live step list, elapsed time and heartbeat | ✅ | ✅ | | live |
+| The document streams as it is written | ✅ | ✅ | | live |
 | Ordinary question answered, no file, no tool | ✅ | ✅ A | | live |
 | Question about an attachment, no forced file | ✅ | ✅ B | | live |
 | Explicit report request → real Word + PDF | ✅ | ✅ C | | live |
@@ -55,7 +59,7 @@ has actually reached.
 | Tool failure explained, no false success | ✅ | ✅ H | | live |
 | Status projection fails, delivery unaffected | ✅ | ✅ I | | live |
 | Reopen keeps conversation, files and versions | ✅ | ✅ J | | live |
-| Interruption labelled, earlier report untouched | ✅ | ✅ K | | live |
+| Interruption labelled **in the thread**, earlier report untouched | ✅ | ✅ K | | live |
 | Deterministic progress: content / deliverable / review / files | ✅ | ✅ A, C | | live |
 | Review ladder: draft, reviewed, governed, approved | ✅ | ✅ C | | live |
 | Document path chosen per task and recorded per artifact | ✅ | | | browser, live |
@@ -63,10 +67,19 @@ has actually reached.
 | Dashboard, sources, versions, permissions intact | ✅ | ✅ | | live |
 | Research, email, connectors, sharing | **not built** | | | — declared absent |
 
-**Live: nothing on this code.** No paid call was made on this branch during
-this work. Six live criteria passed on *earlier* code; that is historical
-evidence, not a certificate for this one, and chapter 31 is explicit about the
-difference.
+**Live: one journey has been run, and it failed.** DC-42 — the real Auto Loan
+pack, a real credential — produced no document at all. §10 is the account of
+it. Everything else here is deterministic or scripted, and the six live
+criteria that passed on *earlier* code are historical evidence, not a
+certificate for this one.
+
+**The blind spot, named.** A scripted browser run cannot prove a live model
+calls a tool: the fixture decides. Sixteen rows of browser evidence and 144
+green checks coexisted with a total failure on first live contact, and no
+claim in this document was wrong — the column does not mean what it is easy to
+read it as meaning. Journey **L** now scripts the *refusal* rather than the
+call, which is the nearest a fixture can get, and the two replies the live
+model actually gave are in the detector's test cases verbatim.
 
 ## 3. Counts, at the final commit
 
@@ -74,7 +87,7 @@ difference.
 |---|---|
 | `pytest` — whole repository | **10,608 passed, 30 skipped, 0 failed**, exit 0 (21m43s) |
 | `pytest tests/playbook` | **1,117 passed, 8 skipped** — the 8 are the live checks |
-| Chat browser acceptance, **two consecutive cycles** | **116 passed, 0 failed** (58 per cycle) |
+| Chat browser acceptance, **two consecutive cycles** | **144 passed, 0 failed** (72 per cycle, journeys A–M) |
 | Workspace browser acceptance | **105 passed, 0 failed** |
 | Dashboard browser acceptance | **185 passed, 0 failed** |
 | Artifact parse-back | **14 files, 62 checks, 0 failed** |
@@ -107,9 +120,10 @@ seeded demonstrations off Recent Playbooks and failed two other suites.
 | | |
 |---|---|
 | PASS — deterministic | **39** |
-| PASS — browser scripted | **16** (15 of them also deterministic) |
+| PASS — browser scripted | **17** (16 of them also deterministic) |
 | PASS — live verified | **0** |
-| BLOCKED | **2** — DC-41, DC-42 |
+| FAIL — live, fixed, awaiting retest | **1** — DC-42 |
+| BLOCKED | **1** — DC-41 |
 | NOT IMPLEMENTED | **one half of one row** — DC-13's *enabled research* clause |
 
 `tests/playbook/test_dc_matrix.py` checks the table rather than trusting it:
@@ -118,7 +132,7 @@ name, every browser claim names a journey the script runs or one of the two
 other suites, no row claims live verification, and the stated totals are the
 counted totals. Six mutations prove it bites.
 
-## 5. How the two mechanisms work
+## 5. How the mechanisms work
 
 **Document generation path.** `backend/playbook/documents.py` chooses per
 task, not by a blanket switch. A conversion is always LOCAL — the document is
@@ -146,6 +160,20 @@ section that says something is delivered; a section whose whole body is an
 admission that evidence is missing is `needs_input`, and the payload says
 which phrase decided it, so a reader can disagree with a judgement rather than
 with a number. A PDF that failed leaves eight written sections at eight.
+
+**Live feedback, while a generation runs.** A step checklist, each entry a
+real event named by the backend from the tool's own arguments and ticked off
+as it starts, with its own elapsed time; steps a tool has announced but not
+reached shown hollow; a total clock anchored to the server's offset for the
+newest event and advanced locally between events; *"still connected · last
+event 3s ago"* from a heartbeat that is now a named event rather than a
+comment the parser discarded; and a collapsible pane holding the document as
+it is written, counted in sections as they arrive.
+
+There is deliberately **no percentage**. Writing is most of the wall time and
+one step of five, so a step bar would sit near empty for almost the whole run
+— the same lie as one stuck at 95%, told backwards. Document completion stays
+where it belongs, in the dashboard, computed from stored rows after delivery.
 
 ## 6. Budget
 
@@ -264,16 +292,18 @@ Fifteen minutes. Each step has a way to be wrong.
 
 ## 9. Limitations, named rather than left to be found
 
-1. **Nothing is live-verified on this code.** Everything above is
-   deterministic or scripted. `scripts/playbook_live_smoke.py` is the bounded
-   way to change that; it has not been run.
+1. **Nothing is live-*verified* on this code, and one journey is live-FAILED.**
+   DC-42 was run against the real pack and did not pass; the cause is fixed
+   and covered, and the retest is owed. Everything else is deterministic or
+   scripted. `scripts/playbook_live_smoke.py` is the bounded way to change
+   that; it has not been run.
 2. **DC-41 is blocked.** `doctor` reports worktree, branch, commit, build
    target and migration head, and a scripted server names itself in
    `capabilities`. What is missing is the *served build* identifier in the UI,
    which needs the macOS worktree to confirm end to end.
-3. **DC-42 is blocked.** The original Auto Loan evidence pack is not in this
-   repository. The journey is exercised with a synthetic methodology of the
-   same shape; running it on the real pack needs the file and a credential.
+3. **DC-42 is FAIL, not blocked.** The pack and the credential exist; the
+   journey ran and produced nothing. §10 is the account. Re-running it is the
+   first thing to do, and it is one click.
 4. **There is no research capability.** No web search, no browsing. It is
    declared absent in the capability audit and the assistant is told the same
    thing, so it is never simulated — but DC-13's *enabled research* clause has
@@ -289,3 +319,54 @@ Fifteen minutes. Each step has a way to be wrong.
    optional.** Metric binding, findings, committee workflow, readiness review
    and section approval are reachable behind *Know the Status* and are never
    forced on an ordinary user or required to deliver a document.
+
+## 10. The first live run, and what it found
+
+Run on the user's own machine against the real Auto Loan pack — seven sources,
+a 39 KB methodology, a 135 KB workbook — with a real credential. It produced
+**no document at all**, and the thread showed four identical
+*"Draft the report from the attached sources."* messages, two replies
+announcing the work in past tense, and *"Nothing generated yet."*
+
+Three separate defects. None was slowness.
+
+**The model announced a document and never called the tool.** `converse` ended
+the turn the moment no tool block arrived, and nothing on the Playbook path
+sent `tool_choice` — the only use of it in the repository was on the
+analytical path. The declared intent reached the model as a bracketed sentence
+appended to the prompt and was ignored.
+
+Fixed three ways, in order of how much each is relied on: `tool_choice: any`
+on the first turn when the caller declared document work, which leaves the
+choice between create, revise and convert open and removes only the option of
+doing nothing; one bounded correction when a turn's own words claim a document
+and no tool ran; and `no_file` on the message so a turn that produced nothing
+cannot read as success.
+
+**Every extra click started another concurrent paid generation.** The only
+dedupe was the idempotency key, and the browser's key is positional
+(`ws7:turn12`) — so the same sentence sent again after a reload got a new key
+and was accepted as new work. Only the newest was visible. **That run may have
+been charged up to four times.**
+
+Migration `0041` makes one-live-job-per-workspace a database guarantee: a
+partial unique index on `playbook_jobs (workspace_id) WHERE finished_at IS
+NULL`. A check-then-insert races; an index cannot. The worker heartbeats so a
+killed process cannot lock the workspace for ever, and Send is now disabled
+while a generation runs, with the reason and a Stop button.
+
+**Nothing said the run was alive.** No event carried a timestamp, the
+heartbeat was an SSE comment every conforming parser discards, and the longest
+part of a generation emitted nothing because authoring was called with
+`on_delta=None`. See §5 for what replaced it.
+
+Two things were found only because the fix was exercised end to end, and both
+would have cost the next person the same hour: the launcher rebuilt when the
+API address changed but not when the source did, so it served a stale bundle
+while the browser suite failed on text already in the working tree; and the
+two older acceptance suites named port 8000 directly, which was true only
+while the frontend happened to be built against 8000.
+
+**What is still owed.** DC-42 is FAIL, not PASS. The fix is proven
+deterministically and in the browser; the live journey has not been re-run.
+That is one command, in §6, and it is the first thing to do.

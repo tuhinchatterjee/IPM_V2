@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import pathlib
 import sys
 
@@ -25,7 +26,18 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 WEB = "http://127.0.0.1:3000"
-API = "http://127.0.0.1:8000"
+#: The API, through the web server's own origin.
+#:
+#: Not a hard-coded backend port. This suite used to name 8000 directly, which
+#: was true only while the frontend happened to be built against 8000 — the
+#: moment the launcher moved Playbook to its own port the suite was asserting
+#: against one backend while the browser under test used another, and every
+#: request died with ECONNREFUSED.
+#:
+#: `/api/...` on the web origin is rewritten to whatever backend the running
+#: build is wired to, so this reaches the same server the page does, by
+#: construction. `PLAYBOOK_ACCEPTANCE_API` overrides it for a split setup.
+API = os.environ.get("PLAYBOOK_ACCEPTANCE_API") or WEB
 DOWNLOADS = pathlib.Path("/tmp/playbook-acceptance")
 SHOTS = REPO / "docs" / "playbook" / "screenshots"
 EVIDENCE = REPO / "docs" / "playbook" / "browser_acceptance.json"

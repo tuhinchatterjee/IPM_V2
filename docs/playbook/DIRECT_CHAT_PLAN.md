@@ -183,3 +183,24 @@ stored `validation.grounding` record. They date from a two-stage pipeline
 where the second was a re-check of a document that removal had edited.
 Nothing is removed now, so both names held the same object and the audit row
 implied a verification step that had not happened.
+
+---
+
+### The first live run (chapter 30, again)
+
+| Check | Was | Is now | Why |
+|---|---|---|---|
+| `test_streaming.py::test_a_heartbeat_is_a_comment_and_carries_nothing` | The heartbeat is a bare `: keep-alive` comment carrying nothing | Renamed `..._reaches_the_client_rather_than_only_the_proxy`. The comment survives, a named `ping` event is added beside it carrying how long the worker has been quiet, and two further tests pin that an empty payload is still a valid frame and that a heartbeat carries no sequence number | Ch. 15. A correct SSE comment that every conforming parser discards — including this product's own — proved the connection was open to a proxy and to nobody else. The screen stayed frozen through seven-minute runs. |
+| `assemble` returning `state` and `detail` | Two scalars, overwritten on every milestone | The ordered step log, with each step's server-measured offset. The scalars remain, because the status line still uses them | Ch. 15 asks for event-derived states; one unchanging line is not a state, it is the absence of one. The backend had persisted the ordered log all along and nothing read it. |
+| `scripts/acceptance/*.py` naming `127.0.0.1:8000` | The backend port, written into the suite | The web origin, whose `/api` rewrite reaches whatever backend the running build is wired to | True only while the frontend happened to be built against 8000. The moment the launcher moved Playbook to its own port, the suite asserted against one backend while the browser under test used another. |
+
+**Added, not replaced** — `TestADeclaredDocumentTaskMustProduceOne` and
+`TestAPromiseWithNoToolCall`. The case the suite could not express, because
+the scripted fixture decides whether a tool is called: a model that answers in
+prose and calls nothing. The two replies the live model actually gave are in
+the detector's parameter list verbatim.
+
+**Added, not replaced** — `TestADifferentKeyIsStillNotASecondGeneration`. The
+idempotency key was never the guarantee it was read as. It stops the same key
+twice; the browser's key is positional, so the same sentence sent again gets a
+different one, and nothing looked further.

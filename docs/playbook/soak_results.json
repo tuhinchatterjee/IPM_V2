@@ -7,7 +7,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 5.5,
+      "seconds": 5.6,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -37,7 +37,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 1.7,
+      "seconds": 1.9,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -47,7 +47,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.1,
+      "seconds": 2.3,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -67,7 +67,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.4,
+      "seconds": 2.5,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -87,7 +87,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 2.7,
+      "seconds": 2.9,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -97,7 +97,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 1.6,
+      "seconds": 1.7,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -107,7 +107,7 @@
       "cycles": 10,
       "passed": 51,
       "failed": 0,
-      "seconds": 2.2,
+      "seconds": 2.3,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -117,7 +117,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 2.0,
+      "seconds": 2.1,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -127,7 +127,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 1.7,
+      "seconds": 1.8,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -147,7 +147,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 1.8,
+      "seconds": 1.7,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -177,7 +177,7 @@
       "cycles": 10,
       "passed": 51,
       "failed": 0,
-      "seconds": 0.1,
+      "seconds": 0.2,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -187,7 +187,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 1.9,
+      "seconds": 1.8,
       "same_state_every_cycle": true,
       "failures": []
     },
