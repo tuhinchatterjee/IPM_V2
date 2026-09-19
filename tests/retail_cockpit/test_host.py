@@ -175,3 +175,35 @@ def test_hop_by_hop_headers_do_not_cross_the_boundary():
     for header in ("connection", "keep-alive", "transfer-encoding",
                    "content-length", "content-encoding", "host", "upgrade"):
         assert header in proxy._DROP, header
+
+
+def test_a_caller_cannot_contribute_the_boundary_headers(monkeypatch):
+    """Whatever the spelling, the caller's copy does not travel.
+
+    Starlette normalises header names, so in practice an inbound
+    `X-Cockpit-Principal` arrives lowercased and is replaced. This asserts
+    the property rather than the current behaviour of the framework
+    underneath it: the outbound dict is built lowercased AND the two
+    boundary names are dropped before either is written.
+    """
+    from backend.api.routers import cockpit_v4_proxy as proxy
+
+    monkeypatch.setenv(identity.SECRET_VAR, "the-real-one")
+    monkeypatch.setenv(identity.TENANT_VAR, "demo-tenant")
+
+    class _Req:
+        headers = {
+            "X-Cockpit-Principal": json.dumps({"id": "attacker",
+                                               "tenant": "someone-else"}),
+            "X-Cockpit-Auth": "guessed",
+            "Accept-Encoding": "gzip, br",
+            "Cookie": "session=abc",
+        }
+
+    out = proxy._outbound(_Req(), {"id": "u1", "tenant": "demo-tenant"})
+    assert set(out) == {k.lower() for k in out}, "keys must be lowercased"
+    assert json.loads(out[identity.PRINCIPAL_HEADER])["id"] == "u1"
+    assert out[identity.AUTH_HEADER] == "the-real-one"
+    assert "attacker" not in json.dumps(out)
+    # And a stream is never compressed.
+    assert out["accept-encoding"] == "identity"

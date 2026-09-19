@@ -100,18 +100,27 @@ def _principal(principal: Principal) -> dict[str, Any]:
     return forwarded
 
 
+#: The two headers that ARE the boundary. A caller must never be able to
+#: contribute one, under any spelling.
+_BOUNDARY = frozenset({identity.PRINCIPAL_HEADER, identity.AUTH_HEADER})
+
+
 def _outbound(request: Request, principal: dict[str, Any]) -> dict[str, str]:
-    headers = {k: v for k, v in request.headers.items()
-               if k.lower() not in _DROP}
+    # LOWERCASED as it is built, not merely compared lowercase. Starlette
+    # already normalises header names, but this dict is what a caller's
+    # bytes flow into: if an inbound `X-Cockpit-Principal` kept its own
+    # spelling it would sit beside the one written below rather than being
+    # replaced by it, and both would be sent. Which one the engine read
+    # would then be a property of dict ordering.
+    headers = {k.lower(): v for k, v in request.headers.items()
+               if k.lower() not in _DROP and k.lower() not in _BOUNDARY}
     # The engine derives identity server-side and refuses to read it from a
     # body. Same rule across the boundary: these two are set HERE, from the
-    # session this app already authenticated, and any inbound copy is
-    # overwritten rather than merged.
+    # session this app already authenticated.
     headers[identity.PRINCIPAL_HEADER] = identity.encode(principal)
     headers[identity.AUTH_HEADER] = identity.secret()
     # Never negotiate compression on a stream: a compressed event stream is
     # a buffered event stream.
-    headers.pop("accept-encoding", None)
     headers["accept-encoding"] = "identity"
     return headers
 
