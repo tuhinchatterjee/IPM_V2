@@ -85,8 +85,8 @@ model actually gave are in the detector's test cases verbatim.
 
 | Run | Result |
 |---|---|
-| `pytest` — whole repository | **10,608 passed, 30 skipped, 0 failed**, exit 0 (21m43s) |
-| `pytest tests/playbook` | **1,117 passed, 8 skipped** — the 8 are the live checks |
+| `pytest` — whole repository | **10,637 passed, 30 skipped, 0 failed**, exit 0 (22m05s) |
+| `pytest tests/playbook` | **1,145 passed, 8 skipped** — the 8 are the live checks |
 | Chat browser acceptance, **two consecutive cycles** | **144 passed, 0 failed** (72 per cycle, journeys A–M) |
 | Workspace browser acceptance | **105 passed, 0 failed** |
 | Dashboard browser acceptance | **185 passed, 0 failed** |
@@ -95,17 +95,17 @@ model actually gave are in the detector's test cases verbatim.
 | `ruff check .` | clean |
 | `tsc --noEmit` | clean |
 | `eslint` | clean |
-| Frontend unit tests | **516 passed, 0 failed** |
+| Frontend unit tests | **528 passed, 0 failed** |
 | `next build` | succeeded |
 
 The 30 pytest skips and the 8 in `tests/playbook` are live-provider checks
 that skip without a credential. **A skip is not a pass** and is not counted as
 one anywhere in this document.
 
-Every number above was read off a finished run. The whole-repository run
-covers this commit's Python: it began at `5961dbd` and the two commits after
-it changed only `scripts/playbook_live.sh` — which pytest does not execute —
-and documentation.
+Every number above was read off a finished run on this commit. An earlier
+attempt was stopped and restarted rather than reported, because it had begun
+before the last change landed and would have been describing a tree that no
+longer existed.
 
 The chat suite proves its own premise before asserting anything: it reads
 `GET /playbook/capabilities` and exits non-zero if the server is not scripted,
