@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -119,7 +120,12 @@ def main() -> int:
         else:
             started = client.post(
                 f"{args.api}/api/v1/cockpit-v4/runs",
-                headers={"Idempotency-Key": "readiness-probe"},
+                # UNIQUE per check. A fixed key answers 409
+                # IDEMPOTENCY_CONFLICT the second time this runs against the
+                # same store -- which is every restart after the first, and
+                # reads as "the Cockpit refused a question" when the Cockpit
+                # did nothing wrong.
+                headers={"Idempotency-Key": f"readiness-{uuid.uuid4().hex}"},
                 json={"question": "Total exposure at default by product",
                       "thread_id": thread.json()["thread_id"],
                       "mode": "standard"})

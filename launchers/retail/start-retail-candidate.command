@@ -115,8 +115,22 @@ curl -fsS "http://127.0.0.1:$BACKEND_PORT/api/v1/health" >/dev/null 2>&1 \
 # This is the slow one, and deliberately so: the book is materialised at
 # startup, so the cold open is paid here, by the launcher, instead of by
 # whoever asks the first question.
+# RETAIL_COCKPIT_OFFLINE is a TESTING mode and says so on the way past. It
+# starts the engine with a provider that cannot reach the network, so the
+# whole path can be exercised on a machine with no credential: a run is
+# accepted, driven by the real worker and settled as a real failure at the
+# model call. READY then means the plumbing works. It does NOT mean the
+# Cockpit can answer anything, and the banner at the end says so.
+ENGINE_ARGS=(--port "$ENGINE_PORT")
+if [ -n "${RETAIL_COCKPIT_OFFLINE:-}" ]; then
+  ENGINE_ARGS+=(--offline)
+  say ""
+  say "  !! RETAIL_COCKPIT_OFFLINE is set. No provider will be called and no"
+  say "  !! question can be answered. This is for testing the path only."
+fi
+
 say "Starting the Cockpit engine on $ENGINE_PORT (materialising the book)..."
-"$PYTHON" scripts/retail_cockpit/run_engine.py --port "$ENGINE_PORT" \
+"$PYTHON" scripts/retail_cockpit/run_engine.py "${ENGINE_ARGS[@]}" \
   >>"$ENGINE_LOG" 2>&1 &
 echo $! > "$PID_DIR/engine.pid"
 
@@ -168,7 +182,12 @@ say "Checking the Cockpit path end to end..."
   The stack is still running; see $ENGINE_LOG and $BACKEND_LOG."
 
 say ""
-say "READY — Retail Demo (AdvancedCockpit candidate)"
+if [ -n "${RETAIL_COCKPIT_OFFLINE:-}" ]; then
+  say "READY (OFFLINE) — the path works end to end; no question can be"
+  say "answered, because no provider is configured."
+else
+  say "READY — Retail Demo (AdvancedCockpit candidate)"
+fi
 say "  open   http://localhost:$FRONTEND_PORT"
 say "  stop   launchers/retail/stop-retail-candidate.command"
 say "  logs   $LOG_DIR"
