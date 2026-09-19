@@ -75,10 +75,44 @@ async def _api(page, path: str, method: str = "GET", body: dict | None = None):
         }""", {"path": path, "method": method, "body": body})
 
 
+#: Every workspace this run created, so it can take them away again.
+CREATED: list[int] = []
+
+
 async def _new_workspace(page, title: str) -> int:
     got = await _api(page, "/api/v1/playbook/workspaces", "POST",
                      {"title": title})
-    return int(got["body"]["id"])
+    workspace = int(got["body"]["id"])
+    CREATED.append(workspace)
+    return workspace
+
+
+def _clean_up() -> int:
+    """Remove the workspaces this run created, and only those.
+
+    Directly, because there is no delete route and there should not be one —
+    deleting a governed document is not something a dashboard offers. Written
+    after the omission caused a real failure: fifty-four leftover workspaces
+    from earlier runs pushed the seeded demonstration off Recent Playbooks,
+    and the workspace and dashboard suites then failed looking for it. The
+    repeat run had not caught it, because it compared check counts and not
+    the database.
+    """
+    if not CREATED:
+        return 0
+    from backend.db.engine import get_session
+    from backend.models.playbook import PlaybookWorkspace
+
+    removed = 0
+    with get_session() as session:
+        for workspace in CREATED:
+            row = session.get(PlaybookWorkspace, workspace)
+            if row is not None:
+                session.delete(row)
+                removed += 1
+        session.commit()
+    CREATED.clear()
+    return removed
 
 
 async def _state(page, workspace: int) -> dict:
@@ -584,6 +618,15 @@ async def main() -> int:
                                shoot=not args.no_screenshots and cycle == 1)
         finally:
             await browser.close()
+            # Even if a journey raised: a run that leaves rows behind breaks
+            # the next suite rather than its own.
+            try:
+                _clean_up()
+            except Exception:  # noqa: BLE001 — reported, never fatal
+                print("  note  could not clean up; workspaces may remain")
+
+    removed = _clean_up()
+    print(f"\nCleaned up {removed} workspace(s) this run created.")
 
     print("\n" + "=" * 72)
     print(f"{len(ok)} passed, {len(bad)} failed. Evidence: "
