@@ -246,7 +246,7 @@ class TestWritingAVersionUpdatesTheDashboard:
         first = service.author_document(
             db, scope, workspace.id, instruction="Write it.", ledger=ledger,
             title="IFRS 9 Committee Report", formats=["docx"])
-        assert first.grounding_final.ok
+        assert first.grounding.ok
         # Projected as production does it: after the version commits, before
         # the next one is written. A version whose projection was skipped
         # leaves the NEXT version comparing itself against nothing, so the

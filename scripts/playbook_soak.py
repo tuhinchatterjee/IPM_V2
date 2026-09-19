@@ -87,6 +87,19 @@ class ProviderReached(AssertionError):
     """The real provider was called. The soak must never spend money."""
 
 
+def _matches(stand_in, real) -> None:
+    """Refuse a stand-in the product would call differently."""
+    import inspect
+
+    wanted = set(inspect.signature(real).parameters)
+    have = set(inspect.signature(stand_in).parameters)
+    if wanted - have:
+        raise SystemExit(
+            f"the soak stand-in for {real.__name__}() is missing "
+            f"{sorted(wanted - have)}; add it before running the soak, or "
+            f"every journey that authors a document fails with a TypeError")
+
+
 def install_stand_in():
     """Replace the authoring provider for the whole run.
 
@@ -100,7 +113,7 @@ def install_stand_in():
 
     def author(*, system, messages, formats, purpose="playbook_authoring",
                container_id="", on_milestone=None, on_delta=None,
-               is_cancelled=None):
+               is_cancelled=None, document_tools=None):
         if on_milestone:
             on_milestone("drafting", "soak")
         if on_delta:
@@ -113,6 +126,12 @@ def install_stand_in():
         raise ProviderReached(
             "the soak harness reached the real provider; no cycle may spend "
             "money")
+
+    # A stand-in whose signature has drifted from the real one fails at the
+    # first journey that calls it, fifteen journeys deep, with a TypeError
+    # that reads like a product fault. It has happened. So the mismatch is
+    # caught here instead, before a single cycle runs, naming the parameter.
+    _matches(author, provider.author)
 
     provider.author = author
     provider._stream_once = refuse
@@ -264,6 +283,9 @@ class Cycle:
         self.number = number
         self.checks: list[tuple[bool, str]] = []
         self.workspace = None
+        #: What the last `generate` projected onto the dashboard. Empty until
+        #: a turn has run, because nothing has been written to project.
+        self.projection: dict = {}
 
     def check(self, ok: bool, what: str, detail: str = "") -> bool:
         self.checks.append((bool(ok), what if ok else f"{what} — {detail}"))
@@ -287,15 +309,36 @@ class Cycle:
                                   source_role=role)
 
     def generate(self, text: str, **kwargs):
+        """One turn, projected afterwards exactly as production does it.
+
+        Delivery and the status dashboard no longer share a transaction: the
+        version and its files commit on their own, and `project_status` runs
+        after them, in its own session, forbidden to raise. So a caller that
+        only authors gets a document and an empty dashboard — which is the
+        point of the split, and which every journey here that reads sections,
+        metrics or governance depends on having been done.
+        """
         from backend.playbook import service
 
         self.write(text)
-        return service.author_document(
+        outcome = service.author_document(
             self.session, self.scope, self.workspace.id,
             instruction=kwargs.pop("instruction", "Write the report."),
             ledger=kwargs.pop("ledger", None) or self.ledger(),
             title="IFRS 9 Committee Report",
             formats=kwargs.pop("formats", ["docx", "pdf"]), **kwargs)
+        self.projection = service.project_status(self._factory(),
+                                                 outcome.pending_projection)
+        return outcome
+
+    def _factory(self):
+        import contextlib
+
+        @contextlib.contextmanager
+        def reuse():
+            yield self.session
+
+        return reuse
 
     def ledger(self):
         from backend.playbook import service
@@ -310,15 +353,34 @@ def journey_a(cycle: Cycle) -> None:
     outcome = cycle.generate(REPORT_MD.format(title="IFRS 9 Committee Report"))
 
     cycle.check(outcome.version_id is not None, "a version was written")
-    cycle.check(outcome.grounding_final and outcome.grounding_final.ok,
-                "the saved report is grounded",
-                str(outcome.grounding_final.findings
-                    if outcome.grounding_final else "no result"))
+    # Superseded deliberately. This used to assert the saved report was
+    # clean, and it passed because `check(remove=True)` had DELETED the three
+    # figures the workbook alone does not support — so the check was reading
+    # a hollowed document and calling it grounded. Nothing is removed now, so
+    # the honest statements are the two below: the figures are still in the
+    # delivered document, and each one is an open review item against it.
+    from backend.playbook import document as D
+    from backend.playbook import repository as _repo
+
+    version = _repo.versions(cycle.session, outcome.artifact_id)[-1]
+    text = D.Document.from_dict(version.content or {}).plain_text()
+    cycle.check(all(f in text for f in ("22.77", "20.90", "1.87")),
+                "no figure was deleted from the delivered report",
+                text[:160])
+    findings = (outcome.grounding.findings if outcome.grounding else [])
+    stated = {f for finding in findings for f in finding.figures}
+    cycle.check({"22.77", "20.9", "1.87"} <= stated,
+                "each unsupported figure is recorded as a review item",
+                str(sorted(stated)))
+    cycle.check(version.validation["review"]["state"] == "draft"
+                and version.validation["review"]["open_items"] == len(findings),
+                "and the version sits at draft with those items open",
+                str(version.validation.get("review")))
     cycle.check(set(outcome.files) == {"docx", "pdf"},
                 "both formats were produced", str(sorted(outcome.files)))
-    cycle.check(outcome.adoption.get("sections") == 3,
-                "the dashboard records three sections",
-                str(outcome.adoption))
+    cycle.check(cycle.projection.get("sections") == 3,
+                "the dashboard records three sections once it is projected",
+                str(cycle.projection))
 
 
 def journey_b(cycle: Cycle) -> None:

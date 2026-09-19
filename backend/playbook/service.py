@@ -89,10 +89,6 @@ class Outcome:
     #: when the draft reached for something the evidence did not support,
     #: which is a fact about the draft and is kept in the audit record.
     grounding: grounding.GroundingResult | None = None
-    #: What was actually SAVED: the same check re-run over the document that
-    #: removal produced. This is the product contract — it is clean or the
-    #: run fails — and it is the one a caller should assert on.
-    grounding_final: grounding.GroundingResult | None = None
     renderer: str = ""
     #: For a scoped edit: the heading that was actually revised, and any
     #: sections the model changed without being asked. The merge discards
@@ -571,13 +567,9 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     # re-checking it against a DIFFERENT ledger is not a stricter test but a
     # false one — it deletes figures from sections nobody touched.
     #
-    # Two stages, because the product contract is about the ARTIFACT, not
-    # about the model's first draft. Stage one removes what the evidence does
-    # not support and records the attempt. Stage two re-checks the document
-    # that removal actually produced, and nothing is persisted or rendered
-    # unless that second pass is clean. A model is allowed to reach for a
-    # figure it should not have; a saved report is not allowed to contain one.
-    # Evidence is CHECKED, and nothing is rewritten.
+    # One pass, and it removes nothing. Evidence is CHECKED; the draft is
+    # left as it was written and every finding is recorded beside it with its
+    # section and its figures.
     #
     # What used to happen: `check(remove=True)` deleted every figure the
     # ledger did not support, a second pass refused the whole turn if removal
@@ -596,7 +588,6 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     # artifact still stops delivery; a figure that wants a source does not.
     review = grounding.check(doc, ledger, remove=False, scope=drafted_only)
     outcome.grounding = review
-    outcome.grounding_final = review
     outcome.review_items = [
         {"kind": "unsupported_figure", "section": f.section,
          "figures": list(f.figures), "detail": f.line()}
@@ -679,16 +670,13 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
         created_by=scope.user_id,
         validation={
             **{f: v.as_dict() for f, v in outcome.validations.items()},
-            # Both passes, on the row itself: what the draft attempted, and
-            # the verification of what was actually saved. An audit that keeps
-            # only the clean result cannot show that the model reached for a
-            # figure it did not have.
-            "grounding": {
-                "attempted": (outcome.grounding.as_dict()
-                              if outcome.grounding else {}),
-                "saved": (outcome.grounding_final.as_dict()
-                          if outcome.grounding_final else {}),
-            },
+            # One pass, on the row itself. It used to be written under two
+            # keys, "attempted" and "saved", from the days when the second
+            # was the re-check of a document that removal had edited. Nothing
+            # is removed any more, so both keys held the same object and the
+            # record implied a verification step that had not happened.
+            "grounding": (outcome.grounding.as_dict()
+                          if outcome.grounding else {}),
             # Where this version sits on chapter 03's ladder, and what a
             # reviewer would want to look at. A new version is always a draft
             # — writing is not reviewing — and the findings travel with it

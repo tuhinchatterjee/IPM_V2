@@ -320,42 +320,45 @@ def a_report_is_written_without_a_template() -> Outcome:
 
     invented = _tests_claimed_but_not_run(text)
 
-    # What the model ATTEMPTED, and what was SAVED. The pass turns on the
-    # second: the persisted report must be grounded. The first is reported
-    # either way, because "the model reached for four figures it did not have
-    # and they were removed" is worth knowing on a run that passed.
-    attempted = outcome.grounding
-    saved = outcome.grounding_final
+    # What the review found. There is one pass and it removes nothing: the
+    # draft is saved as it was written and every unsupported figure is
+    # recorded beside it with its section. So the findings are reported in
+    # full, and prominently — but the check does not fail on them, because a
+    # figure that wants a source is a review item, not a broken document, and
+    # a live gate that withdrew the report over one would contradict the
+    # architecture it is here to verify.
+    #
+    # What DOES fail the check is a report that cannot be read as a report:
+    # too few sections, a missing file, an invented test, or the loss of
+    # 22.77 — a figure the evidence DOES support, whose disappearance would
+    # mean the pipeline dropped it.
+    review = outcome.grounding
     saved_figures = validate.figures(text)
     required = sorted(f for f in ("22.77",) if f in saved_figures)
 
     result = Outcome(
         check="no_template_report",
         passed=(len(headings) >= 4
-                and saved is not None and saved.ok
                 and set(outcome.files) == {"docx", "pdf"}
                 and not invented
                 and required == ["22.77"]),
         calls=2,
         detail=(
             f"{len(headings)} sections; "
-            f"SAVED REPORT grounded: "
-            f"{'yes' if saved and saved.ok else 'NO'}"
+            f"review findings: "
+            f"{0 if review is None else len(review.findings)}"
             + (f"; INVENTED {invented}" if invented else "")
-            + f"\n      unsupported financial figures in the saved report: "
-            f"{0 if saved and saved.ok else len(saved.findings) if saved else '?'}"
-            f"; unsupported tests: {len(invented)}"
+            + f"\n      unsupported tests: {len(invented)}"
             + f"\n      required supported figures retained: "
             f"{required or 'NONE — 22.77 is missing'}"
             + f"\n      sections retained: {headings[:8]}"
-            + ("\n      the draft attempted "
-               f"{len(attempted.findings)} unsupported figure(s), repaired "
-               f"before saving, by kind {attempted.by_kind()}"
-               f"\n        {attempted.report()}"
-               if attempted and not attempted.ok
-               else "\n      the draft needed no repair")
-            + ("\n      STILL UNSUPPORTED AFTER REPAIR:\n        "
-               + saved.report() if saved and not saved.ok else "")
+            + ("\n      the draft states "
+               f"{len(review.findings)} figure(s) the evidence does not "
+               f"support, by kind {review.by_kind()}. The document is "
+               f"delivered and these are open review items, not removals."
+               f"\n        {review.report()}"
+               if review and not review.ok
+               else "\n      every figure in the draft is supported")
             + f"\n      evidence: {evidence_items} items, {evidence_chars} chars"
             f" (~{evidence_chars // 4} tokens)"
             + f"\n      provider: {outcome.turns} turn(s), "

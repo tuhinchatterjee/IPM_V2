@@ -225,7 +225,7 @@ class TestAReviewFindingDoesNotDestroyTheDraft:
         outcome = _run(db, scope, workspace, ledger)
 
         stored = repo.versions(db, outcome.artifact_id)[0].validation
-        classified = stored["grounding"]["attempted"]["classified"]
+        classified = stored["grounding"]["classified"]
         assert classified[0]["figures"][0]["token"] == "41.5"
         assert classified[0]["figures"][0]["kind"] == validate.PERCENTAGE
         assert stored["review"]["state"] == "draft"
