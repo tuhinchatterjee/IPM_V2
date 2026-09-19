@@ -38,7 +38,7 @@ import {
   type PbWorkspace,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { elapsed, stateLabel } from "@/lib/stream";
+import { elapsed } from "@/lib/stream";
 import { readDraft, saveDraft } from "@/lib/playbook-draft";
 import {
   composerState,
@@ -379,13 +379,10 @@ export default function PlaybookThreadPage({
                 quietFor={generation.quietFor}
                 draft={generation.draft}
               />
-              {generation.text ? (
-                <MarkdownView source={generation.text} />
-              ) : (
-                <p className="text-sm text-text-muted">
-                  Reading what was attached…
-                </p>
-              )}
+              {/* No placeholder: the progress panel above already says what
+                  is happening, and said it twice while the answer was still
+                  on its way. */}
+              {generation.text && <MarkdownView source={generation.text} />}
               <p className="text-[11px] text-text-muted">
                 Still being written. Nothing is saved until it finishes.
               </p>
@@ -550,10 +547,9 @@ export default function PlaybookThreadPage({
                   className="text-xs text-text-muted"
                   data-testid="playbook-generation-state"
                 >
-                  {generation.state
-                    ? stateLabel(generation.state, generation.detail)
+                  {generation.running
+                    ? `Running for ${elapsed(generation.at)}`
                     : "Sending"}
-                  {generation.at > 0 && ` · ${elapsed(generation.at)}`}
                   . Nothing is saved until it finishes.
                 </span>
                 <Button

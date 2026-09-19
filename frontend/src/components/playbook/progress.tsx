@@ -118,13 +118,26 @@ export function GenerationProgress({
     >
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm text-text-primary">
-          {current ? stateLabel(current.state) : "Starting"}
+          {current
+            ? stateLabel(current.state, current.detail)
+            : "Starting"}
+          {current?.state === "drafting" && sections > 0 && (
+            <span className="text-text-muted">
+              {" "}
+              — {sections} section{sections === 1 ? "" : "s"} so far
+            </span>
+          )}
         </p>
         <p className="meta tabular-nums" data-testid="playbook-elapsed">
           {elapsed(total)}
         </p>
       </div>
 
+      {/* The heading above already names the current step. A list that
+          repeats it, and nothing else, says the same thing twice — so the
+          history appears once there IS a history, or once a tool has said
+          what is coming. */}
+      {(steps.length > 1 || plan.length > 0) && (
       <ol className="space-y-1" data-testid="playbook-steps">
         {steps.map((step, i) => (
           <li
@@ -167,6 +180,7 @@ export function GenerationProgress({
           </li>
         ))}
       </ol>
+      )}
 
       {running && (
         <p className="meta" data-testid="playbook-heartbeat">
