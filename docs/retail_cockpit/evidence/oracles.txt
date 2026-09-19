@@ -1,0 +1,91 @@
+release  cockpitdata-r1.2.0-c1.0.0-s20260910-p7
+         fingerprint d680f22767c64699
+         25 months to 2026-08, SAR million
+oracle   retail_facility_month r1.2.0-c1.0.0-s20260910 (manifest 3268b725456df9c4)
+
+OK   Q01  Latest-month EAD by product
+       period 2026-08 · unit SAR million and SAR
+       denominator: all 59,449 facilities published in 2026-08
+OK   Q04  Gross carrying amount by product
+       period 2026-08 · unit SAR and SAR million
+       denominator: all 59,449 facilities published in 2026-08
+OK   Q07  Stage distribution by count and exposure
+       period 2026-08 · unit count, SAR and SAR million; share is a fraction
+       denominator: total EAD of 6,425,968,606.83 SAR in 2026-08
+OK   Q09  Defaulted facilities by product
+       period 2026-08 · unit count, SAR and SAR million; coverage is a fraction
+       denominator: the defaulted population of the same product
+OK   Q10  Delinquency profile by published DPD bucket
+       period 2026-08 · unit count, SAR and SAR million; share is a fraction
+       denominator: total EAD of 6,425,968,606.83 SAR in 2026-08
+OK   Q12  Exposure and ECL by product sub-segment
+       period 2026-08 · unit count, SAR and SAR million
+       denominator: all 59,449 facilities published in 2026-08
+OK   Q13  Exposure, ECL and coverage by region
+       period 2026-08 · unit count, SAR and SAR million; coverage is a fraction
+       denominator: gross carrying amount of the same region
+OK   Q14  Exposure and delinquency by employment status
+       period 2026-08 · unit count, SAR and SAR million; share is a fraction
+       denominator: the facilities of the same employment status
+OK   Q15  Salary transfer against arrears and ECL
+       period 2026-08 · unit count, SAR and SAR million; shares are fractions
+       denominator: the facilities in the same population
+OK   Q17  Exposure and coverage by behavioural score band
+       period 2026-08 · unit count, SAR and SAR million; coverage is a fraction
+       denominator: the facilities in the same band
+OK   Q18  Behavioural score movement at facility grain
+       period 2026-08 · unit count, SAR and SAR million
+       denominator: all 59,449 facilities published in 2026-08
+OK   Q20  Exposure and coverage by origination vintage
+       period 2026-08 · unit count, SAR and SAR million; coverage is a fraction
+       denominator: the facilities written in the same year
+OK   Q23  Collateral value and loan-to-value on secured lending
+       period 2026-08 · unit count, SAR and SAR million; LTV is a fraction
+       denominator: the 16,732 secured facilities carrying a valuation in 2026-08
+OK   Q24  Write-offs, recoveries and cures in the month
+       period 2026-08 · unit SAR and SAR million; cures are a count
+       denominator: the month of 2026-08 alone
+OK   Q25  ECL by scenario, and the recognised figure
+       period 2026-08 · unit SAR and SAR million
+       denominator: all facilities published in 2026-08
+OK   Q26  Recognised ECL and coverage over twelve months
+       period 2025-09..2026-08 · unit SAR and SAR million; coverage is a fraction
+       denominator: gross carrying amount of the same month
+OK   Q28  Utilisation on the products that publish it
+       period 2026-08 · unit count and SAR; utilisation is a fraction
+       denominator: the facilities of the same product that publish a utilisation
+OK   Q06  The 1-29 movement split into 1-9, 10-19 and 20-29
+       period 2026-08 against 2026-07 · unit count
+       denominator: the whole live book of the month
+OK   Q08  SICR by trigger
+       period 2026-08 · unit count, SAR and SAR million
+       denominator: the 7,228 facilities flagged in 2026-08
+OK   Q11  Movement in 30-59, 60-89 and 90+ arrears
+       period 2026-08 against 2026-07 · unit count, SAR and SAR million
+       denominator: the live facility population of each month
+OK   Q19  Customer income summed once per customer, not per facility
+       period 2026-08 · unit SAR and SAR million
+       denominator: 42,824 distinct customers holding 59,449 facilities
+OK   Q21  Decompose the ECL movement
+       period 2026-07 to 2026-08 · unit SAR million
+       denominator: the recorded allowance of both months
+OK   Q22  Debt burden ratio bands at customer grain
+       period 2026-08 · unit count, SAR and SAR million
+       denominator: 42,824 distinct customers in 2026-08
+OK   Q27  Exposure concentration in the largest customers
+       period 2026-08 · unit SAR and SAR million; share is a fraction
+       denominator: total customer EAD of 6,425,968,606.83 SAR across 42,824 customers
+OK   Q02  Customer count and facility count by product
+       period 2026-08 · unit count
+       denominator: 42,824 distinct customers, 59,449 facilities
+OK   Q03  ECL and coverage by product and IFRS 9 stage
+       period 2026-08 · unit SAR million and SAR; coverage is a fraction
+       denominator: gross carrying amount of the same population
+OK   Q05  Where the 1-29 DPD population increased since last month
+       period 2026-08 against 2026-07 · unit count; share is a fraction
+       denominator: the live facility population of the same product and month
+OK   Q16  Stage 1/2/3 migration as a count matrix
+       period 2026-07 to 2026-08 · unit count
+       denominator: 57,724 facilities present in both months; 1,725 entered and 1,074 left
+
+28 of 28 cases agree with the independent oracle.

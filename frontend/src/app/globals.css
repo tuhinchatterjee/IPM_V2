@@ -799,3 +799,12 @@ table th {
   0%   { transform: translateX(-120%); }
   100% { transform: translateX(520%); }
 }
+
+/* A page that declares itself wide (see components/layout/content-width.tsx)
+   gets the room. Everything else keeps the 1200px reading column. The
+   Cockpit is the only screen that asks: an answer, its evidence, its charts
+   and a live process panel do not fit side by side at 1200px, and the
+   charts are what gives way. */
+body[data-content-width="wide"] .content-column {
+  max-width: 1600px;
+}

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Composer, useGreeting } from "@/components/ask/composer";
+import { cockpitV4Enabled } from "@/components/cockpit-v4/client";
+import { RetailAdvancedCockpit } from "@/components/cockpit-v4-host/retail-cockpit";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
 import { EarlyWarningStrip } from "@/components/early-warning/cockpit-strip";
@@ -40,6 +42,22 @@ import { isRetail } from "@/lib/profile";
  * a registered analysis executed on request, and carries a Trace.
  */
 export default function CockpitPage() {
+  // WHICH Cockpit this deployment serves, decided once.
+  //
+  // `cockpitV4Enabled()` reads a build-time environment variable, so the
+  // branch is a constant for the life of the bundle and never reorders a
+  // hook. It matters that this is a branch between two SIBLING components
+  // and not a condition inside one: React runs every hook a component
+  // declares, so a legacy Cockpit that only hid its markup would still
+  // issue its own composer, attention and early-warning requests behind the
+  // new page.
+  if (cockpitV4Enabled()) {
+    return (
+      <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
+        <RetailAdvancedCockpit />
+      </React.Suspense>
+    );
+  }
   return (
     <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
       <Cockpit />
