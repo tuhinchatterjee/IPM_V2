@@ -120,10 +120,10 @@ def _inbound(response: httpx.Response) -> dict[str, str]:
             if k.lower() not in _DROP}
 
 
-async def _forward(request: Request, path: str) -> Response:
+async def _forward(request: Request, path: str,
+                   caller: Principal) -> Response:
     try:
-        principal = _principal(await _resolve(request))
-        headers = _outbound(request, principal)
+        headers = _outbound(request, _principal(caller))
     except identity.SecretMissing as exc:
         logger.error("Cockpit proxy refused a call: %s", exc)
         raise HTTPException(503, {
@@ -171,17 +171,13 @@ async def _forward(request: Request, path: str) -> Response:
         media_type=upstream.headers.get("content-type", "text/event-stream"))
 
 
-async def _resolve(request: Request) -> Principal:
-    return current_principal(request)
-
-
 @router.api_route("/{path:path}",
                   methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request,
                 principal: Principal = Depends(current_principal)) -> Response:
     """Every Cockpit call, authenticated here and forwarded there."""
     request.state.cockpit_principal = principal
-    return await _forward(request, path)
+    return await _forward(request, path, principal)
 
 
 __all__ = ["DEFAULT_ENGINE_URL", "ENGINE_PREFIX", "ENGINE_URL_VAR",

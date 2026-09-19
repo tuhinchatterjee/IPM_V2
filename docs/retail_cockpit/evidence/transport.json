@@ -1,0 +1,93 @@
+{
+  "what_is_measured": "SSE transport through the retail proxy: framing, buffering, replay and cancellation.",
+  "what_is_not_measured": "Answer quality. No provider call is made; the run fails at the model call by design.",
+  "paid_provider_calls": 0,
+  "stream": {
+    "headers": {
+      "status": 200,
+      "content_type": "text/event-stream; charset=utf-8",
+      "accel_buffering": "no",
+      "cache_control": "no-cache, no-transform"
+    },
+    "frames": [
+      {
+        "event": "run.accepted",
+        "at_seconds": 0.02
+      },
+      {
+        "event": "context.ready",
+        "at_seconds": 0.02
+      },
+      {
+        "event": "run.started",
+        "at_seconds": 0.12
+      },
+      {
+        "event": "context.ready",
+        "at_seconds": 0.12
+      },
+      {
+        "event": "intent.validated",
+        "at_seconds": 0.12
+      },
+      {
+        "event": "model.requested",
+        "at_seconds": 0.12
+      },
+      {
+        "event": "<heartbeat>",
+        "at_seconds": 5.16
+      },
+      {
+        "event": "run.failed",
+        "at_seconds": 8.08
+      },
+      {
+        "event": "run.settled",
+        "at_seconds": 8.08
+      }
+    ],
+    "think_gap_seconds": 7.96,
+    "heartbeats": 1
+  },
+  "replay": {
+    "from_cursor": 1,
+    "frames": [
+      "context.ready",
+      "run.started",
+      "context.ready",
+      "intent.validated",
+      "model.requested",
+      "run.failed",
+      "run.settled"
+    ]
+  },
+  "cancel": {
+    "in_flight": {
+      "status": 200,
+      "run_id": "run-c46c68b4ab0c43c5a2fbebae53e2a7f5",
+      "state": "MODEL_RUNNING",
+      "cancelled": true
+    },
+    "frames_after": [
+      "run.accepted",
+      "context.ready",
+      "run.started",
+      "context.ready",
+      "intent.validated",
+      "model.requested",
+      "<heartbeat>",
+      "run.failed",
+      "run.settled"
+    ],
+    "repeated": {
+      "status": 200,
+      "run_id": "run-c46c68b4ab0c43c5a2fbebae53e2a7f5",
+      "state": "FAILED",
+      "cancelled": false,
+      "message": "This run had already finished."
+    }
+  },
+  "findings": [],
+  "verdict": "PASS"
+}
