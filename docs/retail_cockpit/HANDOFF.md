@@ -12,8 +12,16 @@ the isolation is measured, and the measurements are named below.
 
 ## 1. Candidate commit
 
-`69bff969a8dbad101b58c21651e568b52ecdb011` on `claude/modest-rubin-cm037o`
-(7 commits this session). Nothing merged, no pull request opened.
+The tip of **`claude/modest-rubin-cm037o`**. Take the branch tip rather than
+a SHA written here: this document is committed on that branch, so any SHA it
+names is necessarily one commit behind itself.
+
+    git fetch origin claude/modest-rubin-cm037o
+    git rev-parse origin/claude/modest-rubin-cm037o
+
+Thirteen commits this session, starting from `ec8835d4`. Nothing merged, no
+pull request opened, and the branch is not based on anything but the
+candidate line you approved.
 
 ## 2. The release
 
