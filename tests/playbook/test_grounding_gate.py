@@ -29,9 +29,8 @@ import pytest
 
 from backend.playbook import document as D
 from backend.playbook import evidence as ev
-from backend.playbook import grounding, provider, service, validate
+from backend.playbook import grounding, review, service, validate
 from backend.playbook import repository as repo
-from backend.playbook import review
 
 TITLE = "IFRS 9 Committee Report — Q2 2026"
 
