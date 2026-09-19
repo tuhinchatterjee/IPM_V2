@@ -72,8 +72,8 @@ difference.
 
 | Run | Result |
 |---|---|
-| `pytest` — whole repository | **running on this commit; the last completed run was 10,589 passed, 30 skipped, 0 failed, exit 0.** This row carries the confirmed figure, not a projection — see the note below |
-| `pytest tests/playbook` | **1,098 passed, 8 skipped** — confirmed; the 8 are the live checks. The count rises by the 15 matrix tests added after that run |
+| `pytest` — whole repository | **10,608 passed, 30 skipped, 0 failed**, exit 0 (21m43s) |
+| `pytest tests/playbook` | **1,117 passed, 8 skipped** — the 8 are the live checks |
 | Chat browser acceptance, **two consecutive cycles** | **116 passed, 0 failed** (58 per cycle) |
 | Workspace browser acceptance | **105 passed, 0 failed** |
 | Dashboard browser acceptance | **185 passed, 0 failed** |
@@ -89,12 +89,10 @@ The 30 pytest skips and the 8 in `tests/playbook` are live-provider checks
 that skip without a credential. **A skip is not a pass** and is not counted as
 one anywhere in this document.
 
-A number is written here only once it has been read off a finished run. The
-whole-repository figure above is from the last run that completed; the run on
-this exact commit was still going when this was written, and the difference
-is the tests added since — `test_dc_matrix.py` (15) and the four DC-13
-capability tests. Nothing else changed that a test covers. Replace the row
-with the finished figure rather than assuming the arithmetic.
+Every number above was read off a finished run. The whole-repository run
+covers this commit's Python: it began at `5961dbd` and the two commits after
+it changed only `scripts/playbook_live.sh` — which pytest does not execute —
+and documentation.
 
 The chat suite proves its own premise before asserting anything: it reads
 `GET /playbook/capabilities` and exits non-zero if the server is not scripted,
