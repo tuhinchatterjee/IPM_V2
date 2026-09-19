@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from backend.playbook import chat, repository as repo
+from backend.playbook import chat
+from backend.playbook import repository as repo
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -33,10 +34,10 @@ def _governance_rows(db, workspace_id: int) -> dict[str, int]:
     from backend.models.playbook import (
         PlaybookAction,
         PlaybookDecision,
+        PlaybookDocumentSection,
         PlaybookFinding,
         PlaybookMetricBinding,
         PlaybookMetricSnapshot,
-        PlaybookDocumentSection,
     )
 
     counts = {}
