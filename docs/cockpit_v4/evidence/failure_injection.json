@@ -1,0 +1,6 @@
+{
+  "evidence_class": "MODEL MOCK \u00b7 REAL DATABASE/RUNNER",
+  "paid_provider_calls": 0,
+  "invariant": "every injected failure reaches a terminal state, carries a specific code, and publishes nothing shaped like an answer",
+  "cases": []
+}

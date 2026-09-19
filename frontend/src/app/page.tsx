@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { cockpitV4Enabled } from "@/components/cockpit-v4/client";
-import { RetailAdvancedCockpit } from "@/components/cockpit-v4-host/retail-cockpit";
+import { CockpitV4Home } from "@/components/cockpit-v4/cockpit-v4-home";
+import { CockpitSourceBadge } from "@/components/cockpit-v4-host/source-badge";
+import { useWideContent } from "@/components/layout/content-width";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
 import { EarlyWarningStrip } from "@/components/early-warning/cockpit-strip";
@@ -54,7 +56,7 @@ export default function CockpitPage() {
   if (cockpitV4Enabled()) {
     return (
       <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
-        <RetailAdvancedCockpit />
+        <AdvancedCockpit />
       </React.Suspense>
     );
   }
@@ -62,6 +64,29 @@ export default function CockpitPage() {
     <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
       <Cockpit />
     </React.Suspense>
+  );
+}
+
+/**
+ * The Cockpit this deployment serves.
+ *
+ * `<CockpitV4Home />` is mounted HERE, in the page, rather than behind a
+ * wrapper component: the ported suite reads this file and asserts that the
+ * page itself chooses the runtime and mounts the Cockpit, and a wrapper
+ * would have satisfied the behaviour while hiding it from the one check
+ * written to see it. The two things this adds -- the source badge and the
+ * width a workspace needs -- sit around it, not inside it, and the ported
+ * component is untouched.
+ */
+function AdvancedCockpit() {
+  // An answer, its evidence, its charts and the live process panel do not
+  // sit side by side in a 1200px reading column.
+  useWideContent();
+  return (
+    <>
+      <CockpitSourceBadge />
+      <CockpitV4Home />
+    </>
   );
 }
 
