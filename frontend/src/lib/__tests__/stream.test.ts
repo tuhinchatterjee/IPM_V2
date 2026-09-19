@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   SSEParser,
   assemble,
+  draftSections,
+  elapsed,
   stateLabel,
   toPlaybookEvent,
   type PlaybookStreamEvent,
@@ -158,4 +160,130 @@ test("a real state reads as words, and an unknown one is not hidden", () => {
   assert.equal(stateLabel("reviewing_sources"), "Reading the sources");
   assert.equal(stateLabel("rendering", "docx"), "Building the files — docx");
   assert.equal(stateLabel("something_new"), "something new");
+});
+
+// --------------------------------------------------------------------------
+// The step log, the clock and the draft.
+//
+// Every one of these exists because a real seven-minute run was
+// indistinguishable from a dead one: two scalars overwritten on each
+// milestone, no timestamp on any event, a heartbeat the parser discarded, and
+// nothing at all emitted while the document was being written.
+// --------------------------------------------------------------------------
+
+test("milestones are kept in order, not collapsed to the latest", () => {
+  const view = assemble([
+    event("state", { state: "reviewing_sources", at: 0.2 }, 1),
+    event("state", { state: "drafting", detail: "create_document running", at: 3.1 }, 2),
+    event("state", { state: "rendering", detail: "building docx", at: 190.4 }, 3),
+  ]);
+  assert.deepEqual(
+    view.steps.map((s) => [s.state, s.at, s.done]),
+    [
+      ["reviewing_sources", 0.2, true],
+      ["drafting", 3.1, true],
+      ["rendering", 190.4, false],
+    ],
+  );
+  // The old shape survives, because the status line still uses it.
+  assert.equal(view.state, "rendering");
+});
+
+test("the same step repeated is one step", () => {
+  // The backend emits `reviewing_sources` twice at the start of every turn.
+  // A list that showed it twice would be reporting the implementation.
+  const view = assemble([
+    event("state", { state: "reviewing_sources", at: 0.1 }, 1),
+    event("state", { state: "reviewing_sources", at: 0.3 }, 2),
+    event("state", { state: "drafting", at: 1.0 }, 3),
+  ]);
+  assert.deepEqual(view.steps.map((s) => s.state),
+    ["reviewing_sources", "drafting"]);
+});
+
+test("the last step is finished when the run ends", () => {
+  const view = assemble([
+    event("state", { state: "drafting", at: 1 }, 1),
+    event("done", { version: 1, at: 200 }, 2),
+  ]);
+  assert.equal(view.steps[0].done, true);
+});
+
+test("elapsed comes from the newest event and never goes backwards", () => {
+  const view = assemble([
+    event("state", { state: "drafting", at: 3.1 }, 1),
+    event("delta", { text: "hello", at: 190.0 }, 2),
+    // An out-of-order arrival must not rewind the clock.
+    event("state", { state: "rendering", at: 12.0 }, 3),
+  ]);
+  assert.equal(view.at, 190.0);
+});
+
+test("a heartbeat says how long the worker has been quiet, and moves nothing else", () => {
+  const view = assemble([
+    event("state", { state: "drafting", at: 3.1 }, 1),
+    event("ping", { quiet_for: 47.5 }, 0),
+  ]);
+  assert.equal(view.quietFor, 47.5);
+  // The ping is written by the reader, not the worker, so it is not evidence
+  // that the generation has got any further.
+  assert.equal(view.at, 3.1);
+  assert.equal(view.steps.length, 1);
+});
+
+test("the draft is kept apart from the answer", () => {
+  const view = assemble([
+    event("delta", { text: "I will write that now.", at: 1 }, 1),
+    event("draft_delta", { text: "## 1. Executive summary\n\nBody.", at: 40 }, 2),
+  ]);
+  assert.equal(view.text, "I will write that now.");
+  assert.equal(view.draft, "## 1. Executive summary\n\nBody.");
+  // Two different things. Merging them would put the whole report in the
+  // message column beside the file card that already holds it.
+  assert.ok(!view.text.includes("Executive summary"));
+});
+
+test("a failure discards the draft as well as the answer", () => {
+  const view = assemble([
+    event("delta", { text: "half an answer", at: 1 }, 1),
+    event("draft_delta", { text: "## Half a document", at: 2 }, 2),
+    event("error", { message: "The provider did not respond in time." }, 3),
+  ]);
+  assert.equal(view.text, "");
+  assert.equal(view.draft, "");
+  assert.equal(view.error, "The provider did not respond in time.");
+});
+
+test("a plan names the steps before any of them has happened", () => {
+  const view = assemble([
+    event("plan", { steps: ["Write the document", "Build the DOCX file"], at: 2 }, 1),
+  ]);
+  assert.deepEqual(view.plan, ["Write the document", "Build the DOCX file"]);
+  assert.equal(view.steps.length, 0, "a plan is not a step that happened");
+});
+
+test("sections are counted from the draft that arrived, with no denominator", () => {
+  const draft = "# Title\n\n## 1. Scope\n\nBody\n\n## 2. Method\n\nBody\n\n### 2.1 Detail\n";
+  assert.equal(draftSections(draft), 2, "## only — a title is not a section");
+  assert.equal(draftSections(""), 0);
+  assert.equal(draftSections("##nospace"), 0);
+});
+
+test("elapsed reads as a person would say it", () => {
+  assert.equal(elapsed(0), "0s");
+  assert.equal(elapsed(8.7), "8s");
+  assert.equal(elapsed(60), "1m 0s");
+  assert.equal(elapsed(252), "4m 12s");
+  assert.equal(elapsed(-5), "0s", "a negative clock is a bug, not a display");
+});
+
+test("an unknown event kind is dropped rather than shown", () => {
+  assert.equal(toPlaybookEvent({ id: "1", event: "reasoning", data: "{}" }), null);
+});
+
+test("the new kinds are accepted", () => {
+  for (const kind of ["draft_delta", "plan", "ping"]) {
+    const parsed = toPlaybookEvent({ id: "1", event: kind, data: "{}" });
+    assert.equal(parsed?.kind, kind);
+  }
 });

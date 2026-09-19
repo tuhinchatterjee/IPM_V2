@@ -117,8 +117,18 @@ export function useGeneration(workspaceId: number, onFinished: () => void) {
     /** True while a generation is attached and has not ended. */
     running: jobId !== null && !view.done,
     text: view.text,
+    /** The document as it is written, separate from the chat answer. */
+    draft: view.draft,
     state: view.state,
     detail: view.detail,
+    /** Every step this turn has taken, in order, with its own offset. */
+    steps: view.steps,
+    /** The steps it said it would take, named before it took them. */
+    plan: view.plan,
+    /** Seconds since the generation started, measured by the server. */
+    at: view.at,
+    /** Seconds the worker has been silent, from the newest heartbeat. */
+    quietFor: view.quietFor,
     error: view.error || connectionError,
     cancelled: view.cancelled,
     version: view.version,

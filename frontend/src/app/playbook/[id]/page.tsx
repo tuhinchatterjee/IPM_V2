@@ -17,6 +17,7 @@ import { DocumentStatusPanel } from "@/components/playbook/status/status-panel";
 import { UploadedMetricUpdates } from "@/components/playbook/status/uploaded-updates";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
 import { SourceCard } from "@/components/playbook/source-card";
+import { GenerationProgress } from "@/components/playbook/progress";
 import { useGeneration } from "@/components/playbook/use-generation";
 import { VersionPreview } from "@/components/playbook/version-preview";
 import { Composer, type Attachment } from "@/components/playbook/composer";
@@ -37,7 +38,7 @@ import {
   type PbWorkspace,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
-import { stateLabel } from "@/lib/stream";
+import { elapsed, stateLabel } from "@/lib/stream";
 import { readDraft, saveDraft } from "@/lib/playbook-draft";
 import {
   composerState,
@@ -362,12 +363,15 @@ export default function PlaybookThreadPage({
 
           {(generation.running || generation.text) && !generation.done && (
             <article className="space-y-2" data-testid="playbook-streaming">
-              <p className="meta">
-                Playbook
-                <span className="ml-2 text-text-muted">
-                  {stateLabel(generation.state, generation.detail)}
-                </span>
-              </p>
+              <p className="meta">Playbook</p>
+              <GenerationProgress
+                running={generation.running}
+                steps={generation.steps}
+                plan={generation.plan}
+                at={generation.at}
+                quietFor={generation.quietFor}
+                draft={generation.draft}
+              />
               {generation.text ? (
                 <MarkdownView source={generation.text} />
               ) : (
@@ -518,8 +522,19 @@ export default function PlaybookThreadPage({
                 ]);
               }}
               onAddAnalyses={() => setPickerOpen(true)}
-              busy={busy}
-              disabledNote={canGenerate ? "" : note}
+              // Not only `busy`: that clears when the POST returns, a few
+              // hundred milliseconds in, while the generation runs for
+              // minutes. A composer that stays live through it invites the
+              // second send that used to start a second paid generation.
+              busy={busy || generation.running}
+              disabledNote={
+                generation.running
+                  ? "A generation is running in this Playbook. Wait for it " +
+                    "to finish, or stop it."
+                  : canGenerate
+                    ? ""
+                    : note
+              }
               placeholder="Ask for a change, a check, or another format…"
             />
             {(busy || generation.running) && (
@@ -531,6 +546,7 @@ export default function PlaybookThreadPage({
                   {generation.state
                     ? stateLabel(generation.state, generation.detail)
                     : "Sending"}
+                  {generation.at > 0 && ` · ${elapsed(generation.at)}`}
                   . Nothing is saved until it finishes.
                 </span>
                 <Button
