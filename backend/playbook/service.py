@@ -1017,13 +1017,27 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
         if on_milestone:
             on_milestone(state, detail)
 
+    #: What each tool adds to the state already on screen. The tool names are
+    #: the model's interface, not the user's — "create_document running" is
+    #: accurate and reads like a log line in a product otherwise written in
+    #: English — and `create_document` adds nothing at all, because the state
+    #: it produces already says Writing.
+    ADDS = {"create_document": "",
+            "revise_document": "revising the current version",
+            "convert_document": "converting the saved version"}
+
     def tool_state(name: str, stage: str) -> None:
         """An honest work state, derived from what is happening.
 
         Chapter 15: event-derived, never a timer pretending to be progress.
         """
-        milestone("drafting" if stage == "running" else "rendering",
-                  f"{name} {stage}")
+        detail = ADDS.get(name, name.replace("_", " "))
+        if stage == "running":
+            milestone("drafting", detail)
+        elif stage == "failed":
+            milestone("rendering", "the last step did not succeed")
+        else:
+            milestone("rendering", "")
 
     asked = _what_was_asked(text, task_kind=task_kind, task_scope=task_scope,
                             formats=formats)
