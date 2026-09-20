@@ -424,15 +424,30 @@ def _fetch_targets(code: str) -> list[str]:
     return targets
 
 
+#: The one helper that is allowed to stand in for the prefix.
+#:
+#: `exportLinks` builds every export URL from `base() + API_PREFIX` in
+#: `client.ts`, so a fetch through it cannot reach a legacy path -- and a
+#: caller that needs the BYTES rather than a link, which is how a chart
+#: becomes a PNG, has nowhere else to get them.
+#:
+#: Named here rather than left to the parameter-name escape below, which
+#: is how `figure-download.tsx` was passing: it calls `fetch(url, ...)`
+#: and `url` happens to be one of the three names this test skips. That is
+#: an accident, not a sanction, and a guard that passes by accident is a
+#: guard that will one day pass something it should not.
+PREFIXED = ("API_PREFIX", "exportLinks(")
+
+
 def test_every_v4_fetch_goes_through_the_v4_prefix():
     """A fetch that skips API_PREFIX is how a shim gets back in."""
     for path in sorted(V4_DIR.glob("*.ts*")):
         if path.name.endswith(".test.ts"):
             continue
         for target in _fetch_targets(_code_only(path)):
-            if not target or target.startswith(("url", "input", "request")):
+            if not target or target.startswith(("input", "request")):
                 continue
-            assert "API_PREFIX" in target, (
+            assert any(allowed in target for allowed in PREFIXED), (
                 f"{path.name} fetches {target}, which does not go through "
                 f"API_PREFIX.")
 

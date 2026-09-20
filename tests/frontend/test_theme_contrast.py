@@ -45,6 +45,14 @@ CHECKS: list[tuple[str, str, float, str]] = [
     ("ipm-positive", "ipm-positive-muted", 3.5, "positive on its own tint"),
     ("ipm-warning", "ipm-warning-muted", 3.5, "warning on its own tint"),
     ("ipm-negative", "ipm-negative-muted", 3.5, "negative on its own tint"),
+    # A HOT HEATMAP CELL CARRIES A NUMBER. Both migration grids mix their
+    # ramp from a saturated token and the surface, so a cell at the top of
+    # the scale is effectively that token -- and the figure printed on it
+    # is `accent-contrast`. The pair was relied on and not measured; the
+    # narrowest theme clears 4.5 by a hair, which is exactly the margin
+    # that a later palette tweak would close without anyone noticing.
+    ("ipm-accent-contrast", "ipm-chart-1", 4.5,
+     "a figure on a hot analytics heatmap cell"),
     ("ipm-trace-governed", "ipm-surface", 3.0, "a governed Trace node"),
     ("ipm-trace-interpretive", "ipm-surface", 3.0, "an interpretive Trace node"),
     # A separator that vanishes takes the structure with it. Every table in the

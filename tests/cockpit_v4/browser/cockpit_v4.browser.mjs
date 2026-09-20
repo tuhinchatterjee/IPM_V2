@@ -68,8 +68,35 @@ async function test(name, fn) {
 }
 
 /** A page that records every request it makes, with a live event tap. */
+//: The theme every page in this run is opened in.
+//
+// Dark-mode evidence used to mean a person switching the theme by hand and
+// taking a picture, which is not evidence anybody can re-take. Seeded into
+// localStorage BEFORE the first paint, which is also where `ThemeScript`
+// reads it, so the screenshot is of the theme the reader would actually
+// have seen rather than a flash of the default.
+const THEME = process.env.V4_THEME || "";
+
+/** A context with the run's theme already in storage. */
+async function newContext(browser, options = {}) {
+  const context = await browser.newContext(options);
+  if (THEME) {
+    await context.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          /* Private browsing: the default theme is still a valid page. */
+        }
+      },
+      ["ipm.theme", THEME],
+    );
+  }
+  return context;
+}
+
 async function openCockpit(browser, { path = "/" } = {}) {
-  const context = await browser.newContext();
+  const context = await newContext(browser);
   const page = await context.newPage();
   const requests = [];
   const sse = [];
@@ -99,7 +126,7 @@ async function openCockpit(browser, { path = "/" } = {}) {
 
 /** A page that is not the Cockpit home: the Data browser, for instance. */
 async function openPage(browser, path) {
-  const context = await browser.newContext();
+  const context = await newContext(browser);
   const page = await context.newPage();
   await page.goto(`${UI}${path}`, { waitUntil: "domcontentloaded" });
   return { context, page };
@@ -1570,13 +1597,26 @@ await test("a conversation opens an investigation, and Projects are not faked",
 
 await test("the conversation links to the trace of its latest answer",
   async () => {
+    // `/cockpit/trace`, not `/trace`.
+    //
+    // This test pinned the OLD path, which is the legacy Analytical
+    // Reasoning Map -- it calls `Number(runId)` on a `run-<32 hex>` id,
+    // gets NaN and resolves nothing. So the button had been dead since V4
+    // shipped, and the assertion that it pointed there passed the whole
+    // time: a link is well-formed whether or not anything is behind it.
     const { context, page } = await openCockpit(browser);
     try {
       await ask(page, "Who are you?");
       await waitForAnswer(page);
       const href = await page.getAttribute('[data-testid="v4-thread-trace"]',
         "href");
-      assert.match(href ?? "", /^\/trace\/[^/]+$/, href ?? "");
+      assert.match(href ?? "", /^\/cockpit\/trace\/run-[0-9a-f]+$/,
+        href ?? "");
+
+      // And the page behind it opens, which is the part the old
+      // assertion could not have caught.
+      await page.click('[data-testid="v4-thread-trace"]');
+      await expect(page, '[data-testid="v4-governance"]', 30_000, []);
     } finally {
       await context.close();
     }
@@ -1984,7 +2024,7 @@ await test("a refresh keeps the open investigation", async () => {
 });
 
 await test("an attention-feed failure does not break Ask", async () => {
-  const context = await browser.newContext();
+  const context = await newContext(browser);
   const page = await context.newPage();
   const problems = [];
   page.on("console", (m) => {
@@ -2910,7 +2950,7 @@ const responsive = [];
 
 for (const viewport of VIEWPORTS) {
   await test(`the landing page fills a ${viewport.name} window`, async () => {
-    const context = await browser.newContext({
+    const context = await newContext(browser, {
       viewport: { width: viewport.width, height: viewport.height },
     });
     const page = await context.newPage();
@@ -3000,7 +3040,7 @@ for (const viewport of VIEWPORTS) {
 }
 
 await test("the navigation rail collapses itself on a phone", async () => {
-  const context = await browser.newContext({
+  const context = await newContext(browser, {
     viewport: { width: 390, height: 844 },
   });
   const page = await context.newPage();
@@ -3037,7 +3077,11 @@ await test("the greeting never addresses a deployment profile as a person",
 );
 
 if (process.env.V4_LANDING_SCREENSHOT) {
-  const context = await browser.newContext({
+  // Through the themed helper, like every other context. This block built
+  // its own to set a viewport, so the landing screenshot came out in the
+  // default theme however the run was themed -- the one picture a reader
+  // is most likely to open, proving the least.
+  const context = await newContext(browser, {
     viewport: { width: 1440, height: 1200 },
   });
   const page = await context.newPage();

@@ -26,8 +26,22 @@ function nameFrom(disposition: string | null, fallback: string): string {
   return quoted?.[1] || fallback;
 }
 
-async function fetched(url: string): Promise<{ body: Blob; name: string }> {
-  const response = await fetch(url, { credentials: "include" });
+/**
+ * Fetch one export, naming where its URL came from AT the call.
+ *
+ * `pick` rather than a prepared string, so the `fetch` reads
+ * `pick(exportLinks(runId))` and a reader -- and
+ * `test_every_v4_fetch_goes_through_the_v4_prefix`, which is the point --
+ * can see the V4 prefix without following a variable. This used to take a
+ * `url` and pass the guard because `url` was one of three parameter names
+ * it skipped, which is not the same as being checked.
+ */
+async function fetched(
+  runId: string,
+  pick: (links: ReturnType<typeof exportLinks>) => string,
+): Promise<{ body: Blob; name: string }> {
+  const response = await fetch(pick(exportLinks(runId)),
+                               { credentials: "include" });
   if (!response.ok) {
     // The API says why in a reader's words; passing its status code
     // through instead would put "422" in front of a credit officer.
@@ -123,7 +137,10 @@ function Menu({ label, testId, options }: {
  * would download a different chart from the one the button sits under.
  */
 export function ChartDownload({ runId, index }: { runId: string; index: number }) {
-  const url = React.useMemo(() => exportLinks(runId).chart(index), [runId, index]);
+  const chart = React.useCallback(
+    (links: ReturnType<typeof exportLinks>) => links.chart(index),
+    [index],
+  );
   return (
     <Menu
       label="Download"
@@ -133,7 +150,7 @@ export function ChartDownload({ runId, index }: { runId: string; index: number }
           label: "SVG",
           testId: "v4-chart-download-svg",
           run: async () => {
-            const { body, name } = await fetched(url);
+            const { body, name } = await fetched(runId, chart);
             save(body, name);
           },
         },
@@ -144,7 +161,7 @@ export function ChartDownload({ runId, index }: { runId: string; index: number }
             // Rasterised from the SERVER's drawing, not from the DOM: a
             // picture of the page would carry the reader's theme, their
             // zoom and whatever they were hovering.
-            const { body, name } = await fetched(url);
+            const { body, name } = await fetched(runId, chart);
             save(await rasterise(await body.text()), pngName(name));
           },
         },
@@ -158,7 +175,6 @@ export function TableDownload({ runId, artifactId }: {
   runId: string;
   artifactId: string;
 }) {
-  const links = React.useMemo(() => exportLinks(runId), [runId]);
   return (
     <Menu
       label="Download"
@@ -168,7 +184,8 @@ export function TableDownload({ runId, artifactId }: {
           label: "CSV, every row",
           testId: "v4-table-download-all",
           run: async () => {
-            const { body, name } = await fetched(links.table(artifactId, "all"));
+            const { body, name } = await fetched(
+              runId, (links) => links.table(artifactId, "all"));
             save(body, name);
           },
         },
@@ -176,8 +193,8 @@ export function TableDownload({ runId, artifactId }: {
           label: "CSV, rows shown",
           testId: "v4-table-download-shown",
           run: async () => {
-            const { body, name } =
-              await fetched(links.table(artifactId, "displayed"));
+            const { body, name } = await fetched(
+              runId, (links) => links.table(artifactId, "displayed"));
             save(body, name);
           },
         },

@@ -115,3 +115,34 @@ def test_the_guard_passes_correct_code() -> None:
     for sample in samples:
         assert not any(pattern.search(sample)
                        for _what, pattern in FORMATTERS), sample
+
+
+# --------------------------------------------------------------------------
+# The themed browser run
+# --------------------------------------------------------------------------
+
+BROWSER = (Path(__file__).resolve().parents[1] / "cockpit_v4" / "browser"
+           / "cockpit_v4.browser.mjs")
+
+
+def test_every_browser_context_carries_the_run_theme() -> None:
+    """A page opened outside the helper is a page in the default theme.
+
+    `V4_THEME` seeds the stored theme before first paint, and it can only
+    do that for contexts it makes. Four blocks built their own -- three to
+    set a viewport, one for the landing screenshot -- so a dark run
+    produced a LIGHT landing page: the picture a reader is most likely to
+    open, proving the least. It was not visible from the test output,
+    because every assertion still passed; it took measuring the mean
+    luminance of the two files and finding them identical to 246.0.
+
+    Exactly one `browser.newContext(` may remain, and it is inside the
+    helper.
+    """
+    source = BROWSER.read_text(encoding="utf-8")
+    direct = source.count("browser.newContext(")
+    assert direct == 1, (
+        f"{direct} calls to browser.newContext(); only the `newContext` "
+        f"helper may make one, or a themed run silently renders some pages "
+        f"in the default theme.")
+    assert "async function newContext(browser, options = {})" in source

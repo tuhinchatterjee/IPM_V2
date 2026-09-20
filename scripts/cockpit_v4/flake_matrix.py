@@ -139,7 +139,19 @@ def main() -> int:
         # bundler has not built yet reports a product defect that is a cold
         # dev server.
         for note in warm_routes(f"http://127.0.0.1:{ui_port}",
-                                ("/cockpit/thread/warmup", "/cockpit/data")):
+                                # EVERY route a test navigates to.
+                                #
+                                # `next dev` compiles on first request, and
+                                # a page left off this list pays for its own
+                                # bundler on the clock -- which is a browser
+                                # assertion timing out and reporting a
+                                # product defect that is a cold compile. The
+                                # governance and saved-analysis routes are
+                                # new, and the thread page's bundle grew
+                                # with them.
+                                ("/cockpit/thread/warmup", "/cockpit/data",
+                                 "/cockpit/trace/warmup",
+                                 "/cockpit/saved/warmup")):
             print(f"  warmed {note}")
         print(ok(f"UI on http://127.0.0.1:{ui_port}"))
 

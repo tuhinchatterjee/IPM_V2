@@ -26,7 +26,6 @@
 
 import * as React from "react";
 
-import { save } from "./chart-download";
 import { exportLinks, readGovernance, type GovernanceRecord } from "./client";
 
 /**
@@ -37,43 +36,24 @@ import { exportLinks, readGovernance, type GovernanceRecord } from "./client";
  * results, so a reviewer can re-run the arithmetic rather than take the
  * answer's word for it. The SQL is gated in the pack exactly as it is on
  * screen -- a download is not a way around a permission.
+ *
+ * A LINK, not a fetch-and-save. `exportLinks` says why in its own header:
+ * the browser downloads the document straight from the API with the
+ * session cookie it already has, so nothing about the file passes through
+ * this code and nothing here can reformat a figure on its way out. Every
+ * other export in this product works that way and this one is not
+ * special.
  */
 function PackDownload({ runId }: { runId: string }) {
-  const [busy, setBusy] = React.useState(false);
-  const [problem, setProblem] = React.useState("");
-
-  async function take() {
-    setBusy(true);
-    setProblem("");
-    try {
-      const response = await fetch(exportLinks(runId).governance,
-                                   { credentials: "include" });
-      if (!response.ok) throw new Error("This pack could not be built.");
-      save(await response.blob(),
-           `creditprobe-governance-${runId.slice(0, 12)}.zip`);
-    } catch (error) {
-      setProblem(error instanceof Error ? error.message
-                                        : "This pack could not be built.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <div>
-      <button
-        type="button"
-        data-testid="v4-governance-download"
-        disabled={busy}
-        onClick={() => void take()}
-        className="rounded border border-border px-2 py-1 text-xs text-text-secondary transition hover:bg-surface-hover disabled:opacity-50"
-      >
-        {busy ? "Building…" : "Download the record"}
-      </button>
-      {problem ? (
-        <p className="mt-1 text-xs text-negative">{problem}</p>
-      ) : null}
-    </div>
+    <a
+      data-testid="v4-governance-download"
+      href={exportLinks(runId).governance}
+      download
+      className="rounded border border-border px-2 py-1 text-xs text-text-secondary transition hover:bg-surface-hover"
+    >
+      Download the record
+    </a>
   );
 }
 

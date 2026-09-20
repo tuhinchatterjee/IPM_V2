@@ -191,7 +191,19 @@ def main() -> int:
         # bundler has not built yet reports a product defect that is a cold
         # dev server.
         for note in warm_routes(f"http://127.0.0.1:{ui_port}",
-                                ("/cockpit/thread/warmup", "/cockpit/data")):
+                                # EVERY route a test navigates to.
+                                #
+                                # `next dev` compiles on first request, and
+                                # a page left off this list pays for its own
+                                # bundler on the clock -- which is a browser
+                                # assertion timing out and reporting a
+                                # product defect that is a cold compile. The
+                                # governance and saved-analysis routes are
+                                # new, and the thread page's bundle grew
+                                # with them.
+                                ("/cockpit/thread/warmup", "/cockpit/data",
+                                 "/cockpit/trace/warmup",
+                                 "/cockpit/saved/warmup")):
             print(f"  warmed {note}")
         print(ok(f"UI on http://127.0.0.1:{ui_port} ({detail})"))
         print(f"  NEXT_PUBLIC_COCKPIT_V4_API="
@@ -199,7 +211,18 @@ def main() -> int:
         print(f"  NEXT_PUBLIC_API_URL={ui_env['NEXT_PUBLIC_API_URL']}")
 
         heading("Browser suite")
-        evidence = ROOT / "docs" / "cockpit_v4" / "evidence" / "browser.json"
+        # A THEMED RUN KEEPS ITS OWN EVIDENCE.
+        #
+        # The dark-mode pass writes the same twenty filenames as the
+        # default one, so running it second replaced the light screenshots
+        # and the committed set silently became all-Midnight -- which
+        # proves the dark theme renders and loses the baseline it is
+        # supposed to be compared against. A reviewer wants both, side by
+        # side, and they are only side by side if they are in two places.
+        theme = os.environ.get("V4_THEME", "").strip()
+        root = ROOT / "docs" / "cockpit_v4" / "evidence"
+        evidence = (root / theme / "browser.json") if theme \
+            else (root / "browser.json")
         evidence.parent.mkdir(parents=True, exist_ok=True)
         suite = subprocess.run(
             ["node", "tests/cockpit_v4/browser/cockpit_v4.browser.mjs"],
