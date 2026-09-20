@@ -209,7 +209,7 @@ function AssistantTurn({
         showSuggestions={false}
       />
       <Visuals tables={turn.answer.tables ?? []}
-               charts={turn.answer.charts ?? []} />
+               charts={turn.answer.charts ?? []} runId={turn.runId} />
       <TurnTrace runId={turn.runId} />
     </div>
   );
@@ -993,6 +993,7 @@ export function CockpitV4Thread({
                   <Visuals
                     tables={view.response.tables ?? []}
                     charts={view.response.charts ?? []}
+                    runId={view.runId}
                   />
                 ) : null}
               </div>

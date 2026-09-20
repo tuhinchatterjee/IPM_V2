@@ -266,3 +266,38 @@ test("the browser's vocabulary is the contract's vocabulary", () => {
   const enumerated: string[] = schema.$defs.Chart.properties.kind.enum;
   assert.deepEqual([...CHART_KINDS].sort(), [...enumerated].sort());
 });
+
+// ---- downloading the figure you are looking at --------------------------
+
+/** A chart with `n` plottable points and nothing else distinctive. */
+function withPoints(n: number, kind = "bar"): RenderedChart {
+  return chart({
+    kind,
+    points: Array.from({ length: n }, (_unused, i) => ({
+      row_id: `r${i}`,
+      label: `Sector ${i}`,
+      values: { ead: 100 + i },
+      display: { ead: `SAR ${100 + i} million` },
+    })),
+  });
+}
+
+test("a download button names the chart's place in the ANSWER", () => {
+  // The rendered list is FILTERED: a chart with one point is dropped as
+  // useless, so the second chart a reader sees can be the third in the
+  // payload. Addressing the export by the on-screen position would
+  // download a different chart from the one the button sits under.
+  const picked = choose([], [withPoints(4), withPoints(1), withPoints(6, "line")]);
+  assert.equal(picked.usefulCharts.length, 2);
+  assert.deepEqual(picked.chartIndices, [0, 2]);
+});
+
+test("every index is kept when nothing is dropped", () => {
+  const picked = choose([], [withPoints(3), withPoints(3, "line")]);
+  assert.deepEqual(picked.chartIndices, [0, 1]);
+});
+
+test("there is an index for every chart that is rendered, always", () => {
+  const picked = choose([], [withPoints(1), withPoints(5)]);
+  assert.equal(picked.chartIndices.length, picked.usefulCharts.length);
+});

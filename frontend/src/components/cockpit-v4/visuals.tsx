@@ -26,15 +26,58 @@
 
 import * as React from "react";
 
+import {
+  AxisCaption,
+  Legend,
+  Plot,
+  Ruler,
+  slotColor,
+  useWindow,
+} from "./chart-frame";
+import { PLOT_BOX, bandOf, extentOf, slice, xOf, yOf } from "./chart-frame";
+import { px } from "./chart-geometry";
+import type { HoverPoint } from "./chart-frame";
 import type { ChartPoint, RenderedChart, RenderedTable } from "./client";
+import { ChartDownload, TableDownload } from "./figure-download";
 import { TOP_N, choose, numeric, text } from "./visual-choice";
 import type { ChartKind } from "./visual-choice";
+
+/**
+ * The scale this chart is drawn against.
+ *
+ * THE SERVER'S, whenever it published one. The data is the fallback, for
+ * a thread saved before axes existed -- a reader's own history must not
+ * stop drawing because the contract grew a field.
+ */
+function scaleOf(chart: RenderedChart, values: number[], zeroBased: boolean) {
+  const [low, high] = extentOf(chart.y_axis, values, { zeroBased });
+  return { low, high, span: high - low || 1 };
+}
+
+/** Every named measure of one point, for the hover layer. */
+function hoverOf(point: ChartPoint | undefined, columns: string[]): HoverPoint | null {
+  if (!point) return null;
+  return {
+    label: text(point.label),
+    rowId: point.row_id,
+    values: columns.map((column, slot) => ({
+      name: column,
+      // The server's string, always. Never derived from `values`.
+      display: text(point.display?.[column]),
+      slot,
+    })),
+  };
+}
 
 export { TOP_N, chartIsUseful } from "./visual-choice";
 
 // ---- table --------------------------------------------------------------
 
-export function ResultTable({ table }: { table: RenderedTable }) {
+export function ResultTable({ table, runId }: {
+  table: RenderedTable;
+  /** Absent in a preview, where there is no stored run to export from. */
+  runId?: string;
+}) {
   const rows = table.rows ?? [];
   const [showAll, setShowAll] = React.useState(false);
   const [sort, setSort] = React.useState<{ column: string; desc: boolean }
@@ -70,12 +113,19 @@ export function ResultTable({ table }: { table: RenderedTable }) {
   return (
     <figure data-testid="v4-result-table" className="min-w-0">
       {table.title ? (
-        <figcaption className="mb-2 text-sm font-medium text-text-primary">
-          {table.title}
-          <span className="ml-2 font-normal text-text-muted">
-            {table.row_count ?? rows.length} row
-            {(table.row_count ?? rows.length) === 1 ? "" : "s"}
+        <figcaption className="mb-2 flex items-center gap-2 text-sm font-medium text-text-primary">
+          <span className="min-w-0 truncate">
+            {table.title}
+            <span className="ml-2 font-normal text-text-muted">
+              {table.row_count ?? rows.length} row
+              {(table.row_count ?? rows.length) === 1 ? "" : "s"}
+            </span>
           </span>
+          {runId && table.artifact_id ? (
+            <span className="ml-auto shrink-0">
+              <TableDownload runId={runId} artifactId={table.artifact_id} />
+            </span>
+          ) : null}
         </figcaption>
       ) : null}
       <div className="overflow-x-auto rounded border border-border">
@@ -184,13 +234,21 @@ function series(chart: RenderedChart): {
  * A horizontal bar per category. §13: the shape for a ranked comparison,
  * because the labels are words and words read horizontally.
  */
+//: The label column of every horizontal form. Shared so the ruler under
+//: the bars lands exactly on the track rather than approximately on it.
+const BAR_GRID = "minmax(0,11rem) 1fr auto";
+
 function BarChart({ chart }: { chart: RenderedChart }) {
   const data = series(chart);
   if (!data) return null;
   // Scaled from canonical values, and from zero: a bar chart whose axis
   // starts elsewhere makes a 3% difference look like a threefold one.
-  const max = Math.max(...data.points.map((p) => Math.abs(p.value)), 0);
+  // The extent is the SERVER'S when it published one, which is what makes
+  // the ruler below and the bars above the same scale.
+  const { high } = scaleOf(chart, data.points.map((p) => p.value), true);
+  const max = Math.max(high, 0);
   return (
+    <div>
     <ol data-testid="v4-chart-bars" className="space-y-1.5">
       {data.points.map((point) => {
         const width = max > 0 ? (Math.abs(point.value) / max) * 100 : 0;
@@ -216,6 +274,9 @@ function BarChart({ chart }: { chart: RenderedChart }) {
         );
       })}
     </ol>
+    <Ruler axis={chart.y_axis} template={BAR_GRID} low={0} high={max} />
+    <AxisCaption axis={chart.y_axis} />
+    </div>
   );
 }
 
@@ -235,62 +296,82 @@ function LineChart({ chart, variant = "line" }: {
   variant?: "line" | "step_line" | "area" | "scatter";
 }) {
   const data = series(chart);
-  if (!data || data.points.length < 2) return null;
-  const values = data.points.map((p) => p.value);
-  const max = Math.max(...values);
-  const min = Math.min(...values, 0);
-  const span = max - min || 1;
-  const step = 100 / (data.points.length - 1);
-  const at = (p: { value: number }, i: number): [number, number] => [
-    i * step, 100 - ((p.value - min) / span) * 100];
-  const path = data.points
+  const all = data?.points ?? [];
+  const [view, setView] = useWindow(all.length);
+  if (!data || all.length < 2) return null;
+
+  // ZOOM IS A WINDOW OVER THE POINTS, never a re-scale of the values. The
+  // marks shown are a subset of the published ones; none of them moves.
+  const points = slice(all, view);
+  const { low, high, span } = scaleOf(chart, points.map((p) => p.value), false);
+  const at = (value: number, index: number): [number, number] => [
+    xOf(index, points.length, PLOT_BOX),
+    yOf(value, low, high, PLOT_BOX),
+  ];
+  const path = points
     .map((p, i) => {
-      const [x, y] = at(p, i);
-      if (i === 0) return `M ${x.toFixed(2)} ${y.toFixed(2)}`;
+      const [x, y] = at(p.value, i);
+      if (i === 0) return `M ${px(x)} ${px(y)}`;
       if (variant === "step_line") {
-        const [, previous] = at(data.points[i - 1], i - 1);
-        return `L ${x.toFixed(2)} ${previous.toFixed(2)} L ${x.toFixed(2)} ${
-          y.toFixed(2)}`;
+        const [, previous] = at(points[i - 1].value, i - 1);
+        return `L ${px(x)} ${px(previous)} L ${px(x)} ${px(y)}`;
       }
-      return `L ${x.toFixed(2)} ${y.toFixed(2)}`;
+      return `L ${px(x)} ${px(y)}`;
     })
     .join(" ");
+  const floor = yOf(Math.max(low, Math.min(0, high)), low, high, PLOT_BOX);
 
   return (
-    <div data-testid={`v4-chart-${variant === "line" ? "line" : variant}`}>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-           className="h-40 w-full" role="img"
-           aria-label={`${chart.title}. ${data.points.length} points.`}>
-        {variant === "area" ? (
-          <path d={`${path} L 100 100 L 0 100 Z`} fill="currentColor"
-                className="text-accent/20" stroke="none" />
-        ) : null}
-        {variant === "scatter" ? null : (
-          <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5"
-                vectorEffect="non-scaling-stroke" className="text-accent" />
-        )}
-        {variant === "scatter"
-          ? data.points.map((p, i) => {
-              const [x, y] = at(p, i);
-              return (
-                <circle key={p.rowId} cx={x} cy={y} r="1.6"
-                        vectorEffect="non-scaling-stroke"
-                        className="fill-chart-1">
-                  <title>{`${p.label}: ${p.display}`}</title>
-                </circle>
-              );
-            })
-          : null}
-      </svg>
-      <div className="mt-1 flex justify-between text-xs text-text-muted">
-        <span dir="auto">{data.points[0].label}</span>
-        <span dir="auto">{data.points[data.points.length - 1].label}</span>
-      </div>
-      <div className="mt-1 flex justify-between text-xs tabular-nums text-text-secondary">
-        <span>{data.points[0].display}</span>
-        <span>{data.points[data.points.length - 1].display}</span>
-      </div>
-    </div>
+    <Plot
+      testId={`v4-chart-${variant}`}
+      title={chart.title}
+      xAxis={chart.x_axis}
+      yAxis={chart.y_axis}
+      labels={points.map((p) => p.label)}
+      low={low}
+      high={high}
+      zoom={{ count: all.length, window: view, onChange: setView }}
+      hover={(index) => {
+        const point = points[index];
+        if (!point) return null;
+        return {
+          label: point.label,
+          rowId: point.rowId,
+          // The server's string for this exact point. Not read off the
+          // chart, not recomputed from the geometry.
+          values: [{ name: data.column, display: point.display, slot: 0 }],
+        };
+      }}
+    >
+      {variant === "area" ? (
+        <path
+          d={`${path} L ${PLOT_BOX.right} ${floor} L ${PLOT_BOX.left} ${floor} Z`}
+          fill={slotColor(0)}
+          fillOpacity="0.15"
+          stroke="none"
+        />
+      ) : null}
+      {variant === "scatter" ? null : (
+        <path d={path} fill="none" stroke={slotColor(0)} strokeWidth="1.6"
+              vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      )}
+      {/* A mark on every point, on every variant. A line with no marks
+          leaves a reader guessing where the observations actually are,
+          and gives the hover layer nothing to sit under. */}
+      {points.map((p, i) => {
+        const [x, y] = at(p.value, i);
+        return (
+          <circle key={p.rowId} cx={x} cy={y}
+                  r={variant === "scatter" ? 2.6 : 1.9}
+                  fill={slotColor(0)}
+                  data-testid={variant === "scatter"
+                    ? "v4-chart-point" : "v4-chart-line-point"}
+                  data-value={String(p.value)}>
+            <title>{`${p.label}: ${p.display}`}</title>
+          </circle>
+        );
+      })}
+    </Plot>
   );
 }
 
@@ -310,12 +391,11 @@ function StackedBarChart({ chart, normalise = true }: {
   const columns = chart.y_columns ?? [];
   const points = chart.points ?? [];
   if (columns.length < 2 || !points.length) return null;
-  const tones = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4",
-                 "bg-chart-5", "bg-chart-6", "bg-chart-7", "bg-chart-8"];
-  const widest = Math.max(
-    ...points.map((p) =>
-      columns.reduce((sum, c) => sum + Math.abs(numeric(p.values?.[c]) ?? 0), 0)),
-    0) || 1;
+  // A STACK IS READ OFF ITS TOTAL, so the scale reaches the tallest BAR
+  // rather than the tallest segment.
+  const totals = points.map((p) =>
+    columns.reduce((sum, c) => sum + Math.abs(numeric(p.values?.[c]) ?? 0), 0));
+  const widest = scaleOf(chart, totals, true).high || 1;
   return (
     <div data-testid={normalise ? "v4-chart-stacked" : "v4-chart-stacked-abs"}
          className="space-y-2">
@@ -334,8 +414,11 @@ function StackedBarChart({ chart, normalise = true }: {
                 {parts.map((value, index) => (
                   <span
                     key={columns[index]}
-                    className={`h-4 ${tones[index % tones.length]}`}
-                    style={{ width: `${(Math.abs(value) / total) * 100}%` }}
+                    className="h-4"
+                    // BY SLOT, NEVER BY RANK: a series keeps its colour
+                    // whatever else is on screen beside it.
+                    style={{ width: `${(Math.abs(value) / total) * 100}%`,
+                             backgroundColor: slotColor(index) }}
                     title={`${columns[index]}: ${
                       text(point.display?.[columns[index]])}`}
                   />
@@ -345,15 +428,14 @@ function StackedBarChart({ chart, normalise = true }: {
           );
         })}
       </ol>
-      <ul className="flex flex-wrap gap-3 text-xs text-text-secondary">
-        {columns.map((column, index) => (
-          <li key={column} className="flex items-center gap-1.5">
-            <span className={`inline-block h-2 w-2 rounded-sm ${
-              tones[index % tones.length]}`} />
-            {column}
-          </li>
-        ))}
-      </ul>
+      {/* A 100% stack is read as a share of the row, so the absolute
+          scale underneath it would be a second, wrong story. */}
+      {normalise ? null : (
+        <Ruler axis={chart.y_axis} template="minmax(0,11rem) 1fr"
+               low={0} high={widest} />
+      )}
+      {normalise ? null : <AxisCaption axis={chart.y_axis} />}
+      <Legend names={columns} />
     </div>
   );
 }
@@ -363,11 +445,10 @@ function GroupedBarChart({ chart }: { chart: RenderedChart }) {
   const columns = chart.y_columns ?? [];
   const points = chart.points ?? [];
   if (columns.length < 2 || !points.length) return null;
-  const tones = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4",
-                 "bg-chart-5", "bg-chart-6", "bg-chart-7", "bg-chart-8"];
-  const max = Math.max(
-    ...points.flatMap((p) =>
-      columns.map((c) => Math.abs(numeric(p.values?.[c]) ?? 0))), 0) || 1;
+  const max = scaleOf(
+    chart,
+    points.flatMap((p) => columns.map((c) => numeric(p.values?.[c]) ?? 0)),
+    true).high || 1;
   return (
     <div data-testid="v4-chart-grouped" className="space-y-2">
       <ol className="space-y-2">
@@ -381,9 +462,9 @@ function GroupedBarChart({ chart }: { chart: RenderedChart }) {
               return (
                 <span key={column} className="flex items-center gap-2">
                   <span className="h-2.5 w-full rounded-sm bg-surface-sunken">
-                    <span className={`block h-2.5 rounded-sm ${
-                            tones[index % tones.length]}`}
-                          style={{ width: `${(Math.abs(value) / max) * 100}%` }}
+                    <span className="block h-2.5 rounded-sm"
+                          style={{ width: `${(Math.abs(value) / max) * 100}%`,
+                                   backgroundColor: slotColor(index) }}
                           title={`${column}: ${text(point.display?.[column])}`} />
                   </span>
                   <span className="shrink-0 tabular-nums text-[10px] text-text-muted">
@@ -395,6 +476,9 @@ function GroupedBarChart({ chart }: { chart: RenderedChart }) {
           </li>
         ))}
       </ol>
+      <Ruler axis={chart.y_axis} template="1fr auto" low={0} high={max} />
+      <AxisCaption axis={chart.y_axis} />
+      <Legend names={columns} />
     </div>
   );
 }
@@ -411,11 +495,15 @@ function ComboChart({ chart }: { chart: RenderedChart }) {
   const points = chart.points ?? [];
   if (columns.length < 2 || !points.length) return null;
   const [bars, line] = columns;
-  const barMax = Math.max(
-    ...points.map((p) => Math.abs(numeric(p.values?.[bars]) ?? 0)), 0) || 1;
+  const barMax = extentOf(chart.y_axis,
+                          points.map((p) => numeric(p.values?.[bars]) ?? 0),
+                          { zeroBased: true })[1] || 1;
   const rates = points.map((p) => numeric(p.values?.[line]) ?? 0);
-  const top = Math.max(...rates);
-  const bottom = Math.min(...rates);
+  // THE SECOND SCALE, published separately. A combo is the one form this
+  // product draws on two, because a rate over the volumes it is a rate of
+  // is what it is for -- and both have to be named or the reader cannot
+  // tell which mark belongs to which.
+  const [bottom, top] = extentOf(chart.y_axis_secondary, rates);
   const span = top - bottom || 1;
   return (
     <div data-testid="v4-chart-combo" className="space-y-2">
@@ -445,6 +533,22 @@ function ComboChart({ chart }: { chart: RenderedChart }) {
           );
         })}
       </ol>
+      <Ruler axis={chart.y_axis} template="minmax(0,9rem) 1fr auto"
+             low={0} high={barMax} />
+      <AxisCaption axis={chart.y_axis} />
+      {chart.y_axis_secondary?.label ? (
+        <p className="mt-0.5 text-center text-xs text-warning">
+          {chart.y_axis_secondary.label}
+          {chart.y_axis_secondary.ticks.length ? (
+            <span className="ml-2 tabular-nums text-text-muted">
+              {chart.y_axis_secondary.ticks[0].display}
+              {" – "}
+              {chart.y_axis_secondary.ticks[
+                chart.y_axis_secondary.ticks.length - 1].display}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -476,8 +580,8 @@ function SliceChart({ chart, hole }: { chart: RenderedChart; hole: number }) {
     const y2 = 60 + 52 * Math.sin(rad(angle));
     return (
       <path key={point.rowId}
-            d={`M 60 60 L ${x1.toFixed(2)} ${y1.toFixed(2)} A 52 52 0 ${
-              sweep > 180 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`}
+            d={`M 60 60 L ${px(x1)} ${px(y1)} A 52 52 0 ${
+              sweep > 180 ? 1 : 0} 1 ${px(x2)} ${px(y2)} Z`}
             fill={tones[index % tones.length]}>
         <title>{`${point.label}: ${point.display}`}</title>
       </path>
@@ -516,21 +620,51 @@ function SliceChart({ chart, hole }: { chart: RenderedChart; hole: number }) {
 function HistogramChart({ chart }: { chart: RenderedChart }) {
   const data = series(chart);
   if (!data) return null;
-  const max = Math.max(...data.points.map((p) => Math.abs(p.value)), 0) || 1;
+  const points = data.points;
+  const { low, high } = scaleOf(chart, points.map((p) => p.value), true);
+  const base = yOf(Math.max(low, 0), low, high, PLOT_BOX);
   return (
-    <div data-testid="v4-chart-histogram"
-         className="flex h-32 items-end gap-px">
-      {data.points.map((point) => (
-        <span key={point.rowId} className="flex-1"
-              title={`${point.label}: ${point.display}`}>
-          <span className="block w-full bg-chart-1"
-                style={{ height: `${(Math.abs(point.value) / max) * 112}px` }} />
-          <span className="block truncate pt-1 text-center text-[9px] text-text-muted">
-            {point.label}
-          </span>
-        </span>
-      ))}
-    </div>
+    <Plot
+      testId="v4-chart-histogram"
+      title={chart.title}
+      xAxis={chart.x_axis}
+      yAxis={chart.y_axis}
+      labels={points.map((p) => p.label)}
+      banded
+      low={low}
+      high={high}
+      hover={(index) => {
+        const point = points[index];
+        if (!point) return null;
+        return {
+          label: point.label,
+          rowId: point.rowId,
+          values: [{ name: data.column, display: point.display, slot: 0 }],
+        };
+      }}
+    >
+      {points.map((point, index) => {
+        const { centre, width } = bandOf(index, points.length, PLOT_BOX);
+        const y = yOf(point.value, low, high, PLOT_BOX);
+        return (
+          <rect
+            key={point.rowId}
+            data-testid="v4-histogram-bin"
+            data-value={String(point.value)}
+            // Drawn TOUCHING: the gap between bars is what says "these
+            // categories are separate", and a DPD distribution has none --
+            // 10-19 abuts 20-29.
+            x={centre - width / 2}
+            y={Math.min(y, base)}
+            width={Math.max(0.5, width - 0.4)}
+            height={Math.max(0.5, Math.abs(base - y))}
+            fill={slotColor(0)}
+          >
+            <title>{`${point.label}: ${point.display}`}</title>
+          </rect>
+        );
+      })}
+    </Plot>
   );
 }
 
@@ -565,10 +699,13 @@ function WaterfallChart({ chart }: { chart: RenderedChart }) {
     isTotal && index === data.points.length - 1
       ? { ...point, from: 0, to: point.value }
       : { ...point, from: cumulative[index], to: cumulative[index + 1] }));
-  const floor = Math.min(0, ...steps.map((s) => Math.min(s.from, s.to)));
-  const ceiling = Math.max(0, ...steps.map((s) => Math.max(s.from, s.to)));
+  // A bridge is measured against the RUNNING TOTALS it passes through,
+  // not against its individual movements.
+  const reach = steps.flatMap((s) => [s.from, s.to]);
+  const [floor, ceiling] = extentOf(chart.y_axis, reach, { zeroBased: true });
   const span = ceiling - floor || 1;
   return (
+    <div>
     <ol data-testid="v4-chart-waterfall" className="space-y-1.5">
       {steps.map((step, index) => {
         const low = Math.min(step.from, step.to);
@@ -598,6 +735,9 @@ function WaterfallChart({ chart }: { chart: RenderedChart }) {
         );
       })}
     </ol>
+    <Ruler axis={chart.y_axis} template={BAR_GRID} low={floor} high={ceiling} />
+    <AxisCaption axis={chart.y_axis} />
+    </div>
   );
 }
 
@@ -620,33 +760,49 @@ function BubbleChart({ chart }: { chart: RenderedChart }) {
   const xs = read(xColumn);
   const ys = read(yColumn);
   const sizes = sizeColumn ? read(sizeColumn) : ys.map(() => 1);
-  const place = (values: number[], value: number) => {
-    const low = Math.min(...values, 0);
-    const high = Math.max(...values, 0);
-    return ((value - low) / ((high - low) || 1)) * 100;
-  };
+  // Both scales from the server, so the bubble sitting against a tick on
+  // screen sits against the same tick in the exported copy.
+  const [xLow, xHigh] = extentOf(chart.x_axis, xs);
+  const [yLow, yHigh] = extentOf(chart.y_axis, ys);
+  const across = (value: number) =>
+    PLOT_BOX.left
+    + ((value - xLow) / ((xHigh - xLow) || 1)) * (PLOT_BOX.right - PLOT_BOX.left);
   const widest = Math.max(...sizes.map(Math.abs), 0) || 1;
   return (
-    <div data-testid="v4-chart-bubble">
-      <svg viewBox="0 0 100 100" className="h-48 w-full" role="img"
-           aria-label={`${chart.title}. ${points.length} points.`}>
-        {points.map((point, index) => (
-          <circle key={point.row_id}
-                  data-testid="v4-chart-bubble-mark"
-                  cx={place(xs, xs[index])}
-                  cy={100 - place(ys, ys[index])}
-                  r={1.5 + (Math.abs(sizes[index]) / widest) * 7}
-                  className="fill-chart-1/50 stroke-chart-1">
-            <title>{`${text(point.label)}: ${
-              columns.map((c) => text(point.display?.[c])).join(" / ")}`}</title>
-          </circle>
-        ))}
-      </svg>
-      <p className="mt-1 text-xs text-text-muted">
-        {xColumn} against {yColumn}
-        {sizeColumn ? `, sized by ${sizeColumn}` : ""}
-      </p>
-    </div>
+    <Plot
+      testId="v4-chart-bubble"
+      title={chart.title}
+      xAxis={chart.x_axis}
+      yAxis={chart.y_axis}
+      labels={points.map((p) => text(p.label))}
+      low={yLow}
+      high={yHigh}
+      hover={(index) => hoverOf(points[index], columns)}
+      footer={
+        <p className="text-xs text-text-muted">
+          {sizeColumn ? `Sized by ${sizeColumn}` : ""}
+        </p>
+      }
+    >
+      {points.map((point, index) => (
+        <circle
+          key={point.row_id}
+          data-testid="v4-chart-bubble-mark"
+          cx={across(xs[index])}
+          cy={yOf(ys[index], yLow, yHigh, PLOT_BOX)}
+          // AREA, not radius: a radius proportional to the value
+          // exaggerates a big bubble by its square.
+          r={2 + Math.sqrt(Math.abs(sizes[index]) / widest) * 9}
+          fill={slotColor(0)}
+          fillOpacity="0.45"
+          stroke={slotColor(0)}
+          strokeWidth="0.6"
+        >
+          <title>{`${text(point.label)}: ${
+            columns.map((c) => text(point.display?.[c])).join(" / ")}`}</title>
+        </circle>
+      ))}
+    </Plot>
   );
 }
 
@@ -655,7 +811,8 @@ function BubbleChart({ chart }: { chart: RenderedChart }) {
  *
  * NOT `analytics/charts.tsx#MatrixHeatmap`, which looks like the same
  * component and is not: it is hard-coded for row PERCENTAGES
- * (`value.toFixed(1)`, a `%` tooltip), so a migration counted in borrowers
+ * (a hard-coded one-decimal round and a `%` tooltip), so a migration
+ * counted in borrowers
  * renders as "100.0" and claims to be a percentage. It also formats in the
  * browser, which is the one thing the numeric contract forbids; takes a
  * single `categories` axis, so a sector-by-stage grid cannot be drawn; and
@@ -700,6 +857,7 @@ function MatrixChart({ chart }: { chart: RenderedChart }) {
                 const shown = matrix.display?.[key];
                 const has = typeof value === "number";
                 const weight = has && max > 0 ? Math.abs(value) / max : 0;
+                const mix = ((0.08 + 0.84 * weight) * 100).toFixed(1); // not-a-published-figure: a colour-mix ratio
                 const diagonal = matrix.square && row === column;
                 return (
                   <td
@@ -719,9 +877,7 @@ function MatrixChart({ chart }: { chart: RenderedChart }) {
                       // its own surface, so a hot cell is hot in every theme
                       // rather than near-black on near-black.
                       backgroundColor: has
-                        ? `color-mix(in srgb, var(--ipm-accent) ${
-                            ((0.08 + 0.84 * weight) * 100).toFixed(1)
-                          }%, var(--ipm-surface))`
+                        ? `color-mix(in srgb, var(--ipm-accent) ${mix}%, var(--ipm-surface))`
                         : "var(--ipm-surface-sunken)",
                     }}
                   >
@@ -821,7 +977,13 @@ export const CHART_BODIES: Record<
   bar: (chart) => <BarChart chart={chart} />,
 };
 
-export function ResultChart({ chart }: { chart: RenderedChart }) {
+export function ResultChart({ chart, runId, index }: {
+  chart: RenderedChart;
+  /** Absent in a preview, where there is no stored run to export from. */
+  runId?: string;
+  /** This chart's position in the ANSWER, which is what the API addresses. */
+  index?: number;
+}) {
   const draw = CHART_BODIES[chart.kind as ChartKind];
   const body = draw
     ? draw(chart)
@@ -838,10 +1000,17 @@ export function ResultChart({ chart }: { chart: RenderedChart }) {
   return (
     <figure data-testid="v4-result-chart" data-kind={chart.kind}
             className="min-w-0">
-      <figcaption className="mb-2 text-sm font-medium text-text-primary">
-        {chart.title}
-        {unit ? (
-          <span className="ml-2 font-normal text-text-muted">{unit}</span>
+      <figcaption className="mb-2 flex items-center gap-2 text-sm font-medium text-text-primary">
+        <span className="min-w-0 truncate">
+          {chart.title}
+          {unit ? (
+            <span className="ml-2 font-normal text-text-muted">{unit}</span>
+          ) : null}
+        </span>
+        {runId && index !== undefined ? (
+          <span className="ml-auto shrink-0">
+            <ChartDownload runId={runId} index={index} />
+          </span>
         ) : null}
       </figcaption>
       {body}
@@ -861,11 +1030,19 @@ export function ResultChart({ chart }: { chart: RenderedChart }) {
 export function Visuals({
   tables,
   charts,
+  runId,
 }: {
   tables: RenderedTable[];
   charts: RenderedChart[];
+  /**
+   * The run these figures belong to.
+   *
+   * Absent in a preview or a seeded card, where nothing has been stored
+   * to export. A download button that 404s is worse than no button.
+   */
+  runId?: string;
 }) {
-  const { usefulCharts, usefulTables } = choose(tables, charts);
+  const { usefulCharts, usefulTables, chartIndices } = choose(tables, charts);
   if (!usefulCharts.length && !usefulTables.length) return null;
 
   // EVERY CHART, ONE AFTER ANOTHER, and the tables below them.
@@ -880,10 +1057,12 @@ export function Visuals({
     <div data-testid="v4-visuals" className="mt-4 space-y-5">
       {usefulCharts.map((chart, index) => (
         <ResultChart key={`${chart.artifact_id}-${chart.kind}-${index}`}
-                     chart={chart} />
+                     chart={chart} runId={runId}
+                     index={chartIndices[index]} />
       ))}
       {usefulTables.map((table, index) => (
-        <ResultTable key={`${table.artifact_id}-${index}`} table={table} />
+        <ResultTable key={`${table.artifact_id}-${index}`} table={table}
+                     runId={runId} />
       ))}
     </div>
   );

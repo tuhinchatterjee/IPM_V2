@@ -425,18 +425,30 @@ def chart_svg(*, chart: dict[str, Any], lineage: Lineage) -> str:
     # `values` above is what a bar or a line is drawn from; a stack, a
     # group and a combo are drawn from every column the analyst named, so
     # they are dispatched before it and read the points themselves.
+    # THE AXIS THE SERVER PUBLISHED, not one computed again here. The
+    # downloaded chart and the chart on screen are two renderers of one
+    # payload; taking the scale from the payload is what stops them being
+    # two different charts.
+    axis = chart.get("y_axis")
     if kind in _MULTI_SERIES:
+        if kind == "combo":
+            return _frame(title=title, unit=unit, lineage=lineage,
+                          body=_combo_svg(points, series, axis,
+                                          chart.get("y_axis_secondary")))
         return _frame(title=title, unit=unit, lineage=lineage,
-                      body=_MULTI_SERIES[kind](points, series))
+                      body=_MULTI_SERIES[kind](points, series, axis))
 
     # EVERY FORM DRAWN AS ITSELF. `waterfall` and `scatter` have been legal
     # in the contract all along and fell through this dispatch to `_bar_svg`,
     # so an analyst that asked for a bridge got bars and was told nothing.
+    # A pie divides a whole and has no scale, so it is handed none.
+    if kind in ("pie", "donut"):
+        body = (_pie_svg if kind == "pie" else _donut_svg)(values)
+        return _frame(title=title, unit=unit, body=body, lineage=lineage)
     body = {"line": _line_svg, "step_line": _step_line_svg,
             "area": _area_svg, "scatter": _scatter_svg,
             "waterfall": _waterfall_svg, "histogram": _histogram_svg,
-            "pie": _pie_svg, "donut": _donut_svg,
-            }.get(kind, _bar_svg)(values)
+            }.get(kind, _bar_svg)(values, axis)
     return _frame(title=title, unit=unit, body=body, lineage=lineage)
 
 
@@ -459,6 +471,101 @@ def _numbers(points: list[dict[str, Any]], series: list[str]
                 row.append(0.0)
         out.append((str(point.get("label") or ""), row))
     return out
+
+
+def _extent(axis: dict[str, Any] | None, numbers: list[float], *,
+            zero_based: bool = False) -> tuple[float, float]:
+    """The low and the high this chart is drawn between.
+
+    THE PUBLISHED AXIS WINS. The exported SVG and the on-screen chart are
+    two renderers of one payload, and they were free to choose different
+    scales from it -- the browser normalised a bar to its largest value
+    while this file did the same independently, so a chart a reader
+    downloaded was not quite the chart they had been looking at. Both now
+    take the extent the server computed, which is also the extent the tick
+    labels were written for.
+
+    The data is the fallback, for a chart rendered before axes existed or
+    one whose column held no numbers.
+    """
+    ticks = [float(tick["value"])
+             for tick in ((axis or {}).get("ticks") or [])
+             if isinstance(tick, dict) and tick.get("value") is not None]
+    if len(ticks) >= 2:
+        return min(ticks), max(ticks)
+    if not numbers:
+        return 0.0, 1.0
+    low, high = min(numbers), max(numbers)
+    if zero_based:
+        low, high = min(low, 0.0), max(high, 0.0)
+    return (low, high) if high != low else (low, low + abs(low or 1.0))
+
+
+def _ladder(axis: dict[str, Any] | None, *, low: float, high: float,
+            floor: float, ceiling: float, left: float, right: float) -> str:
+    """The gridlines a reader reads values off, labelled by the server.
+
+    Without this an exported chart is marks on an empty page: the reader
+    can see that one bar is taller and cannot say by how much. The label
+    text is `tick["display"]`, never formatted here -- the whole reason the
+    axis is computed on the server is that one number must not be rounded
+    by two implementations.
+    """
+    ticks = [tick for tick in ((axis or {}).get("ticks") or [])
+             if isinstance(tick, dict) and tick.get("value") is not None]
+    span = (high - low) or 1.0
+    parts: list[str] = []
+    for tick in ticks:
+        value = float(tick["value"])
+        if not low <= value <= high:
+            continue
+        y = floor - (value - low) / span * (floor - ceiling)
+        parts.append(
+            f'<line x1="{left:.2f}" y1="{y:.2f}" x2="{right:.2f}" '
+            f'y2="{y:.2f}" stroke="#e2e8f0" stroke-width="1"/>'
+            f'<text x="{left - 6:.2f}" y="{y + 3:.2f}" text-anchor="end" '
+            f'font-family="system-ui, sans-serif" font-size="9" '
+            f'fill="#94a3b8">{_escape(str(tick.get("display") or ""))}</text>')
+    if parts:
+        parts.append(_axis_title(axis, x=left - 6, y=ceiling - 10))
+    return "".join(parts)
+
+
+def _rungs(axis: dict[str, Any] | None, *, low: float, high: float,
+           left: float, right: float, floor: float) -> str:
+    """The same ladder laid on its side, for the horizontal bar form."""
+    ticks = [tick for tick in ((axis or {}).get("ticks") or [])
+             if isinstance(tick, dict) and tick.get("value") is not None]
+    span = (high - low) or 1.0
+    parts: list[str] = []
+    for tick in ticks:
+        value = float(tick["value"])
+        if not low <= value <= high:
+            continue
+        x = left + (value - low) / span * (right - left)
+        parts.append(
+            f'<line x1="{x:.2f}" y1="64" x2="{x:.2f}" y2="{floor:.2f}" '
+            f'stroke="#e2e8f0" stroke-width="1"/>'
+            f'<text x="{x:.2f}" y="{floor + 14:.2f}" text-anchor="middle" '
+            f'font-family="system-ui, sans-serif" font-size="9" '
+            f'fill="#94a3b8">{_escape(str(tick.get("display") or ""))}</text>')
+    if parts:
+        parts.append(_axis_title(axis, x=right, y=floor + 28))
+    return "".join(parts)
+
+
+def _axis_title(axis: dict[str, Any] | None, *, x: float, y: float) -> str:
+    """What the scale MEASURES, in the catalogue's words.
+
+    "Exposure at default" rather than `ead_sar_mn`. A reader who has to
+    decode a column name to read a chart is a reader the chart failed.
+    """
+    label = str((axis or {}).get("label") or "").strip()
+    if not label:
+        return ""
+    return (f'<text x="{x:.2f}" y="{y:.2f}" text-anchor="end" '
+            f'font-family="system-ui, sans-serif" font-size="10" '
+            f'font-weight="600" fill="#64748b">{_escape(label[:40])}</text>')
 
 
 def _frame(*, title: str, unit: str, body: str, lineage: Lineage) -> str:
@@ -484,13 +591,18 @@ def _frame(*, title: str, unit: str, body: str, lineage: Lineage) -> str:
         f'</svg>')
 
 
-def _bar_svg(values: list[tuple[str, float, str]]) -> str:
-    top = max(abs(v) for _l, v, _d in values) or 1.0
+def _bar_svg(values: list[tuple[str, float, str]],
+             axis: dict[str, Any] | None = None) -> str:
+    low, high = _extent(axis, [v for _l, v, _d in values], zero_based=True)
+    top = max(abs(low), abs(high)) or 1.0
     left = PADDING + 170
     span = WIDTH - left - PADDING - 90
     height = 18
     gap = 8
-    parts: list[str] = []
+    shown_rows = min(len(values), 12)
+    parts: list[str] = [
+        _rungs(axis, low=0.0, high=top, left=left, right=left + span,
+               floor=70 + shown_rows * (height + gap) - gap)]
     for index, (label, value, shown) in enumerate(values[:12]):
         y = 70 + index * (height + gap)
         width = max(1.0, abs(value) / top * span)
@@ -506,20 +618,24 @@ def _bar_svg(values: list[tuple[str, float, str]]) -> str:
     return "".join(parts)
 
 
-def _line_svg(values: list[tuple[str, float, str]]) -> str:
+def _line_svg(values: list[tuple[str, float, str]],
+              axis: dict[str, Any] | None = None) -> str:
     numbers = [v for _l, v, _d in values]
-    top, bottom = max(numbers), min(numbers)
+    bottom, top = _extent(axis, numbers)
     span = (top - bottom) or 1.0
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 70
     step = (right - left) / max(1, len(values) - 1)
     coordinates = []
+
     for index, (_label, value, _shown) in enumerate(values):
         x = left + index * step
         y = floor - (value - bottom) / span * (floor - ceiling)
         coordinates.append(f"{x:.2f},{y:.2f}")
     first, last = values[0], values[-1]
     return (
+        _ladder(axis, low=bottom, high=top, floor=floor, ceiling=ceiling,
+                left=left, right=right) +
         f'<polyline fill="none" stroke="#0f172a" stroke-width="2" '
         f'points="{" ".join(coordinates)}"/>'
         f'<text x="{left}" y="{floor + 18}" '
@@ -533,19 +649,21 @@ def _line_svg(values: list[tuple[str, float, str]]) -> str:
         f'fill="#0f172a">{_escape(last[2])}</text>')
 
 
-def _scatter_svg(values: list[tuple[str, float, str]]) -> str:
+def _scatter_svg(values: list[tuple[str, float, str]],
+                 axis: dict[str, Any] | None = None) -> str:
     """One mark per point, positioned rather than joined.
 
     A scatter drawn as a line asserts an ordering between neighbours that a
     scatter is specifically not claiming.
     """
     numbers = [v for _l, v, _d in values]
-    top, bottom = max(numbers), min(numbers)
+    bottom, top = _extent(axis, numbers)
     span = (top - bottom) or 1.0
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 70
     step = (right - left) / max(1, len(values) - 1)
-    parts = []
+    parts = [_ladder(axis, low=bottom, high=top, floor=floor,
+                     ceiling=ceiling, left=left, right=right)]
     for index, (_label, value, _shown) in enumerate(values):
         x = left + index * step
         y = floor - (value - bottom) / span * (floor - ceiling)
@@ -561,7 +679,8 @@ def _scatter_svg(values: list[tuple[str, float, str]]) -> str:
     return "".join(parts)
 
 
-def _waterfall_svg(values: list[tuple[str, float, str]]) -> str:
+def _waterfall_svg(values: list[tuple[str, float, str]],
+                   axis: dict[str, Any] | None = None) -> str:
     """A bridge: each bar starts where the last one finished.
 
     Drawn as ordinary bars -- which is what happened -- a bridge loses the
@@ -571,9 +690,9 @@ def _waterfall_svg(values: list[tuple[str, float, str]]) -> str:
     for _label, value, _shown in values:
         running += value
         stops.append(running)
-    top, bottom = max(stops), min(stops)
+    bottom, top = _extent(axis, stops, zero_based=True)
     span = (top - bottom) or 1.0
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 78
     width = (right - left) / max(1, len(values)) * 0.62
     step = (right - left) / max(1, len(values))
@@ -581,7 +700,8 @@ def _waterfall_svg(values: list[tuple[str, float, str]]) -> str:
     def height_of(amount: float) -> float:
         return floor - (amount - bottom) / span * (floor - ceiling)
 
-    parts = []
+    parts = [_ladder(axis, low=bottom, high=top, floor=floor,
+                     ceiling=ceiling, left=left, right=right)]
     for index, (label, value, shown) in enumerate(values):
         x = left + index * step + (step - width) / 2
         start, end = height_of(stops[index]), height_of(stops[index + 1])
@@ -630,7 +750,8 @@ def _legend(series: list[str], y: int = 60) -> str:
     return "".join(parts)
 
 
-def _stacked_svg(points: list[dict[str, Any]], series: list[str], *,
+def _stacked_svg(points: list[dict[str, Any]], series: list[str],
+                 axis: dict[str, Any] | None = None, *,
                  normalise: bool = False) -> str:
     """Segments piled to a total, per category.
 
@@ -642,13 +763,19 @@ def _stacked_svg(points: list[dict[str, Any]], series: list[str], *,
     if not rows:
         raise ExportUnavailable("This chart has no plotted points.")
     totals = [sum(abs(v) for v in values) or 1.0 for _l, values in rows]
-    top = 1.0 if normalise else (max(totals) or 1.0)
+    # A 100% stack is drawn against the whole; an absolute one against the
+    # published axis, so the exported bar reaches the same tick the bar on
+    # screen reaches.
+    top = 1.0 if normalise else (max(_extent(axis, totals,
+                                             zero_based=True)) or 1.0)
 
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 78
     step = (right - left) / max(1, len(rows))
     width = step * 0.68
-    parts = [_legend(series)]
+    parts = [_legend(series),
+             _ladder(axis, low=0.0, high=100.0 if normalise else top,
+                     floor=floor, ceiling=ceiling, left=left, right=right)]
     for index, (label, values) in enumerate(rows):
         x = left + index * step + (step - width) / 2
         base = totals[index] if normalise else 1.0
@@ -669,23 +796,28 @@ def _stacked_svg(points: list[dict[str, Any]], series: list[str], *,
     return "".join(parts)
 
 
-def _stacked_100_svg(points: list[dict[str, Any]], series: list[str]) -> str:
-    return _stacked_svg(points, series, normalise=True)
+def _stacked_100_svg(points: list[dict[str, Any]], series: list[str],
+                     axis: dict[str, Any] | None = None) -> str:
+    return _stacked_svg(points, series, axis, normalise=True)
 
 
-def _grouped_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+def _grouped_svg(points: list[dict[str, Any]], series: list[str],
+                 axis: dict[str, Any] | None = None) -> str:
     """Bars side by side, per category. The comparison is WITHIN a group."""
     rows = _numbers(points, series)
     if not rows:
         raise ExportUnavailable("This chart has no plotted points.")
-    top = max((abs(v) for _l, values in rows for v in values), default=0) or 1.0
+    top = max(_extent(axis, [v for _l, values in rows for v in values],
+                      zero_based=True)) or 1.0
 
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 78
     step = (right - left) / max(1, len(rows))
     band = step * 0.72
     width = band / max(1, len(series))
-    parts = [_legend(series)]
+    parts = [_legend(series),
+             _ladder(axis, low=0.0, high=top, floor=floor, ceiling=ceiling,
+                     left=left, right=right)]
     for index, (label, values) in enumerate(rows):
         start = left + index * step + (step - band) / 2
         for order, value in enumerate(values):
@@ -702,7 +834,9 @@ def _grouped_svg(points: list[dict[str, Any]], series: list[str]) -> str:
     return "".join(parts)
 
 
-def _combo_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+def _combo_svg(points: list[dict[str, Any]], series: list[str],
+               axis: dict[str, Any] | None = None,
+               secondary: dict[str, Any] | None = None) -> str:
     """Volumes as bars, a RATE as a line on its own scale.
 
     The one form a credit pack cannot do without: exposure in SAR millions
@@ -713,16 +847,19 @@ def _combo_svg(points: list[dict[str, Any]], series: list[str]) -> str:
     if not rows or len(series) < 2:
         raise ExportUnavailable(
             "A combo chart needs two measures: bars first, then the line.")
-    bar_top = max((abs(v[0]) for _l, v in rows), default=0) or 1.0
+    bar_top = max(_extent(axis, [abs(v[0]) for _l, v in rows],
+                          zero_based=True)) or 1.0
     line_values = [v[1] for _l, v in rows]
-    line_top, line_bottom = max(line_values), min(line_values)
+    line_bottom, line_top = _extent(secondary, line_values)
     line_span = (line_top - line_bottom) or 1.0
 
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 78
     step = (right - left) / max(1, len(rows))
     width = step * 0.56
-    parts = [_legend(series)]
+    parts = [_legend(series),
+             _ladder(axis, low=0.0, high=bar_top, floor=floor,
+                     ceiling=ceiling, left=left, right=right)]
     coordinates = []
     for index, (label, values) in enumerate(rows):
         centre = left + index * step + step / 2
@@ -750,7 +887,8 @@ _MULTI_SERIES = {"stacked_bar": _stacked_svg,
                  "bubble": None}      # replaced below, after _bubble_svg
 
 
-def _bubble_svg(points: list[dict[str, Any]], series: list[str]) -> str:
+def _bubble_svg(points: list[dict[str, Any]], series: list[str],
+                axis: dict[str, Any] | None = None) -> str:
     """Two measures against each other, a third as the area."""
     rows = _numbers(points, series)
     if not rows or len(series) < 2:
@@ -758,14 +896,16 @@ def _bubble_svg(points: list[dict[str, Any]], series: list[str]) -> str:
             "A bubble chart needs two measures: the axis, then the size.")
     xs = [v[0] for _l, v in rows]
     sizes = [abs(v[1]) for _l, v in rows]
-    x_top, x_bottom = max(xs), min(xs)
+    x_bottom, x_top = _extent(axis, xs)
     x_span = (x_top - x_bottom) or 1.0
     size_top = max(sizes) or 1.0
 
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 78
     step = (right - left) / max(1, len(rows))
-    parts = [_legend(series)]
+    parts = [_legend(series),
+             _ladder(axis, low=x_bottom, high=x_top, floor=floor,
+                     ceiling=ceiling, left=left, right=right)]
     for index, (label, values) in enumerate(rows):
         cx = left + index * step + step / 2
         cy = floor - (values[0] - x_bottom) / x_span * (floor - ceiling)
@@ -784,13 +924,14 @@ def _bubble_svg(points: list[dict[str, Any]], series: list[str]) -> str:
 _MULTI_SERIES["bubble"] = _bubble_svg
 
 
-def _area_svg(values: list[tuple[str, float, str]]) -> str:
+def _area_svg(values: list[tuple[str, float, str]],
+              axis: dict[str, Any] | None = None) -> str:
     """A line with the ground filled in: a level over time, not a rate."""
-    line = _line_svg(values)
+    line = _line_svg(values, axis)
     numbers = [v for _l, v, _d in values]
-    top, bottom = max(numbers), min(numbers)
+    bottom, top = _extent(axis, numbers)
     span = (top - bottom) or 1.0
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 70
     step = (right - left) / max(1, len(values) - 1)
     points = [f"{left:.2f},{floor:.2f}"]
@@ -803,12 +944,13 @@ def _area_svg(values: list[tuple[str, float, str]]) -> str:
             f'points="{" ".join(points)}"/>' + line)
 
 
-def _step_line_svg(values: list[tuple[str, float, str]]) -> str:
+def _step_line_svg(values: list[tuple[str, float, str]],
+                   axis: dict[str, Any] | None = None) -> str:
     """A level that holds until it changes -- a limit, a cut-off, a rate."""
     numbers = [v for _l, v, _d in values]
-    top, bottom = max(numbers), min(numbers)
+    bottom, top = _extent(axis, numbers)
     span = (top - bottom) or 1.0
-    left, right = PADDING + 10, WIDTH - PADDING
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 70
     step = (right - left) / max(1, len(values) - 1)
     points = []
@@ -820,22 +962,27 @@ def _step_line_svg(values: list[tuple[str, float, str]]) -> str:
             points.append(f"{x:.2f},{previous_y:.2f}")
         points.append(f"{x:.2f},{y:.2f}")
         previous_y = y
-    return (f'<polyline fill="none" stroke="#0f172a" stroke-width="2" '
-            f'points="{" ".join(points)}"/>')
+    return (_ladder(axis, low=bottom, high=top, floor=floor,
+                    ceiling=ceiling, left=left, right=right)
+            + f'<polyline fill="none" stroke="#0f172a" stroke-width="2" '
+              f'points="{" ".join(points)}"/>')
 
 
-def _histogram_svg(values: list[tuple[str, float, str]]) -> str:
+def _histogram_svg(values: list[tuple[str, float, str]],
+                   axis: dict[str, Any] | None = None) -> str:
     """Counts per band, drawn touching, because the axis is continuous.
 
     The gap between bars is what says "these categories are separate". A
     DPD distribution has no gaps -- 10-19 abuts 20-29 -- and drawing one
     invites a reader to see groups that are not there.
     """
-    top = max((abs(v) for _l, v, _d in values), default=0) or 1.0
-    left, right = PADDING + 10, WIDTH - PADDING
+    low, high = _extent(axis, [v for _l, v, _d in values], zero_based=True)
+    top = max(abs(low), abs(high)) or 1.0
+    left, right = PADDING + 80, WIDTH - PADDING
     floor, ceiling = HEIGHT - 60, 78
     width = (right - left) / max(1, len(values))
-    parts = []
+    parts = [_ladder(axis, low=0.0, high=top, floor=floor, ceiling=ceiling,
+                     left=left, right=right)]
     for index, (label, value, shown) in enumerate(values):
         height = abs(value) / top * (floor - ceiling)
         x = left + index * width

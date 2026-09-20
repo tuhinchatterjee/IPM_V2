@@ -206,6 +206,31 @@ export type ChartBox = {
   display: Record<string, string>;
 };
 
+/**
+ * One number on an axis, chosen AND WRITTEN by the server.
+ *
+ * `value` positions the tick; `display` is what the reader sees, written
+ * by the same display policy that wrote every claim in the answer. The
+ * browser must never derive the second from the first -- a figure rounded
+ * twice by two implementations is a figure the bank cannot defend.
+ */
+export type ChartTick = { value: number; display: string };
+
+/**
+ * The scale a chart is read against.
+ *
+ * `kind: "category"` carries no ticks: its categories ARE the points, and
+ * a second copy of those strings would be free to drift from the first.
+ */
+export type ChartAxis = {
+  kind: "measure" | "category";
+  /** The catalogue's business name -- "Exposure at default", not `ead_sar_mn`. */
+  label: string;
+  column: string;
+  unit: string;
+  ticks: ChartTick[];
+};
+
 export type RenderedChart = {
   kind: "bar" | "line" | "waterfall" | "scatter" | "heatmap" | "box" | string;
   title: string;
@@ -221,6 +246,17 @@ export type RenderedChart = {
   matrix?: ChartMatrix;
   /** Present on a box plot, one entry per box. */
   boxes?: ChartBox[];
+  /**
+   * The scales, computed by the server.
+   *
+   * Optional because a saved thread holds answers rendered before they
+   * existed, and a reader's own history must keep drawing. A form with no
+   * scale -- a pie, which divides a whole -- carries none by design.
+   */
+  x_axis?: ChartAxis;
+  y_axis?: ChartAxis;
+  /** A combo's second scale: the rate, over the volumes it is a rate of. */
+  y_axis_secondary?: ChartAxis;
   rendered_by?: string;
 };
 

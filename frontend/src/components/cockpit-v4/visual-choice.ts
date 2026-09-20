@@ -104,13 +104,26 @@ export function choose(
   /** EVERY useful chart, in the order the analyst sent them. */
   usefulCharts: RenderedChart[];
   usefulTables: RenderedTable[];
+  /**
+   * Where each useful chart sat in the ANSWER.
+   *
+   * The export route addresses a chart by its index in `answer.charts`,
+   * and this list is filtered -- so the second chart on screen can be the
+   * fourth in the payload. Downloading by the on-screen position would
+   * hand the reader a different chart from the one they pressed the
+   * button under.
+   */
+  chartIndices: number[];
 } {
   // `.find()` returned the FIRST useful chart and discarded the rest, so a
   // three-chart answer rendered one. A question like "show the delinquency
   // trend for each product" is answered by one chart per product, and the
   // reader saw one product. The singular fields are kept for callers that
   // still want a headline pair; the arrays are what gets rendered.
-  const usefulCharts = charts.filter((c) => chartIsUseful(c));
+  const kept = charts
+    .map((chart, index) => ({ chart, index }))
+    .filter(({ chart }) => chartIsUseful(chart));
+  const usefulCharts = kept.map(({ chart }) => chart);
   const usefulTables = tables.filter((t) => tableIsUseful(t));
   return {
     chart: usefulCharts[0],
@@ -118,5 +131,6 @@ export function choose(
     both: Boolean(usefulCharts.length && usefulTables.length),
     usefulCharts,
     usefulTables,
+    chartIndices: kept.map(({ index }) => index),
   };
 }

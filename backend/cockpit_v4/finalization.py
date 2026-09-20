@@ -849,8 +849,138 @@ class Finalizer:
             elif kind == BOX:
                 body["boxes"] = self._boxes(chart, record, units, declared,
                                             disp)
+            relations = list((record.get("scope") or {}).get("relations", ()))
+            self._attach_axes(body, kind, label, series, units, declared,
+                              record, relations, catalog, disp)
             out.append(body)
         return out
+
+    @staticmethod
+    def _attach_axes(body: dict[str, Any], kind: str, x_column: str,
+                     series: list[str], units: dict[str, str], declared: str,
+                     record: dict[str, Any], relations: list[str],
+                     catalog: Any, disp: Any) -> None:
+        """Put the scale a reader reads the chart against onto the payload.
+
+        The charts had no axes because the browser is not allowed to invent
+        a number and nobody had built the place a tick could come from. This
+        is that place: the tick VALUES by a 1/2/5 rule, each tick's STRING
+        by `display.py`, and the label by the catalogue's own business name
+        -- so an axis says "Exposure at default", not `ead_sar_mn`.
+
+        A form with no axis gets none. A pie divides a whole and has no
+        scale; a category axis names its positions and carries no ticks,
+        because the categories ARE the points and a second copy of those
+        strings is a second copy free to drift.
+        """
+        from backend.cockpit_v4 import axis as axis_mod
+
+        if kind in COMPOSITION_KINDS - {"stacked_bar", "stacked_bar_100"}:
+            return  # pie, donut
+
+        def label_for(column: str) -> str:
+            return axis_mod.field_label(catalog, relations, column)
+
+        def unit_for(column: str) -> str:
+            return units.get(column, declared)
+
+        rows = record["rows"]
+
+        def column_values(column: str) -> list[Any]:
+            return [row.get(column) for row in rows]
+
+        if kind == HEATMAP:
+            matrix = body.get("matrix") or {}
+            body["x_axis"] = axis_mod.category_axis(
+                label_for(str(matrix.get("column_axis") or x_column)),
+                str(matrix.get("column_axis") or x_column))
+            row_axis = str(matrix.get("row_axis") or "")
+            body["y_axis"] = axis_mod.category_axis(
+                label_for(row_axis), row_axis)
+            return
+
+        if kind == BOX:
+            # A box plot lays its categories down the page and its measure
+            # across, so the axes are the transpose of every other form's.
+            measure = series[0] if series else ""
+            spread = [value
+                      for box in (body.get("boxes") or [])
+                      for value in (box.get("minimum"), box.get("maximum"))]
+            body["y_axis"] = axis_mod.category_axis(
+                label_for(x_column), x_column)
+            built = axis_mod.measure_axis(
+                label_for(measure), measure, unit_for(measure), spread, disp,
+                include_zero=False)
+            if built is not None:
+                body["x_axis"] = built
+            return
+
+        # Everything else: categories or a sequence across, a measure up.
+        built_x = None
+        if kind in ("scatter", "bubble"):
+            built_x = axis_mod.measure_axis(
+                label_for(x_column), x_column, unit_for(x_column),
+                column_values(x_column), disp, include_zero=False)
+        if built_x is not None:
+            body["x_axis"] = built_x
+        elif x_column:
+            # A scatter whose x column holds no numbers is not a scatter,
+            # but it still has positions and they still have names. Saying
+            # what they are beats publishing no axis at all.
+            body["x_axis"] = axis_mod.category_axis(
+                label_for(x_column), x_column)
+
+        if kind == "stacked_bar_100":
+            # The axis of a 100% stack is the share, not the measure: the
+            # segments are re-scaled to the whole, so labelling the height
+            # in SAR would put a denomination on a proportion.
+            body["y_axis"] = {
+                "kind": axis_mod.MEASURE, "label": "Share of total",
+                "column": "", "unit": "PCT",
+                "ticks": [{"value": value,
+                           "display": disp.format_value(Decimal(value), "PCT")}
+                          for value in (0, 25, 50, 75, 100)]}
+            return
+
+        def measure_for(columns: list[str], *, stacked: bool,
+                        zero_based: bool) -> dict[str, Any] | None:
+            if not columns:
+                return None
+            spread = ([axis_mod.stack_total(row, columns) for row in rows]
+                      if stacked
+                      else [row.get(c) for row in rows for c in columns])
+            unit = unit_for(columns[0])
+            return axis_mod.measure_axis(
+                # A chart with two measures on one scale cannot be named
+                # after whichever series is first; the scale they share can.
+                label_for(columns[0]) if len(columns) == 1
+                else axis_mod.unit_label(unit, disp),
+                columns[0] if len(columns) == 1 else "",
+                unit, spread, disp, include_zero=zero_based)
+
+        if kind == "combo":
+            # The one form this product draws on two scales, because that is
+            # what it is FOR: a rate over the volumes it is a rate of. Both
+            # scales are published, named, so a reader can see which mark
+            # belongs to which -- an unnamed second axis is the chart
+            # mistake this is otherwise indistinguishable from.
+            bars = measure_for(series[:1], stacked=False, zero_based=True)
+            if bars is not None:
+                body["y_axis"] = bars
+            line = measure_for(series[1:2], stacked=False, zero_based=False)
+            if line is not None:
+                body["y_axis_secondary"] = line
+            return
+
+        # A bar encodes magnitude by LENGTH, so its axis must include zero
+        # or a 3% difference is drawn as a doubled bar. A line or an area
+        # encodes by position over a sequence and makes no such claim; a
+        # waterfall bridges to a total and is meaningless off zero.
+        built = measure_for(
+            series, stacked=kind in ("stacked_bar", "waterfall"),
+            zero_based=kind == "waterfall" or kind not in SEQUENCE_KINDS)
+        if built is not None:
+            body["y_axis"] = built
 
     @staticmethod
     def _matrix(chart: dict[str, Any], record: dict[str, Any],
