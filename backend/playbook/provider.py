@@ -63,7 +63,38 @@ WORKDIR = "/tmp/outputs"
 #: Bounds. A loop that can run for ever is not a control, and neither is a
 #: prompt asking the model to be brief.
 MAX_TURNS = int(os.environ.get("PLAYBOOK_MAX_TURNS") or 24)
-MAX_OUTPUT_TOKENS = int(os.environ.get("PLAYBOOK_MAX_OUTPUT_TOKENS") or 16000)
+#: 16,000 is the documented default for a NON-streaming request, where it
+#: keeps the reply inside the SDK's HTTP timeout. Every call here is streamed,
+#: where the documented default is 64,000 and the model's ceiling is 128,000 —
+#: so the old value was a timeout guard applied to a path that has no timeout
+#: to guard, and it silently truncated long documents. A sixteen-page
+#: committee report is comfortably past it.
+MAX_OUTPUT_TOKENS = int(os.environ.get("PLAYBOOK_MAX_OUTPUT_TOKENS") or 64000)
+
+#: Ask the model to report its reasoning as a readable summary while it works.
+#:
+#: Current models think before they write and, by default, `display` is
+#: "omitted": the reasoning happens, is billed, and emits nothing. On a long
+#: report that is minutes of real work behind a screen that shows nothing,
+#: which is indistinguishable from a hung run.
+#:
+#: What is forwarded is the provider's own SUMMARY, produced for display — the
+#: raw chain of thought is never exposed by any model and never leaves
+#: `_stream_once`. Chapter 15 forbids showing hidden reasoning, so the summary
+#: is treated as transient ACTIVITY: it is shown while the turn runs and is
+#: never written into the stored answer, the transcript or the document.
+SHOW_REASONING = (os.environ.get("PLAYBOOK_SHOW_REASONING") or "1").strip() \
+    not in {"0", "false", "no", "off"}
+
+#: Set once, at runtime, if the configured model rejects the thinking
+#: parameter. A deployment on an older model must not lose generation
+#: entirely over a display preference.
+_REASONING_REFUSED = False
+
+
+def _set_reasoning_refused() -> None:
+    global _REASONING_REFUSED
+    _REASONING_REFUSED = True
 
 #: The wall-clock ceiling on ONE authoring run, across every turn it takes.
 #:
@@ -188,6 +219,9 @@ class AuthoringResult:
     output_tokens: int = 0
     milestones: list[dict] = field(default_factory=list)
     stop_reason: str = ""
+    #: The model hit the output ceiling. The text that came back is a fragment
+    #: of a document, never a document.
+    truncated: bool = False
     #: Wall clock inside the provider — every attempt of every turn, summed.
     #: Named for what it measures rather than "latency", because the authoring
     #: run around it and the check around that are different spans.
@@ -437,6 +471,7 @@ def author(
     container_id: str = "",
     on_milestone: Callable[[str, str], None] | None = None,
     on_delta: Callable[[str], None] | None = None,
+    on_thinking: Callable[[str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
     document_tools: bool | None = None,
 ) -> AuthoringResult:
@@ -509,6 +544,7 @@ def author(
         response = _call(client, model=model, system=system, messages=convo,
                          tools=tools, container=container, purpose=purpose,
                          role=role, on_delta=on_delta,
+                         on_thinking=on_thinking,
                          is_cancelled=is_cancelled, deadline=started,
                          with_tools=with_tools)
         result.turns = turn
@@ -539,7 +575,12 @@ def author(
         result.stop_reason = stop
         text = _text(response)
         if text:
-            result.text = text
+            # APPENDED, not replaced. A turn that pauses for a skill and then
+            # continues has said two things, and assigning here threw the
+            # first away — so a multi-turn authoring run delivered only
+            # whatever its last turn happened to write.
+            result.text = f"{result.text}\n\n{text}".strip() if result.text \
+                else text
 
         if stop == "pause_turn":
             # A long-running skill asked for more time. Continue the same turn
@@ -560,6 +601,22 @@ def author(
             raise AuthoringError(
                 "The model declined this request. Nothing was generated.",
                 category="refusal")
+        if stop == "max_tokens":
+            # The document was cut off mid-sentence. It used to break here and
+            # be parsed, validated, rendered and delivered as though finished,
+            # because `stop_reason` was recorded and read by nothing — so a
+            # truncated committee report reached a user looking complete.
+            #
+            # Not retried automatically: the next attempt would spend the same
+            # tokens to reach the same ceiling. The bound is raised by
+            # configuration, deliberately, not by paying twice.
+            result.truncated = True
+            raise AuthoringError(
+                f"The document was cut off at the output limit of "
+                f"{MAX_OUTPUT_TOKENS:,} tokens, so it is incomplete and has "
+                f"not been saved. Ask for a shorter report, or raise "
+                f"PLAYBOOK_MAX_OUTPUT_TOKENS.",
+                category="truncated")
         break
     else:
         raise AuthoringError(
@@ -578,6 +635,7 @@ def author(
 def _call(client: Any, *, model: str, system: str, messages: list[dict],
           tools: list[dict], container: dict, purpose: str, role: Any,
           on_delta: Callable[[str], None] | None = None,
+          on_thinking: Callable[[str], None] | None = None,
           is_cancelled: Callable[[], bool] | None = None,
           deadline: float | None = None,
           with_tools: bool = False,
@@ -623,8 +681,12 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
                 kwargs["container"] = container
             if model:
                 kwargs["model"] = model
+            if SHOW_REASONING and not _REASONING_REFUSED and on_thinking:
+                kwargs["thinking"] = {"type": "adaptive",
+                                      "display": "summarized"}
             response, streamed = _stream_once(
-                client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled,
+                client, kwargs, on_delta=on_delta, on_thinking=on_thinking,
+                is_cancelled=is_cancelled,
                 deadline=deadline, with_tools=with_tools,
                 sandbox=bool(with_tools and container), seen=seen)
             if streamed:
@@ -662,6 +724,17 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             # spend tokens again for a generation nobody is still waiting for.
             raise
         except Exception as exc:  # noqa: BLE001 — classified, then re-raised
+            if (kwargs.get("thinking") and not _REASONING_REFUSED
+                    and "thinking" in str(exc).lower()):
+                # The configured model does not accept it. Reasoning display
+                # is a convenience; losing generation over one would not be.
+                # Recorded once, for the whole process, and the attempt is
+                # retried without it rather than counted as a failure.
+                _set_reasoning_refused()
+                logger.warning(
+                    "Playbook: %s rejected the thinking parameter; reasoning "
+                    "summaries are off for this process. (%s)", model, exc)
+                continue
             category = telemetry.classify(exc)
             telemetry.record_failure(
                 provider="anthropic", model=model, purpose=purpose,
@@ -697,6 +770,7 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
 def _stream_once(client: Any, kwargs: dict, *,
                  on_delta: Callable[[str], None] | None,
                  is_cancelled: Callable[[], bool] | None,
+                 on_thinking: Callable[[str], None] | None = None,
                  deadline: float | None = None,
                  with_tools: bool = False,
                  sandbox: bool = False,
@@ -704,10 +778,19 @@ def _stream_once(client: Any, kwargs: dict, *,
     """One streamed call. Returns the finished message and whether text flowed.
 
     The filter is the security boundary of this module, and it is deliberately
-    narrow: a delta is forwarded only when the event is a `content_block_delta`
-    AND the delta is a `text_delta`. Reasoning (`thinking_delta`), its signature,
-    and tool inputs (`input_json_delta` — which carries the code the sandbox is
-    about to run) all fail that test and never leave this function.
+    narrow. `on_delta` — the answer, and the only thing that is ever stored —
+    receives a delta only when the event is a `content_block_delta` AND the
+    delta is a `text_delta`. Tool inputs (`input_json_delta`, which carries the
+    code a sandbox is about to run), signatures and everything else fail that
+    test and never leave this function.
+
+    `on_thinking` is a SEPARATE channel and carries the provider's own summary
+    of its reasoning, requested with `display: "summarized"`. The raw chain of
+    thought is never exposed by any model. Chapter 15 forbids showing hidden
+    reasoning, so this is treated as transient activity: shown while the turn
+    runs, never written into the answer, the transcript or the document. Two
+    callbacks rather than one is what keeps that separation structural instead
+    of a rule somebody has to remember.
     """
     forwarded = False
     if sandbox:
@@ -737,6 +820,11 @@ def _stream_once(client: Any, kwargs: dict, *,
             if getattr(event, "type", "") != "content_block_delta":
                 continue
             delta = getattr(event, "delta", None)
+            if on_thinking and getattr(delta, "type", "") == "thinking_delta":
+                summary = getattr(delta, "thinking", "") or ""
+                if summary:
+                    on_thinking(summary)
+                continue
             if getattr(delta, "type", "") != "text_delta":
                 continue
             text = getattr(delta, "text", "") or ""

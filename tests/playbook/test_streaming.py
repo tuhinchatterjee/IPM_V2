@@ -20,6 +20,7 @@ import pytest
 
 from backend.playbook import provider, service, stream
 from backend.playbook import repository as repo
+from tests.playbook.conftest import _stub_matches
 
 REPORT_MD = """# Committee report
 
@@ -478,6 +479,80 @@ class TestFollowingTheLog:
         assert [e["kind"] for e in seen] == ["error"]
         assert seen[0]["data"]["category"] == "worker_lost"
 
+    def test_a_finished_job_that_saved_its_work_is_never_called_lost(
+            self, committed_job):
+        """The race that reached a user, as a test.
+
+        `run_generation` stamps `finished_at` inside the turn's commit; the
+        worker writes `done` afterwards, in a separate transaction. A reader
+        polling in that window sees a finished job and no terminal event.
+
+        It used to say "This generation ended without finishing. Nothing was
+        saved." — under a complete answer, beside a downloadable PDF, with a
+        Try again button that would have spent another generation.
+        """
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+
+        with get_session() as session:
+            job = session.get(PlaybookJob, committed_job)
+            repo.add_message(
+                session, job.workspace_id, role="assistant",
+                content={"text": "The report is ready.", "version": 3,
+                         "files": [{"format": "docx"}, {"format": "pdf"}],
+                         "artifact_id": 77},
+                origin="assistant_live", job_id=committed_job)
+            service.mark_job_finished(session, committed_job, state="ready")
+            session.commit()
+
+        seen = list(stream.follow(get_session, committed_job, after=0,
+                                  idle_timeout=10))
+        assert [e["kind"] for e in seen] == ["done"], (
+            "the work is on disk; this is a missing event, not a lost run")
+        assert seen[0]["data"]["recovered"] is True
+        # And it carries what the lost `done` would have carried, read back
+        # from the rows rather than guessed.
+        assert seen[0]["data"]["version"] == 3
+        assert len(seen[0]["data"]["files"]) == 2
+        assert seen[0]["data"]["artifact_id"] == 77
+
+    def test_a_worker_that_saved_nothing_is_still_reported_honestly(
+            self, committed_job):
+        """The other half. Recovering a run that never wrote anything would
+        be the same lie told the other way round."""
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            service.mark_job_finished(session, committed_job, state="failed",
+                                      error="worker lost")
+            session.commit()
+
+        seen = list(stream.follow(get_session, committed_job, after=0,
+                                  idle_timeout=10))
+        assert [e["kind"] for e in seen] == ["error"]
+        assert seen[0]["data"]["category"] == "worker_lost"
+        assert "Nothing was saved" in seen[0]["data"]["message"]
+
+    def test_the_grace_period_is_taken_once_and_the_reader_still_ends(
+            self, committed_job):
+        """A reader that keeps waiting on a dead worker never returns, which
+        is the failure the original code was avoiding. One wait, then a
+        decision."""
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            service.mark_job_finished(session, committed_job, state="failed",
+                                      error="gone")
+            session.commit()
+
+        began = time.monotonic()
+        seen = list(stream.follow(get_session, committed_job, after=0,
+                                  idle_timeout=10))
+        waited = time.monotonic() - began
+        assert seen[-1]["kind"] == "error"
+        assert stream.SETTLE_SECONDS <= waited < stream.SETTLE_SECONDS + 5, (
+            f"waited {waited:.1f}s — one grace period, not a loop")
+
     def test_a_reader_that_disconnects_stops_reading(self, committed_job):
         writer = _committed_writer(committed_job)
         writer.state("drafting")
@@ -584,7 +659,7 @@ class TestATimeoutLeavesNothingBehind:
 
         def _slow(*, system, messages, formats, purpose="playbook_authoring",
                   container_id="", on_milestone=None, on_delta=None,
-                  is_cancelled=None, document_tools=None):
+                  on_thinking=None, is_cancelled=None, document_tools=None):
             if on_delta:
                 on_delta("Weighted ECL rose to ")
             raise provider.AuthoringTimeout(
@@ -592,6 +667,11 @@ class TestATimeoutLeavesNothingBehind:
                 "for the model to finish writing, so it was stopped. Nothing "
                 "was saved and the previous version is unchanged.")
 
+        # The same guard the shared fixture uses. Without it this stub fell
+        # behind `provider.author`, the TypeError was caught as a tool failure
+        # deep inside the turn, and five timeout tests reported "DID NOT RAISE
+        # AuthoringTimeout" — a message that points nowhere near the cause.
+        _stub_matches(_slow, provider.author)
         monkeypatch.setattr(provider, "author", _slow)
         monkeypatch.setattr("backend.playbook.service.provider.author", _slow)
 

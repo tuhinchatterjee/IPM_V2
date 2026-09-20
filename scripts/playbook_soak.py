@@ -113,7 +113,7 @@ def install_stand_in():
 
     def author(*, system, messages, formats, purpose="playbook_authoring",
                container_id="", on_milestone=None, on_delta=None,
-               is_cancelled=None, document_tools=None):
+               on_thinking=None, is_cancelled=None, document_tools=None):
         if on_milestone:
             on_milestone("drafting", "soak")
         if on_delta:

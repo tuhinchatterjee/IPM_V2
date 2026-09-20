@@ -759,6 +759,8 @@ EVENT_KINDS = (
     "draft_delta", # the DOCUMENT being written, as it is written — never the
                    # chat answer, and never merged into the stored message
     "plan",        # the steps this turn intends, named before it takes them
+    "thinking",    # the model's own summary of what it is working on, shown
+                   # while the turn runs and never stored as the answer
     "artifact",    # a version and its files were written
     "done",        # the run finished; the thread now holds the answer
     "error",       # the run failed or was stopped; nothing was saved

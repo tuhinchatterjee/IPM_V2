@@ -206,6 +206,7 @@ def converse(
     purpose: str = "playbook_chat",
     require_tool: bool = False,
     on_delta: Callable[[str], None] | None = None,
+    on_thinking: Callable[[str], None] | None = None,
     on_tool: Callable[[str, str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> Reply:
@@ -272,7 +273,8 @@ def converse(
         response = provider._call(
             client, model=model, system=system, messages=convo,
             tools=declared, container={}, purpose=purpose, role=role,
-            on_delta=on_delta, is_cancelled=is_cancelled, deadline=started,
+            on_delta=on_delta, on_thinking=on_thinking,
+            is_cancelled=is_cancelled, deadline=started,
             with_tools=bool(declared), tool_choice=choice)
         reply.turns = turn
 

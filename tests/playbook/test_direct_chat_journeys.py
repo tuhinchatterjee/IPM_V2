@@ -304,7 +304,7 @@ class TestOneFormatFailingKeepsTheOther:
         # scripting the assistant to call it.
         def call_convert(client_, *, model, system, messages, tools, container,
                          purpose, role, on_delta=None, is_cancelled=None,
-                         deadline=None, with_tools=False, tool_choice=None):
+                         deadline=None, with_tools=False, tool_choice=None, on_thinking=None):
             used = any(
                 isinstance(m.get("content"), list)
                 and any(isinstance(b, dict) and b.get("type") == "tool_result"
@@ -445,7 +445,7 @@ class TestAnInterruptedAnswerIsLabelled:
 
         def truncated(client_, *, model, system, messages, tools, container,
                       purpose, role, on_delta=None, is_cancelled=None,
-                      deadline=None, with_tools=False, tool_choice=None):
+                      deadline=None, with_tools=False, tool_choice=None, on_thinking=None):
             if on_delta:
                 on_delta("The coverage ratio moved because")
 

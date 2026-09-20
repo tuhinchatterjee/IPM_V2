@@ -293,7 +293,7 @@ def scripted_author(monkeypatch):
 
     def fake_author(*, system, messages, formats, purpose="playbook_authoring",
                     container_id="", on_milestone=None, on_delta=None,
-                    is_cancelled=None, document_tools=None):
+                    on_thinking=None, is_cancelled=None, document_tools=None):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("stopped")
         if on_milestone:
@@ -322,6 +322,7 @@ def scripted_author(monkeypatch):
         state["last_user"] = messages[0]["content"]
         return result
 
+    _stub_matches(fake_author, provider.author)
     monkeypatch.setattr(provider, "author", fake_author)
     monkeypatch.setattr("backend.playbook.service.provider.author", fake_author)
 
@@ -353,7 +354,7 @@ def scripted_author(monkeypatch):
 
     def fake_call(client, *, model, system, messages, tools, container,
                   purpose, role, on_delta=None, is_cancelled=None,
-                  deadline=None, with_tools=False, tool_choice=None):
+                  deadline=None, with_tools=False, tool_choice=None, on_thinking=None):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("stopped")
         state.setdefault("chat_calls", []).append(

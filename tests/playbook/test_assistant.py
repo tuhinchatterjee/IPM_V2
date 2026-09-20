@@ -77,7 +77,7 @@ def scripted(monkeypatch):
 
     def fake_call(client, *, model, system, messages, tools, container,
                   purpose, role, on_delta=None, is_cancelled=None,
-                  deadline=None, with_tools=False, tool_choice=None):
+                  deadline=None, with_tools=False, tool_choice=None, on_thinking=None):
         state["sent"].append([dict(m) for m in messages])
         state["tools"] = list(tools)
         state["container"] = dict(container)

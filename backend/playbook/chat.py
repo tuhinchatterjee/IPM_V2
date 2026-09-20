@@ -134,7 +134,8 @@ class _Documents:
 
     def __init__(self, session, scope, ws, *, artifact_id=None,
                  base_version_id=None, ledger=None, on_milestone=None,
-                 on_draft=None, on_plan=None, is_cancelled=None):
+                 on_draft=None, on_plan=None, on_thinking=None,
+                 is_cancelled=None):
         self.session = session
         self.scope = scope
         self.ws = ws
@@ -148,6 +149,9 @@ class _Documents:
         #: The steps a document tool is about to take, named before it takes
         #: them, from the formats the model actually asked for.
         self.on_plan = on_plan
+        #: The model's own summary of what it is working on, while it works.
+        #: Transient activity — never the answer, never stored.
+        self.on_thinking = on_thinking
         self.is_cancelled = is_cancelled
         #: Every version this turn wrote, in order, for the projection that
         #: runs after the commit. A turn may write more than one.
@@ -259,6 +263,7 @@ class _Documents:
                 # a generation emitted nothing for minutes and a working run
                 # was indistinguishable from a dead one.
                 on_delta=self.on_draft,
+                on_thinking=self.on_thinking,
                 is_cancelled=self.is_cancelled)
         except provider.Cancelled:
             # A stop is the user's decision, not a tool failure. It ends the
@@ -424,6 +429,7 @@ def turn(session, scope, workspace_id: int, *,
          on_delta=None,
          on_draft=None,
          on_plan=None,
+         on_thinking=None,
          on_tool=None,
          is_cancelled=None) -> dict:
     """Run one conversational turn against the real workspace.
@@ -459,7 +465,7 @@ def turn(session, scope, workspace_id: int, *,
         session, scope, ws, artifact_id=artifact,
         base_version_id=base_version_id, ledger=ledger,
         on_milestone=on_milestone, on_draft=on_draft, on_plan=on_plan,
-        is_cancelled=is_cancelled)
+        on_thinking=on_thinking, is_cancelled=is_cancelled)
 
     active = ""
     if current_doc is not None:
@@ -487,7 +493,8 @@ def turn(session, scope, workspace_id: int, *,
     reply = assistant.converse(
         system=system, messages=messages, tools=documents.tools(),
         require_tool=task_kind in DOCUMENT_TASKS,
-        on_delta=on_delta, on_tool=on_tool, is_cancelled=is_cancelled)
+        on_delta=on_delta, on_thinking=on_thinking, on_tool=on_tool,
+        is_cancelled=is_cancelled)
 
     return {
         "text": reply.text,

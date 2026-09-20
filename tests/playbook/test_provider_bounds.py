@@ -302,3 +302,83 @@ class TestAuthorRefusesWithoutAModel:
                             lambda name: provider.role_config.Role(
                                 name="author", model="claude-test", effort=""))
         assert provider.status().configured is True
+
+
+# ==========================================================================
+# A document cut off at the output ceiling
+# ==========================================================================
+
+
+class _Truncated(_Message):
+    """What the SDK returns when the model runs out of room mid-sentence."""
+
+    def __init__(self, text="## 1. Executive summary\n\nThe weighted ECL ro"):
+        super().__init__()
+        self.content = [type("B", (), {"type": "text", "text": text})()]
+        self.stop_reason = "max_tokens"
+
+
+class _TruncatedStream(_Stream):
+    def get_final_message(self):
+        return _Truncated()
+
+
+@pytest.mark.real_provider_client
+class TestATruncatedDocumentIsNeverDelivered:
+    """A sixteen-page report is comfortably past the old ceiling.
+
+    `MAX_OUTPUT_TOKENS` was 16,000 — the documented default for a
+    NON-streaming request, where it keeps the reply inside the SDK's HTTP
+    timeout. Every call here is streamed, where the documented default is
+    64,000 and the model's ceiling is 128,000. So the bound was a timeout
+    guard on a path with no timeout to guard, and the report it cut off was
+    parsed, validated, rendered and delivered as though finished, because
+    `stop_reason` was recorded and read by nothing.
+    """
+
+    def _client(self, monkeypatch):
+        client = _Client(_TruncatedStream([_Event("The weighted ECL ro")]))
+        monkeypatch.setattr(provider, "_client", lambda: client)
+        monkeypatch.setattr(
+            "backend.playbook.provider.role_config.role",
+            lambda _n: type("R", (), {"model": "test-model",
+                                      "effort": "high"})())
+        return client
+
+    def test_it_raises_rather_than_returning_a_fragment(self, monkeypatch):
+        self._client(monkeypatch)
+        with pytest.raises(provider.AuthoringError) as caught:
+            provider.author(system="s", messages=[{"role": "user",
+                                                   "content": "Write it."}],
+                            formats=["docx"])
+        assert caught.value.category == "truncated"
+
+    def test_the_message_says_what_to_do_about_it(self, monkeypatch):
+        self._client(monkeypatch)
+        with pytest.raises(provider.AuthoringError) as caught:
+            provider.author(system="s", messages=[{"role": "user",
+                                                   "content": "Write it."}],
+                            formats=["docx"])
+        said = str(caught.value)
+        assert "cut off" in said
+        assert "not been saved" in said
+        # The bound is raised by configuration, deliberately — not by paying
+        # for the same tokens twice on an automatic retry.
+        assert "PLAYBOOK_MAX_OUTPUT_TOKENS" in said
+
+    def test_it_is_not_retried(self, monkeypatch):
+        """The next attempt would spend the same tokens to reach the same
+        ceiling."""
+        client = self._client(monkeypatch)
+        with pytest.raises(provider.AuthoringError):
+            provider.author(system="s", messages=[{"role": "user",
+                                                   "content": "Write it."}],
+                            formats=["docx"])
+        assert len(client.calls) == 1
+
+    def test_the_ceiling_is_the_streaming_default(self):
+        """Pinned, because the old value looked deliberate and was a
+        transplanted non-streaming default."""
+        assert provider.MAX_OUTPUT_TOKENS >= 64000
+        assert provider.MAX_OUTPUT_TOKENS <= 128000, (
+            "128,000 is the model's ceiling; above it the request is refused")

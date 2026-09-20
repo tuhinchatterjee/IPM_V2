@@ -462,6 +462,7 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
                     task_scope: str = "",
                     on_milestone=None,
                     on_delta=None,
+                 on_thinking=None,
                     is_cancelled=None) -> Outcome:
     """One complete authoring run, from instruction to persisted version.
 
@@ -513,6 +514,7 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
         document_tools=path.path == documents.SKILL,
         on_milestone=on_milestone,
         on_delta=on_delta,
+        on_thinking=on_thinking,
         is_cancelled=is_cancelled,
     )
     outcome.authoring_ms = int((time.monotonic() - authoring_began) * 1000)
@@ -815,6 +817,7 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
                  on_delta=None,
                  on_draft=None,
                  on_plan=None,
+                 on_thinking=None,
                  is_cancelled=None) -> dict:
     """One turn: persist what was asked, do it, persist what came back.
 
@@ -843,7 +846,7 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
         task_scope=task_scope, context_kind=context_kind,
         context_target=context_target, calculations=calculations,
         on_milestone=on_milestone, on_delta=on_delta, on_draft=on_draft,
-        on_plan=on_plan,
+        on_plan=on_plan, on_thinking=on_thinking,
         is_cancelled=is_cancelled)
 
 
@@ -980,6 +983,7 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
                    on_delta=None,
                    on_draft=None,
                    on_plan=None,
+                   on_thinking=None,
                    is_cancelled=None) -> dict:
     """Do the work a claimed job stands for, and persist what came back.
 
@@ -1049,7 +1053,7 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             context_kind=context_kind, context_target=context_target,
             task_kind=task_kind, calculations=calculations,
             on_milestone=milestone, on_delta=on_delta, on_draft=on_draft,
-            on_plan=on_plan, on_tool=tool_state,
+            on_plan=on_plan, on_thinking=on_thinking, on_tool=tool_state,
             is_cancelled=is_cancelled)
     except provider.Cancelled as exc:
         job.state = "cancelled"

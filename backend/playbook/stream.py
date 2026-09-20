@@ -183,6 +183,8 @@ class Writer:
     _began: float = field(default_factory=time.monotonic)
     _draft: str = ""
     _last_draft: float = 0.0
+    _reasoning: str = ""
+    _last_reasoning: float = 0.0
 
     def state(self, name: str, detail: str = "") -> None:
         self.flush()
@@ -247,6 +249,29 @@ class Writer:
         self._last_draft = time.time()
         self._write("draft_delta", {"text": text})
 
+    def thinking(self, text: str) -> None:
+        """The model's own summary of what it is working on.
+
+        Transient activity, never the answer. It is written to the event log
+        so a refresh mid-run can replay it, and it is never merged into the
+        stored message, the transcript or the document — chapter 15 forbids
+        showing hidden reasoning, and this is the provider's display summary,
+        shown while the turn runs and gone when it ends.
+        """
+        if not text:
+            return
+        self._reasoning += text
+        if (len(self._reasoning) >= DRAFT_CHARS
+                or time.time() - self._last_reasoning >= DRAFT_SECONDS):
+            self.flush_thinking()
+
+    def flush_thinking(self) -> None:
+        if not self._reasoning:
+            return
+        text, self._reasoning = self._reasoning, ""
+        self._last_reasoning = time.time()
+        self._write("thinking", {"text": text})
+
     def artifact(self, payload: dict) -> None:
         self.flush()
         self.flush_draft()
@@ -255,6 +280,7 @@ class Writer:
     def done(self, payload: dict) -> None:
         self.flush()
         self.flush_draft()
+        self.flush_thinking()
         self._write("done", payload)
 
     def error(self, message: str, *, category: str = "",
@@ -312,6 +338,10 @@ def follow(session_factory: Callable[[], Any], job_id: int, *,
     cursor = after
     last_event = time.time()
     last_beat = time.time()
+    #: One grace period, not a loop: the gap between the job being stamped
+    #: finished and its `done` event being written is milliseconds, and a
+    #: reader that keeps waiting on a genuinely dead worker never ends.
+    settled = False
 
     while True:
         if is_disconnected and is_disconnected():
@@ -322,6 +352,7 @@ def follow(session_factory: Callable[[], Any], job_id: int, *,
             batch = [{"seq": r.seq, "kind": r.kind, "data": dict(r.data)}
                      for r in rows]
             finished = _is_finished(session, job_id) if not batch else False
+            delivered = _delivered(session, job_id) if finished else False
 
         for event in batch:
             cursor = event["seq"]
@@ -334,8 +365,28 @@ def follow(session_factory: Callable[[], Any], job_id: int, *,
             continue
 
         if finished:
-            # The job ended without a terminal event — a worker that died
-            # outright, say. The client is told rather than left hanging.
+            # `finished_at` and the `done` event are written in that order and
+            # in separate transactions: `run_generation` stamps the job inside
+            # the turn's commit, and the worker writes `done` after it. A poll
+            # landing in that window sees a finished job and no terminal
+            # event — which is not a dead worker, it is a race.
+            #
+            # It reached a user: a complete answer, two review notes and a
+            # downloadable PDF, under a red banner reading "Nothing was
+            # saved", beside a Try again button that would have spent another
+            # generation. So: wait out the gap once, then check whether the
+            # work actually landed before saying anything about it.
+            if not settled:
+                settled = True
+                time.sleep(SETTLE_SECONDS)
+                continue
+            if delivered:
+                # The turn finished and its version is on disk. The terminal
+                # event is missing, not the work.
+                yield {"seq": cursor, "kind": "done",
+                       "data": {"recovered": True, **_delivered_payload(
+                           session_factory, job_id)}}
+                return
             yield {"seq": cursor, "kind": "error",
                    "data": {"message": "This generation ended without "
                                        "finishing. Nothing was saved.",
@@ -364,6 +415,54 @@ def follow(session_factory: Callable[[], Any], job_id: int, *,
 def _is_finished(session, job_id: int) -> bool:
     job = session.get(PlaybookJob, job_id)
     return bool(job and job.finished_at is not None)
+
+
+#: How long to wait for a `done` event that is already on its way.
+SETTLE_SECONDS = 1.5
+
+
+def _delivered(session, job_id: int) -> bool:
+    """Whether this job's turn actually saved an answer.
+
+    A job that wrote an assistant message did its work, whatever happened to
+    the event log afterwards. This is what stops the reader telling a user
+    their report was lost while it sits in the Files panel beside the message.
+    """
+    from backend.models.playbook import PlaybookMessage
+
+    written = session.execute(
+        select(func.count(PlaybookMessage.id))
+        .where(PlaybookMessage.job_id == job_id,
+               PlaybookMessage.role == "assistant")
+    ).scalar()
+    return bool(written)
+
+
+def _delivered_payload(session_factory, job_id: int) -> dict:
+    """What the missing `done` event would have carried.
+
+    Read back from the rows rather than reconstructed from hope: the message
+    that was written, and the artifact version it produced, if any.
+    """
+    from backend.models.playbook import PlaybookMessage
+
+    with session_factory() as session:
+        message = session.execute(
+            select(PlaybookMessage)
+            .where(PlaybookMessage.job_id == job_id,
+                   PlaybookMessage.role == "assistant")
+            .order_by(PlaybookMessage.id.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if message is None:
+            return {}
+        content = dict(message.content or {})
+        return {"message_id": message.id,
+                "artifact_id": content.get("artifact_id"),
+                "version": content.get("version") or 0,
+                "files": content.get("files") or [],
+                "notes": content.get("notes") or [],
+                "interrupted": bool(content.get("interrupted"))}
 
 
 def sse(event: dict) -> str:
@@ -423,6 +522,7 @@ def start(session_factory: Callable[[], Any], scope, workspace_id: int,
                     on_delta=writer.delta,
                     on_draft=writer.draft,
                     on_plan=writer.plan,
+                    on_thinking=writer.thinking,
                     is_cancelled=service.cancellation_watcher(job_id),
                     **request,
                 )
