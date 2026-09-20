@@ -32,6 +32,12 @@ PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "analyst.md"
 DEFAULT_RECENT_TURNS = 3
 MAX_RECENT_TURNS = 8
 
+#: How many of a clarification's offered choices ride along in history.
+#:
+#: Bounded because the block is carried on every turn of the rest of the
+#: thread. The contract caps the options anyway; this is the belt.
+CLARIFICATION_OPTIONS = 6
+
 
 def analyst_instruction(catalog: Any = None) -> str:
     """The analyst prompt, speaking the period language of THIS book.
@@ -220,12 +226,45 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
         budget["response_tokens_reserved"] = limits.reserved_output_tokens
 
     turns = list(recent_turns or [])[-MAX_RECENT_TURNS:]
-    history = [{
-        "turn_id": t.get("turn_id"), "ordinal": t.get("ordinal"),
-        "question": t.get("question"),
-        "answer": (t.get("answer") or {}).get("narrative", "")[:1500],
-        "disposition": (t.get("answer") or {}).get("disposition", ""),
-    } for t in turns]
+    history = []
+    for t in turns:
+        prior = t.get("answer") or {}
+        entry: dict[str, Any] = {
+            "turn_id": t.get("turn_id"), "ordinal": t.get("ordinal"),
+            "question": t.get("question"),
+            "answer": prior.get("narrative", "")[:1500],
+            "disposition": prior.get("disposition", ""),
+        }
+        # A CLARIFICATION IS HALF A CONVERSATION WITHOUT ITS QUESTION.
+        #
+        # A turn can end by putting one question back to the reader, who
+        # answers it by clicking an option -- and what the next turn then
+        # receives as its question is the option's TEXT. "Symmetric
+        # allocation." Three words, arriving alone.
+        #
+        # The question those words answer lives in `clarification_question`,
+        # and this block carried the narrative and the disposition and not
+        # that. So the analyst saw that it had asked SOMETHING, and a short
+        # phrase it had to work backwards from. The round trip completed
+        # only when the analyst had happened to repeat its question inside
+        # the narrative as well, which nothing requires it to do.
+        #
+        # The options come too. A reply is usually one of them word for
+        # word, and seeing the list is what makes that unmistakable rather
+        # than probable.
+        if entry["disposition"] == "clarification":
+            entry["you_asked"] = str(prior.get("clarification_question") or "")
+            offered = [str(o) for o
+                       in (prior.get("clarification_options") or ())]
+            if offered:
+                entry["you_offered"] = offered[:CLARIFICATION_OPTIONS]
+            entry["note"] = (
+                "The question that follows this turn is most likely the "
+                "reader ANSWERING it, often one of the offered choices word "
+                "for word. Read it that way and carry on with the analysis "
+                "rather than asking again. If it plainly asks something "
+                "else, it is a new question.")
+        history.append(entry)
 
     from backend.cockpit_v4 import product_knowledge as pk
 
