@@ -147,7 +147,9 @@ instead of its usual **5.8 s**: a stall, not a marginal overrun.
 
 ### What was measured, not assumed
 
-Eleven full browser runs in one session, same commit, same machine:
+Thirteen full browser runs in one session, same code, same machine (the
+default-theme runs counted here are the six after the unrelated thread-title
+fix earlier in this round; the one before it failed a different test):
 
 | Theme | Full-suite runs | Result |
 |---|---|---|
