@@ -109,24 +109,31 @@ What it does not do, by construction:
 
 Needs about 3 GB free: ~2 GB for the copy of the book, ~520 MB for the release.
 
+Save it as `~/mac-acceptance.sh` and run `bash ~/mac-acceptance.sh`, so `set -e`
+stops the run at the first thing that fails instead of carrying on.
+
 ```bash
 # ── 0. where things are ──────────────────────────────────────────────────────
 set -e
 CAND=~/CreditProbe_Candidate/retail-cockpit
 DEMO=/Users/tuhinchatterjee/Desktop/IPM_V2
-SHA=<FINAL_SHA>                      # printed at the end of the session
+#   The branch tip is the final candidate; step 2 verifies what it landed on.
+BRANCH=claude/modest-rubin-cm037o
 cd "$CAND"
 
 # ── 1. refuse on a dirty tree: a local edit is yours, not mine to discard ────
-git status --porcelain
-#   -> must print NOTHING. If it prints anything, stop and tell me what it is.
+if [ -n "$(git status --porcelain)" ]; then
+  echo "The candidate clone has local changes. Stopping rather than discarding them:"
+  git status --porcelain
+  exit 1
+fi
 
 # ── 2. update to the pushed commit, fast-forward only ───────────────────────
-git fetch origin claude/modest-rubin-cm037o
-git checkout claude/modest-rubin-cm037o
-git merge --ff-only origin/claude/modest-rubin-cm037o
+git fetch origin "$BRANCH"
+git checkout "$BRANCH"
+git merge --ff-only "origin/$BRANCH"     # refuses rather than rewriting
 git rev-parse HEAD
-#   -> must print $SHA
+#   -> must match the SHA I gave you for the final candidate
 
 # ── 3. dependencies ─────────────────────────────────────────────────────────
 uv sync
@@ -136,12 +143,16 @@ npm --prefix frontend ci
 createdb creditprobe_retail_candidate 2>/dev/null || true
 
 # ── 5. configuration ────────────────────────────────────────────────────────
-#   Only on the first run; skip if .env.retail-candidate already exists.
-[ -f .env.retail-candidate ] || cp .env.retail-candidate.example .env.retail-candidate
-#   Then edit two lines in .env.retail-candidate:
-#     DATABASE_URL=postgresql+psycopg://$(whoami)@127.0.0.1:5432/creditprobe_retail_candidate
-#     SECRET_KEY=<paste the output of: python3 -c 'import secrets;print(secrets.token_urlsafe(48))'>
-#   Everything else in that file is already correct.
+#   First run only. An existing .env.retail-candidate is left exactly as
+#   it is -- these two lines are appended once, and a later one wins.
+if [ ! -f .env.retail-candidate ]; then
+  cp .env.retail-candidate.example .env.retail-candidate
+  {
+    echo ""
+    echo "DATABASE_URL=postgresql+psycopg://$(whoami)@127.0.0.1:5432/creditprobe_retail_candidate"
+    echo "SECRET_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))')"
+  } >> .env.retail-candidate
+fi
 set -a; . ./.env.retail-candidate; set +a
 .venv/bin/python -m alembic upgrade head
 
