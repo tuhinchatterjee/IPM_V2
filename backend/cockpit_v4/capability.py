@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date as _date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -167,6 +167,41 @@ def load_price_card(path: str | Path, *, model_id: str,
             raise CapabilityUnverified(
                 f"the price card entry for {model_id!r} must declare a "
                 f"positive {key}.")
+
+    # A PRICE NOBODY RECORDED CHECKING IS NOT A PRICE.
+    #
+    # The shipped card says, in its own note: "A missing or unverified entry
+    # fails closed: no paid request runs." A missing one did. An UNVERIFIED
+    # one did not -- `verified_at` was read into the Capability, surfaced in
+    # `to_dict`, and gated nothing anywhere in the product. The field whose
+    # only job is to stop an unpriced paid run was decorative.
+    #
+    # What that costs: the shipped card is a template whose one entry is
+    # `REPLACE-WITH-YOUR-MODEL-ID`, `source: PLACEHOLDER`, `verified_at: ""`
+    # and all four prices 0.0. Copy it, change the model id, and every paid
+    # request is costed at zero. A spend cap can never be reached, the run
+    # reports no cost, and nothing says the numbers were never real.
+    source = str(entry.get("source") or doc.get("source") or "")
+    verified = str(entry.get("verified_at") or doc.get("verified_at") or "")
+    if not verified:
+        raise CapabilityUnverified(
+            f"the price card entry for {model_id!r} has no `verified_at`. A "
+            f"price nobody recorded checking is not a price: put the date "
+            f"you read it off the provider's published schedule.")
+    try:
+        _date.fromisoformat(verified[:10])
+    except ValueError:
+        raise CapabilityUnverified(
+            f"the price card entry for {model_id!r} has `verified_at` "
+            f"{verified!r}, which is not a date. Use an ISO-8601 date or "
+            f"timestamp, so a reader can tell how old this price is."
+        ) from None
+    if not source or "placeholder" in source.lower():
+        raise CapabilityUnverified(
+            f"the price card entry for {model_id!r} still carries the "
+            f"placeholder `source`. Name where the numbers came from -- the "
+            f"provider's published schedule for this account -- or no paid "
+            f"request can be reserved against them.")
 
     return Capability(
         provider=provider, model_id=model_id,
