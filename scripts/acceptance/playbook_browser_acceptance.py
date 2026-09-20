@@ -253,16 +253,26 @@ async def journey(page, viewport: str) -> None:
     check(f"[{viewport}] the uploaded file appears as an attachment chip",
           "acceptance-prior-report.docx" in body)
 
-    # A send with an attachment but no configured provider must be refused
-    # honestly rather than offered and then failing.
+    # What Send does depends on what this server actually has, so the check
+    # asks the server rather than assuming. Asserting "Send is refused"
+    # against a server that CAN generate tests nothing about the product and
+    # fails for being pointed at the wrong deployment — which is exactly what
+    # it did when this suite was run beside the scripted one.
     send = page.locator('button:has-text("Send")').first
     await page.locator("#playbook-composer").fill("Summarise this report.")
     await page.wait_for_timeout(300)
     disabled = await send.is_disabled()
     note = await page.locator("text=/ANTHROPIC_API_KEY|provider/i").count()
-    check(f"[{viewport}] with no provider, Send is refused and the reason shown",
-          disabled and note > 0,
-          f"disabled={disabled}, reason shown={note > 0}")
+    if await _generation_available(page):
+        check(f"[{viewport}] with a provider configured, Send is offered "
+              f"and no refusal is shown",
+              not disabled and note == 0,
+              f"disabled={disabled}, refusal shown={note > 0}")
+    else:
+        check(f"[{viewport}] with no provider, Send is refused and the "
+              f"reason shown",
+              disabled and note > 0,
+              f"disabled={disabled}, reason shown={note > 0}")
 
     remove = page.locator('button[aria-label^="Remove "]').first
     if await remove.count():
@@ -509,6 +519,23 @@ def _append(job_id: int, *, text: str = "", state: str = "",
         session.commit()
 
 
+async def _generation_available(page) -> bool:
+    """Whether THIS server can generate at all.
+
+    A deployment with no credential, one answering from the scripted fixture
+    and one with a real model are three different products to a composer, and
+    a browser check that assumes one of them is testing the deployment rather
+    than the interface.
+    """
+    response = await page.request.get(
+        f"{API}/api/v1/playbook/capabilities",
+        headers={"X-IPM-Role": "ADMIN"})
+    if not response.ok:
+        return False
+    body = await response.json()
+    return bool((body.get("provider") or {}).get("configured"))
+
+
 async def streaming_journey(page) -> None:
     """PB-038. The answer arrives while it is being written, and survives a
     refresh."""
@@ -528,9 +555,14 @@ async def streaming_journey(page) -> None:
         first = await bubble.inner_text()
         check("the answer so far is on screen before the run has finished",
               "Executive summary" in first, first[:100])
+        # The state is named in the progress panel; the line beside Stop is
+        # the clock. They used to be one element, and this check followed the
+        # wrong half of it when they separated.
+        panel = page.locator('[data-testid="playbook-progress"]')
+        named = await panel.inner_text()
         check("the real state is named, not a percentage",
-              "Reading the sources" in await page.locator(
-                  '[data-testid="playbook-generation-state"]').inner_text())
+              "Reading the sources" in named and "%" not in named,
+              named[:120])
         check("Stop is offered while it runs",
               await page.locator('[data-testid="playbook-stop"]').count() == 1)
 
@@ -542,8 +574,7 @@ async def streaming_journey(page) -> None:
         check("text written after the page loaded appears without a reload",
               "22.77" in second and "22.77" not in first, second[:120])
         check("the state moved as the work moved",
-              "Writing" in await page.locator(
-                  '[data-testid="playbook-generation-state"]').inner_text())
+              "Writing" in await panel.inner_text())
         check("markdown is rendered, not printed as source",
               await bubble.locator("h2").count() > 0
               and "## 1." not in second)
