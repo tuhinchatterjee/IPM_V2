@@ -1115,7 +1115,8 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
     card: dict = {}
     if last.get("version_id"):
         milestone("validating", "assessing what was delivered")
-        card = assessment.for_delivery(session, ws.id)
+        card = assessment.for_delivery(session, ws.id,
+                                       version_id=last["version_id"])
 
     job.state = "ready"
     job.model = reply.model_served

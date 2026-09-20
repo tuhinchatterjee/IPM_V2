@@ -57,8 +57,9 @@ export interface AssessmentLine {
   tone: "plain" | "attention";
 }
 
-/** "4m 12s", or "8s". The same shape the progress clock uses. */
+/** "4m 12s", "8s", or "under a second". */
 export function duration(ms: number): string {
+  if (ms > 0 && ms < 1000) return "under a second";
   const whole = Math.max(0, Math.round(ms / 1000));
   const minutes = Math.floor(whole / 60);
   return minutes ? `${minutes}m ${whole % 60}s` : `${whole}s`;
@@ -105,7 +106,7 @@ export function assessmentLines(card: PbAssessmentCard): AssessmentLine[] {
     label: "Sections",
     // Written out of the sections that exist — which is a count of what is
     // there, not a share of a plan nobody wrote down.
-    value: `${written} of ${plural(total, "section")} written in full`,
+    value: `${written} of ${total} written in full`,
     tone: written === total ? "plain" : "attention",
   });
 

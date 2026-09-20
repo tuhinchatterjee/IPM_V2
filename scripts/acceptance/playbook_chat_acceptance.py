@@ -153,8 +153,27 @@ async def _progress(page, workspace: int) -> dict:
         page, f"/api/v1/playbook/workspaces/{workspace}/progress"))["body"]
 
 
+async def _idle(page, timeout_ms: int = 180_000) -> bool:
+    """Wait until this page has no generation running.
+
+    The answer's TEXT arrives on the delta stream, well before the version is
+    committed, before the message is stored and before `done`. So "the
+    assistant has said it" and "the turn is over" are different moments, and
+    anything that reads what the THREAD shows — the stored message and the
+    notes rendered from it — has to wait for the second one. Two checks here
+    used to race it and pass on timing.
+    """
+    try:
+        await page.wait_for_selector(
+            "[data-testid=playbook-generation-state]", state="detached",
+            timeout=timeout_ms)
+        return True
+    except Exception:  # noqa: BLE001 — a failed check, not a crash
+        return False
+
+
 async def _answer(page) -> str:
-    """Everything the thread is showing.
+    """Everything the thread is showing, once the turn is over.
 
     Not "the last article": a delivered file renders its own card, so after a
     document turn the last article is the card and the assistant's sentences
@@ -162,6 +181,11 @@ async def _answer(page) -> str:
     anyway, and it made two checks here pass for the wrong reason before it
     made them fail for the right one.
     """
+    await _idle(page)
+    # The thread re-renders from the stored message when the turn ends; a
+    # read that lands in the same tick as `done` can still be showing the
+    # streaming article.
+    await page.wait_for_timeout(400)
     return await page.evaluate(
         """() => [...document.querySelectorAll('article')]
                  .map((n) => n.innerText).join("\\n")""")
@@ -182,16 +206,34 @@ async def _send(page, text: str) -> None:
     cannot send during a run either. If the composer never comes back, that
     is a real failure and it is reported as one rather than swallowed.
     """
-    try:
-        await page.wait_for_selector(
-            "[data-testid=playbook-generation-state]", state="detached",
-            timeout=180_000)
-    except Exception:  # noqa: BLE001 — a failed check, not a crash
+    if not await _idle(page):
         check("the composer came back before the next message",
               False, "a generation was still running after 180s")
+
     box = page.locator("textarea").first
     await box.fill(text)
+
+    # Enter is read by the composer's own handler, which refuses to send
+    # while its state still says the box is empty. `fill` dispatches the
+    # input event and React re-renders AFTER it, so pressing Enter in the
+    # same tick is a race — and losing it is silent: the turn simply never
+    # happens, and the journey that depended on it reports something else
+    # ("a second version exists — 1"). Send becoming enabled is that state
+    # having arrived.
+    send = page.get_by_role("button", name="Send").first
+    for _ in range(100):
+        if await send.is_enabled():
+            break
+        await page.wait_for_timeout(100)
+
+    before = await page.locator("article").count()
     await box.press("Enter")
+    try:
+        await page.wait_for_function(
+            "(n) => document.querySelectorAll('article').length > n",
+            arg=before, timeout=20_000)
+    except Exception:  # noqa: BLE001 — a failed check, not a crash
+        check("the message was accepted when it was sent", False, text[:70])
 
 
 async def _settle(page, contains: str, timeout_ms: int = 90_000) -> bool:

@@ -61,7 +61,7 @@ test("a format that could not be produced says why", () => {
 
 test("sections are counted, never scored", () => {
   const line = find(CARD, "sections");
-  assert.equal(line?.value, "2 of 3 sections written in full");
+  assert.equal(line?.value, "2 of 3 written in full");
   // No percentage anywhere: the document never declared how many sections it
   // would have, so a share of it is a number nobody measured.
   for (const rendered of assessmentLines(CARD)) {
@@ -117,4 +117,8 @@ test("durations read as durations", () => {
   assert.equal(duration(0), "0s");
   assert.equal(duration(8400), "8s");
   assert.equal(duration(252000), "4m 12s");
+  // A scripted or cached run really does take a few milliseconds, and
+  // "0s writing" reads as a measurement that failed rather than one that
+  // was small.
+  assert.equal(duration(56), "under a second");
 });

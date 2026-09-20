@@ -155,6 +155,77 @@ class TestTheCardIsCounted:
             "not failed at anything either")
 
 
+class TestTheCardIsAboutWhatThisTurnWrote:
+    """Not about whatever the workspace's current artifact happens to be."""
+
+    def test_it_reads_the_version_the_turn_named(
+            self, db, scope, workspace, delivered):
+        """A second artifact in the same workspace — a deck made from the
+        report — must be described by its own card. Read off the workspace's
+        current artifact instead, a deck's message would list the report's
+        Word and PDF files, which that turn did not deliver."""
+        from backend.playbook import assessment as card_module
+        from backend.playbook import repository as repo
+        from backend.playbook import service as svc
+
+        ledger = svc.ev.Ledger()
+        outcome = svc.author_document(
+            db, scope, workspace.id,
+            instruction="Turn it into a deck.", ledger=ledger,
+            title="Auto Loan deck", formats=["pptx"])
+
+        deck = card_module.of(db, workspace.id, version_id=outcome.version_id)
+        assert deck.delivered == ["pptx"]
+
+        # And the report's own card is unchanged by the deck existing.
+        report = repo.artifacts(db, workspace.id)[0]
+        first = repo.versions(db, report.id)[0]
+        assert sorted(card_module.of(
+            db, workspace.id, version_id=first.id).delivered) == [
+                "docx", "pdf"]
+
+    def test_the_turn_asks_for_the_version_it_just_wrote(
+            self, db, scope, workspace, job, ledger_calcs, scripted_author,
+            monkeypatch):
+        """The wiring, not the reading.
+
+        `_current_artifact` answers "reports before decks, newest last", which
+        is right for a dashboard and wrong for a message: a turn that revised
+        an earlier report while a deck exists would have its card read off the
+        deck. The turn names the version it wrote; this asserts it is asked
+        for.
+        """
+        from backend.playbook import assessment as card_module
+
+        seen: dict = {}
+        real = card_module.for_delivery
+
+        def spy(session, workspace_id, *, version_id=None):
+            seen["version_id"] = version_id
+            return real(session, workspace_id, version_id=version_id)
+
+        monkeypatch.setattr(card_module, "for_delivery", spy)
+        scripted_author(REPORT_MD)
+        result = service.run_generation(
+            db, scope, workspace.id, job_id=job, text="Write the report.",
+            calculations=ledger_calcs)
+
+        assert seen["version_id"] == result["version_id"]
+        assert seen["version_id"] is not None
+
+    def test_a_version_from_another_workspace_is_not_readable(
+            self, db, scope, workspace, delivered):
+        from backend.playbook import assessment as card_module
+        from backend.playbook import repository as repo
+
+        other = repo.create_workspace(db, scope, title="Somebody else's",
+                                      document_family="")
+        db.flush()
+        card = card_module.of(db, other.id,
+                              version_id=delivered["version_id"])
+        assert card.available is False
+
+
 class TestAssessingItIsAStepOfTheRun:
     """It is a provider call, so it is announced — and it is over before the
     job says it is."""

@@ -34,8 +34,16 @@ import logging
 import os
 from dataclasses import dataclass, field
 
+from backend.models.playbook import PlaybookArtifactVersion
+from backend.playbook import document as D
 from backend.playbook import progress as progress_state
 from backend.playbook import repository as repo
+from backend.playbook import review as review_state
+
+#: The formats a version can carry. Kept here rather than imported from the
+#: capability registry: this is reading a stored record, not deciding what
+#: may be produced.
+FORMATS = frozenset({"docx", "pdf", "pptx", "xlsx"})
 
 logger = logging.getLogger(__name__)
 
@@ -202,63 +210,93 @@ def _source_rows(session, workspace_id: int, locators: set[str]) -> list[dict]:
     return rows
 
 
-def of(session, workspace_id: int) -> Card:
-    """The counted card for this workspace's current version.
+def _version_for(session, workspace_id: int, version_id: int | None):
+    """The version this card is about, and the artifact it belongs to.
 
-    Never raises for a workspace with no document: that is a real state with a
-    real answer, and `progress.of` already says it in words.
+    A turn names the version it just wrote. Without that the card would be
+    read off whatever the workspace's CURRENT artifact happens to be — which,
+    for a turn that produced a deck, is the report it was made from, and the
+    card would then describe files the message did not deliver.
     """
-    counted = progress_state.of(session, workspace_id)
-    if not counted.available:
-        return Card(available=False, reason=counted.reason)
-
+    from backend.models.playbook import PlaybookArtifact
     from backend.playbook.intelligence import service as intel
 
-    artifact = intel._current_artifact(session, workspace_id)
-    versions = repo.versions(session, artifact.id)
-    current = next((v for v in versions
-                    if v.id == artifact.current_version_id), None)
-    if current is None:                      # pragma: no cover - guarded above
-        return Card(available=False, reason="This document has no version.")
+    if version_id is not None:
+        version = session.get(PlaybookArtifactVersion, version_id)
+        if version is None:
+            return None, None
+        artifact = session.get(PlaybookArtifact, version.artifact_id)
+        if artifact is None or artifact.workspace_id != workspace_id:
+            return None, None
+        return version, artifact
 
+    artifact = intel._current_artifact(session, workspace_id)
+    if artifact is None or artifact.current_version_id is None:
+        return None, None
+    return session.get(PlaybookArtifactVersion,
+                       artifact.current_version_id), artifact
+
+
+def of(session, workspace_id: int, *, version_id: int | None = None) -> Card:
+    """The counted card for one version — the one a turn wrote, or the
+    workspace's current one.
+
+    Never raises for a workspace with no document: that is a real state with
+    a real answer, and saying it is better than filling it with noughts.
+    """
+    version, artifact = _version_for(session, workspace_id, version_id)
+    if version is None:
+        return Card(available=False,
+                    reason="No document deliverable has been produced yet.")
+
+    doc = D.Document.from_dict(version.content or {})
     thin, gaps = [], []
     written = 0
-    for item in counted.items:
-        if item.kind != "content":
-            continue
-        if item.state == progress_state.NEEDS_INPUT:
-            gaps.append(item.label)
-        elif item.delivered:
+    # The same rule the dashboard counts by, from the same function: a
+    # section that says something is written, and one whose whole body is an
+    # admission that the evidence is missing is not.
+    for ordinal, section in enumerate(doc.sections, start=1):
+        state, _ = progress_state._section_state(section)
+        label = section.heading or f"Section {ordinal}"
+        if state == progress_state.NEEDS_INPUT:
+            gaps.append(label)
+        elif state in progress_state.COUNTS:
             written += 1
         else:
-            thin.append(item.label)
+            thin.append(label)
 
-    validation = current.validation or {}
+    validation = version.validation or {}
     grounding = validation.get("grounding") or {}
-    manifest = current.source_manifest or {}
+    manifest = version.source_manifest or {}
     timings = validation.get("timings") or {}
+
+    # A format that was attempted and failed leaves no file row, so the
+    # attempt is read from the stored validation record rather than vanishing.
+    files = {f.format: f for f in repo.files(session, version.id)}
+    attempted = sorted(set(files) | {f for f in validation if f in FORMATS})
+    state = review_state.of(version)
 
     return Card(
         available=True,
-        version=current.version,
-        title=(current.content or {}).get("title", "") or artifact.title or "",
+        version=version.version,
+        title=(version.content or {}).get("title", "") or artifact.title or "",
         written=written,
         thin=thin,
         gaps=gaps,
-        delivered=[f for f, state in counted.files.items()
-                   if state.get("present")],
+        delivered=[f for f in attempted if f in files],
         failed={f: (validation.get(f, {}).get("issues") or ["not produced"])[0]
-                for f, state in counted.files.items()
-                if not state.get("present")},
+                for f in attempted if f not in files},
         sources=_source_rows(session, workspace_id,
                              set(manifest.get("locators") or [])),
         omissions=[dict(o) for o in (manifest.get("omissions") or [])],
         # The first pass's findings: what the draft reached for that the
-        # evidence did not support. `removed` is the historical key name.
+        # evidence did not support. `removed` is the stored key's name.
         untraceable=[{"section": f.get("section", ""),
                       "figures": list(f.get("figures") or [])}
                      for f in (grounding.get("removed") or [])],
-        review=dict(counted.review),
+        review={"state": state.state, "label": state.label,
+                "summary": state.summary(), "open_items": state.open_items,
+                "by": state.by},
         time={
             "authoring_ms": int(timings.get("authoring_ms") or 0),
             "render_ms": int(timings.get("render_ms") or 0),
@@ -307,14 +345,15 @@ def write_verdict(card: Card) -> Card:
     return card
 
 
-def for_delivery(session, workspace_id: int) -> dict:
+def for_delivery(session, workspace_id: int, *,
+                 version_id: int | None = None) -> dict:
     """The card, with its verdict, ready to carry on a message.
 
     One entry point for the delivery path so the two halves cannot be shown
     apart — a written judgement with no measurements beside it is exactly the
     thing chapter 12 forbids.
     """
-    card = of(session, workspace_id)
+    card = of(session, workspace_id, version_id=version_id)
     if card.available:
         card = write_verdict(card)
     return card.as_dict()
