@@ -432,6 +432,75 @@ def _value_resolution(resolved: list[Any], asked: list[Any]
 
 #: How to present the result, carried only on a turn that writes an answer.
 #:
+#: THE SHAPE OF AN ANALYTICAL ANSWER.
+#:
+#: `analyst.md` writes four worked shapes under "Writing the answer" and
+#: every one of them is a PRODUCT question -- who are you, what does Early
+#: Warning do, what is TAC. The shape it never describes is the one this
+#: product exists for: the answer written with a result set in hand. The
+#: "Analysis" section beside it is entirely about how to RUN the query.
+#:
+#: So the one act the whole system is built around was the one act nobody
+#: had said what good looks like for, and the default an analyst falls back
+#: to without it is narrating the table -- which is the one thing the reader
+#: already has.
+#:
+#: This is standards, not a template. It says what an answer is held to, and
+#: `length_follows_the_question` is in it because a checklist read as a form
+#: to fill produces exactly the padding it is meant to prevent.
+#:
+#: Here rather than in `analyst.md` for the same reason the chart policy is:
+#: it is only true on the turn that has the rows, and the instruction file is
+#: carried on every action attempt and measured against a bound.
+ANALYTICAL_ANSWER: dict[str, Any] = {
+    "phase": "THE ANSWER",
+    "who_is_reading": (
+        "A senior credit officer with your table in front of them. They can "
+        "read rows. What they cannot get from the rows is what you make of "
+        "them."),
+    "lead_with_the_answer": (
+        "The first sentence answers the question that was asked and carries "
+        "the figure. Not a restatement of the question, not what you ran, "
+        "not what came back."),
+    "a_figure_needs_something_beside_it": (
+        "A number on its own leaves the reader to size it. Put it against "
+        "something the RESULT already holds -- the prior period, the rest "
+        "of the book, the other segments, a threshold the policy names. If "
+        "the result holds no comparison, give the figure and say so. Do not "
+        "reach for one that was not computed."),
+    "say_where_it_sits": (
+        "Concentration is the sentence a credit officer acts on: how much "
+        "of the total sits in how few names, sectors or buckets, and "
+        "whether a movement is broad or is one exposure. The rows will "
+        "say. The reader should not have to add them up."),
+    "what_moved_it": (
+        "Where the result shows direction, name the driver and how much of "
+        "the change it accounts for. Where it does not, say that this cut "
+        "shows the movement and not its cause."),
+    "what_it_means_for_the_book": (
+        "A sentence or two on the consequence, and what is worth doing "
+        "next -- a name to look at, a limit to check, an analysis to run. "
+        "Only what these rows support."),
+    "what_this_does_not_establish": (
+        "Say it once, plainly, where it matters: the grain, the "
+        "missingness, the vintage, what this cut cannot see. A limitation "
+        "stated once is analysis. One hedged onto every clause is noise."),
+    "do_not_narrate_the_table": (
+        "The table is published beside you. Walking its rows in prose is "
+        "the commonest way an answer gets longer without getting better. "
+        "Cite the figures that carry the argument; leave the rest to the "
+        "table."),
+    "do_not_narrate_the_process": (
+        "The reader has the process panel and the governance trace. What "
+        "you ran, how many rows came back and which tool you called are "
+        "not the answer."),
+    "length_follows_the_question": (
+        "A one-number question gets a short answer. Padding a direct answer "
+        "so it looks thorough is how a careful answer comes to read as "
+        "automated."),
+}
+
+
 #: Four live answers came back as tables and nothing else, one of them to a
 #: reader who had asked for a line chart by name. The instruction file did
 #: not contain the word "chart", so nothing told the analyst that the form
@@ -535,6 +604,11 @@ def finalization_system(system_blocks: list[dict[str, Any]], *,
             }, ensure_ascii=False)})
             continue
         kept.append(block)
+    # WHAT the answer must be, then HOW to present it. In that order: the
+    # prose is the answer and the charts accompany it, and a block list is
+    # read in the order it is sent.
+    kept.append({"type": "text", "text": json.dumps(
+        ANALYTICAL_ANSWER, ensure_ascii=False)})
     kept.append({"type": "text", "text": json.dumps(
         PRESENTATION, ensure_ascii=False)})
     # THE CREDIT POLICY, on the turn that can collide with it.

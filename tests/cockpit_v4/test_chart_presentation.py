@@ -233,10 +233,17 @@ def test_the_action_turn_does_not_pay_for_it():
 
 
 def test_the_presentation_block_survives_a_packet_with_nothing_to_replace():
-    """No catalogue block is not a reason to lose the policy."""
+    """No catalogue block is not a reason to lose the policy.
+
+    The count is exact rather than `>=` so that a block appearing by
+    accident is as visible as one going missing. It moved from 2 to 3 when
+    `ANALYTICAL_ANSWER` was added beside the chart policy -- WHAT the answer
+    must be, then HOW to present it -- and PRESENTATION is still last.
+    """
     blocks = ctx_mod.finalization_system(
         [{"type": "text", "text": "INSTRUCTION"}])
-    assert len(blocks) == 2
+    assert len(blocks) == 3
+    assert "THE ANSWER" in str(blocks[-2]["text"])
     assert "PRESENTATION" in str(blocks[-1]["text"])
 
 
