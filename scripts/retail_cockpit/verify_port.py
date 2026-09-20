@@ -29,6 +29,17 @@ SOURCE = "19dc143c433eff190de7d304e53b7e941c96735b"
 #: The two changes that were approved, and the only ones allowed.
 APPROVED = ("backend/cockpit_v4/catalog.py", "backend/cockpit_v4/domains.py")
 
+#: The one FRONTEND file that is no longer byte-identical to the source, and
+#: why. It is not exempted from anything: `PORTED_FILES.md` records its
+#: current hash, so it is checked exactly as strictly as the other 290 and a
+#: further edit still fails. It is named here so the report says what the
+#: port is rather than printing "unchanged" over a file that moved.
+FRONTEND_EXCEPTION = {
+    "frontend/src/components/cockpit-v4/attention-panel.tsx":
+        "F1 -- the ECL-highlights caption names the dimension the server "
+        "cut the cards by, per book, instead of the corporate one",
+}
+
 _ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*`?([0-9a-f]{8,64})`?\s*\|")
 
 
@@ -92,9 +103,17 @@ def main() -> int:
         print(f"  missing               {len(missing)}")
         print(f"protected-core diff     {changed or 'none'}")
         print(f"  approved              {list(APPROVED)}")
+        for name, why in sorted(FRONTEND_EXCEPTION.items()):
+            print(f"frontend exception      {name}")
+            print(f"  {why}")
         print()
 
     findings: list[str] = []
+    for name in FRONTEND_EXCEPTION:
+        if name not in known:
+            findings.append(f"{name} is declared a frontend exception but "
+                            f"{RECORD.name} records no hash for it, so "
+                            f"nothing is checking it")
     if missing:
         findings.append(f"{len(missing)} ported file(s) are gone: "
                         f"{missing[:5]}")

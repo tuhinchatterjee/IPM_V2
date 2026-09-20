@@ -36,6 +36,24 @@ export function quarterLabel(quarter: string): string {
   return periodLabel(quarter);
 }
 
+/** What the ECL highlights are cut BY, per book.
+ *
+ * The heading above them reads `highlights_label` off the feed, because the
+ * server names its own section. This line had no such field and named the
+ * corporate cut in its own JSX -- "by sector, by borrower" over a retail
+ * book that has neither. The dimension is the server's own choice
+ * (`attention_v2._highlights`: sector for Corporate, product for Retail)
+ * plus the whole-book figures in both, so this says what the cards are.
+ *
+ * A book this map does not know gets no claim about its dimensions at all,
+ * which is the honest output -- naming the wrong one is how a caption ends
+ * up lying about the numbers underneath it.
+ */
+const HIGHLIGHT_SPREAD: Record<string, string> = {
+  corporate: "by sector, by borrower and across the book",
+  retail: "by product and across the book",
+};
+
 const DOT: Record<string, string> = {
   high: "bg-rose-500",
   moderate: "bg-amber-500",
@@ -238,8 +256,11 @@ export function AttentionPanel({
         </div>
         <p className="text-sm text-slate-600">
           {highlights.length} distinct ECL{" "}
-          {highlights.length === 1 ? "development" : "developments"} — by
-          sector, by borrower and across the book.
+          {highlights.length === 1 ? "development" : "developments"}
+          {HIGHLIGHT_SPREAD[feed.domain_id]
+            ? ` — ${HIGHLIGHT_SPREAD[feed.domain_id]}`
+            : ""}
+          .
         </p>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           {highlights.map((item) => (

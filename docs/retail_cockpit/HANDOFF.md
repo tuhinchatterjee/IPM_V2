@@ -160,15 +160,24 @@ provider.
 
 ## 11. Browser
 
-`tests/retail_cockpit/browser/candidate.browser.mjs`, three cycles:
-**63 of 66 checks passed.** The badge reads *Retail Cockpit · Retail Credit ·
+`tests/retail_cockpit/browser/candidate.browser.mjs`, **five cycles: 110 of
+110 checks passed.** The badge reads *Retail Cockpit · Retail Credit ·
 monthly · 25 months 2024-08–2026-08 · SAR million · cockpitdata-…-p7*, every
 value from the release. The legacy Cockpit's requests never fire. Every
 Cockpit call goes to the retail origin; the browser never reaches the
 engine's port. ECL panel and attention feed compute. The shell still offers
 Projects, Investigations, Data Builder and What-If; Data Builder loads;
-navigation away and back, and reload, all survive. The 3 failures are one
-defect, in §19.
+navigation away and back, and reload, all survive.
+
+    CANDIDATE_CYCLES=5 CANDIDATE_UI_URL=http://localhost:5329 \
+    CANDIDATE_API_URL=http://127.0.0.1:8329 \
+    CANDIDATE_ENGINE_URL=http://127.0.0.1:8415 \
+    node tests/retail_cockpit/browser/candidate.browser.mjs
+
+The five checks that used to fail were one defect, now closed (§19.1). The
+ECL caption on the page reads, in full:
+
+    4 distinct ECL developments — by product and across the book.
 
 ## 12. Retail non-regression
 
@@ -309,13 +318,21 @@ not something a scripted provider can tell us.
 
 ## 19. Every known defect
 
-1. **A corporate caption on a retail book.** `attention-panel.tsx:241` hard-codes
-   *"by sector, by borrower and across the book"*. Corporate vocabulary, shown
-   on this Cockpit. The heading above it adapts (it reads `highlights_label`
-   from the feed); this line does not. Fixing it means editing a file ported
-   verbatim and breaking the byte-identical guarantee for one caption — that
-   trade is yours, so the browser check stays **red** rather than being
-   softened. Three of the 66 browser checks are this one defect.
+1. ~~**A corporate caption on a retail book.**~~ **CLOSED — approved as F1.**
+   `attention-panel.tsx` hard-coded *"by sector, by borrower and across the
+   book"* on a retail book. You approved the smallest frontend-only exception
+   after five host seams were traced and none reached it: the component takes
+   only `{ onOpen, domain }` with no slot and no context; the V2 feed carries
+   no caption field and adding one edits protected core **and still** needs
+   this same frontend edit; the sole import is relative so no module alias
+   fires, and a redirect could not wrap because `Card` is module-private; there
+   is no i18n layer at all; and a CSS overlay would leave the wrong string in
+   the DOM and still fail the check that reads `textContent`. The caption now
+   reads the dimension the server actually cut the cards by
+   (`attention_v2.py:918`), per book, with corporate output unchanged
+   character for character. Full audit, diff and hashes in `PORTED_FILES.md`;
+   held by `tests/retail_cockpit/test_retail_vocabulary.py` and by the browser
+   suite at five cycles. The analytical-core diff is unchanged: C1 + C2 only.
 2. **Failure injection is not covered on this book.** The ported matrix needs
    a pre-domain release; its sentinel correctly refuses to call a partial run
    evidence. Recorded as a gap, not a pass.
@@ -335,7 +352,7 @@ not something a scripted provider can tell us.
    non-Cockpit retail call throw. See `PORTED_SUITE_TRIAGE.md`.
 7. **Frontend lint fails, 16 problems, none of them new.** 4 in
    `what-if/retail-whatif.tsx`, unchanged from the live baseline `c0db151f`;
-   12 in the frozen ported tree.
+   12 in the frozen ported tree. Re-run after F1: still exactly 16.
 8. **`backend/api/main.py` fails ruff's import-order rule at the baseline
    too.** Pre-existing; not touched.
 

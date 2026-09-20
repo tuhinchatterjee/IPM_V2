@@ -14,14 +14,65 @@
  *   node tests/retail_cockpit/browser/candidate.browser.mjs
  */
 
-import { chromium } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+
+/**
+ * Find Playwright wherever this machine keeps it.
+ *
+ * This file used to import an absolute container path, which meant it ran on
+ * exactly one machine -- and the machine it has to run on for acceptance is
+ * the Mac. Playwright is deliberately NOT a dependency of the retail
+ * frontend: this is an acceptance harness, and adding a browser driver to
+ * the application's package.json to run it would change what the demo
+ * installs.
+ *
+ * Order: an explicit path, then a normal resolution, then the global npm
+ * root, then the container's. The first that loads wins, and if none does
+ * the error says how to fix it rather than reporting a missing module.
+ */
+async function loadChromium() {
+  const tried = [];
+  const candidates = [process.env.CANDIDATE_PLAYWRIGHT, "playwright"];
+  try {
+    const root = execSync("npm root -g", { encoding: "utf-8" }).trim();
+    if (root) candidates.push(`${root}/playwright/index.mjs`);
+  } catch {
+    /* npm is not on PATH; the remaining candidates still stand */
+  }
+  candidates.push("/opt/node22/lib/node_modules/playwright/index.mjs");
+
+  for (const specifier of candidates) {
+    if (!specifier) continue;
+    if (specifier.startsWith("/") && !existsSync(specifier)) {
+      tried.push(`${specifier} (not there)`);
+      continue;
+    }
+    try {
+      return (await import(specifier)).chromium;
+    } catch (caught) {
+      tried.push(`${specifier} (${String(caught).split("\n")[0]})`);
+    }
+  }
+  throw new Error(
+    `Playwright could not be loaded. Tried:\n  ${tried.join("\n  ")}\n` +
+    `Install it once, outside this repository:\n` +
+    `  npm i -g playwright && npx playwright install chromium\n` +
+    `or point CANDIDATE_PLAYWRIGHT at an existing index.mjs.`);
+}
+
+const chromium = await loadChromium();
 
 const UI = process.env.CANDIDATE_UI_URL ?? "http://localhost:5328";
 const API = process.env.CANDIDATE_API_URL ?? "http://127.0.0.1:8328";
 const ENGINE = process.env.CANDIDATE_ENGINE_URL ?? "http://127.0.0.1:8414";
-const CHROME =
-  process.env.CANDIDATE_CHROME ??
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+/** A specific browser binary, when the machine has one Playwright did not
+ *  download. Unset, Playwright uses its own -- which is the normal case on a
+ *  developer's machine and the one the Mac takes. */
+const CHROME = process.env.CANDIDATE_CHROME
+  ?? (existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
+      ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+      : "");
 const CYCLES = Number(process.env.CANDIDATE_CYCLES ?? "3");
 
 /** The legacy Cockpit's own calls. If any fires, it is still mounted. */
@@ -134,7 +185,10 @@ async function journey(browser, cycle) {
   await context.close();
 }
 
-const browser = await chromium.launch({ executablePath: CHROME, args: ["--no-sandbox"] });
+const browser = await chromium.launch({
+  ...(CHROME ? { executablePath: CHROME } : {}),
+  args: ["--no-sandbox"],
+});
 try {
   for (let cycle = 1; cycle <= CYCLES; cycle += 1) {
     process.stdout.write(`\ncycle ${cycle} of ${CYCLES}\n`);

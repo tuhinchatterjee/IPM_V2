@@ -4,9 +4,14 @@ Source: `19dc143c433eff190de7d304e53b7e941c96735b`
 (branch `claude/cockpit-single-agent-v4-h8fsbq`).
 
 291 files. Every one is byte-identical to the source except the **two
-approved core changes** listed below — which is the claim this file exists to
-let anybody check, with `git diff 19dc143c -- backend/cockpit_v4
-backend/cockpit_agentic`.
+approved core changes** and the **one approved frontend exception** listed
+below — which is the claim this file exists to let anybody check, with
+`git diff 19dc143c -- backend/cockpit_v4 backend/cockpit_agentic` for the core
+and `scripts/retail_cockpit/verify_port.py` for all 291 hashes.
+
+The hashes in the table below are the hashes of the files **as they are now**,
+so the check stays binding: the one file that moved carries its new hash and is
+marked as the exception rather than quietly re-recorded as verbatim.
 
 ## The two approved changes
 
@@ -14,6 +19,70 @@ backend/cockpit_agentic`.
 |---|---|---|
 | `backend/cockpit_v4/domains.py` | `DEFAULT_RELEASES` may be overridden per book by `COCKPIT_V4_<DOMAIN>_RELEASE_ID`; unset, it is the constant that was there | C1 |
 | `backend/cockpit_v4/catalog.py` | the session's DuckDB memory limit and temp directory become configurable; unset, the executed statement is character-for-character the one that was there | C2 |
+
+## The approved frontend exception
+
+| File | Change | Approved as |
+|---|---|---|
+| `frontend/src/components/cockpit-v4/attention-panel.tsx` | the ECL-highlights caption names the dimension the server actually cut the cards by, per book, instead of naming the corporate one in its own JSX | F1 |
+
+`d14825cd5e47d43c…` → `bf5a2888369d42ff…`.
+
+### Why no host override was possible
+
+The frozen component hard-coded, on a **retail** book, *"by sector, by borrower
+and across the book"*. The `<h2>` directly above it adapts, because the server
+names its own section (`feed.highlights_label`, `attention_v2.py:1179`); this
+`<p>` did not. Five seams were traced and none of them reaches it:
+
+1. **Prop / context / slot.** `AttentionPanel` (`attention-panel.tsx:98-106`)
+   takes exactly `{ onOpen, domain }`. No children, no slot, no render prop, and
+   it calls no `useContext`. The caption is a literal text node inside its own
+   `return`. A host wrapper cannot reach it; a host context provider changes
+   nothing unless the component reads it, which is the same edit.
+2. **A server-side field.** The V2 feed (`attention_v2.py:1170-1216`) carries
+   `attention_label` and `highlights_label` and no note, caption, subtitle or
+   description for the highlights section. (`segment_note`, rendered at
+   `attention-panel.tsx:219`, is emitted only by the legacy `attention.py:1310`
+   and is `undefined` here; it is also the *segments* section.) Adding one means
+   editing `attention_v2.py`, which is protected core — and
+   `tests/retail_cockpit/test_session_seam.py::
+   test_the_core_diff_is_the_two_approved_files` machine-asserts that the core
+   diff is exactly C1 + C2. It would also **still** require this frontend edit,
+   because the `<p>` had no `{feed.…}` slot to read the new field. Strictly more
+   expensive, and it does not avoid the edit.
+3. **A module alias.** The sole importer is `cockpit-v4-home.tsx:30`, and it is
+   **relative**: `import { AttentionPanel } from "./attention-panel";`.
+   `tsconfig.json` declares only `@/*`; `next.config.ts` sets no alias at all
+   and has neither a `webpack` nor a `turbopack` key. Redirecting a relative
+   specifier means matching a resolved absolute path, twice and differently for
+   Turbopack (`next dev`) and webpack (`next build`). Worse, `Card` is
+   module-private (`attention-panel.tsx:53`), so a redirect target could not
+   wrap — it would have to fork all ~165 lines of the panel including the fetch
+   effect, the domain guard, and the failure and loading branches. Duplicating
+   that is a larger integrity hole than one caption.
+4. **A localization override.** There is none: no i18n provider, no message
+   catalogue, no translation hook, and `find frontend/src -name '*.json'`
+   returns zero files. Every string in the tree is literal English in JSX.
+5. **A CSS or DOM overlay.** Hiding the `<p>` and injecting text through
+   `::after` leaves the wrong string in the DOM and the accessibility tree —
+   concealment rather than correction — and the browser check reads
+   `textContent`, so it would not even pass.
+
+### What the change says, and why that wording
+
+The engine itself decides the dimension: `attention_v2.py:918`,
+`dimension = "sector" if domain_id == dom.CORPORATE else "product"`, and it
+labels the cards `"Sector"` / `"Product"` / `"Whole book"` at
+`attention_v2.py:979-981`. The retail caption states what the retail cards
+actually are. **Corporate output is character-for-character unchanged**, so the
+frozen book's page is provably untouched; an unrecognised book renders
+`N distinct ECL developments.` and claims no dimension.
+
+Held by `tests/retail_cockpit/test_retail_vocabulary.py`, which pins the
+corporate string, forbids `sector`/`borrower` in the retail string, and asserts
+this file's SHA-256 against the row above so the record and the file cannot
+drift apart.
 
 ## Every ported file
 
@@ -134,7 +203,7 @@ backend/cockpit_agentic`.
 | `frontend/src/components/cockpit-v4/ask-box.tsx` | 595dde9e97784386 | verbatim |
 | `frontend/src/components/cockpit-v4/attention-client.test.ts` | dd1993fdb99b7c81 | verbatim |
 | `frontend/src/components/cockpit-v4/attention-drawer.tsx` | 716a25e0063a3d0f | verbatim |
-| `frontend/src/components/cockpit-v4/attention-panel.tsx` | d14825cd5e47d43c | verbatim |
+| `frontend/src/components/cockpit-v4/attention-panel.tsx` | bf5a2888369d42ff | **frontend exception (F1)** |
 | `frontend/src/components/cockpit-v4/claim-display.test.ts` | 87687f7d9783347d | verbatim |
 | `frontend/src/components/cockpit-v4/claim-display.ts` | 563bbb3a5c43111e | verbatim |
 | `frontend/src/components/cockpit-v4/client.test.ts` | 933b9d155b0c6455 | verbatim |
