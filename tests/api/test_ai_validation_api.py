@@ -79,9 +79,9 @@ def test_a_run_that_never_reached_the_model_is_not_an_ai_grade(client):
 def test_every_case_carries_its_turns_and_its_reference(client):
     """A score nobody can inspect is a claim, not evidence.
 
-    Not every turn has a reference: a case that tests a refusal has nothing to
-    compute. Every turn that declares one must carry it, and a run must never
-    consist entirely of turns with nothing to check against.
+    Not every turn has a reference: a case that tests a refusal, an ambiguity
+    or a methodology answer has nothing to compute against. Every turn that
+    DOES declare one must carry it back.
     """
     body = client.post("/api/v1/ai/validate", headers={"X-IPM-Role": "ANALYST"}).json()
     turns = [t for case in body["cases"] for t in case["turns"]]
@@ -93,8 +93,38 @@ def test_every_case_carries_its_turns_and_its_reference(client):
         assert "answer" in turn
         assert "live" in turn
         assert turn["reference"] is None or turn["reference"].get("kind")
+
+
+def test_a_case_that_declares_a_reference_comes_back_with_one():
+    """The other half, asked of a case chosen rather than drawn.
+
+    `runner.choose` samples one case per family at random and on purpose — a
+    fixed set is a set the product can be tuned to pass. But 3 of 44 metadata
+    cases, 5 of 33 calculation cases and 8 of 31 conversation cases have
+    nothing to compute a reference from, so roughly one run in 375 draws three
+    of them and a test asserting "something was compared" on the random sample
+    fails for the draw rather than for the product. It did, once, in a full
+    suite run.
+
+    So the random run above keeps the structural assertions, and the claim
+    that a declared reference is computed and returned is asked here of a case
+    that declares one.
+    """
+    from backend.validation import benchmarks, runner
+
+    declares = next(
+        case for family in runner.SAMPLE
+        for case in benchmarks.by_family(family)
+        if any((turn.get("expect") or {}).get("reference")
+               for turn in (case.get("turns") or [])))
+
+    result = runner.run(cases=[declares]).to_dict()
+    turns = [t for case in result["cases"] for t in case["turns"]]
+
     assert any(t["reference"] for t in turns), \
-        "a check where nothing was compared is not a check"
+        "a case that declares a reference came back with nothing compared"
+    for turn in turns:
+        assert turn["reference"] is None or turn["reference"].get("kind")
 
 
 def test_the_three_cases_are_drawn_one_per_family(client):
