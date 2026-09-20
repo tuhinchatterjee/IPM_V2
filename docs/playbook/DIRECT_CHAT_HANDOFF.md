@@ -90,8 +90,8 @@ model actually gave are in the detector's test cases verbatim.
 
 | Run | Result |
 |---|---|
-| `pytest` — whole repository | PENDING |
-| `pytest tests/playbook` | **1,216 passed, 0 failed**, twice consecutively |
+| `pytest` — whole repository | **10,708 passed, 30 skipped, 0 failed**, exit 0 |
+| `pytest tests/playbook` | **1,219 passed, 0 failed**, twice consecutively |
 | Chat browser acceptance, **two consecutive cycles** | **150 passed, 0 failed** (75 per cycle, journeys A–M) |
 | Workspace browser acceptance | **105 passed, 0 failed** |
 | Dashboard browser acceptance | **185 passed, 0 failed** |
@@ -103,14 +103,26 @@ model actually gave are in the detector's test cases verbatim.
 | Frontend unit tests | **542 passed, 0 failed** |
 | `next build` | succeeded |
 
-The 30 pytest skips and the 8 in `tests/playbook` are live-provider checks
-that skip without a credential. **A skip is not a pass** and is not counted as
-one anywhere in this document.
+The 30 pytest skips are live-provider checks that skip without a credential;
+`tests/playbook` runs all 1,219 because its own live checks moved behind the
+suite's structural guards. **A skip is not a pass** and is not counted as one
+anywhere in this document.
 
-Every number above was read off a finished run on this commit. An earlier
-attempt was stopped and restarted rather than reported, because it had begun
-before the last change landed and would have been describing a tree that no
-longer existed.
+Every number above was read off a finished run on this commit. Two earlier
+full-suite attempts were stopped and restarted rather than reported, because
+each had begun before a later change landed and would have been describing a
+tree that no longer existed.
+
+One test failed on the way here and is worth recording rather than
+re-rolling: `test_ai_validation_api.py::test_every_case_carries_its_turns_and_
+its_reference` asserted that a benchmark run compared something against a
+reference, while `runner.choose` samples one case per family at random and on
+purpose. 3 of 44 metadata cases, 5 of 33 calculation cases and 8 of 31
+conversation cases have nothing to compute a reference from, so about one run
+in 375 draws three of them and the check fails for the draw rather than for
+the code. Nothing on this branch touches that path. The random run keeps its
+structural assertions and the "something was compared" claim is now asked of
+a case chosen because it declares a reference.
 
 The chat suite proves its own premise before asserting anything: it reads
 `GET /playbook/capabilities` and exits non-zero if the server is not scripted,
