@@ -175,13 +175,25 @@ class Card:
             out.append(f"Review state: {self.review.get('label', 'Draft')}, "
                        f"{self.review.get('open_items', 0)} open item(s). "
                        f"Nobody has approved it.")
-        seconds = (self.time.get("total_ms", 0) or 0) / 1000
-        out.append(f"Time taken: {seconds:.0f}s in total, of which "
-                   f"{(self.time.get('authoring_ms', 0) or 0) / 1000:.0f}s "
-                   f"writing and "
-                   f"{(self.time.get('render_ms', 0) or 0) / 1000:.0f}s "
-                   f"building the files.")
+        out.append(
+            f"Time taken: {_spoken(self.time.get('total_ms'))} in total, of "
+            f"which {_spoken(self.time.get('authoring_ms'))} writing and "
+            f"{_spoken(self.time.get('render_ms'))} building the files.")
         return "\n".join(out)
+
+
+def _spoken(ms: int | None) -> str:
+    """A duration as the note should say it.
+
+    "0s" reads as a measurement that failed rather than one that was small,
+    and a cached or scripted run really does take a few milliseconds.
+    """
+    ms = int(ms or 0)
+    if ms and ms < 1000:
+        return "under a second"
+    seconds = round(ms / 1000)
+    return (f"{seconds // 60}m {seconds % 60}s" if seconds >= 60
+            else f"{seconds}s")
 
 
 def _source_rows(session, workspace_id: int, locators: set[str]) -> list[dict]:
