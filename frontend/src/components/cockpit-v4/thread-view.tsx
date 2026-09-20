@@ -66,11 +66,11 @@ import { initial, reduce, type RunView } from "./reducer";
 import { ResponsePanel } from "./response-panel";
 import { Visuals } from "./visuals";
 
-/** A run in one of these states is finished; there is nothing to follow. */
-const TERMINAL_RUN_STATES = new Set([
-  "COMPLETED", "PARTIAL", "FAILED", "EXPIRED", "CANCELLED", "UNSUPPORTED",
-  "REFERRED", "WAITING_FOR_USER", "INTERRUPTED",
-]);
+/* `TERMINAL_RUN_STATES` used to live here, naming the states a resumed run
+ * would be dropped on. Dropping them is the defect this file no longer has:
+ * a settled run is followed like any other, so the set has no reader left.
+ * `view.terminal` -- which is what the rest of the component asks about --
+ * comes from the reducer and is unaffected. */
 
 /** One exchange already on the server. */
 type Settled = {
@@ -831,12 +831,27 @@ export function CockpitV4Thread({
     let stop: (() => void) | undefined;
     void (async () => {
       try {
-        const status = await readStatus(active.runId);
-        if (TERMINAL_RUN_STATES.has(status.state)) {
-          forgetRun();
-          return;
-        }
-        // The reader's own words, from the pointer that was written when
+        // Read first: this is the tenant check, and the catch below is what
+        // a run that no longer exists falls into.
+        await readStatus(active.runId);
+        // A run that settled BEFORE this page mounted is still the reader's
+        // run, and letting the transcript reload speak for it is not enough:
+        // a turn is written only when there is a response (`worker.py`
+        // `append_turn` is guarded by `outcome.response is not None`), so a
+        // FAILED, CANCELLED or EXPIRED run leaves no turn and used to vanish
+        // into a thread reading "0 messages" with no hint that anything had
+        // been asked. It is a real race rather than a rare one: a run that
+        // fails at the model call -- no credential, a rate limit, a refusal
+        // -- settles in well under a second and beats the navigation every
+        // time.
+        //
+        // So follow it either way. The stream replays a terminal run from
+        // cursor 0 and closes on `run.settled`, so the process panel shows
+        // the stages it went through and the failure it ended on. The
+        // transcript filter below drops any turn whose run is the live one,
+        // so a run that DID write a turn is still drawn exactly once.
+        //
+        // The reader's own words come from the pointer that was written when
         // the run started. A turn that renders blank above a visibly
         // working panel reads as a bug in the conversation.
         setLive({ question: active.question ?? "", runId: active.runId });

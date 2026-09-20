@@ -38,6 +38,10 @@ FRONTEND_EXCEPTION = {
     "frontend/src/components/cockpit-v4/attention-panel.tsx":
         "F1 -- the ECL-highlights caption names the dimension the server "
         "cut the cards by, per book, instead of the corporate one",
+    "frontend/src/components/cockpit-v4/thread-view.tsx":
+        "F2 -- a run that settled before the thread page mounted is "
+        "followed like any other instead of being dropped, so it is "
+        "visible rather than vanishing into an empty thread",
 }
 
 _ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*`?([0-9a-f]{8,64})`?\s*\|")

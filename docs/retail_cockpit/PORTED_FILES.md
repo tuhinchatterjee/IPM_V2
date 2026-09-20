@@ -20,15 +20,70 @@ marked as the exception rather than quietly re-recorded as verbatim.
 | `backend/cockpit_v4/domains.py` | `DEFAULT_RELEASES` may be overridden per book by `COCKPIT_V4_<DOMAIN>_RELEASE_ID`; unset, it is the constant that was there | C1 |
 | `backend/cockpit_v4/catalog.py` | the session's DuckDB memory limit and temp directory become configurable; unset, the executed statement is character-for-character the one that was there | C2 |
 
-## The approved frontend exception
+## The approved frontend exceptions
 
 | File | Change | Approved as |
 |---|---|---|
 | `frontend/src/components/cockpit-v4/attention-panel.tsx` | the ECL-highlights caption names the dimension the server actually cut the cards by, per book, instead of naming the corporate one in its own JSX | F1 |
+| `frontend/src/components/cockpit-v4/thread-view.tsx` | a run that settled before the thread page mounted is followed like any other instead of being dropped, so it is visible rather than vanishing into an empty thread | F2 |
 
-`d14825cd5e47d43c…` → `bf5a2888369d42ff…`.
+F1 `d14825cd5e47d43c…` → `bf5a2888369d42ff…`.
+F2 `0e1959a73295c481…` → `b00824adc4bfa4aa…`.
 
-### Why no host override was possible
+### F2 — what was wrong
+
+Opening a thread whose run had already settled showed **"0 messages"**, the
+book's opening chips, and no sign that anything had been asked. The resume
+effect read the run's status and returned on a terminal one:
+
+```tsx
+const status = await readStatus(active.runId);
+if (TERMINAL_RUN_STATES.has(status.state)) {
+  forgetRun();
+  return;                       // renders nothing
+}
+```
+
+The assumption is that a settled run left a **turn** for the transcript reload
+to speak for it. That holds for a run that answered and fails for every run
+that did not: `worker.py` guards `append_turn` with
+`outcome.response is not None`, so a FAILED, CANCELLED or EXPIRED run writes no
+turn. `GET /threads/{id}` carries turns and no run, and there is no
+thread→runs endpoint, so the page had nothing left to render it from — the run
+simply disappeared.
+
+It is a race, not a rarity. A run that fails at the model call — no
+credential, a rate limit, a refusal — settles in well under a second and beats
+the navigation every time. Measured on the candidate's own store: an offline
+run reaches `FAILED` / `PROVIDER_UNAVAILABLE` **0.8 s** after creation, with
+all seven events persisted, and the thread page never arrives in time to see
+it working.
+
+### F2 — the change, and why it is safe
+
+The early return is gone; every recalled run takes the same path. Nothing else
+was needed, because the engine already supports it:
+`routes.py` replays a terminal run from cursor 0, emits `run.settled` on the
+terminal frame and closes, and the client listens for exactly that frame. So
+the process panel shows the stages the run went through and the failure it
+ended on.
+
+It cannot draw twice: the component already filters out any transcript turn
+whose `run_id` matches the live run, and its own comment says the live turn is
+meant to stay on screen after the answer lands. A run that wrote a turn renders
+once through the live panel; one that wrote none renders once through the live
+panel.
+
+`TERMINAL_RUN_STATES` was removed with the branch — it had no other reader, and
+`view.terminal`, which the rest of the component asks about, comes from the
+reducer and is unaffected. Frontend lint is unchanged at 16 problems.
+
+This is a defect of the frozen source, not of the integration: it hits the
+standalone Cockpit identically for any fast failure, and no ported test covers
+reopening a thread whose run failed. Held by
+`tests/retail_cockpit/test_terminal_run_visibility.py`.
+
+### F1 — why no host override was possible
 
 The frozen component hard-coded, on a **retail** book, *"by sector, by borrower
 and across the book"*. The `<h2>` directly above it adapts, because the server
@@ -69,7 +124,7 @@ names its own section (`feed.highlights_label`, `attention_v2.py:1179`); this
    concealment rather than correction — and the browser check reads
    `textContent`, so it would not even pass.
 
-### What the change says, and why that wording
+### F1 — what the change says, and why that wording
 
 The engine itself decides the dimension: `attention_v2.py:918`,
 `dimension = "sector" if domain_id == dom.CORPORATE else "product"`, and it
@@ -235,7 +290,7 @@ drift apart.
 | `frontend/src/components/cockpit-v4/reducer.test.ts` | f84aaa60c64ca8e5 | verbatim |
 | `frontend/src/components/cockpit-v4/reducer.ts` | 29ac9281f7132029 | verbatim |
 | `frontend/src/components/cockpit-v4/response-panel.tsx` | ec85027173157111 | verbatim |
-| `frontend/src/components/cockpit-v4/thread-view.tsx` | 0e1959a73295c481 | verbatim |
+| `frontend/src/components/cockpit-v4/thread-view.tsx` | b00824adc4bfa4aa | **frontend exception (F2)** |
 | `frontend/src/components/cockpit-v4/visual-choice.ts` | 2aad9ef8213bddb6 | verbatim |
 | `frontend/src/components/cockpit-v4/visuals.test.ts` | c0b15f3493fd0ea2 | verbatim |
 | `frontend/src/components/cockpit-v4/visuals.tsx` | 604a0ed935d9ed78 | verbatim |

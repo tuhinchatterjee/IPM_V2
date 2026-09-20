@@ -156,6 +156,42 @@ async function journey(browser, cycle) {
   check(`[${cycle}] the suggested questions are retail ones`,
     corporatePrompts === 0, `${corporatePrompts} corporate prompt(s)`);
 
+  // 6c. ASK, and watch the run. Offline the answer never comes -- the point
+  //     is that the reader is TOLD that, instead of landing on an empty
+  //     thread. A run that fails at the model call settles in well under a
+  //     second, so this page always arrives after it is terminal: it is the
+  //     exact case that used to render "0 messages" and nothing else.
+  const question = "What is total exposure at default by product in 2026-08?";
+  await page.locator('[data-testid="cockpit-v4-question"]').first().fill(question);
+  await page.locator('[data-testid="cockpit-v4-ask"]').first().click();
+  await page.waitForURL(/\/cockpit\/thread\//, { timeout: 60_000 }).catch(() => {});
+  check(`[${cycle}] asking opens the thread`, /\/cockpit\/thread\//.test(page.url()),
+    page.url());
+
+  await page.locator('[data-testid="v4-turn-user"]').first()
+    .waitFor({ timeout: 60_000 }).catch(() => {});
+  const asked = await page.locator('[data-testid="v4-turn-user"]').count();
+  check(`[${cycle}] the question is on the thread`, asked > 0);
+
+  const panel = await page.locator('[data-testid="v4-process-panel"]').count();
+  check(`[${cycle}] the process panel says what happened`, panel > 0);
+
+  // The panel mounts before the replayed events have been reduced into it,
+  // so wait for the list the same way we waited for the panel. Measured: the
+  // steps appear within ~250ms and then stay put.
+  await page.locator('[data-testid="v4-process-steps"] li').first()
+    .waitFor({ timeout: 30_000 }).catch(() => {});
+  const steps = await page.locator('[data-testid="v4-process-steps"] li').count();
+  check(`[${cycle}] the panel lists the stages the run went through`, steps > 0,
+    `${steps} step(s)`);
+
+  const threadBody = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+  check(`[${cycle}] the thread does not read as empty`,
+    !/0 messages/i.test(threadBody),
+    threadBody.slice(0, 120));
+
+  await page.goto(UI, { waitUntil: "networkidle", timeout: 90_000 });
+
   // 7. the shell survived: navigation still lists the other modules
   for (const label of ["Projects", "Investigations", "Data Builder", "What-If Analysis"]) {
     const found = await page.getByRole("link", { name: new RegExp(label, "i") }).count();

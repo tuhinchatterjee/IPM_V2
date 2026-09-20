@@ -160,8 +160,10 @@ provider.
 
 ## 11. Browser
 
-`tests/retail_cockpit/browser/candidate.browser.mjs`, **five cycles: 110 of
-110 checks passed.** The badge reads *Retail Cockpit · Retail Credit ·
+`tests/retail_cockpit/browser/candidate.browser.mjs`, **five cycles: 135 of
+135 checks passed.** (27 checks a cycle since F2 added the ask-and-watch
+journey: the question reaches the thread, the process panel renders, it lists
+the stages the run went through, and the thread never reads "0 messages".) The badge reads *Retail Cockpit · Retail Credit ·
 monthly · 25 months 2024-08–2026-08 · SAR million · cockpitdata-…-p7*, every
 value from the release. The legacy Cockpit's requests never fire. Every
 Cockpit call goes to the retail origin; the browser never reaches the
@@ -385,6 +387,28 @@ not something a scripted provider can tell us.
    `tests/retail_cockpit/test_offline_capability.py` (13 tests). Nothing in
    the repository had exercised `capability.load_price_card` before; it does
    now, against the shipped card.
+
+10. ~~**A settled run was invisible on the thread page.**~~ **CLOSED — approved
+   as F2.** Asking a question opened a thread reading **"0 messages"** with the
+   book's opening chips and no sign anything had been asked. Everything
+   upstream was correct: the run was accepted, driven by the real worker and
+   settled, with all its events persisted and streamed. The thread page read
+   the run's status on mount and returned on a terminal one
+   (`thread-view.tsx`), on the assumption that a settled run left a TURN for
+   the transcript reload to speak for it. That holds for a run that answered
+   and fails for every run that did not — `worker.py` guards `append_turn`
+   with `outcome.response is not None` — and `GET /threads/{id}` carries turns
+   and no run, with no thread→runs endpoint to fall back on. Measured on this
+   candidate's own store: an offline run reaches `FAILED` /
+   `PROVIDER_UNAVAILABLE` **0.8 s** after creation, so the page always arrives
+   after it is terminal. A **frozen-source defect**, not an integration one:
+   it hits the standalone identically for any fast failure (bad credential,
+   rate limit, refusal), and no ported test covered reopening a thread whose
+   run failed. Fixed by removing the early return, so every recalled run is
+   followed — the stream replays a terminal run from cursor 0 and closes on
+   `run.settled`, so the panel shows the stages and the reason. Held by
+   `tests/retail_cockpit/test_terminal_run_visibility.py` (8 tests) and by a
+   new browser check per cycle.
 
 ## 20. Status
 

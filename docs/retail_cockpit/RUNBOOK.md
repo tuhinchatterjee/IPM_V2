@@ -73,7 +73,7 @@ verified schedule.
 | The port is still the port | `.venv/bin/python scripts/retail_cockpit/verify_port.py` |
 | The Cockpit path answers | `.venv/bin/python scripts/retail_cockpit/check_ready.py --api http://127.0.0.1:8329 --engine http://127.0.0.1:8415` |
 | The event stream survives the proxy | `.venv/bin/python scripts/retail_cockpit/check_transport.py --proxy http://127.0.0.1:8329/api/v1/cockpit-v4` (against an engine started `--offline --think 8`) |
-| Browser (five cycles, 110 checks) | `CANDIDATE_CYCLES=5 CANDIDATE_UI_URL=http://localhost:5329 CANDIDATE_API_URL=http://127.0.0.1:8329 CANDIDATE_ENGINE_URL=http://127.0.0.1:8415 node tests/retail_cockpit/browser/candidate.browser.mjs` |
+| Browser (five cycles, 135 checks) | `CANDIDATE_CYCLES=5 CANDIDATE_UI_URL=http://localhost:5329 CANDIDATE_API_URL=http://127.0.0.1:8329 CANDIDATE_ENGINE_URL=http://127.0.0.1:8415 node tests/retail_cockpit/browser/candidate.browser.mjs` |
 | Memory | `.venv/bin/python scripts/retail_cockpit/benchmark_session.py --limits 1536MB,2048MB --repeat 3` |
 
 ## Two things that will bite
@@ -101,9 +101,9 @@ cannot reach the network, so **no paid provider call is possible** anywhere in i
 
 What it does not do, by construction:
 
-- `/Users/tuhinchatterjee/Desktop/IPM_V2` is **read** twice — once by `rsync` to
-  seed the candidate's own copy of the book, once by `cp` for the price-card
-  fixture — and never written, and nothing at run time points at it.
+- `/Users/tuhinchatterjee/Desktop/IPM_V2` is **read** by `rsync`, to seed the
+  candidate's own copy of the book, and never written; nothing at run time
+  points at it.
 - `START_CREDITPROBE_RETAIL_DEMO.command` is not replaced, edited or opened, and
   no process the sequence did not start is stopped. The demo keeps its own
   database, lake, metadata, ports (5328/8328) and launcher, so it remains
@@ -205,7 +205,7 @@ CANDIDATE_UI_URL=http://localhost:5329 \
 CANDIDATE_API_URL=http://127.0.0.1:8329 \
 CANDIDATE_ENGINE_URL=http://127.0.0.1:8415 \
 node tests/retail_cockpit/browser/candidate.browser.mjs
-#   -> must print: 110 of 110 checks passed across 5 cycles
+#   -> must print: 135 of 135 checks passed across 5 cycles
 #   The harness finds Playwright itself (CANDIDATE_PLAYWRIGHT overrides) and
 #   uses Playwright's own Chromium; it needs no browser path on the Mac.
 ```
