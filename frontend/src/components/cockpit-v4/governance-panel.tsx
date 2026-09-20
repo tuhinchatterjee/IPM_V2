@@ -371,9 +371,20 @@ export function GovernancePanel({ runId }: { runId: string }) {
                   </td>
                   <td className="border-b border-border px-2 py-1.5 text-text-secondary">
                     {row.published_as.length
-                      ? row.published_as
-                          .map((item) => `${item.kind}: ${item.title}`)
-                          .join("; ")
+                      ? row.published_as.map((item, at) => (
+                          <span key={at} className="block">
+                            {item.kind}: {item.title}
+                            {/* Why the analyst drew it this way. Shown only
+                                when they said; the record never writes a
+                                justification on their behalf. */}
+                            {item.why_this_chart ? (
+                              <span data-testid="v4-governance-chart-reason"
+                                    className="block text-xs text-text-muted">
+                                {item.why_this_chart}
+                              </span>
+                            ) : null}
+                          </span>
+                        ))
                       : "not published"}
                   </td>
                 </tr>

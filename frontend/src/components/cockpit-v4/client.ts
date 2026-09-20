@@ -257,6 +257,15 @@ export type RenderedChart = {
   y_axis?: ChartAxis;
   /** A combo's second scale: the rate, over the volumes it is a rate of. */
   y_axis_secondary?: ChartAxis;
+  /**
+   * Why this FORM, in the analyst's own words.
+   *
+   * Optional twice over: the contract does not require it, and a saved
+   * thread holds answers written before the field existed. When it is
+   * absent nothing is shown -- a caption the browser wrote would read as
+   * the analyst's reasoning and be evidence of nothing.
+   */
+  why_this_chart?: string;
   rendered_by?: string;
 };
 
@@ -1137,7 +1146,8 @@ export type GovernanceRecord = {
       code_digest: string;
       published_as: { kind: string; title: string; index?: number;
                       form?: string; rows_shown?: number; points?: number;
-                      x_axis?: string; y_axis?: string }[];
+                      x_axis?: string; y_axis?: string;
+                      why_this_chart?: string }[];
     }[];
     claims: {
       claim_id: string;

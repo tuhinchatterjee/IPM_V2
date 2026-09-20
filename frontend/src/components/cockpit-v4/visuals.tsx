@@ -1013,6 +1013,14 @@ export function ResultChart({ chart, runId, index }: {
           </span>
         ) : null}
       </figcaption>
+      {/* The analyst's one line about why this form rather than the table
+          beside it. Shown only when they wrote one. */}
+      {chart.why_this_chart ? (
+        <p data-testid="v4-chart-reason"
+           className="mb-2 text-xs text-text-muted" dir="auto">
+          {chart.why_this_chart}
+        </p>
+      ) : null}
       {body}
     </figure>
   );

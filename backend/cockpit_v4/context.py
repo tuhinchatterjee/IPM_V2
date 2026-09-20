@@ -442,6 +442,24 @@ PRESENTATION: dict[str, Any] = {
         "A result that moves, ranks, splits a total or spreads across a "
         "range reads better drawn than listed. Send `charts` with the "
         "answer, not instead of the table."),
+    # THE OTHER HALF OF THE SAME INSTRUCTION. The block above was written
+    # after four answers arrived with no chart, and it says "send charts"
+    # six ways. Nothing said when NOT to, so the only failure it could
+    # cause is the opposite one: a bar chart with a single bar under a
+    # sentence that already gave the number, which reads as padding and
+    # makes a careful answer look automated.
+    "a_chart_is_not_always_the_answer": (
+        "Not every result has a shape. One figure has none: state it and "
+        "send no chart. Two or three values a reader compares at a glance "
+        "are already clearer in the table. Draw the result when the FORM "
+        "shows what the rows would make the reader work out -- a ranking, "
+        "a movement, a concentration, a migration, a spread -- and leave "
+        "it out when it would only repeat a small table."),
+    "say_why_in_one_line": (
+        "Put that reason in `why_this_chart`: the reader's question this "
+        "form answers. It is published with the chart and appears in the "
+        "governance record. A chart you cannot justify in one line is "
+        "usually a chart the answer does not need."),
     "an_explicit_request_wins": (
         "If the reader named a form -- \"give me a line chart\" -- send that "
         "`kind`. Their words are in the conversation above."),

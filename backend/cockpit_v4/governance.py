@@ -363,5 +363,12 @@ def _published_from(answer: dict[str, Any], artifact_id: str) -> list[dict[str, 
                         "title": str(chart.get("title") or ""),
                         "points": len(chart.get("points") or ()),
                         "x_axis": (chart.get("x_axis") or {}).get("label", ""),
-                        "y_axis": (chart.get("y_axis") or {}).get("label", "")})
+                        "y_axis": (chart.get("y_axis") or {}).get("label", ""),
+                        # Why this FORM rather than the table beside it, in
+                        # the analyst's own words. Optional in the contract,
+                        # so it is read as a string and an absent rationale
+                        # shows as an absent rationale -- the record never
+                        # invents a justification the analyst did not give.
+                        "why_this_chart": str(
+                            chart.get("why_this_chart") or "")})
     return out

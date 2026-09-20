@@ -248,6 +248,11 @@
         "title": {
           "type": "string"
         },
+        "why_this_chart": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "One short sentence: the reader's question THIS form answers, and why this form answers it better than the table beside it. Optional, and the point is not the sentence -- it is that a form you cannot justify in one line is usually a form the answer does not need. It is published with the chart and appears in the governance record, so a reader can see the reasoning rather than infer it."
+        },
         "artifact_id": {
           "type": "string"
         },
