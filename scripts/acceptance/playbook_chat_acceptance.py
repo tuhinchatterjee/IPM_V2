@@ -168,6 +168,27 @@ async def _answer(page) -> str:
 
 
 async def _send(page, text: str) -> None:
+    """Type one message and send it — once the composer will take it.
+
+    The composer is deliberately dead while a generation runs: journey M is
+    about exactly that, and it is what stopped one thread collecting four
+    identical messages and four paid runs. So Enter pressed during a
+    generation is ignored, and a journey that types straight after the
+    previous answer APPEARS is racing the last events of that turn rather
+    than testing anything. The answer's text arrives on the delta stream,
+    before the file is committed and before `done`.
+
+    Waiting here is driving the product, not working around it — a person
+    cannot send during a run either. If the composer never comes back, that
+    is a real failure and it is reported as one rather than swallowed.
+    """
+    try:
+        await page.wait_for_selector(
+            "[data-testid=playbook-generation-state]", state="detached",
+            timeout=180_000)
+    except Exception:  # noqa: BLE001 — a failed check, not a crash
+        check("the composer came back before the next message",
+              False, "a generation was still running after 180s")
     box = page.locator("textarea").first
     await box.fill(text)
     await box.press("Enter")

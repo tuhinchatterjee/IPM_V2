@@ -59,7 +59,7 @@ evidence, not a certificate for this one.
 
 | ID | Status | Evidence |
 |---|---|---|
-| DC-15 | PASS — deterministic; PASS — browser scripted | `test_direct_chat_journeys.py::TestAskingForAReportProducesRealFiles`; browser journey **C** (38 KB Word, 2.8 KB PDF, both downloaded) |
+| DC-15 | PASS — deterministic; PASS — browser scripted | `test_direct_chat_journeys.py::TestAskingForAReportProducesRealFiles`; browser journey **C** (38 KB Word, 2.8 KB PDF, both downloaded). **What that evidence proves is delivery, not quality.** A file existing, opening and containing the requested sections is the whole of this row; nothing in it looks at how the document is laid out. A delivered report carried the user's prompt as its title, printed `**bold**` and `>` verbatim, and had no cover or contents — all of it under a green DC-15. Layout is now checked separately by `test_document_shell.py`, which renders and parses both formats back: the title is the report's own, no marker reaches the reader, the emphasis is applied rather than deleted (counted in the PDF's own font switches), and there is a contents page with the sections on it. See the chapter 09 note below |
 | DC-16 | PASS — deterministic | `test_service.py` scoped-edit suite — prior content carried forward, old version retained |
 | DC-17 | PASS — browser scripted | Browser journey **E** — PowerPoint created in the same thread, no separate workflow |
 | DC-18 | PASS — deterministic | `test_render_and_validate.py`, `verify_playbook_artifacts.py` — real cells and formulas |
@@ -92,6 +92,28 @@ evidence, not a certificate for this one.
 | DC-40 | PASS — deterministic | `test_document_path.py`; `test_api.py::test_a_task_and_scope_are_accepted` (503 `provider_not_configured`); `test_product_copy.py` (no credential in any payload) |
 | DC-41 | **BLOCKED** | The launcher's `doctor` reports worktree, branch, commit, build target and migration head, and the scripted server is named in `capabilities`. What is missing is the *served build* identifier in the UI, which needs the macOS worktree to confirm end to end |
 | DC-42 | **FAIL — live, remediated here, awaiting live retest** | No longer blocked: the pack and a credential exist on the user's machine, and the journey was run. It **failed** — seven sources read, two assistant replies announcing the work, no tool call, no file. Root cause and fix: `tool_choice` on a declared task, a bounded correction when a turn promises a document and calls nothing, and `no_file` on the message so a turn that produced nothing cannot read as success. Proven deterministically (`test_assistant.py::TestAPromiseWithNoToolCall`, with both live replies in the detector's cases verbatim) and in the browser (journey **L**). It is not marked PASS on a scripted run |
+
+---
+
+## Chapter 09 — deliverable quality
+
+Not a DC row, and it was failing anyway. Chapter 09 asks for "real headings,
+tables, sensible page layout, source notes and **usable navigation**" in Word,
+and "correct pagination, no clipped tables and **no broken characters**" in
+PDF. A delivered sixteen-page report had none of the navigation and several of
+the broken characters, and no check in this repository had ever looked at a
+document's layout — only at whether the file opened.
+
+| Format | Status | Evidence |
+|---|---|---|
+| Word / DOCX | PASS — deterministic | `test_document_shell.py` — the report's own title in the heading, the header and the file name; a real `TOC` field, so Word's navigation pane works and the entries survive a reflow; `**bold**` applied as bold runs; a cover with `doc.meta` as a table |
+| PDF | PASS — deterministic | `test_document_shell.py` — a built contents page with the page each heading landed on (two passes, not a guess); emphasis applied, asserted on the font switches in the content stream rather than on the extracted text, which is identical either way; no newline can reach the running header |
+| PowerPoint / PPTX | **NOT VERIFIED for layout** | Delivery is proven (DC-17, journey **E**); nothing checks slide density, overflow or theme preservation |
+| Excel / XLSX | PASS — deterministic | `test_render_and_validate.py` — real numeric cells, formulas and named sheets |
+
+Neither Word nor PDF has been read by a person on this code. These rows say
+the defects that reached a user are gone and cannot come back silently; they
+do not say the result is a good committee paper.
 
 ---
 

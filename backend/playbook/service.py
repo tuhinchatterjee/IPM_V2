@@ -1095,14 +1095,6 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
         raise
 
     reply = turn["reply"]
-    job.state = "ready"
-    job.model = reply.model_served
-    job.provider_request_ids = list(reply.request_ids)
-    job.usage = {"requests": len(reply.request_ids),
-                 "input_tokens": reply.input_tokens,
-                 "output_tokens": reply.output_tokens}
-    job.finished_at = _now()
-
     produced = turn["produced"]
     last = produced[-1] if produced else {}
 
@@ -1112,13 +1104,26 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
     # an assessment of nothing is the invented completion figure chapter 12
     # forbids. It is carried on the message so reopening the workspace shows
     # it, and it never fails the turn — see `assessment.write_verdict`.
+    #
+    # BEFORE the job is marked ready, and that order is not cosmetic:
+    # `milestone` writes the job's state, so announcing this step after
+    # `state = "ready"` left every finished generation sitting at
+    # "validating" for good — finished, with a state that says it is still
+    # working. Said out loud, though: the written half is a provider call,
+    # and a run that goes quiet for another ten seconds with the files
+    # already built is the frozen screen this work exists to end.
     card: dict = {}
     if last.get("version_id"):
-        # Said out loud: the written half is a provider call, and a run that
-        # goes quiet for another ten seconds with the files already built is
-        # the frozen screen this work exists to end.
         milestone("validating", "assessing what was delivered")
         card = assessment.for_delivery(session, ws.id)
+
+    job.state = "ready"
+    job.model = reply.model_served
+    job.provider_request_ids = list(reply.request_ids)
+    job.usage = {"requests": len(reply.request_ids),
+                 "input_tokens": reply.input_tokens,
+                 "output_tokens": reply.output_tokens}
+    job.finished_at = _now()
 
     message = repo.add_message(
         session, ws.id, role="assistant",

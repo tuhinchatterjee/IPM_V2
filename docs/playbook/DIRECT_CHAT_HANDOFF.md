@@ -370,3 +370,94 @@ while the frontend happened to be built against 8000.
 **What is still owed.** DC-42 is FAIL, not PASS. The fix is proven
 deterministically and in the browser; the live journey has not been re-run.
 That is one command, in §6, and it is the first thing to do.
+
+## 11. The second live run: a report arrived, and it was not a report
+
+The tool-call fix worked — the Auto Loan pack produced a document. What the
+user received was not something a committee would accept, the wait was still
+opaque, and nothing told them what they had been given. Five defects, each
+traced to code rather than guessed at.
+
+**The report was being silently truncated.** `MAX_OUTPUT_TOKENS` was 16,000 —
+the documented default for a *non-streaming* request, transplanted onto a
+streamed one, where the default is around 64,000 and the model's ceiling is
+128,000. Worse, `stop_reason` was recorded and read by nothing, so a draft cut
+off mid-sentence was parsed, validated, rendered and delivered as a finished
+committee report. The ceiling is now 64,000, and `stop_reason == "max_tokens"`
+raises: the turn fails, says it was cut off and says how to raise the bound.
+Nothing truncated is ever saved, and it is not retried automatically, because
+the next attempt would spend the same tokens to reach the same ceiling.
+
+**The title was the prompt, and so were the two black boxes in the PDF
+header.** `author_document` parsed with `title=workspace.title`, and a
+workspace is named after its first message — so the H1, the running header and
+the file name of a sixteen-page report all read *"Create a detailed Auto Loan
+Application Scorecard Model Development Report using the attached evidence.
+Treat AL-AS-v1."*, and the newline in that prompt reached a font with no glyph
+for it. One cause, two symptoms. It now parses with no title, so the model's
+own H1 is the document's, and `render/shell.py` cleans whatever it settles on.
+
+**Markdown reached the reader.** `**Model ID:**`, `> STANDING CAVEAT` and a
+bare `---` printed verbatim, because a `Block` carries one flat string and
+every writer emitted it as a single plain run. Fixed in the writers, not the
+model: `render/inline.py` tokenises the marks and python-docx sets `run.bold`
+while reportlab takes `<b>`/`<i>`/`<font face="Courier">`. Adding spans to the
+canonical `Block` would have moved every stored `content_hash` and
+`merge._fingerprint` to solve a rendering problem. `parse` now also consumes
+`>` into the CALLOUT kind that already existed and drops `---` as the
+separator it is.
+
+**There was nothing to navigate by.** No cover, no contents, no page numbers.
+Word now carries a real `TOC` field, so its navigation pane works and the
+entries survive a reflow; the PDF builds its contents over two passes, so the
+page numbers are the pages the headings landed on. `test_document_shell.py`
+renders both and parses them back — the check this repository had never had.
+DC-15 was green throughout all of the above, and honestly so: it proves a file
+exists and opens, which is not the same as a document being fit to send.
+
+**"Nothing was saved" was said beside a working PDF.** `stream.follow` read
+the job's finished flag and its events from one snapshot, and `run_generation`
+stamps `finished_at` inside the turn's commit while the worker writes `done`
+after it. A poll landing in that window reported `worker_lost` — *"This
+generation ended without finishing. Nothing was saved."* — under a complete
+answer, beside a downloadable file, with a **Try again** button that would
+have spent another generation. The reader now waits the gap out once and then
+checks whether the work actually landed before saying anything about it.
+
+**And the opening silence was real work, made invisible.** On this model
+thinking is on by default and its display defaults to omitted, so the model
+reasoned for as long as it needed and emitted nothing. The authoring call now
+asks for summarised reasoning and the summaries stream on their own channel —
+newest line only, never accumulated, never stored, never merged into the
+answer. Showing a reasoning transcript is forbidden; this is the provider's
+display summary, which is not that, and if the provider refuses the parameter
+the flag is dropped for the process rather than failing the run.
+
+**What the user is told afterwards.** `backend/playbook/assessment.py` counts
+a card from the rows the turn just wrote — sections written, thin or stating a
+gap, by name; formats delivered and failed; each source read in full or in
+part and whether anything from it was cited; every figure the grounding pass
+could not trace, with its section; the review state; and the time, split
+between the provider call and the local render. The three durations had been
+measured on every run since the beginning and read by nothing.
+
+Beside it, one bounded 700-token call writes a short reading of that card and
+nothing else — not the document, not the evidence, not the conversation, so it
+has nothing to invent a figure from. It is labelled as judgement, it is never
+shown without the counts, `PLAYBOOK_WRITTEN_ASSESSMENT=0` turns it off, and
+when it fails the card is delivered anyway.
+
+**Found while fixing the above, and worth the same honesty.** `scripted.call`
+is installed over `provider._call`, and it had fallen one parameter behind:
+every scripted turn would have failed with a TypeError, which is to say the
+browser suites could not run at all. `test_provider_bounds.py` now compares
+the two signatures. Separately, announcing the assessment step after the job
+was marked ready left every finished generation sitting at state
+*"validating"* — finished, with a state saying it was still working — because
+`milestone` writes that state. The step is now announced before the job is
+marked ready, and a test pins it.
+
+**Still not verified by a person.** Nothing above has been read on paper. The
+tests prove the defects that reached a user are gone and cannot come back
+silently; they do not prove the result is a good committee paper. That
+judgement needs the delivered PDF and a reader.

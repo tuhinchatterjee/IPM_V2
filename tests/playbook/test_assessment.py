@@ -155,6 +155,33 @@ class TestTheCardIsCounted:
             "not failed at anything either")
 
 
+class TestAssessingItIsAStepOfTheRun:
+    """It is a provider call, so it is announced — and it is over before the
+    job says it is."""
+
+    def test_the_step_is_named_while_it_happens(self, db, job, delivered):
+        from backend.models.playbook import PlaybookJob
+
+        row = db.get(PlaybookJob, job)
+        assert any(m["state"] == "validating"
+                   and "assessing" in (m["detail"] or "")
+                   for m in (row.milestones or [])), (
+            "the run went quiet for another call with nothing on screen")
+
+    def test_a_finished_job_is_ready_and_not_stuck_in_its_last_step(
+            self, db, job, delivered):
+        """`milestone` writes the job's state. Announcing this step after the
+        job was marked ready left every finished generation sitting at
+        "validating" — finished, with a state saying it was still working,
+        and any caller polling for "ready" waiting for ever."""
+        from backend.models.playbook import PlaybookJob
+
+        row = db.get(PlaybookJob, job)
+        assert row.finished_at is not None
+        assert row.state == "ready", (
+            f"a finished generation reports {row.state!r}")
+
+
 class TestTheWrittenVerdictKnowsOnlyTheCard:
 
     def test_it_is_given_the_card_and_not_the_document(

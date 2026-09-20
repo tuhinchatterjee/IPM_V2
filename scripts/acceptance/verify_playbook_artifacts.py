@@ -101,6 +101,80 @@ def inspect_pdf(content: bytes, label: str) -> None:
     doc.close()
 
 
+#: Markers that mean the writer printed the source instead of applying it.
+#: A delivered sixteen-page report carried every one of these.
+_LEAKED = ("**", "__")
+
+
+def _docx_text(content: bytes) -> tuple[str, str]:
+    """The readable text of a Word file, and its XML."""
+    import io
+
+    from docx import Document
+
+    out = Document(io.BytesIO(content))
+    parts = [p.text for p in out.paragraphs]
+    for table in out.tables:
+        parts += [cell.text for row in table.rows for cell in row.cells]
+    return "\n".join(parts), out.element.xml
+
+
+def _pdf_text(content: bytes) -> str:
+    import io
+
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(content))
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def inspect_shell(content: bytes, fmt: str, doc, label: str) -> None:
+    """What the reader actually sees: markers, title, navigation.
+
+    The programmatic pass above answers "does this file reopen and say what
+    the document says". It has always passed on files that printed
+    `**Model ID:**` verbatim, carried the user's prompt as their title and
+    offered no way to move around sixteen pages — because none of that makes
+    a file fail to open. Chapter 09 asks for "usable navigation" in Word and
+    "no broken characters" in PDF, and this is where those are answered.
+    """
+    text, xml = ("", "")
+    if fmt == "docx":
+        text, xml = _docx_text(content)
+    elif fmt == "pdf":
+        text = _pdf_text(content)
+    else:
+        return
+
+    leaked = [m for m in _LEAKED if m in text]
+    check(f"{label}: no Markdown marker reaches the reader",
+          not leaked, f"found {leaked}")
+    quoted = [ln for ln in text.splitlines() if ln.strip().startswith("> ")]
+    check(f"{label}: a callout is a callout, not a '>'",
+          not quoted, quoted[:1][0] if quoted else "")
+    rules = [ln for ln in text.splitlines() if ln.strip() in ("---", "***")]
+    check(f"{label}: no horizontal rule printed as three characters",
+          not rules)
+
+    title = (doc.title or "").strip()
+    check(f"{label}: the report has a title of its own", bool(title))
+    check(f"{label}: and it is one line, short enough for a header",
+          "\n" not in title and len(title) <= 120, title[:60])
+
+    # Navigation, for a document long enough to need it. Three sections is
+    # the same threshold the writers use — below it a contents page is
+    # furniture rather than navigation.
+    if len(doc.sections) >= 3:
+        if fmt == "docx":
+            check(f"{label}: Word gets a real contents FIELD, so its "
+                  f"navigation pane works", 'TOC \\o "1-3"' in xml)
+        else:
+            listed = [s.heading for s in doc.sections
+                      if s.heading and s.heading not in text]
+            check(f"{label}: the PDF lists its sections", "Contents" in text
+                  and not listed, f"missing {listed[:2]}")
+
+
 def main() -> int:
     from backend.config import settings
 
@@ -154,6 +228,7 @@ def main() -> int:
                         result = validate.validate(content, row.format, doc)
                         check(f"{label}: reopens and matches its document",
                               result.ok, "; ".join(result.issues))
+                        inspect_shell(content, row.format, doc, label)
                         if row.format == "pdf":
                             inspect_pdf(content, label)
                         inspected += 1
