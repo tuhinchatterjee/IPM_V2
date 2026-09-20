@@ -129,5 +129,46 @@ def offline_capability(cfg: Any = None) -> Any:
         live_verified=False)
 
 
+
+
+def pin_transport(provider: Any) -> Any:
+    """Make every HTTP attempt pass through the engine's ledger.
+
+    `provider.py` says of its own `allow_retry=False`: *"Every HTTP attempt
+    must pass through the ledger, so the SDK is not allowed to retry behind
+    our back."* That is the intent, and the flag does not deliver it --
+    `allow_retry` bounds the ADAPTER's loop, while `anthropic_provider`
+    builds `anthropic.Anthropic(api_key=..., timeout=...)` without
+    `max_retries`, so the SDK's own default of 2 still applies. A 429 or an
+    overload can therefore be billed up to three times against one
+    reservation, which the ledger never sees and a spend cap cannot count.
+
+    So the client is built here, with `max_retries=0`, before the adapter
+    builds its own lazily. The engine's transport retry (one, through the
+    ledger) is what handles a transient failure, which is what the design
+    says should happen.
+
+    A provider that already carries a client is left alone -- that is a test
+    double or an injected transport, and overwriting it would break the
+    injection the adapter deliberately supports.
+    """
+    if provider is None or getattr(provider, "client", None) is not None:
+        return provider
+    try:
+        import anthropic
+    except ImportError:  # pragma: no cover - the SDK is a hard dependency
+        return provider
+    key = getattr(provider, "api_key", "")
+    if not key:
+        return provider
+    provider.client = anthropic.Anthropic(
+        api_key=key,
+        timeout=float(getattr(provider, "timeout", 60.0) or 60.0),
+        # The whole point. Never raise this: a retry the ledger cannot see is
+        # spending the cap cannot count.
+        max_retries=0)
+    return provider
+
+
 __all__ = ["OFFLINE_MODEL_ID", "OFFLINE_SOURCE", "OfflineProvider",
-           "is_offline", "offline_capability"]
+           "is_offline", "offline_capability", "pin_transport"]

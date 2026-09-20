@@ -18,16 +18,34 @@ answered by the first person to use it:
 * does the event stream open through the proxy with its no-buffering headers
   intact.
 
-Exit 0 only when every one of those is true. No provider call is made.
+Exit 0 only when every one of those is true.
+
+What it costs
+-------------
+Step 5 submits a REAL question. Offline that is free -- the provider cannot
+call out and the run settles as a failure at the model call. **Live it is a
+billed analysis**, and the launcher runs this on every start with a fresh
+idempotency key, so it would buy one run per start. The docstring here used
+to say "No provider call is made", which was true only offline.
+
+So the question step runs only when the engine is offline, or when
+`--allow-paid-run` says to spend deliberately. Skipped, it is reported as
+skipped rather than passed, and it is not a finding: a check that cannot be
+made for free is not a failure.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
+
+
+class _Skip(Exception):
+    """The question step was not attempted. Not a failure."""
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -48,6 +66,11 @@ def main() -> int:
     parser.add_argument("--api", default="http://127.0.0.1:8329")
     parser.add_argument("--engine", default="http://127.0.0.1:8415")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--allow-paid-run", action="store_true",
+        help="submit the readiness question even in live mode, where "
+             "it is a billed analysis. Offline it runs anyway and "
+             "costs nothing.")
     args = parser.parse_args()
 
     findings: list[str] = []
@@ -108,9 +131,19 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         findings.append(f"the engine boundary could not be checked: {exc}")
 
-    # 5. a real Cockpit call, through the proxy, that writes something
+    # 5. a real Cockpit call, through the proxy, that writes something.
+    #    Billed in live mode, so it is opt-in there. See the module docstring.
     run = ""
+    offline = bool(os.environ.get("RETAIL_COCKPIT_OFFLINE", "").strip())
+    may_spend = offline or args.allow_paid_run
+    if not may_spend:
+        report["run"] = "skipped"
+        report["run_skipped_because"] = (
+            "live mode: submitting a question would be billed. Re-run with "
+            "--allow-paid-run to spend one analysis on proving it.")
     try:
+        if not may_spend:
+            raise _Skip
         thread = client.post(f"{args.api}/api/v1/cockpit-v4/threads",
                              json={"domain": "retail"})
         report["thread"] = thread.status_code
@@ -136,6 +169,8 @@ def main() -> int:
                     f"{started.text[:200]}")
             else:
                 run = started.json()["run_id"]
+    except _Skip:
+        pass
     except Exception as exc:  # noqa: BLE001
         findings.append(f"a Cockpit question could not be asked: {exc}")
 
@@ -172,7 +207,16 @@ def main() -> int:
     # candidate installs its runtime afterwards -- so a stale flag there is
     # not evidence of anything on its own. What decides it is whether the
     # Cockpit ACCEPTED the question above.
-    if missing and report.get("run") != 202:
+    if missing and report.get("run") == "skipped":
+        # Nothing was asked, so the stale flags are all there is -- and they
+        # are known to be stale. Reported, never silently passed, and never
+        # treated as proof either way.
+        report["readiness_unproven"] = (
+            f"the engine's /health reports {missing} not ready. That endpoint "
+            f"closes over what create_app built, not what the candidate "
+            f"installed, so it is not evidence on its own -- and the question "
+            f"that would settle it was skipped to avoid a charge.")
+    elif missing and report.get("run") != 202:
         findings.append(
             f"the engine reports {missing} not ready: "
             f"{flags.get('reason') or 'no reason given'}")
@@ -193,6 +237,10 @@ def main() -> int:
         print(f"  boundary        unauthenticated call -> "
               f"{report.get('engine_without_a_principal')}")
         print(f"  question        {report.get('run')}")
+        if report.get("run_skipped_because"):
+            print(f"                  {report['run_skipped_because']}")
+        if report.get("readiness_unproven"):
+            print("  readiness       NOT PROVEN without spending")
         stream = report.get("stream") or {}
         print(f"  event stream    {stream.get('status')} "
               f"{stream.get('content_type', '')} "

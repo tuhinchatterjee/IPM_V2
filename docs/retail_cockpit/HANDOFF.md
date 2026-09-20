@@ -410,6 +410,35 @@ not something a scripted provider can tell us.
    `tests/retail_cockpit/test_terminal_run_visibility.py` (8 tests) and by a
    new browser check per cycle.
 
+11. ~~**The cumulative spend cap had no mechanism.**~~ **CLOSED.**
+   `LIVE_UAT_PLAN.md` promised a hard USD 15.00 cap. Nothing enforced one:
+   `budgets.spend_ceiling_usd` bounds a single run at 1.50 and every spend
+   query in `run_store.py` is scoped `WHERE run_id=?`, so twelve runs had
+   eighteen dollars of headroom against a fifteen dollar cap and nothing
+   stopped the thirteenth. Now enforced by the retail proxy on `POST /runs`
+   from the engine's own ledger, `SUM(COALESCE(settled_usd, reserved_usd))`,
+   counting an unsettled reservation at what it reserved so a burst cannot
+   walk through. `RETAIL_COCKPIT_SPEND_CAP_USD` unset means no cap and no
+   read, so the offline path is untouched. Proved end to end: a cap below the
+   recorded spend refuses with 402 `SPEND_CAP_REACHED` naming both figures.
+12. ~~**A live launcher start bought a run.**~~ **CLOSED.**
+   `check_ready.py` submits a real question with a fresh idempotency key and
+   the launcher runs it on every start. Offline that is free; live it is a
+   billed analysis, so every live start bought one — while the script's own
+   docstring said "No provider call is made", which was true only offline. It
+   now skips that step unless the engine is offline or `--allow-paid-run` is
+   given, and reports a skipped question as skipped rather than passed.
+13. ~~**The SDK retried outside the ledger.**~~ **CLOSED.**
+   `provider.py` says "the SDK is not allowed to retry behind our back", but
+   `allow_retry=False` bounds only the adapter's loop and
+   `anthropic_provider` builds its client without `max_retries`, so the SDK
+   default of 2 applied: a 429 or an overload could be billed three times
+   against one reservation the ledger counted once, which a spend cap cannot
+   see. The candidate bootstrap now pins the client with `max_retries=0`
+   before the adapter builds its own, so every HTTP attempt passes through
+   the ledger as the design intends. Host-side; `anthropic_provider.py` stays
+   verbatim, and an injected test transport is left alone.
+
 ## 20. Status
 
 **READY FOR MAC ACCEPTANCE — PROVIDER TEST STILL REQUIRED.**

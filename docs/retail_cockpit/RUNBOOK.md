@@ -10,9 +10,11 @@ launcher are never touched.
     npm --prefix frontend ci
     cp .env.retail-candidate.example .env.retail-candidate   # then edit it
 
-`.env.retail-candidate` is gitignored. It needs a `DATABASE_URL`, a
-`SECRET_KEY`, and — before any paid run — `COCKPIT_ANTHROPIC_API_KEY` and a
-real `COCKPIT_V4_PRICE_CARD`. Names only; nothing here ever prints a value.
+`.env.retail-candidate` is gitignored. It needs a `DATABASE_URL` and a
+`SECRET_KEY`; everything else in the template is already right. The model and
+the price card are set for live mode, and the credential is **not** in the
+file — export it in your shell instead (see **Going live**). Names only;
+nothing here ever prints a value.
 
 ## Publish the book the Cockpit reads
 
@@ -62,6 +64,36 @@ still goes through the engine's own `load_capability`, and the shipped
 placeholder card still refuses every real model until you replace it with a
 verified schedule.
 
+## Going live
+
+Offline proves the plumbing. Live costs money, so it is deliberate:
+
+    # 1. What a live start would do, and what it would cost. No call is made.
+    export COCKPIT_ANTHROPIC_API_KEY=...        # in your shell, never in the env file
+    .venv/bin/python scripts/retail_cockpit/check_live.py
+
+    # 2. Start WITHOUT RETAIL_COCKPIT_OFFLINE.
+    launchers/retail/start-retail-candidate.command
+
+Three things to know before you do:
+
+* **Starting makes two `count_tokens` calls** (`verify_live`, once in
+  `create_app` and once in the candidate bootstrap). Not billed, but real
+  requests: a wrong model id or a credential the account cannot use fails the
+  runtime at startup rather than on the first question.
+* **`check_ready.py` skips its question in live mode**, because it submits a
+  real analysis and the launcher runs it on every start. So READY proves the
+  API, the book, the boundary and the stream, and says plainly that the
+  question step was skipped. `--allow-paid-run` spends one on purpose.
+* **The cumulative cap is `RETAIL_COCKPIT_SPEND_CAP_USD`**, enforced by the
+  proxy against the engine's own ledger. The engine itself bounds only one
+  run at a time. Unset it and there is no cap at all.
+
+The model is `claude-opus-5` and the card is
+`config/cockpit_v4/price_card.candidate.json`, at Anthropic's published
+first-party rates. If you bill through Bedrock or Google Cloud, hold a
+discount, or pin US-only inference, those rates are wrong for you.
+
 ## The gates
 
 | | |
@@ -75,6 +107,7 @@ verified schedule.
 | The event stream survives the proxy | `.venv/bin/python scripts/retail_cockpit/check_transport.py --proxy http://127.0.0.1:8329/api/v1/cockpit-v4` (against an engine started `--offline --think 8`) |
 | Browser (five cycles, 135 checks) | `CANDIDATE_CYCLES=5 CANDIDATE_UI_URL=http://localhost:5329 CANDIDATE_API_URL=http://127.0.0.1:8329 CANDIDATE_ENGINE_URL=http://127.0.0.1:8415 node tests/retail_cockpit/browser/candidate.browser.mjs` |
 | Memory | `.venv/bin/python scripts/retail_cockpit/benchmark_session.py --limits 1536MB,2048MB --repeat 3` |
+| Live preflight (no provider call) | `.venv/bin/python scripts/retail_cockpit/check_live.py` |
 
 ## Two things that will bite
 

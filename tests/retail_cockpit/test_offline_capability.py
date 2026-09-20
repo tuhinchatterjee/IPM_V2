@@ -178,25 +178,47 @@ def test_bootstrap_uses_the_offline_capability_only_for_an_offline_provider(
 
 # ------------------------------------------------- the template and the runbook
 
-def test_the_template_names_no_model() -> None:
-    """A template must not choose an operator's live model for them."""
+def test_the_template_names_a_model_the_engine_knows() -> None:
+    """The template may name a model only because an operator chose one.
+
+    This assertion used to be "names no model at all", which was right while
+    no model had been approved: the engine defaults none, and a template that
+    invented one is how `claude-opus-4-1-20250805` -- retired on the
+    first-party API -- ended up in a live configuration nobody had picked.
+
+    A model is now chosen, so the protection moves rather than disappears:
+    whatever is named must be one `model_capabilities` knows, because an
+    unregistered id gets neutral defaults and fails quietly expensive.
+    """
+    from backend.cockpit_v4 import model_capabilities as caps
+
     assigned = re.findall(r"^\s*AI_COCKPIT_REASONING_MODEL=(.*)$",
                           TEMPLATE.read_text(encoding="utf-8"), re.M)
-    assert assigned == [], (
-        f"the candidate template assigns a model: {assigned}. The engine "
-        f"does not default one and neither may this file.")
+    assert len(assigned) == 1, assigned
+    model = assigned[0].strip()
+    assert caps.traits_for(model).source == "registry", (
+        f"the template names {model!r}, which is not in "
+        f"model_capabilities.REGISTRY (checked {caps.CHECKED_AT}). The "
+        f"engine would guess its request shape.")
 
 
-def test_the_template_points_live_pricing_at_the_shipped_card() -> None:
+def test_the_template_points_live_pricing_at_a_committed_card() -> None:
     """Never a fixture, and never a path under `var/`.
 
-    A card under `var/` is untracked, machine-local and can be anything. The
-    shipped placeholder is the correct live default precisely because it
-    fails closed for every real model.
+    A card under `var/` is untracked, machine-local and can be anything --
+    which is exactly what a test fixture is, and why one must never become
+    live configuration. This used to require the shipped placeholder, which
+    was right while no model was approved; now it requires a committed card
+    under `config/`, and the shipped placeholder's own fail-closed behaviour
+    is asserted separately in `test_live_wiring.py`.
     """
     value = re.findall(r"^\s*COCKPIT_V4_PRICE_CARD=(.*)$",
                        TEMPLATE.read_text(encoding="utf-8"), re.M)
-    assert value == ["config/cockpit_v4/price_card.json"], value
+    assert len(value) == 1, value
+    card = value[0].strip()
+    assert card.startswith("config/cockpit_v4/"), card
+    assert "var/" not in card and "fixture" not in card, card
+    assert (ROOT / card).exists(), f"{card} is not in the repository"
 
 
 def test_the_shipped_card_still_declares_itself_a_placeholder() -> None:

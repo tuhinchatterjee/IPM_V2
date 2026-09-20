@@ -1,0 +1,30 @@
+{
+  "card_version": "2026-09-20.1",
+  "provider": "anthropic",
+  "source": "Anthropic published first-party API pricing, https://platform.claude.com/docs/en/about-claude/pricing, read 2026-09-20. Every figure is transcribed from that page; none is derived, rounded or inferred.",
+  "verified_at": "2026-09-20T00:00:00Z",
+  "note": "The CANDIDATE card. The shipped config/cockpit_v4/price_card.json is the fail-closed placeholder and is part of the verbatim port; it is not edited. These are STANDARD first-party rates: an account billing through Amazon Bedrock or Google Cloud, carrying a negotiated discount, or pinning inference_geo='us' (a 1.1x multiplier on all four classes) pays something else, and this card would then be wrong. Every model this runtime may use needs its own entry. A missing or unverified entry fails closed: no paid request runs.",
+  "models": {
+    "claude-opus-5": {
+      "provider": "anthropic",
+      "sdk_version": "",
+      "context_tokens": 1000000,
+      "max_output_tokens": 64000,
+      "supports_tools": true,
+      "supports_token_counting": true,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing, read 2026-09-20",
+      "verified_at": "2026-09-20T00:00:00Z",
+      "price": {
+        "input_usd_per_mtok": 5.0,
+        "output_usd_per_mtok": 25.0,
+        "cache_write_usd_per_mtok": 6.25,
+        "cache_read_usd_per_mtok": 0.5
+      }
+    }
+  },
+  "field_notes": {
+    "max_output_tokens": "The model publishes 128,000. This card declares 64,000 because backend/llm/anthropic_provider.py calls messages.create WITHOUT streaming, and provider.py uses this field as a hard ceiling (reserved_output = min(asked, capability.max_output_tokens)) -- so a number the client cannot finish inside its timeout would be a ceiling that does not hold. The engine reserves about 4,000 output tokens for a standard run, far below either figure.",
+    "cache_write_usd_per_mtok": "The published 5-MINUTE cache write rate (6.25). The 1-hour rate is 10.00. Recorded for completeness and never billed: the engine sends no cache_control anywhere, so prompt caching is off and both cache counters come back zero. If caching is ever enabled with the default ephemeral TTL, 6.25 is the rate that applies.",
+    "cache_read_usd_per_mtok": "The published cache hit/refresh rate (0.50 = 0.1x base input). Same: recorded, never billed today."
+  }
+}

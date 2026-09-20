@@ -17,15 +17,39 @@ approval before anything runs.
 
 ## Before it can run at all
 
-1. **The price card.** `config/cockpit_v4/price_card.json` must carry the
-   current published schedule for the model below, with all four billing
-   classes and a real `verified_at`. Until it does, the runtime refuses to
-   spend. A test-only fixture exists at
-   `var/retail-cockpit-candidate/testing/price_card.fixture.json`; it is
-   fabricated, it is not the shipped card, and it authorises nothing.
-2. **The credential.** `COCKPIT_ANTHROPIC_API_KEY`, in the candidate
-   environment file. Name only — never pasted into a conversation, never
-   logged, never printed by any script here.
+1. **The price card. Done.** `config/cockpit_v4/price_card.candidate.json`
+   carries `claude-opus-5` with all four billing classes, transcribed from
+   Anthropic's published pricing page with its source and date. The shipped
+   `config/cockpit_v4/price_card.json` is untouched: it is part of the
+   verbatim port and stays the fail-closed placeholder. **These are
+   first-party standard rates** — an account on Bedrock or Google Cloud, with
+   a negotiated discount, or pinning `inference_geo: "us"` (a 1.1x multiplier
+   on all four classes) needs its own card.
+2. **The credential.** `COCKPIT_ANTHROPIC_API_KEY`, **exported in the shell
+   that runs the launcher** — not written into the environment file, which
+   the launcher sources under `set -a`, so an assignment there would
+   overwrite what you exported (including an empty one, which fails with
+   `PROVIDER_CREDENTIAL_MISSING`). Name only: never pasted into a
+   conversation, never logged, never printed by any script here.
+3. **The preflight.** `scripts/retail_cockpit/check_live.py` reports the
+   model, the card's four rates, both caps and the projected cost of these
+   twelve questions, and **makes no provider call**. Run it first.
+
+## What a live start costs before a question is asked
+
+Two things, neither of them obvious:
+
+* **`verify_live` runs at startup**, and twice — once inside `create_app` and
+  once when the candidate bootstrap installs its own runtime. Each is a
+  `count_tokens` call: not billed, but a real request that needs a working
+  credential and a model the account can serve. A wrong model id fails the
+  whole runtime here rather than on the first question.
+* **`check_ready.py` used to buy a run on every launcher start.** It submits
+  a real question with a fresh idempotency key, and the launcher runs it
+  unconditionally, so a live start bought one standard analysis each time
+  while the script's docstring said "No provider call is made" — true only
+  offline. It now skips that step in live mode and says so;
+  `--allow-paid-run` spends one deliberately.
 
 ## The plan
 
@@ -37,7 +61,7 @@ approval before anything runs.
 | Expected input | ~18,500 tokens per first turn (measured: the packet builds at 18,490 for a retail question), ~22,000 on a follow-up |
 | Expected output | ≤ 4,000 tokens per turn |
 | Ceiling per run | the engine's own `spend_ceiling_usd`, 1.50 for standard, enforced by the ledger and not by me |
-| **Hard cumulative cap** | **USD 15.00.** Stop at that, whatever has or has not been answered |
+| **Hard cumulative cap** | **USD 15.00, now enforced.** `RETAIL_COCKPIT_SPEND_CAP_USD` in the candidate environment; the retail proxy reads the engine's own ledger (`SUM(COALESCE(settled_usd, reserved_usd))`) and refuses `POST /runs` with a typed 402 at or above it, before the request reaches the engine. Unset, there is no cap |
 
 ## The twelve questions
 
@@ -72,6 +96,14 @@ against a refusal that is already specified.
   own artifact.
 - **Cost**: total spend at or under USD 15.00, and each run inside the
   engine's own ceiling. The ledger is the record, not my arithmetic.
+
+  When this plan was written that cap had **no mechanism**: the engine bounds
+  one run (`spend_ceiling_usd`, 1.50 in standard mode) and counts nothing
+  across runs, so twelve runs had eighteen dollars of headroom against a
+  fifteen dollar cap. It is a mechanism now, in the proxy, and it counts an
+  unsettled reservation at what it reserved so a burst of runs cannot walk
+  through it. Note it counts everything in that state store, including runs
+  from before the cap was set.
 - **Budget**: generations, catalogue calls and repair rounds per question
   recorded and compared with the frozen source's own figures. An increase is
   an adapter defect to fix, not a budget to widen.

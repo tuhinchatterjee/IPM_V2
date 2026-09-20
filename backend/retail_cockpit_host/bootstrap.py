@@ -116,7 +116,9 @@ def build_runtime(cfg: Any = None, *, domain_id: str = "retail",
                         tenant_id=tenant)
 
     if provider is None:
-        provider = service.resolve_provider(cfg)
+        # Built by the engine, then pinned so the SDK cannot retry outside
+        # the ledger -- see `offline.pin_transport`.
+        provider = offline.pin_transport(service.resolve_provider(cfg))
     # A provider that cannot call out does not need a price for a call it
     # cannot make. `verify_model=False` alone is NOT enough to reach this:
     # `load_capability` reads the price card unconditionally and only skips

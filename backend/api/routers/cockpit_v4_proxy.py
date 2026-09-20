@@ -44,7 +44,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from backend.api.auth import account_for
 from backend.api.permissions import Principal, current_principal
-from backend.retail_cockpit_host import identity
+from backend.retail_cockpit_host import identity, spend
 
 logger = logging.getLogger(__name__)
 
@@ -162,8 +162,42 @@ def _published_books(path: str, payload: bytes,
     return narrowed, headers
 
 
+#: The one path that can start provider spending. A cap that guarded every
+#: route would also refuse reading a transcript already paid for.
+_SPENDS = "runs"
+
+
+def _spend_guard(request: Request, path: str) -> None:
+    """Refuse a new run once this deployment's cumulative cap is reached.
+
+    The engine bounds ONE run (`budgets.spend_ceiling_usd`) and counts nothing
+    across runs, so twelve runs at the ceiling cost twelve times the ceiling.
+    This is the cumulative half, and it lives here rather than in a runner
+    script because the questions a reader types into the UI spend the same
+    money as the scripted ones.
+
+    Unset, `RETAIL_COCKPIT_SPEND_CAP_USD` makes this a no-op that reads
+    nothing.
+    """
+    if request.method != "POST" or path.strip("/") != _SPENDS:
+        return
+    try:
+        verdict = spend.allowed()
+    except spend.SpendCapInvalid as exc:
+        # A cap that cannot be read is not permission to spend.
+        raise HTTPException(503, {
+            "error_code": "SPEND_CAP_INVALID", "message": str(exc),
+            "capability": "spend_cap", "status": 503}) from exc
+    if verdict.allowed:
+        return
+    logger.warning("Cockpit refused a run: spend cap %.2f reached (%.2f)",
+                   verdict.cap_usd or 0.0, verdict.spent_usd)
+    raise HTTPException(402, spend.refusal(verdict))
+
+
 async def _forward(request: Request, path: str,
                    caller: Principal) -> Response:
+    _spend_guard(request, path)
     try:
         headers = _outbound(request, _principal(caller))
     except identity.SecretMissing as exc:
