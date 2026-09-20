@@ -61,11 +61,18 @@ PACK_PATH = Path(__file__).resolve().parent / "credit_policy.json"
 #: clauses is attaching the pack by another route.
 MAX_CLAUSES = 8
 
+#: The separator between the book letters and the number, as anything a
+#: reader might put there: a hyphen, a space, nothing, or the typographic
+#: dash a word processor made of the hyphen in the document they copied it
+#: out of. Someone quoting a clause id at the product is the likeliest way
+#: one arrives, and the dash they paste is not the one they typed.
+_ID_GAP = r"[-\s\u2010-\u2015]?"
+
 #: A clause id as the pack writes it: `RP-1.1`, `CP-4.2`.
-CLAUSE_ID = re.compile(r"\b([RC]P)[-\s]?(\d+)\.(\d+)\b", re.IGNORECASE)
+CLAUSE_ID = re.compile(rf"\b([RC]P){_ID_GAP}(\d+)\.(\d+)\b", re.IGNORECASE)
 
 #: A section id: `RP-1`, `CP-4`.
-SECTION_ID = re.compile(r"\b([RC]P)[-\s]?(\d+)\b(?!\.)", re.IGNORECASE)
+SECTION_ID = re.compile(rf"\b([RC]P){_ID_GAP}(\d+)\b(?!\.)", re.IGNORECASE)
 
 
 class UnknownBook(ValueError):

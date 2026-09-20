@@ -90,6 +90,26 @@ def test_a_question_pasted_out_of_a_document_still_finds_its_clause(
             f"{spelled!r} finds nothing in the {book} book")
 
 
+DASHES = ["-", "\u2010", "\u2011", "\u2013", "\u2014", " ", ""]
+
+
+@pytest.mark.parametrize("dash", DASHES, ids=[repr(d) for d in DASHES])
+def test_a_clause_id_quoted_out_of_a_document_resolves(dash: str) -> None:
+    """The same argument as the keyword matcher, one route over.
+
+    Someone quoting a clause id at the product is the likeliest way one
+    arrives, and the dash they paste is not the dash they typed: a word
+    processor turns `CP-1.2` into `CP\u20111.2`. The id pattern allowed a
+    hyphen, a space or nothing, and nothing typographic.
+    """
+    assert cp.named_clauses(f"what does CP{dash}1.2 say") == ["CP-1.2"]
+
+
+@pytest.mark.parametrize("dash", DASHES, ids=[repr(d) for d in DASHES])
+def test_a_section_id_quoted_out_of_a_document_resolves(dash: str) -> None:
+    assert cp.named_sections(f"the CP{dash}2 section") == ["CP-2"]
+
+
 @pytest.mark.parametrize("book", BOOKS)
 def test_every_clause_is_reachable_by_its_own_title(book: str) -> None:
     """The minimum bar, and derived from the pack rather than from me: a
