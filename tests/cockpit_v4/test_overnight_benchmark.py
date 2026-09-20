@@ -419,11 +419,26 @@ def test_the_pipeline_publishes_the_answer_the_oracle_expects(
 
 # ---- the answer-quality rubric -----------------------------------------
 
-#: The brief's weights. Four of the six are properties of what the PRODUCT
-#: published and are scored from the run; two are properties of the model's
-#: own prose and cannot be scored while the analyst turn is scripted. They
-#: are carried as `model_dependent` and left unscored rather than awarded to
-#: a mock, because a rubric that grades the harness is worse than no rubric.
+#: The brief's weights. The ones that are properties of what the PRODUCT
+#: published are scored from the run; the ones that are properties of the
+#: model's own judgement cannot be scored while the analyst turn is
+#: scripted. Those are carried as `model_dependent` and left unscored rather
+#: than awarded to a mock, because a rubric that grades the harness is worse
+#: than no rubric.
+#:
+#: WHICH IS WHAT "visualization_judgement" WAS DOING. It was one row, worth
+#: 10, marked not model-dependent, and its test read "a chart is published
+#: exactly when the question warrants one". But the scripted analyst reads
+#: `question["chart"]` out of the bank and emits that form, and the mark
+#: then checks the published chart against the same field. The only way it
+#: can fail is if the PIPELINE drops or mangles a chart the analyst
+#: declared. That is worth marking and it is not judgement, and calling it
+#: judgement put 10 of 80 points behind a name that claimed more than the
+#: run had shown -- the exact failure the paragraph above says to avoid.
+#:
+#: So the 10 is split in half, between the part a mock can prove and the
+#: part only a live analyst can. Splitting evenly is a reading of the
+#: brief's single weight rather than a measurement, and it is named as one.
 RUBRIC = [
     {"dimension": "numerical_correctness", "weight": 40,
      "model_dependent": False,
@@ -438,15 +453,60 @@ RUBRIC = [
      "model_dependent": False,
      "test": "each claim's artifact, row and column resolve to the stored "
              "cell it quotes"},
-    {"dimension": "visualization_judgement", "weight": 10,
+    {"dimension": "visual_fidelity", "weight": 5,
      "model_dependent": False,
-     "test": "a chart is published exactly when the question warrants one"},
+     "test": "the form the analyst declared is the form published, and a "
+             "question warranting none publishes none"},
+    {"dimension": "visualization_judgement", "weight": 5,
+     "model_dependent": True,
+     "test": "deciding whether this result warrants a chart at all is the "
+             "analyst's call; a scripted turn was handed the answer"},
     {"dimension": "clarity_of_writing", "weight": 5,
      "model_dependent": True,
      "test": "requires a live analyst turn; not scored against a mock"},
 ]
 
 SCORABLE = sum(r["weight"] for r in RUBRIC if not r["model_dependent"])
+
+
+def test_the_rubric_still_adds_up_to_the_brief() -> None:
+    assert sum(r["weight"] for r in RUBRIC) == 100
+    assert SCORABLE == 75
+    assert sorted(r["dimension"] for r in RUBRIC) == sorted(
+        {r["dimension"] for r in RUBRIC}), "a dimension is listed twice"
+
+
+def test_only_what_a_mock_can_prove_carries_a_mark() -> None:
+    """The invariant the split was for.
+
+    Every dimension this run SCORES must be one the run can establish
+    without the model's judgement, and every dimension that needs a live
+    analyst must carry no mark at all. A dimension that is both -- marked,
+    and model-dependent -- is a mark awarded to the harness.
+    """
+    scored = {r["dimension"] for r in RUBRIC if not r["model_dependent"]}
+    unscored = {r["dimension"] for r in RUBRIC if r["model_dependent"]}
+    assert scored & unscored == set()
+    assert "visualization_judgement" in unscored, (
+        "choosing whether a result warrants a chart is the analyst's call; "
+        "a scripted turn that was handed the form cannot demonstrate it")
+    assert "visual_fidelity" in scored, (
+        "that the declared form survives the pipeline IS provable here and "
+        "should not have been dropped with the judgement claim")
+
+
+def test_every_scored_dimension_is_one_the_scorecard_actually_marks() -> None:
+    """A dimension in the rubric with no mark behind it inflates the
+    denominator and makes the score unreachable; one marked but absent from
+    the rubric is a mark nobody declared."""
+    import inspect
+
+    body = inspect.getsource(_score)
+    for row in RUBRIC:
+        marked = f'marks["{row["dimension"]}"]' in body
+        assert marked is not row["model_dependent"], (
+            f"{row['dimension']}: model_dependent={row['model_dependent']} "
+            f"but {'is' if marked else 'is not'} marked in the scorecard")
 
 
 def _score(question_id: str, body: dict, stored: dict, question: dict, *,
@@ -476,7 +536,7 @@ def _score(question_id: str, body: dict, stored: dict, question: dict, *,
     # result would be the wrong judgement rather than the right one.
     kind = "" if rows == 0 else CHART_KIND[question["chart"]]
     published = body["charts"][0]["kind"] if body["charts"] else ""
-    marks["visualization_judgement"] = 10 if published == kind else 0
+    marks["visual_fidelity"] = 5 if published == kind else 0
 
     return {"marks": marks, "scored": sum(marks.values()),
             "scorable_total": SCORABLE,
