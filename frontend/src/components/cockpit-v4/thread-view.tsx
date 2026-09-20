@@ -616,6 +616,7 @@ function ThreadActions({
 
 function ThreadHeader({
   title,
+  named,
   turnCount,
   latestRunId,
   threadId,
@@ -625,6 +626,13 @@ function ThreadHeader({
   onHome,
 }: {
   title: string;
+  /**
+   * Whether the server has said what this conversation is called yet.
+   *
+   * Separate from `title` being empty, because those are different facts
+   * and were being rendered as the same one. See the header below.
+   */
+  named: boolean;
   turnCount: number;
   latestRunId: string;
   threadId: string;
@@ -686,13 +694,34 @@ function ThreadHeader({
               Save
             </button>
           </form>
-        ) : (
+        ) : named ? (
           <h1
             data-testid="v4-thread-title"
             dir="auto"
             className="truncate text-xl font-semibold text-text-primary"
           >
             {title || "New conversation"}
+          </h1>
+        ) : (
+          /*
+            "New conversation" means this conversation has no name. It was
+            also what a reader saw for the moment between a refresh and the
+            transcript arriving, because `transcript?.title ?? ""` collapses
+            "not loaded yet" and "loaded, unnamed" into the same empty
+            string. So a thread the reader had named appeared, briefly, to
+            have been renamed back on every reload.
+
+            A heading is a claim about what something is called. While the
+            server has not said, the honest heading is that we are still
+            asking -- and it carries a DIFFERENT test id, so a test reading
+            the title waits for a title rather than racing the fetch and
+            quoting the placeholder.
+          */
+          <h1
+            data-testid="v4-thread-title-loading"
+            className="truncate text-xl font-semibold text-text-muted"
+          >
+            Opening this conversation…
           </h1>
         )}
         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
@@ -721,11 +750,15 @@ function ThreadHeader({
         />
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {/* Offered once there is a name to change. Before the transcript
+            lands the draft would open empty, and saving it would replace a
+            name the reader had not seen with nothing. */}
         <button
           type="button"
           data-testid="v4-thread-rename"
+          disabled={!named}
           onClick={() => setEditing((prev) => !prev)}
-          className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken"
+          className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken disabled:opacity-50"
         >
           Rename
         </button>
@@ -942,6 +975,7 @@ export function CockpitV4Thread({
     >
       <ThreadHeader
         title={transcript?.title ?? ""}
+        named={transcript !== null}
         turnCount={turns.length + (live ? 1 : 0)}
         domainId={transcript?.domain_id ?? ""}
         domainLabel={transcript?.domain_short_label ?? ""}

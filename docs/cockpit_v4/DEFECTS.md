@@ -125,3 +125,76 @@ Found during an accidental run of the V4 suite; the four modified files were
 restored with a working-tree `git checkout --`, not a branch reset, and the
 rebuild was never committed. The defect itself pre-dates that run and is
 present at `b4ac6aa`.
+
+---
+
+## D-002 · The result-only browser journey times out under Midnight, twice in six runs
+
+| | |
+|---|---|
+| **Status** | OPEN — not root-caused, observability improved |
+| **Severity** | P2 |
+| **Found** | 2026-09-20, Round H, while regenerating themed browser evidence |
+| **Failing test** | `tests/cockpit_v4/browser/cockpit_v4.browser.mjs` — *"a result survives an answer that could not be written"* |
+
+### What happens
+
+The browser journey that exercises the result-only channel — a run whose
+query executes and whose write-up then fails, so the rows must reach the
+reader without a narrative — waits the full 120 s for
+`[data-testid="v4-response"]` and then fails. The test takes **151 s**
+instead of its usual **5.8 s**: a stall, not a marginal overrun.
+
+### What was measured, not assumed
+
+Eleven full browser runs in one session, same commit, same machine:
+
+| Theme | Full-suite runs | Result |
+|---|---|---|
+| default (Executive Light) | 6 | 76/76 every time |
+| `porcelain` — themed code path, light palette | 1 | 76/76 |
+| `midnight` | 6 | **4 × 76/76, 2 × 75/76** |
+| `midnight`, this test alone | 2 | passes |
+| default, this test alone | 2 | passes |
+
+So it is not the test in isolation, it is not the themed code path as such
+(`porcelain` seeds `localStorage` through exactly the same helper), and it
+is not run ordering — two default runs back to back both passed 76/76,
+which was the first hypothesis and the one that was disproved.
+
+It correlates with `midnight` and with the full suite together. In the two
+failures the suite's total wall time roughly doubled (154 s → 301 s), but
+no other test was slower by more than a few hundred milliseconds. One test
+absorbed all of it.
+
+### What is NOT established
+
+The cause. Specifically, it is not known whether the run never produced an
+answer, or produced one the page rendered with no box — and those call for
+investigations in completely different halves of the system.
+`waitForSelector` waits for VISIBLE, so the old message, "never appeared",
+covered both and distinguished neither.
+
+Nothing was widened, skipped or retried to get past this. The timeout is
+still 120 s and the test is still required.
+
+### What was done instead
+
+`expect()` now reports, on timeout, whether the selector is absent from the
+DOM or present with its box, `display`, `visibility` and `opacity` — and
+the `data-theme` in force. The next occurrence will say which half to look
+in. It has not reproduced in the five runs since (three full `midnight`,
+two isolated), so the improved message has not yet been exercised against
+a real failure.
+
+### What a fix must include
+
+1. A reproduction that captures the new diagnostic, so the question above
+   is answered before any code changes.
+2. If the run did not answer: which stage stalled, from the run's own event
+   stream, not from the page.
+3. If the answer rendered invisibly: the rule that did it, and why it
+   applies under `midnight` and not under `porcelain` — the two differ only
+   in palette and in whether `@custom-variant dark` matches.
+4. A regression test that fails without the fix. A test that merely passes
+   more often is not one.

@@ -146,3 +146,19 @@ def test_every_browser_context_carries_the_run_theme() -> None:
         f"helper may make one, or a themed run silently renders some pages "
         f"in the default theme.")
     assert "async function newContext(browser, options = {})" in source
+
+
+def test_the_evidence_file_says_which_theme_produced_it() -> None:
+    """Two runs, two files, identical in shape.
+
+    The light and dark evidence were told apart only by which directory
+    they sat in, so a `browser.json` quoted on its own -- in a report, in a
+    review, in a handoff -- asserted 76 passing tests and said nothing
+    about what had been rendered while they passed. The run names its own
+    theme now, and the default one names itself as the default rather than
+    leaving the key out.
+    """
+    source = BROWSER.read_text(encoding="utf-8")
+    assert "theme: THEME," in source, (
+        "the browser summary no longer records its theme; the two evidence "
+        "files become indistinguishable from their contents again")

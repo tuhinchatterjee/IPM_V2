@@ -220,8 +220,27 @@ async function expect(page, selector, timeout, problems) {
     const submitError = await page
       .textContent('[data-testid="cockpit-v4-submit-error"]')
       .catch(() => "");
+    // `waitForSelector` waits for VISIBLE, so this one message covers two
+    // completely different failures: the run never produced the thing, or
+    // it produced it and the page rendered it with no box. Reporting only
+    // "never appeared" sends a reader looking at the backend for what may
+    // be a stylesheet, and this cost most of an afternoon once.
+    const state = await page
+      .evaluate((css) => {
+        const node = document.querySelector(css);
+        if (!node) return "not in the DOM";
+        const box = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return `IN THE DOM but not visible: ${box.width}x${box.height}, ` +
+               `display=${style.display}, visibility=${style.visibility}, ` +
+               `opacity=${style.opacity}`;
+      }, selector)
+      .catch(() => "could not be inspected");
+    const theme = await page
+      .evaluate(() => document.documentElement.getAttribute("data-theme"))
+      .catch(() => "?");
     throw new Error(
-      `${selector} never appeared.` +
+      `${selector} never appeared (${state}; data-theme=${theme}).` +
         (submitError ? ` Page said: ${submitError}.` : "") +
         (problems?.length ? ` Browser reported: ${problems.slice(0, 3).join(" ; ")}` : ""),
     );
@@ -3108,6 +3127,11 @@ const summary = {
     "and the rendering. It is NOT a live Opus validation.",
   ui: UI,
   api: API,
+  // WHICH THEME THIS RUN PROVES. The two evidence files are identical in
+  // shape and were distinguished only by which directory they sat in, so a
+  // file quoted on its own said nothing about what it had rendered. The
+  // empty string is the default theme, named rather than implied.
+  theme: THEME,
   total: results.length,
   passed: results.filter((r) => r.ok).length,
   failed: failures,
