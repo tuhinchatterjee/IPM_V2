@@ -7,7 +7,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 5.6,
+      "seconds": 3.9,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -17,7 +17,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.6,
+      "seconds": 2.2,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -27,7 +27,7 @@
       "cycles": 10,
       "passed": 51,
       "failed": 0,
-      "seconds": 0.5,
+      "seconds": 0.4,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -37,7 +37,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 1.9,
+      "seconds": 1.4,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -47,7 +47,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.3,
+      "seconds": 1.9,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -57,7 +57,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 1.8,
+      "seconds": 1.5,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -67,7 +67,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 2.5,
+      "seconds": 2.2,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -87,7 +87,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 2.9,
+      "seconds": 2.3,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -97,7 +97,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 1.7,
+      "seconds": 1.3,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -107,7 +107,7 @@
       "cycles": 10,
       "passed": 51,
       "failed": 0,
-      "seconds": 2.3,
+      "seconds": 2.0,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -117,7 +117,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 2.1,
+      "seconds": 1.7,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -127,7 +127,7 @@
       "cycles": 10,
       "passed": 61,
       "failed": 0,
-      "seconds": 1.8,
+      "seconds": 1.5,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -147,7 +147,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 1.7,
+      "seconds": 1.5,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -177,7 +177,7 @@
       "cycles": 10,
       "passed": 51,
       "failed": 0,
-      "seconds": 0.2,
+      "seconds": 0.1,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -187,7 +187,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 1.8,
+      "seconds": 1.5,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -197,7 +197,7 @@
       "cycles": 10,
       "passed": 41,
       "failed": 0,
-      "seconds": 1.8,
+      "seconds": 1.6,
       "same_state_every_cycle": true,
       "failures": []
     },
@@ -207,7 +207,7 @@
       "cycles": 10,
       "passed": 31,
       "failed": 0,
-      "seconds": 1.9,
+      "seconds": 1.4,
       "same_state_every_cycle": true,
       "failures": []
     }

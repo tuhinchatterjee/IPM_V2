@@ -149,6 +149,14 @@ def write(doc: D.Document) -> bytes:
             run.font.color.rgb = RGBColor(0x6C, 0x7A, 0x8C)
 
     # ---- cover -------------------------------------------------------
+    # The title block sits a third of the way down, the same as the PDF's, so
+    # the two formats deliver the same document rather than two arrangements
+    # of it. Empty paragraphs rather than a frame: python-docx has no vertical
+    # positioning, and a spacer a reader can delete is better than a text box
+    # they cannot edit.
+    if front.has_contents:
+        for _ in range(6):
+            out.add_paragraph()
     title = out.add_heading(front.title, level=0)
     for run in title.runs:
         run.font.color.rgb = RGBColor(0x0B, 0x24, 0x36)

@@ -303,6 +303,34 @@ class TestThereIsSomethingToNavigateBy:
         assert 'TOC \\o "1-3"' in xml
         assert "Contents" in _docx_text(docx_writer.write(report))
 
+    def test_the_cover_carries_no_running_header_or_page_number(self, report):
+        """A cover is a cover.
+
+        The running header repeated the title six centimetres above the
+        title, and "Page 1" sat under a page that is not part of the reading.
+        """
+        from pypdf import PdfReader
+
+        pages = PdfReader(io.BytesIO(pdf_writer.write(report))).pages
+        first = pages[0].extract_text() or ""
+        assert "Page 1" not in first
+        # Once, as the title — not again as a header above it. The title
+        # wraps in the extracted text, so it is counted by its opening.
+        assert first.count("Auto Loan Application Scorecard") == 1
+
+        # And the rest of the document is numbered as usual.
+        assert "Page 2" in (pages[1].extract_text() or "")
+
+    def test_a_short_document_still_gets_its_furniture(self):
+        """No cover, no contents — and therefore the header and the page
+        number from the first page, because there is no cover to keep them
+        off."""
+        from pypdf import PdfReader
+
+        short = D.parse("# A note\n\n## Only section\n\nOne paragraph.\n")
+        page = PdfReader(io.BytesIO(pdf_writer.write(short))).pages[0]
+        assert "Page 1" in (page.extract_text() or "")
+
     def test_the_pdf_contents_lists_every_section_with_its_page(self, report):
         text = _pdf_text(pdf_writer.write(report))
         assert "Contents" in text

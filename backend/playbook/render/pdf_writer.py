@@ -160,7 +160,13 @@ def write(doc: D.Document) -> bytes:
         title=front.title, author="CreditProbe",
     )
 
-    flow = [Paragraph(_escape(front.title), st["title"])]
+    # A cover, not a first page that happens to start with a big line. The
+    # title sits about a third of the way down, which is where a reader's eye
+    # goes and where every committee paper this replaces puts it; without the
+    # spacer the block sat under the header with two-thirds of the page blank
+    # below it, which reads as a document that failed to render.
+    flow = [Spacer(1, 70 * mm) if front.has_contents else Spacer(1, 0),
+            Paragraph(_escape(front.title), st["title"])]
     if front.subtitle:
         flow.append(Paragraph(_escape(front.subtitle), st["subtitle"]))
     if front.facts:
@@ -251,7 +257,12 @@ def write(doc: D.Document) -> bytes:
     if front.has_contents:
         # Two passes, so the page numbers in the contents are the pages the
         # headings actually landed on rather than a guess made before layout.
-        pdf.multiBuild(flow, onFirstPage=furniture, onLaterPages=furniture)
+        #
+        # And nothing drawn on the cover: a running header repeating the title
+        # six centimetres above the title, and a page number on a page that is
+        # not part of the reading, are what a cover page is for NOT having.
+        pdf.multiBuild(flow, onFirstPage=lambda *a: None,
+                       onLaterPages=furniture)
     else:
         pdf.build(flow, onFirstPage=furniture, onLaterPages=furniture)
     return buf.getvalue()

@@ -61,6 +61,11 @@ has actually reached.
 | Reopen keeps conversation, files and versions | ✅ | ✅ J | | live |
 | Interruption labelled **in the thread**, earlier report untouched | ✅ | ✅ K | | live |
 | Deterministic progress: content / deliverable / review / files | ✅ | ✅ A, C | | live |
+| A completion card counted from rows, under the delivered files | ✅ | ✅ C | | live |
+| A written verdict given only that card, labelled as judgement | ✅ | ✅ C | | live (a real model has not written one) |
+| The model's reasoning summary shown while it works | ✅ | | | browser, live |
+| A truncated document is never delivered as finished | ✅ | | | browser, live |
+| Real headings, a cover, a contents page, applied emphasis | ✅ | | | a person reading the file |
 | Review ladder: draft, reviewed, governed, approved | ✅ | ✅ C | | live |
 | Document path chosen per task and recorded per artifact | ✅ | | | browser, live |
 | Unsupported capabilities declared, never simulated | ✅ | | | browser, live |
@@ -85,17 +90,17 @@ model actually gave are in the detector's test cases verbatim.
 
 | Run | Result |
 |---|---|
-| `pytest` — whole repository | **10,637 passed, 30 skipped, 0 failed**, exit 0 (22m05s) |
-| `pytest tests/playbook` | **1,145 passed, 8 skipped** — the 8 are the live checks |
+| `pytest` — whole repository | PENDING |
+| `pytest tests/playbook` | **1,216 passed, 0 failed**, twice consecutively |
 | Chat browser acceptance, **two consecutive cycles** | **144 passed, 0 failed** (72 per cycle, journeys A–M) |
 | Workspace browser acceptance | **105 passed, 0 failed** |
 | Dashboard browser acceptance | **185 passed, 0 failed** |
-| Artifact parse-back | **14 files, 62 checks, 0 failed** |
+| Artifact parse-back | **14 files, 178 checks, 0 failed** — 62 of them before the layout checks were added |
 | Soak, 21 journeys × 10 cycles | **911 checks passed, 0 failed** |
 | `ruff check .` | clean |
 | `tsc --noEmit` | clean |
 | `eslint` | clean |
-| Frontend unit tests | **528 passed, 0 failed** |
+| Frontend unit tests | **542 passed, 0 failed** |
 | `next build` | succeeded |
 
 The 30 pytest skips and the 8 in `tests/playbook` are live-provider checks
@@ -174,6 +179,36 @@ There is deliberately **no percentage**. Writing is most of the wall time and
 one step of five, so a step bar would sit near empty for almost the whole run
 — the same lie as one stuck at 95%, told backwards. Document completion stays
 where it belongs, in the dashboard, computed from stored rows after delivery.
+
+The opening minutes are filled by the model's own summary of what it is doing,
+streamed on its own channel. Newest line only: it is never accumulated, never
+stored, and never merged into the answer or the document. A reasoning
+transcript is forbidden; a provider display summary shown while the turn runs
+is not that. If the provider refuses the parameter, the flag is dropped for
+the process and the run continues without it.
+
+**What was delivered, after it was delivered.**
+`backend/playbook/assessment.py`. Counted from the rows the turn just wrote —
+sections written, thin, or stating a gap, by name; formats delivered and
+failed; each attached source read in full or in part and whether anything from
+it was cited; every figure grounding could not trace, with its section; the
+review state; and the time, split between the provider call and the local
+render. The card names the version the turn wrote rather than the workspace's
+current artifact, so a deck's message cannot describe the report it came from.
+
+Beside it, one bounded 700-token call writes a short reading of that card and
+is given nothing else — not the document, not the evidence, not the
+conversation. It is labelled as judgement wherever it appears, never shown
+without the counts, turned off by `PLAYBOOK_WRITTEN_ASSESSMENT=0`, and when it
+fails the card is delivered anyway.
+
+**The report itself.** The title is the report's own H1, cleaned to one line;
+`**bold**`, `*italic*` and `` `code` `` are applied by each writer rather than
+printed; `>` is the callout kind the model already had and `---` is the
+separator it is; Word carries a real `TOC` field and the PDF a built contents
+page over two passes. The canonical `Document` is unchanged — inline
+formatting belongs to the writers, and adding spans to a `Block` would have
+moved every stored `content_hash` to solve a rendering problem.
 
 ## 6. Budget
 
