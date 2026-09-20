@@ -89,6 +89,21 @@ Three things to know before you do:
   proxy against the engine's own ledger. The engine itself bounds only one
   run at a time. Unset it and there is no cap at all.
 
+Rehearse the runner first -- it costs nothing and refuses to point at a live
+engine:
+
+    RETAIL_COCKPIT_OFFLINE=1 launchers/retail/start-retail-candidate.command
+    .venv/bin/python scripts/retail_cockpit/run_uat.py --rehearse
+
+Then the twelve, live:
+
+    .venv/bin/python scripts/retail_cockpit/run_uat.py --i-accept-the-cost
+
+It refuses to start unless `check_live.py` is satisfied, writes
+`docs/retail_cockpit/evidence/live_uat.json` after every question, stops at
+the cap, stops on question 2 failing and stops on a containment failure, and
+resumes with `--from N` so a stop never costs what was already paid for.
+
 The model is `claude-opus-5` and the card is
 `config/cockpit_v4/price_card.candidate.json`, at Anthropic's published
 first-party rates. If you bill through Bedrock or Google Cloud, hold a
@@ -108,6 +123,8 @@ discount, or pin US-only inference, those rates are wrong for you.
 | Browser (five cycles, 135 checks) | `CANDIDATE_CYCLES=5 CANDIDATE_UI_URL=http://localhost:5329 CANDIDATE_API_URL=http://127.0.0.1:8329 CANDIDATE_ENGINE_URL=http://127.0.0.1:8415 node tests/retail_cockpit/browser/candidate.browser.mjs` |
 | Memory | `.venv/bin/python scripts/retail_cockpit/benchmark_session.py --limits 1536MB,2048MB --repeat 3` |
 | Live preflight (no provider call) | `.venv/bin/python scripts/retail_cockpit/check_live.py` |
+| UAT rehearsal (no provider call) | `RETAIL_COCKPIT_OFFLINE=1 .venv/bin/python scripts/retail_cockpit/run_uat.py --rehearse` |
+| The twelve, live (SPENDS MONEY) | `.venv/bin/python scripts/retail_cockpit/run_uat.py --i-accept-the-cost` |
 
 ## Two things that will bite
 

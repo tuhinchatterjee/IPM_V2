@@ -51,6 +51,22 @@ Two things, neither of them obvious:
   offline. It now skips that step in live mode and says so;
   `--allow-paid-run` spends one deliberately.
 
+## How it runs
+
+`scripts/retail_cockpit/run_uat.py` drives all twelve through the retail
+proxy -- the same path a reader's question takes, so the cumulative cap
+applies to it too. It judges an answer by its **numeric claims**, not its
+prose: every figure the analyst publishes is already bound by the engine to
+an executed cell, so the check is whether each one appears among the values
+the oracle computed independently, at the oracle's own tolerance. That
+catches a fabricated figure, a wrong denomination, a ratio of averages and an
+un-de-duplicated customer total. It does not catch an answer whose numbers
+are all true and whose conclusion is wrong; a human reads the narratives for
+that, and the report says so rather than claiming the stronger thing.
+
+`--rehearse` drives the same twelve against an OFFLINE engine, proving the
+runner for nothing and refusing to point at an engine that could spend.
+
 ## The plan
 
 | | |
