@@ -57,6 +57,7 @@ from backend.playbook import document as D
 from backend.playbook import evidence as ev
 from backend.playbook import repository as repo
 from backend.playbook.intelligence import adopt
+from backend.playbook.render import shell
 
 logger = logging.getLogger(__name__)
 
@@ -530,7 +531,18 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
             f"configured {result.model_requested}."
         )
 
-    doc = D.parse(result.text, title=title)
+    # Parsed with NO title, so the model's own leading `# H1` is taken as the
+    # document's title instead of becoming its first section. `title` here is
+    # the workspace's, and a workspace is named after its first message — so
+    # passing it made the H1 of a sixteen-page committee report read "Create a
+    # detailed Auto Loan Application Scorecard Model Development Report using
+    # the attached evidence. Treat AL-AS-v1.", newline included, which the PDF
+    # header then drew as two black boxes.
+    #
+    # It remains the fallback for a draft that opens with no heading at all,
+    # cleaned rather than used raw. See `render/shell.py`.
+    doc = D.parse(result.text)
+    doc.title = shell.title_of(doc, fallback=title)
     if not doc.sections:
         raise provider.AuthoringError(
             "The author returned no document. Nothing was saved and the "
@@ -657,8 +669,9 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
         if artifact is None or artifact.workspace_id != ws.id:
             raise repo.NotFound(f"No artifact {artifact_id} in this workspace.")
     else:
+        # The report's own title, not the sentence that asked for it.
         artifact = repo.create_artifact(session, ws.id, kind="report",
-                                        title=title)
+                                        title=doc.title or title)
 
     version = repo.new_version(
         session, artifact,

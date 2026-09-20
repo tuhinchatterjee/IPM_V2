@@ -17,6 +17,8 @@ from __future__ import annotations
 import io
 
 from backend.playbook import document as D
+from backend.playbook.render import inline
+from backend.playbook.render import shell as shell_of
 
 
 def _styles():
@@ -35,6 +37,12 @@ def _styles():
                                    spaceAfter=10),
         "meta": ParagraphStyle("PbMeta", parent=base["Normal"], fontSize=8.5,
                                leading=12, textColor=MUTED, spaceAfter=14),
+        # The contents page's own heading. Identical to h1 to look at, and
+        # deliberately a different style name: `afterFlowable` notifies on
+        # PbH1/PbH2, so sharing one would list "Contents" inside the contents.
+        "front": ParagraphStyle("PbFront", parent=base["Heading1"],
+                                fontSize=14, leading=18, textColor=NAVY,
+                                spaceBefore=14, spaceAfter=6),
         "h1": ParagraphStyle("PbH1", parent=base["Heading1"], fontSize=14,
                              leading=18, textColor=NAVY, spaceBefore=14,
                              spaceAfter=6),
@@ -54,13 +62,25 @@ def _styles():
 
 
 def _escape(text: str) -> str:
-    """reportlab reads a limited HTML in paragraphs, so raw text is escaped.
+    """Raw text, with nothing in it readable as markup.
 
-    A source document containing `<script>` or a stray `&` must render as those
-    characters, not as markup the renderer tries to interpret.
+    reportlab reads a limited HTML in paragraphs, so a source document
+    containing `<script>` or a stray `&` must render as those characters and
+    not as markup the renderer tries to interpret. Used where no formatting is
+    wanted at all — headings, cells, locators.
     """
-    return (str(text).replace("&", "&amp;").replace("<", "&lt;")
-            .replace(">", "&gt;"))
+    return inline.escape(inline.plain(str(text)))
+
+
+def _rich(text: str) -> str:
+    """The same, with `**bold**`, `*italic*` and `` `code` `` applied.
+
+    Escaping happens inside `inline.markup`, per run and before its own tags
+    are added, so a literal `<` cannot become a tag and a tag it added cannot
+    be escaped away. Every paragraph used to go through `_escape` alone, which
+    is why the asterisks reached the reader.
+    """
+    return inline.markup(str(text))
 
 
 def _page_furniture(title: str):
@@ -82,41 +102,100 @@ def _page_furniture(title: str):
     return draw
 
 
+def _template():
+    """A document that tells the contents where each heading landed.
+
+    reportlab resolves a table of contents over two passes: the first records
+    which page every entry finished on, the second draws the list with those
+    numbers. `afterFlowable` is the hook that does the recording, and without
+    a subclass there is nowhere to put it.
+    """
+    from reportlab.platypus import SimpleDocTemplate
+
+    class _Doc(SimpleDocTemplate):
+        def afterFlowable(self, flowable):  # noqa: N802 — reportlab's name
+            style = getattr(getattr(flowable, "style", None), "name", "")
+            if style not in ("PbH1", "PbH2"):
+                return
+            text = flowable.getPlainText()
+            if not text:
+                return
+            level = 0 if style == "PbH1" else 1
+            self.notify("TOCEntry", (level, text, self.page))
+
+    return _Doc
+
+
 def write(doc: D.Document) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.platypus import (
         PageBreak,
         Paragraph,
-        SimpleDocTemplate,
         Spacer,
         Table,
         TableStyle,
     )
+    from reportlab.platypus.tableofcontents import TableOfContents
 
-    from backend.reporting.writers import BORDER, NAVY, ROW_ALT
+    from backend.reporting.writers import BORDER, INK, MUTED, NAVY, ROW_ALT
+
+    contents = TableOfContents()
+    contents.levelStyles = [
+        ParagraphStyle("PbToc0", fontSize=10, leading=16, textColor=INK,
+                       firstLineIndent=0, leftIndent=0),
+        ParagraphStyle("PbToc1", fontSize=9, leading=14, textColor=MUTED,
+                       firstLineIndent=0, leftIndent=14),
+    ]
 
     st = _styles()
+    front = shell_of.shell_of(doc)
     buf = io.BytesIO()
-    pdf = SimpleDocTemplate(
+    pdf = _template()(
         buf, pagesize=A4,
         leftMargin=20 * mm, rightMargin=20 * mm,
         topMargin=20 * mm, bottomMargin=20 * mm,
-        title=doc.title or "CreditProbe report", author="CreditProbe",
+        title=front.title, author="CreditProbe",
     )
 
-    flow = [Paragraph(_escape(doc.title or "Report"), st["title"])]
-    if doc.subtitle:
-        flow.append(Paragraph(_escape(doc.subtitle), st["subtitle"]))
-    if doc.meta:
-        line = "  ·  ".join(f"{k.replace('_', ' ').title()}: {v}"
-                            for k, v in doc.meta.items() if v)
-        if line:
-            flow.append(Paragraph(_escape(line), st["meta"]))
+    flow = [Paragraph(_escape(front.title), st["title"])]
+    if front.subtitle:
+        flow.append(Paragraph(_escape(front.subtitle), st["subtitle"]))
+    if front.facts:
+        # A record, not a middot-joined caption. Same shape as the Word cover,
+        # from the same `Shell`, so the two cannot describe one document
+        # differently.
+        facts = Table(
+            [[Paragraph(f"<b>{_escape(k)}</b>", st["cell"]),
+              Paragraph(_escape(v), st["cell"])] for k, v in front.facts],
+            colWidths=[38 * mm, None], hAlign="LEFT")
+        facts.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, BORDER),
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, ROW_ALT]),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        flow.append(facts)
+        flow.append(Spacer(1, 10))
+
+    if front.has_contents:
+        # Built, not a field: a PDF has no reader to update one later. The
+        # page numbers come from reportlab's own index of where each heading
+        # actually landed — see `_Contents` below.
+        flow.append(PageBreak())
+        flow.append(Paragraph("Contents", st["front"]))
+        flow.append(contents)
+        flow.append(PageBreak())
 
     for section in doc.sections:
         if section.heading:
+            # Plain: a heading is an entry in the contents as well as a line
+            # in the body, and the two have to read the same.
             flow.append(Paragraph(_escape(section.heading),
                                   st["h1"] if section.level <= 1 else st["h2"]))
         for block in section.blocks:
@@ -128,7 +207,8 @@ def write(doc: D.Document) -> bytes:
                 data = [[Paragraph(f"<b>{_escape(c)}</b>", st["cellhead"])
                          for c in columns]]
                 for row in rows:
-                    data.append([Paragraph(_escape(v), st["cell"])
+                    data.append([Paragraph(_rich("" if v is None else v),
+                                           st["cell"])
                                  for v in list(row)[: len(columns)]])
                 table = Table(data, repeatRows=1, hAlign="LEFT")
                 table.setStyle(TableStyle([
@@ -148,13 +228,14 @@ def write(doc: D.Document) -> bytes:
             elif block.kind in (D.BULLETS, D.NUMBERS):
                 for i, item in enumerate(block.data.get("items", []), start=1):
                     marker = f"{i}." if block.kind == D.NUMBERS else "•"
-                    flow.append(Paragraph(_escape(item), st["bullet"],
+                    flow.append(Paragraph(_rich(item), st["bullet"],
                                           bulletText=marker))
                 flow.append(Spacer(1, 4))
             elif block.kind == D.CALLOUT and block.text:
-                flow.append(Paragraph(f"<i>{_escape(block.text)}</i>", st["body"]))
+                flow.append(Paragraph(f"<i>{_rich(block.text)}</i>",
+                                      st["body"]))
             elif block.text:
-                flow.append(Paragraph(_escape(block.text), st["body"]))
+                flow.append(Paragraph(_rich(block.text), st["body"]))
 
     sources = doc.sources
     if sources:
@@ -166,6 +247,11 @@ def write(doc: D.Document) -> bytes:
         for locator in sources:
             flow.append(Paragraph(_escape(locator), st["bullet"], bulletText="•"))
 
-    furniture = _page_furniture(doc.title or "")
-    pdf.build(flow, onFirstPage=furniture, onLaterPages=furniture)
+    furniture = _page_furniture(front.title)
+    if front.has_contents:
+        # Two passes, so the page numbers in the contents are the pages the
+        # headings actually landed on rather than a guess made before layout.
+        pdf.multiBuild(flow, onFirstPage=furniture, onLaterPages=furniture)
+    else:
+        pdf.build(flow, onFirstPage=furniture, onLaterPages=furniture)
     return buf.getvalue()

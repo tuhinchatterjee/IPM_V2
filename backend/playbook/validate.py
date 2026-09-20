@@ -299,6 +299,11 @@ _PAGE_FURNITURE = re.compile(
 #: ("10 accounts were reviewed") would look like a marker.
 _LEADING_ORDINAL = re.compile(r"^\s*\d+(?:\.\d+)*[.)]\s+(?=\S)")
 
+#: A whole line that is nothing but a number — the page reference a contents
+#: entry carries. Never exempt on its own: only when it sits next to a line
+#: that IS a heading of this document. See `structural_numerals`.
+_BARE_NUMBER = re.compile(r"^\s*\d{1,4}\s*$")
+
 
 def _structure_of(doc: D.Document) -> tuple[set[str], set[str]]:
     """The canonical positions an ordinal is allowed to occupy.
@@ -316,6 +321,17 @@ def _structure_of(doc: D.Document) -> tuple[set[str], set[str]]:
                     if key:
                         items.add(key)
     return headings - {""}, items
+
+
+def _is_heading_line(line: str, headings: set[str]) -> bool:
+    """Whether this line is one of this document's headings, ordinal or not.
+
+    Used to recognise a contents entry, which a PDF's text layer renders as
+    the heading on one line and its page number on the next.
+    """
+    match = _LEADING_ORDINAL.match(line)
+    key = D._normalise(line[match.end():] if match else line)
+    return bool(key) and key in headings
 
 
 def _is_structural_position(remainder: str, headings: set[str],
@@ -353,10 +369,25 @@ def structural_numerals(text: str, doc: D.Document) -> tuple[str, int]:
     stays, because one is furniture and the other is a claim.
     """
     headings, items = _structure_of(doc)
+    lines = (text or "").splitlines()
     kept: list[str] = []
     removed = 0
-    for line in (text or "").splitlines():
+    for i, line in enumerate(lines):
         if _PAGE_FURNITURE.match(line):
+            removed += 1
+            continue
+        # A contents entry: the heading on one line, the page it starts on
+        # alone on the next. Chapter 09 asks for usable navigation, and
+        # building it put a column of page numbers into the text layer that
+        # the evidence has no reason to support.
+        #
+        # Bounded on both sides by this document's own headings — a bare
+        # number is exempt only when it is adjacent to one, so a figure
+        # standing alone in a table cell is still a claim.
+        if _BARE_NUMBER.match(line) and (
+                (i and _is_heading_line(lines[i - 1], headings))
+                or (i + 1 < len(lines)
+                    and _is_heading_line(lines[i + 1], headings))):
             removed += 1
             continue
         match = _LEADING_ORDINAL.match(line)

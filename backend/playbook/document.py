@@ -207,10 +207,17 @@ def parse(markdown: str, *, title: str = "") -> Document:
     buffer: list[str] = []
     table: list[str] = []
     listing: list[str] = []
+    quoting: list[str] = []
     list_kind = ""
 
     def flush() -> None:
-        nonlocal buffer, table, listing, list_kind
+        nonlocal buffer, table, listing, quoting, list_kind
+        if quoting:
+            text, sources = _extract_sources(
+                " ".join(part for part in quoting if part).strip())
+            if text:
+                current.blocks.append(Block(CALLOUT, text, {}, sources))
+            quoting = []
         if table:
             current.blocks.append(_table_from(table))
             table = []
@@ -255,6 +262,28 @@ def parse(markdown: str, *, title: str = "") -> Document:
             close_section()
             current = Section(heading=text, level=max(1, level - 1) if doc.title else level)
             continue
+
+        # A horizontal rule is a separator between blocks, not content. It
+        # used to fall through to the paragraph buffer and print as a literal
+        # "---" in the delivered PDF.
+        if re.fullmatch(r"(?:-{3,}|\*{3,}|_{3,})", stripped):
+            flush()
+            continue
+
+        # A blockquote is the CALLOUT kind this model already has. Without
+        # this the ">" reached the reader — a sixteen-page committee report
+        # opened "> **STANDING CAVEAT — SYNTHETIC DEMO EVIDENCE** >".
+        #
+        # Consecutive quoted lines are one callout, like the paragraph buffer
+        # above: a quote wrapped across three lines is one remark.
+        quote = re.match(r"^>\s?(.*)$", stripped)
+        if quote:
+            if buffer or table or listing:
+                flush()
+            quoting.append(quote.group(1).strip())
+            continue
+        if quoting:
+            flush()
 
         if stripped.startswith("|") and stripped.endswith("|"):
             if buffer:
