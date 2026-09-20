@@ -1025,6 +1025,149 @@ export async function readSchema(
   );
 }
 
+/**
+ * The governance record: how this question became a number.
+ *
+ * Every field is a STORED fact assembled by the server. Nothing in it is
+ * computed in the browser and nothing in it may be: the whole point of
+ * the record is that it is what happened, not a reconstruction of it.
+ */
+export type GovernanceRecord = {
+  run_id: string;
+  thread_id: string;
+  state: string;
+  mode: string;
+  error_code: string;
+  created_at: string;
+  question: {
+    /** As typed. */
+    asked: string;
+    /** As analysed -- the same sentence unless normalisation touched it. */
+    analysed: string;
+    changed: boolean;
+    normalisation: { applied?: string[]; changed?: boolean };
+    /**
+     * Said plainly, because the obvious assumption is the wrong one: a
+     * question is NEVER spell-corrected or rewritten. What normalisation
+     * does is mechanical -- Unicode composition, zero-width removal,
+     * whitespace folding.
+     */
+    policy: string;
+  };
+  interpretation: {
+    intent_id: string;
+    understood_request: string;
+    query_mode: string;
+    owner: string;
+    domain_id: string;
+    domain_label: string;
+    period: Record<string, unknown>;
+    canonical_mappings: string[];
+    resolved_assumptions: string[];
+    blocking_ambiguities: string[];
+    excluded_parts: string[];
+    open_questions: Record<string, unknown>[];
+    /**
+     * What the reader's own words resolved to. THIS is the correction
+     * that actually happens -- a phrase to a governed value, never a
+     * spelling fix on the sentence.
+     */
+    value_resolutions: {
+      you_typed: string;
+      resolved_to: string;
+      on_field: string;
+      relation: string;
+      exact: boolean;
+      recorded_as: string;
+    }[];
+    rationale: string;
+  };
+  submissions: {
+    ordinal: number;
+    submission_id: string;
+    round: number;
+    status: string;
+    /** False for a submission the binder refused, which never executed. */
+    ran: boolean;
+    refusal: { stage: string; error_code: string; field: string;
+               message: string } | null;
+    objective: string;
+    subquestions: string[];
+    fields_required: string[];
+    expected_grain: string;
+    expected_units: Record<string, string>;
+    repair_of: string;
+    bind_proof: { bound_now?: string[]; bound_at_run_time?: string[] };
+    failed_step: string;
+    created_at: string;
+    steps: {
+      step_id: string;
+      purpose: string;
+      language: string;
+      /** The query, or the sentence saying it is withheld. */
+      code: string;
+      code_shown: boolean;
+      parameters: Record<string, unknown>;
+      depends_on: string[];
+      input_artifact_ids: string[];
+      artifact_id: string;
+      rows_out: number | null;
+      columns_out: string[];
+      code_digest: string;
+      /** What the query READ, not the whole authorized set. */
+      relations_read: string[];
+      relations_authorized: string[];
+      complete: boolean | null;
+      failed: { phase: string; executed: boolean; failed_check: string;
+                error_code: string; message: string } | null;
+    }[];
+  }[];
+  waterfall: {
+    release: Record<string, unknown>;
+    artifacts: {
+      artifact_id: string;
+      step_id: string;
+      language: string;
+      relations_read: string[];
+      release_id: string;
+      release_fingerprint: string;
+      columns: string[];
+      rows: number | null;
+      complete: boolean | null;
+      code_digest: string;
+      published_as: { kind: string; title: string; index?: number;
+                      form?: string; rows_shown?: number; points?: number;
+                      x_axis?: string; y_axis?: string }[];
+    }[];
+    claims: {
+      claim_id: string;
+      published: string;
+      unit: string;
+      from_cell: { artifact_id: string; row_key: string;
+                   column_id: string } | null;
+      from_arithmetic: Record<string, unknown> | null;
+    }[];
+    /** Where provenance stops, stated rather than implied. */
+    limit: string;
+  };
+  validation: { warnings: string[]; limitations: string[];
+                claims_checked: number };
+  cost: Record<string, unknown>;
+  /** Whether this reader may see the queries. */
+  sql_visible: boolean;
+  /** Why they may not, when they may not. Empty otherwise. */
+  sql_policy: string;
+};
+
+export async function readGovernance(runId: string): Promise<GovernanceRecord> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/runs/${encodeURIComponent(runId)}/governance`,
+      { credentials: "include" },
+    ),
+  );
+}
+
 /** Where an export of this run can be fetched from.
  *
  * Links rather than fetch-and-blob: the browser downloads the document
@@ -1036,6 +1179,8 @@ export function exportLinks(runId: string): {
   analysis: string;
   table: (artifactId: string, rows?: "all" | "displayed") => string;
   chart: (index: number) => string;
+  /** The governance pack: the document, the JSON and the stored rows. */
+  governance: string;
 } {
   const root = `${base()}${API_PREFIX}/runs/${encodeURIComponent(runId)}`;
   return {
@@ -1043,6 +1188,7 @@ export function exportLinks(runId: string): {
     table: (artifactId, rows = "all") =>
       `${root}/artifacts/${encodeURIComponent(artifactId)}/export?rows=${rows}`,
     chart: (index) => `${root}/charts/${index}/export`,
+    governance: `${root}/governance/export`,
   };
 }
 

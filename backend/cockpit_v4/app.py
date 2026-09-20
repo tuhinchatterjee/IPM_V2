@@ -46,8 +46,12 @@ logger = logging.getLogger(__name__)
 #: as if it were a colleague is worse than one that greets nobody. The label
 #: travels as `profile_label`, which the operator view shows and the greeting
 #: never reads.
+#: The local demo profile carries `administrator`, because local UAT is
+#: where the governance record is READ. On a real deployment the roles come
+#: from the authenticated user and nothing here grants any.
 DEMO_PRINCIPAL = {"id": "v4-local-demo", "tenant": "demo", "name": "",
-                  "profile_label": "Local UAT", "demo": True}
+                  "profile_label": "Local UAT", "demo": True,
+                  "roles": ("administrator",)}
 
 
 def demo_tenant(runtime: Any, cfg: config_mod.V4Config) -> str:
@@ -99,7 +103,14 @@ def _session_resolver() -> Any:
             return None
         return {"id": str(getattr(user, "id", "") or getattr(user, "email", "")),
                 "tenant": str(getattr(user, "tenant_id", "") or "default"),
-                "name": str(getattr(user, "name", "") or "")}
+                "name": str(getattr(user, "name", "") or ""),
+                # WHAT THIS PERSON MAY SEE, carried from the product's own
+                # user rather than assumed. The principal carried only an
+                # id and a tenant, so there was nothing to gate the SQL in
+                # a governance record on; an absent `roles` grants nothing,
+                # which is the right failure direction.
+                "roles": tuple(
+                    str(role) for role in (getattr(user, "roles", ()) or ()))}
     return resolve
 
 

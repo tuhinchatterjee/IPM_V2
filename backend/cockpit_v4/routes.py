@@ -792,6 +792,149 @@ async def export_analysis(run_id: str,
                                  suffix="md"))
 
 
+@router.get("/runs/{run_id}/governance")
+async def read_governance(run_id: str,
+                          who: dict[str, Any] = Depends(principal)
+                          ) -> dict[str, Any]:
+    """How this question became a number, from what was already stored.
+
+    `/trace` answers "what did it do": a list of stages with ticks against
+    them. It does not say what was understood from the question, which
+    governed values the reader's own words resolved to, what query was
+    written, whether a query was REFUSED, which relations were read, or how
+    the figure in the second paragraph reached the page.
+
+    All of that was on file and none of it had a route. This is the route.
+
+    It reads. It opens no model, runs no query and recomputes no figure.
+
+    `_authorize` rather than `_export_context`: a run that failed, or that
+    was refused before it ever ran, is exactly the run a reviewer opens
+    this for, and the export guard turns both away.
+    """
+    from backend.cockpit_v4 import governance as gov
+
+    record = _authorize(run_id, who)
+    store = _store()
+    answer = record.final_response or {}
+    events = list(store.events_since(run_id, 0))
+    details = store.details_for_run(run_id)
+    artifacts = _governance_artifacts(record)
+    show_sql = gov.may_read_sql(who)
+    return {
+        "run_id": run_id,
+        "thread_id": record.thread_id,
+        "state": record.state,
+        "mode": record.mode,
+        "error_code": record.error_code,
+        "created_at": record.created_at,
+        "question": gov.question_block(record, events, details),
+        "interpretation": gov.interpretation_block(events, details, answer),
+        "submissions": gov.submissions_block(
+            store.submissions_for_run(run_id), events, details, artifacts,
+            show_sql=show_sql),
+        "waterfall": gov.waterfall_block(answer, artifacts,
+                                         _run_release_block(record)),
+        "validation": {
+            "warnings": list((answer.get("validation") or {}).get(
+                "warnings") or ()),
+            "limitations": list(answer.get("limitations") or ()),
+            "claims_checked": len(answer.get("numeric_claims") or ()),
+        },
+        "cost": {**(record.budget or {}), **store.spend(run_id)},
+        # Said plainly rather than inferred from an absent field: a reader
+        # without the role must be able to tell "withheld" from "there was
+        # no query".
+        "sql_visible": show_sql,
+        "sql_policy": gov.SQL_WITHHELD if not show_sql else "",
+    }
+
+
+@router.get("/runs/{run_id}/governance/export")
+async def export_governance(run_id: str,
+                            who: dict[str, Any] = Depends(principal)
+                            ) -> Response:
+    """The governance record as a pack: the document, the JSON, the rows.
+
+    Three formats because three readers. The Markdown is what a person
+    reads and circulates; the JSON is the same record whole, for anyone
+    reproducing the account mechanically; the CSVs are the stored results
+    themselves, so a reviewer can re-run the arithmetic rather than take
+    the answer's word for it.
+
+    The SQL is in the pack exactly as it is in the route -- shown to an
+    administrator, withheld otherwise. A download is not a way around a
+    permission.
+    """
+    import io
+    import json as json_mod
+    import zipfile
+
+    from backend.cockpit_v4 import export as export_mod
+
+    record = _authorize(run_id, who)
+    governance = await read_governance(run_id, who)
+    artifacts = _governance_artifacts(record)
+    rows = sum(len(a.get("rows") or []) for a in artifacts.values())
+    lineage = export_mod.lineage_for(
+        record=record, row_count=rows, answer=record.final_response or {},
+        artifacts=artifacts, header=_release_header_for(record))
+    lineage = export_mod.Lineage(
+        **{**lineage.__dict__,
+           "artifact_ids": tuple(sorted(artifacts)),
+           "code_digests": tuple(sorted({str(a.get("code_digest") or "")
+                                         for a in artifacts.values()
+                                         if a.get("code_digest")}))})
+
+    buffer = io.BytesIO()
+    # DEFLATED rather than stored: a governance pack for a twenty-period
+    # analysis is mostly repeated column names.
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as pack:
+        pack.writestr(
+            f"governance-{run_id[:12]}.md",
+            export_mod.governance_markdown(record=record,
+                                           governance=governance,
+                                           lineage=lineage))
+        pack.writestr(f"governance-{run_id[:12]}.json",
+                      json_mod.dumps(governance, indent=2, ensure_ascii=False,
+                                     default=str))
+        for artifact_id, artifact in sorted(artifacts.items()):
+            try:
+                body = export_mod.table_csv(artifact=artifact,
+                                            lineage=lineage)
+            except export_mod.ExportUnavailable:
+                # One unexportable result must not cost the reader the
+                # whole pack; the record says the artifact exists either
+                # way.
+                continue
+            pack.writestr(f"results/{artifact_id}.csv", body)
+    return Response(
+        content=buffer.getvalue(),
+        media_type=export_mod.MEDIA_TYPES[export_mod.FORMAT_ZIP],
+        headers={"content-disposition":
+                 f'attachment; filename="'
+                 f'{export_mod.filename(kind="governance", run_id=run_id, suffix="zip")}"'})
+
+
+def _governance_artifacts(record: Any) -> dict[str, dict[str, Any]]:
+    """EVERY artifact this run stored, not only the published ones.
+
+    `_run_artifacts` starts from the answer, which is right for an export
+    -- it carries what the reader was shown. A governance record is the
+    other question: an intermediate result that fed a later step, and a
+    result that was computed and then not published, both belong in the
+    account of what happened.
+    """
+    store = _store()
+    found: dict[str, dict[str, Any]] = {}
+    for artifact_id in store.artifact_ids_for_run(record.run_id,
+                                                  tenant_id=record.tenant_id):
+        stored = store.get_artifact(artifact_id, tenant_id=record.tenant_id)
+        if stored is not None:
+            found[artifact_id] = stored
+    return found
+
+
 @router.get("/runs/{run_id}/artifacts/{artifact_id}/export")
 async def export_table(run_id: str, artifact_id: str,
                        rows: str = Query("all"),

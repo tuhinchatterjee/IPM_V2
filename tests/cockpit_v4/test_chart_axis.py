@@ -1,5 +1,7 @@
 """The scale a chart is read against comes from the server.
 
+UNIT · REPRODUCTION. No model call, no database.
+
 The Cockpit charts had no axes at all, and the reason was a rule rather
 than an oversight: `visuals.tsx` is forbidden to format, round or re-scale
 a number, so the browser could not invent "0, 5, 10, 15 SAR mn" and nobody

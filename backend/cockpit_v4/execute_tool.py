@@ -661,6 +661,17 @@ class ExecutionService:
             run_id=self.run_id, tenant_id=self.tenant_id, kind="result",
             release_id=self.release_id,
             scope={"relations": list(getattr(self.session, "relations", ())),
+                   # WHAT THIS QUERY ACTUALLY READ.
+                   #
+                   # `relations` above is the whole authorized set -- every
+                   # table the session grants, whether the query touched it
+                   # or not. A governance record built from that says a
+                   # question about corporate exposure read the retail
+                   # book, which is both wrong and alarming. The parser
+                   # that can tell the difference already existed and its
+                   # answer was thrown away at the authorization check.
+                   "referenced_relations": sorted(
+                       v4_sql.referenced_relations(step.code)),
                    "step_id": step.step_id,
                    "domain_id": str(getattr(self.catalog, "domain_id", "")),
                    # WHETHER THIS ARTIFACT IS THE WHOLE RESULT.
@@ -800,6 +811,12 @@ class ExecutionService:
             release_id=self.release_id,
             scope={"step_id": step.step_id, "language": "python",
                    "domain_id": str(getattr(self.catalog, "domain_id", "")),
+                   # A Python step reads ARTIFACTS, not relations, and the
+                   # step it read them from is the lineage. Stated rather
+                   # than left absent, so a governance record does not
+                   # have to decide what an empty field means.
+                   "referenced_relations": [],
+                   "input_artifact_ids": list(step.input_artifact_ids),
                    # The other direction: a Python step stores every row it
                    # produced, and publishes an id for the first N. "Every
                    # row" would then mean cells the analyst was never shown.

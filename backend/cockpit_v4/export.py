@@ -1153,12 +1153,149 @@ def _escape(text: str) -> str:
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
+FORMAT_JSON = "json"
+FORMAT_ZIP = "zip"
+MEDIA_TYPES[FORMAT_JSON] = "application/json; charset=utf-8"
+MEDIA_TYPES[FORMAT_ZIP] = "application/zip"
+
+
+def _or_dash(value: Any) -> str:
+    """A number, or an em dash. `0` is a number and must survive."""
+    return "—" if value is None else str(value)
+
+
+def governance_markdown(*, record: Any, governance: dict[str, Any],
+                        lineage: Lineage) -> str:
+    """The governance record as a document a person reads.
+
+    `analysis_markdown` is the ANSWER taken away -- the narrative, the
+    figures, the tables and their lineage digests. It carries no query, no
+    events and no plan, because a reader exporting an answer is exporting
+    an answer.
+
+    This is the other document: what was understood, what was submitted,
+    what was refused and why, what each step read, and where each figure
+    came from. A model risk reviewer asks for this one.
+    """
+    question = governance.get("question") or {}
+    intent = governance.get("interpretation") or {}
+    out: list[str] = [
+        f"# Governance record — {record.run_id}",
+        "",
+        "## The question",
+        "",
+        f"**As asked.** {question.get('asked') or '(not recorded)'}",
+    ]
+    if question.get("changed"):
+        applied = ", ".join(
+            str(x) for x in ((question.get("normalisation") or {}).get(
+                "applied") or ()))
+        out += ["",
+                f"**As analysed.** {question.get('analysed') or ''}",
+                "",
+                f"Mechanical normalisation only: {applied or 'none'}. "
+                "The wording of a question is never rewritten and no "
+                "spelling correction is applied to the sentence."]
+    else:
+        out += ["", "The question was analysed exactly as it was typed."]
+
+    out += ["", "## What was understood", "",
+            f"- Understood request: {intent.get('understood_request') or '—'}",
+            f"- Book: {intent.get('domain_label') or intent.get('domain_id') or '—'}",
+            f"- Query mode: {intent.get('query_mode') or '—'}"]
+    for name, key in (("Canonical mappings", "canonical_mappings"),
+                      ("Resolved assumptions", "resolved_assumptions"),
+                      ("Excluded", "excluded_parts"),
+                      ("Blocking ambiguities", "blocking_ambiguities")):
+        items = list(intent.get(key) or ())
+        if items:
+            out += ["", f"**{name}**", ""]
+            out += [f"- {item}" for item in items]
+
+    resolutions = list(intent.get("value_resolutions") or ())
+    if resolutions:
+        out += ["", "**What your words resolved to**", "",
+                "| You typed | Governed value | Field | Exact |",
+                "| --- | --- | --- | --- |"]
+        for entry in resolutions:
+            out.append(
+                f"| {entry.get('you_typed','')} | {entry.get('resolved_to','')} "
+                f"| {entry.get('on_field','')} "
+                f"| {'yes' if entry.get('exact') else 'nearest match'} |")
+
+    out += ["", "## What was submitted", ""]
+    for submission in (governance.get("submissions") or ()):
+        state = "RAN" if submission.get("ran") else "REFUSED, never executed"
+        out += [f"### Submission {submission.get('ordinal')} — {state}", "",
+                f"- Objective: {submission.get('objective') or '—'}",
+                f"- Expected grain: {submission.get('expected_grain') or '—'}"]
+        refusal = submission.get("refusal") or {}
+        if refusal:
+            out += ["",
+                    f"**Refused at {refusal.get('stage') or 'validation'}** "
+                    f"({refusal.get('error_code') or ''}): "
+                    f"{refusal.get('message') or ''}"]
+        for step in (submission.get("steps") or ()):
+            out += ["", f"**{step.get('step_id')}** — "
+                        f"{step.get('purpose') or 'no purpose recorded'}",
+                    "",
+                    f"- Language: {step.get('language') or '—'}",
+                    f"- Relations read: "
+                    f"{', '.join(step.get('relations_read') or ()) or '—'}",
+                    f"- Rows out: {_or_dash(step.get('rows_out'))}",
+                    f"- Artifact: {step.get('artifact_id') or '—'}",
+                    f"- Code digest: {step.get('code_digest') or '—'}"]
+            failed = step.get("failed") or {}
+            if failed:
+                out += [f"- Failed at {failed.get('phase') or 'runtime'}: "
+                        f"{failed.get('message') or ''}"]
+            code = str(step.get("code") or "")
+            if step.get("code_shown"):
+                out += ["", f"```{step.get('language') or ''}", code, "```"]
+            else:
+                out += ["", f"_{code}_"]
+        out.append("")
+
+    waterfall = governance.get("waterfall") or {}
+    out += ["## From the release to the figure", "",
+            "| Step | Relations read | Artifact | Rows | Shown as |",
+            "| --- | --- | --- | --- | --- |"]
+    for row in (waterfall.get("artifacts") or ()):
+        shown = "; ".join(
+            f"{item.get('kind')}: {item.get('title') or ''}".strip()
+            for item in (row.get("published_as") or ())) or "not published"
+        out.append(
+            f"| {row.get('step_id') or '—'} "
+            f"| {', '.join(row.get('relations_read') or ()) or '—'} "
+            f"| {row.get('artifact_id')} | {row.get('rows')} | {shown} |")
+
+    claims = list(waterfall.get("claims") or ())
+    if claims:
+        out += ["", "**Every published figure, and where it came from**", "",
+                "| Figure | From |", "| --- | --- |"]
+        for claim in claims:
+            cell = claim.get("from_cell") or {}
+            source = (f"{cell.get('artifact_id')} row {cell.get('row_key')} "
+                      f"column {cell.get('column_id')}" if cell
+                      else "recomputed from operands (see the JSON record)")
+            out.append(f"| {claim.get('published','')} | {source} |")
+
+    # STATED, not omitted. A waterfall that stops at the result set and
+    # does not say so reads as a waterfall that goes all the way down.
+    out += ["", "## What this record cannot show", "",
+            str(waterfall.get("limit") or ""), "",
+            "## Lineage", ""]
+    out += [f"- {line}" for line in lineage.lines()]
+    return "\n".join(out) + "\n"
+
+
 def filename(*, kind: str, run_id: str, suffix: str) -> str:
     """A name that says what the file is without opening it."""
     return f"creditprobe-{kind}-{run_id[:12]}.{suffix}"
 
 
 __all__ = ["ALL_ROWS", "DISPLAYED_ROWS", "ExportUnavailable", "FORMAT_CSV",
-           "FORMAT_MARKDOWN", "FORMAT_SVG", "Lineage", "MEDIA_TYPES",
+           "FORMAT_JSON", "FORMAT_MARKDOWN", "FORMAT_SVG", "FORMAT_ZIP",
+           "Lineage", "MEDIA_TYPES",
            "ROW_MODES", "analysis_markdown", "chart_svg", "filename",
-           "lineage_for", "table_csv"]
+           "governance_markdown", "lineage_for", "table_csv"]

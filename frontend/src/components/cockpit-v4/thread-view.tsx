@@ -157,15 +157,28 @@ function TurnTrace({ runId }: { runId: string }) {
 
   return (
     <div data-testid="v4-turn-trace">
-      <button
-        type="button"
-        data-testid="v4-view-trace"
-        onClick={() => void open()}
-        aria-expanded={Boolean(view)}
-        className="text-xs font-medium text-accent hover:underline"
-      >
-        {busy ? "Reading trace…" : view ? "Hide trace" : "View trace"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          data-testid="v4-view-trace"
+          onClick={() => void open()}
+          aria-expanded={Boolean(view)}
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          {busy ? "Reading trace…" : view ? "Hide trace" : "View trace"}
+        </button>
+        {/* WHAT THE STAGE LIST DOES NOT SAY. The trace above shows that
+            the analysis ran; this shows what was understood, what query
+            was written, what was refused and where each figure came
+            from. Two different questions, so two different controls. */}
+        <a
+          data-testid="v4-view-governance"
+          href={`/cockpit/trace/${encodeURIComponent(runId)}`}
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          How this was worked out
+        </a>
+      </div>
       {failed ? (
         <p className="mt-1 text-xs text-negative">{failed}</p>
       ) : null}
@@ -480,7 +493,10 @@ function ThreadActions({
         </button>
         <a
           data-testid="v4-thread-trace"
-          href={`/trace/${encodeURIComponent(runId)}`}
+          // `/cockpit/trace`, not `/trace`. The latter is the legacy
+          // reasoning map, which does `Number(runId)` on a `run-<hex>` id
+          // and gets NaN -- so this button had been dead since V4 shipped.
+          href={`/cockpit/trace/${encodeURIComponent(runId)}`}
           className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken"
         >
           Trace

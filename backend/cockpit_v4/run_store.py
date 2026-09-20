@@ -1015,6 +1015,74 @@ class RunStore:
             conn.execute("UPDATE submissions SET status=? "
                          "WHERE submission_id=?", (status, submission_id))
 
+    def submissions_for_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Every batch of code this run submitted, in the order submitted.
+
+        INCLUDING THE ONES THAT WERE REFUSED. A submission stopped at the
+        binder never ran and produced no artifact, so nothing downstream
+        has any trace of it -- and it is the single most informative thing
+        in the record, because it is the control working. "CreditProbe
+        would not run this query, and here is the query and the reason" is
+        the sentence a model risk reviewer opens the file to find.
+
+        Nothing read this table. It was written on every submission and
+        queried only for `no_progress_key`, so the exact SQL of every
+        attempt had been on file all along with no way to get it out.
+
+        A FAILED submission is written twice -- once in full when it is
+        sent, and again afterwards carrying only the id of the step that
+        failed. The second row is a marker rather than a submission, so
+        rows are folded on `ordinal` and the one that actually holds the
+        steps wins. Its later status is kept, because that is the outcome.
+        """
+        rows = self._connect().execute(
+            "SELECT submission_id, ordinal, round, payload, status,"
+            " no_progress_key, created_at FROM submissions WHERE run_id=?"
+            " ORDER BY ordinal, created_at", (run_id,)).fetchall()
+        folded: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                payload = json.loads(row["payload"] or "{}")
+            except (TypeError, ValueError):  # pragma: no cover - corrupt row
+                payload = {}
+            ordinal = int(row["ordinal"])
+            record = {"submission_id": row["submission_id"],
+                      "ordinal": ordinal, "round": int(row["round"]),
+                      "payload": payload, "status": row["status"],
+                      "no_progress_key": row["no_progress_key"],
+                      "created_at": row["created_at"]}
+            previous = folded.get(ordinal)
+            if previous is None:
+                folded[ordinal] = record
+                continue
+            if payload.get("steps"):
+                # The full submission, arriving after a marker.
+                folded[ordinal] = {**record, "status": previous["status"]}
+            else:
+                # A marker, arriving after the submission it marks.
+                folded[ordinal] = {**previous, "status": row["status"],
+                                   "failed_step":
+                                       str(payload.get("failed") or "")}
+        return [folded[key] for key in sorted(folded)]
+
+    def details_for_run(self, run_id: str) -> dict[str, dict[str, Any]]:
+        """Every operator record this run wrote, by reference.
+
+        One query rather than one per event. A governance record reads
+        most of the details a run produced, and fetching them singly is
+        the same work spread over fifty round trips.
+        """
+        rows = self._connect().execute(
+            "SELECT detail_ref, body FROM details WHERE run_id=?",
+            (run_id,)).fetchall()
+        out: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                out[row["detail_ref"]] = json.loads(row["body"] or "{}")
+            except (TypeError, ValueError):  # pragma: no cover - corrupt row
+                continue
+        return out
+
     def no_progress_keys(self, run_id: str) -> set[str]:
         rows = self._connect().execute(
             "SELECT no_progress_key FROM submissions WHERE run_id=? "
