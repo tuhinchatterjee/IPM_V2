@@ -195,11 +195,18 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "RP-5.2": ("definition of default", "default definition", "cure period",
                "90 days past due"),
     # Corporate
-    "CP-1.1": ("single obligor", "obligor limit", "large exposure"),
+    # "single name" is what a credit officer writes for this clause more
+    # often than "single obligor", which is what the clause is titled. A
+    # limit nobody can find by its working name is a limit that gets
+    # breached.
+    "CP-1.1": ("single obligor", "obligor limit", "large exposure",
+               "single name", "single borrower"),
     "CP-1.2": ("group limit", "connected", "group exposure",
                "related parties", "concentration"),
+    # "industry" and "sector" are the same word in this conversation.
     "CP-1.3": ("sector limit", "sector cap", "sub-sector limit",
-               "sector concentration"),
+               "sector concentration", "industry limit",
+               "industry concentration"),
     "CP-2.1": ("covenant package", "dscr", "debt service", "leverage "
                "covenant", "interest cover", "covenant"),
     "CP-2.2": ("breach", "waiver", "remediation"),
@@ -220,13 +227,35 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Every separator a reader might put between two words, as one space.
+#:
+#: The matcher was a raw substring test over the lowercased question, so
+#: "single-name limit" and "single name limit" were two different questions
+#: and only one of them reached CP-1.1. The map had already begun paying for
+#: this by hand -- "write-off" listed beside "write off", "cut-off" beside
+#: "cutoff", "loan-to-value" beside "loan to value" -- which is the tell:
+#: three entries standing in for a missing normalisation, and still 75 of
+#: the map's own keywords failing when their own punctuation was flipped
+#: back at it. "cut off", the third spelling, matched nothing at all.
+#:
+#: The en- and em-dash range is in here because a question pasted out of a
+#: policy document or an email carries typographic dashes, and a clause that
+#: cannot be found by someone quoting it is the worst case of the lot.
+_SEPARATORS = re.compile(r"[\s\-\u2010-\u2015_/]+")
+
+
+def flatten(text: str) -> str:
+    """Lowercase, with every run of separators reduced to one space."""
+    return _SEPARATORS.sub(" ", (text or "").lower()).strip()
+
+
 def clauses_for(book_id: str, question: str) -> list[str]:
     """Which clauses of THIS book's policy the question names."""
-    text = (question or "").lower()
+    text = flatten(question)
     prefix = "RP" if book_id == "retail" else "CP"
     return [cid for cid, words in _KEYWORDS.items()
             if cid.startswith(prefix)
-            and any(word in text for word in words)]
+            and any(flatten(word) in text for word in words)]
 
 
 def sections_for(book_id: str, question: str) -> list[str]:
