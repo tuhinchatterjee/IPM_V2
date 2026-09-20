@@ -92,7 +92,7 @@ model actually gave are in the detector's test cases verbatim.
 |---|---|
 | `pytest` — whole repository | PENDING |
 | `pytest tests/playbook` | **1,216 passed, 0 failed**, twice consecutively |
-| Chat browser acceptance, **two consecutive cycles** | **144 passed, 0 failed** (72 per cycle, journeys A–M) |
+| Chat browser acceptance, **two consecutive cycles** | **150 passed, 0 failed** (75 per cycle, journeys A–M) |
 | Workspace browser acceptance | **105 passed, 0 failed** |
 | Dashboard browser acceptance | **185 passed, 0 failed** |
 | Artifact parse-back | **14 files, 178 checks, 0 failed** — 62 of them before the layout checks were added |
