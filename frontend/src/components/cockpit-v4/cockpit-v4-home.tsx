@@ -28,6 +28,7 @@ import { useWideContent } from "@/components/layout/content-width";
 
 import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
+import { InboxPanel } from "./inbox-panel";
 import { EclPanel } from "./ecl-panel";
 import { DomainSwitch, recallDomain, rememberDomain } from "./domain-switch";
 import { domainEntry, domainFrequency, domainHeadline } from "./domain-meta";
@@ -300,6 +301,18 @@ export function CockpitV4Home() {
 
       <div className="mt-12">
         <EclPanel domain={domain} />
+      </div>
+
+      {/* WHAT A COLLEAGUE SENT YOU. `readOutbox` existed and nothing
+          called it, so an analysis shared with a credit officer reached a
+          database row and stopped there. */}
+      <div className="mt-12">
+        <h2 className="text-sm font-semibold text-text-primary">
+          Sent to you
+        </h2>
+        <div className="mt-2">
+          <InboxPanel />
+        </div>
       </div>
 
       <div className="mt-12">

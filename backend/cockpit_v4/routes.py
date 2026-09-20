@@ -1623,7 +1623,19 @@ async def rename_thread(thread_id: str, body: RenameThread,
 # sends none. `GET /notifications` says so on every row, and the outbox
 # listing carries `delivered: false` rather than a hopeful "queued".
 
-_NOTIFIER = collab.Notifier()
+# The default build now carries the IN-APP transport, and only that one.
+#
+# Before it carried none at all, which meant "share this analysis with a
+# colleague" recorded an intention and the colleague was never told. The
+# wording was honest about it -- `delivered: false`, with the reason -- and
+# it was still a feature that did not work.
+#
+# An in-app message needs no relay: it is addressed to someone who already
+# has an account on this tenant and can already read the analysis. Mail is
+# unchanged. A build that has not been given a mail transport and a
+# recipient allow-list still cannot mail anyone, and still says so in the
+# same words.
+_NOTIFIER = collab.Notifier(in_app_transport=collab.InAppTransport())
 
 
 def notifier() -> collab.Notifier:
@@ -1671,6 +1683,11 @@ class NewShare(BaseModel):
     audience_id: str = Field(min_length=1, max_length=200)
     message: str = Field(default="", max_length=2000)
     notify_email: str = ""
+    #: A person or team inside CreditProbe: `user:<id>` or `team:<id>`.
+    #: Separate from `notify_email` because they are governed differently
+    #: and a reader choosing one should not look like a reader choosing
+    #: the other.
+    notify_in_app: str = ""
 
 
 @router.post("/saved-analyses", status_code=201)
@@ -1863,18 +1880,26 @@ async def share(body: NewShare, who: dict[str, Any] = Depends(principal)
         tenant_id=tenant, subject_kind=body.subject_kind,
         subject_id=body.subject_id, shared_by=str(who.get("id") or ""),
         audience_id=body.audience_id.strip(), message=body.message)
-    notification = None
-    if body.notify_email.strip():
+    sent: list[dict[str, Any]] = []
+    for recipient in (body.notify_in_app.strip(), body.notify_email.strip()):
+        if not recipient:
+            continue
         try:
-            notification = notifier().notify(
+            sent.append(notifier().notify(
                 store, tenant_id=tenant, actor_id=str(who.get("id") or ""),
-                recipient=body.notify_email.strip(),
+                recipient=recipient,
                 subject=f"Shared with you: {body.subject_kind}",
                 body=body.message or "A colleague shared this with you.",
-                subject_kind=body.subject_kind, subject_id=body.subject_id)
+                subject_kind=body.subject_kind, subject_id=body.subject_id))
         except collab.CollaborationError as exc:
             raise _refuse(exc) from exc
-    return {"share": record, "notification": notification,
+    return {"share": record,
+            # Kept singular for the callers that read it, and a list beside
+            # it for the reader who addressed both a colleague and a
+            # mailbox. Dropping the singular would break a saved thread's
+            # share panel for no gain.
+            "notification": sent[0] if sent else None,
+            "notifications": sent,
             "delivery": notifier().describe()}
 
 
@@ -1895,6 +1920,63 @@ async def list_notifications(who: dict[str, Any] = Depends(principal)
     return {"delivery": notifier().describe(),
             "notifications": _store().list_notifications(
                 tenant_id=str(who.get("tenant") or ""))}
+
+
+@router.get("/inbox")
+async def read_inbox(who: dict[str, Any] = Depends(principal)
+                     ) -> dict[str, Any]:
+    """The messages addressed to THIS reader, with their bodies.
+
+    `/notifications` is the tenant's whole outbox -- every row anyone sent,
+    without its body, which is what an operator wants and the opposite of
+    what a person wants. A reader who had been sent an analysis had no
+    route that would show it to them.
+
+    Addressed by handle rather than by user id alone, because a team is a
+    recipient too: `team:corporate-credit` reaches everyone on it.
+    """
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    me = str(who.get("id") or "")
+    handles = [f"user:{me}"] if me else []
+    handles += [f"team:{str(team).strip()}"
+                for team in (who.get("teams") or ()) if str(team).strip()]
+    messages: list[dict[str, Any]] = []
+    for handle in handles:
+        messages.extend(store.inbox(tenant_id=tenant, recipient=handle))
+    messages.sort(key=lambda row: str(row.get("created_at") or ""),
+                  reverse=True)
+    return {"me": me, "handles": handles, "messages": messages,
+            "delivery": notifier().describe()}
+
+
+@router.get("/recipients")
+async def list_recipients(who: dict[str, Any] = Depends(principal)
+                          ) -> dict[str, Any]:
+    """Who this reader may send an analysis to, inside CreditProbe.
+
+    The share panel asked for a free-text `audience_id`, which is a field
+    a reader has to already know the answer to. This is the directory it
+    should have been offering.
+
+    Derived from who has actually used this tenant, plus the reader's own
+    teams. It is not an org chart and does not pretend to be: a person who
+    has never opened CreditProbe is not in it, and the panel says so
+    rather than implying the list is everyone.
+    """
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    me = str(who.get("id") or "")
+    people = sorted({p for p in store.principals_of(tenant_id=tenant)
+                     if p and p != me})
+    teams = sorted({str(team).strip()
+                    for team in (who.get("teams") or ()) if str(team).strip()})
+    return {
+        "people": [{"handle": f"user:{p}", "label": p} for p in people],
+        "teams": [{"handle": f"team:{t}", "label": t} for t in teams],
+        "note": ("People who have used CreditProbe on this tenant. Somebody "
+                 "who has not signed in yet will not be listed."),
+    }
 
 
 @router.get("/diagnostics")

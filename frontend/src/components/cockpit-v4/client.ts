@@ -1446,11 +1446,64 @@ export type Notification = {
 
 export type DeliveryPosture = {
   transport: string | null;
+  /** Whether this build can deliver OUTSIDE the product. Unchanged. */
   can_deliver: boolean;
+  /**
+   * Whether it can deliver INSIDE it.
+   *
+   * Separate from `can_deliver` because one boolean cannot answer both
+   * once the answer is "inside, yes; outside, no" -- and a single flag
+   * that went true when in-app delivery arrived would have reported a
+   * build as able to mail people it cannot mail.
+   */
+  can_deliver_in_app?: boolean;
+  in_app_transport?: string | null;
   recipient_policy: string;
   authorized_recipients: string[];
   authorized_domains: string[];
 };
+
+/** A person or team inside CreditProbe, as the picker offers them. */
+export type Recipient = { handle: string; label: string };
+
+export async function readRecipients(): Promise<{
+  people: Recipient[];
+  teams: Recipient[];
+  /** What the directory does NOT contain. Shown, not swallowed. */
+  note: string;
+}> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}/recipients`, {
+      credentials: "include",
+    }),
+  );
+}
+
+/** One message a reader was sent, body and all. */
+export type InboxMessage = Notification & {
+  actor_id: string;
+  body: string;
+  subject_kind: string;
+  subject_id: string;
+};
+
+/**
+ * The messages addressed to THIS reader.
+ *
+ * Not `readOutbox`, which is the tenant's whole outbox without the
+ * bodies -- what an operator wants, and the opposite of what a person
+ * reading their own post wants.
+ */
+export async function readInbox(): Promise<{
+  me: string;
+  handles: string[];
+  messages: InboxMessage[];
+  delivery: DeliveryPosture;
+}> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}/inbox`, { credentials: "include" }),
+  );
+}
 
 async function send<T>(path: string, body: unknown): Promise<T> {
   return json(
@@ -1536,12 +1589,34 @@ export async function shareItem(input: {
   audience_id: string;
   message?: string;
   notify_email?: string;
+  /** A colleague or team inside CreditProbe: `user:<id>` or `team:<id>`. */
+  notify_in_app?: string;
 }): Promise<{
   share: { share_id: string; audience_id: string };
   notification: Notification | null;
+  /** One per recipient addressed. Each carries its own outcome. */
+  notifications?: Notification[];
   delivery: DeliveryPosture;
 }> {
   return send("/shares", input);
+}
+
+/**
+ * One saved analysis, by id.
+ *
+ * The inbox needs it to answer "where is the thing that was sent to me":
+ * a share carries the saved id, and the CONVERSATION it belongs to is on
+ * the saved record.
+ */
+export async function readSavedAnalysis(savedId: string): Promise<
+  SavedAnalysis & { body?: Record<string, unknown> }
+> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/saved-analyses/${encodeURIComponent(savedId)}`,
+      { credentials: "include" },
+    ),
+  );
 }
 
 export async function readOutbox(): Promise<{

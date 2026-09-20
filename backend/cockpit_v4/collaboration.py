@@ -47,6 +47,21 @@ RECORDED, REFUSED, SENT, FAILED = "RECORDED", "REFUSED", "SENT", "FAILED"
 _ADDRESS = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MAX_BODY = 4000
 
+#: An IN-PRODUCT recipient: a person or a team inside CreditProbe, written
+#: `user:kamal.hassan` or `team:corporate-credit`.
+#:
+#: Deliberately not an email address. An in-app message never leaves the
+#: bank's own deployment, so the whole apparatus that governs mail -- the
+#: allow-list, the domain gate, the "who has authorized this build to write
+#: to the outside world" question -- is answering a question that was not
+#: asked. Keeping the two recipient FORMS apart is what keeps the two
+#: policies apart.
+IN_APP = re.compile(r"^(user|team):[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def is_in_app(recipient: str) -> bool:
+    return bool(IN_APP.match(recipient.strip()))
+
 
 class CollaborationError(Exception):
     """A refusal the caller should show, with a code the UI can switch on."""
@@ -82,8 +97,18 @@ class RecipientPolicy:
     allowed: frozenset[str] = frozenset()
     allowed_domains: frozenset[str] = frozenset()
     label: str = "no recipients authorized"
+    #: Whether people and teams inside this deployment may be written to.
+    #:
+    #: On by default, and that is not a loosening: an in-app message is
+    #: delivered INSIDE the product, to someone who already has an account
+    #: on this tenant and can already read the analysis being sent. The
+    #: allow-list exists to stop a build mailing the open internet, and it
+    #: still does.
+    in_app: bool = True
 
     def permits(self, recipient: str) -> bool:
+        if is_in_app(recipient):
+            return self.in_app
         address = recipient.strip().lower()
         if not _ADDRESS.match(address):
             return False
@@ -94,19 +119,80 @@ class RecipientPolicy:
 
 
 @dataclass
+class InAppTransport:
+    """Delivery inside CreditProbe itself.
+
+    THE DEFAULT BUILD COULD NOT DELIVER ANYTHING. With no transport
+    configured -- which is every build that has not been handed a mail
+    relay -- `notify` wrote the row in state RECORDED and stopped, so
+    "share this analysis with a colleague" recorded an intention and the
+    colleague was never told. The wording was honest about it, which is
+    better than lying, and it was still a feature that did not work.
+
+    An in-app message needs no relay. The message IS the row: it is
+    addressed to a person on this tenant, and it is delivered the moment
+    it is readable by them -- which is what `store.inbox` now makes true.
+    So this transport's `send` is a check that the address is one this
+    product can reach, and a receipt saying so.
+
+    It does not touch mail. A build with no mail transport still cannot
+    send mail, and says so in the same words as before.
+    """
+
+    name: str = "creditprobe"
+
+    def send(self, *, recipient: str, subject: str, body: str) -> str:
+        if not is_in_app(recipient):
+            # Not this transport's business. Raising rather than silently
+            # succeeding: a message to an email address that this returned
+            # a receipt for would be a message reported as delivered and
+            # sitting in nobody's inbox.
+            raise ValueError(
+                f"{recipient} is not a CreditProbe user or team. In-product "
+                f"messages are addressed `user:<id>` or `team:<id>`.")
+        return f"in-app:{recipient.strip()}"
+
+
+@dataclass
 class Notifier:
     """Records every notification; delivers only what a transport accepts."""
 
     policy: RecipientPolicy = field(default_factory=RecipientPolicy)
+    #: The OUTSIDE channel: mail, or whatever a deployment has authorized.
+    #: Still None by default, and a build with none still sends no mail.
     transport: Transport | None = None
+    #: The INSIDE channel. Present by default, because delivering a message
+    #: to someone who already has an account on this tenant needs no relay
+    #: and no allow-list -- they can already read the analysis being sent.
+    #:
+    #: THE TWO ARE SEPARATE FIELDS rather than one, because one boolean
+    #: cannot answer "can this build deliver?" once the answer is "inside,
+    #: yes; outside, no". A single `can_deliver` that went true the moment
+    #: in-app delivery arrived would have quietly reported a build as able
+    #: to mail people it cannot mail.
+    in_app_transport: Transport | None = None
 
     @property
     def transport_name(self) -> str:
         return getattr(self.transport, "name", "") if self.transport else ""
 
+    def _route(self, recipient: str) -> Transport | None:
+        """Which channel a recipient belongs to. Never a fallback: a mail
+        address handed to the in-app transport would be a message reported
+        as delivered and sitting in nobody's inbox."""
+        if is_in_app(recipient):
+            return self.in_app_transport
+        return self.transport
+
     def describe(self) -> dict[str, Any]:
         return {"transport": self.transport_name or None,
+                # Kept, and kept meaning what it always meant: whether this
+                # build can deliver to the OUTSIDE world.
                 "can_deliver": self.transport is not None,
+                "can_deliver_in_app": self.in_app_transport is not None,
+                "in_app_transport": (
+                    getattr(self.in_app_transport, "name", "")
+                    if self.in_app_transport else None),
                 "recipient_policy": self.policy.label,
                 "authorized_recipients": sorted(self.policy.allowed),
                 "authorized_domains": sorted(self.policy.allowed_domains)}
@@ -133,7 +219,8 @@ class Notifier:
                         f"this deployment ({self.policy.label}). The message "
                         f"was recorded and NOT sent."))
 
-        if self.transport is None:
+        transport = self._route(recipient)
+        if transport is None:
             return store.put_notification(
                 tenant_id=tenant_id, actor_id=actor_id, recipient=recipient,
                 subject=subject, body=body, subject_kind=subject_kind,
@@ -142,22 +229,23 @@ class Notifier:
                 reason=("No delivery transport is configured, so this "
                         "message was recorded and NOT sent."))
 
+        name = getattr(transport, "name", "")
         try:
-            receipt = self.transport.send(recipient=recipient,
-                                          subject=subject, body=body)
+            receipt = transport.send(recipient=recipient,
+                                     subject=subject, body=body)
         except Exception as exc:                              # noqa: BLE001
             return store.put_notification(
                 tenant_id=tenant_id, actor_id=actor_id, recipient=recipient,
                 subject=subject, body=body, subject_kind=subject_kind,
                 subject_id=subject_id, state=FAILED,
-                transport=self.transport_name, receipt="",
+                transport=name, receipt="",
                 reason=f"The transport refused the message: {exc}")
         return store.put_notification(
             tenant_id=tenant_id, actor_id=actor_id, recipient=recipient,
             subject=subject, body=body, subject_kind=subject_kind,
             subject_id=subject_id, state=SENT,
-            transport=self.transport_name, receipt=str(receipt),
-            reason=f"Delivered by {self.transport_name}.")
+            transport=name, receipt=str(receipt),
+            reason=f"Delivered by {name}.")
 
 
 def check_subject(kind: str, subject_id: str) -> None:
@@ -197,7 +285,8 @@ def as_json(value: Any) -> str:
 
 
 __all__ = ["CLOSED", "CollaborationError", "FAILED", "INVESTIGATION",
-           "IN_REVIEW", "MAX_BODY", "Notifier", "OPEN", "RECORDED",
+           "IN_APP", "IN_REVIEW", "InAppTransport", "MAX_BODY", "Notifier",
+           "OPEN", "RECORDED",
            "REFUSED", "RecipientPolicy", "SAVED_ANALYSIS", "SENT",
            "STATUSES", "SUBJECT_KINDS", "Transport", "as_json",
-           "check_subject", "summarize_answer"]
+           "check_subject", "is_in_app", "summarize_answer"]

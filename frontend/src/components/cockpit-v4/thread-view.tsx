@@ -65,6 +65,7 @@ import { ProcessPanel } from "./process-panel";
 import { initial, reduce, type RunView } from "./reducer";
 import { ResponsePanel } from "./response-panel";
 import { Visuals } from "./visuals";
+import { RecipientPicker } from "./recipient-picker";
 
 /** A run in one of these states is finished; there is nothing to follow. */
 const TERMINAL_RUN_STATES = new Set([
@@ -444,6 +445,7 @@ function ThreadActions({
 }) {
   const [panel, setPanel] = React.useState<"" | "share" | "investigate">("");
   const [audience, setAudience] = React.useState("");
+  const [recipient, setRecipient] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [status, setStatus] = React.useState("");
@@ -509,7 +511,7 @@ function ThreadActions({
             Shares the latest answer in this conversation.
           </p>
           <label className="block text-xs text-text-secondary">
-            Colleague or group inside the bank
+            Audience (who this is shared with)
             <input
               data-testid="v4-thread-share-audience"
               value={audience}
@@ -517,6 +519,9 @@ function ThreadActions({
               className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
+          {/* THE PART THAT ACTUALLY REACHES SOMEBODY. The audience above
+              records who the share is for; this sends them the message. */}
+          <RecipientPicker value={recipient} onChange={setRecipient} />
           <label className="block text-xs text-text-secondary">
             Notify by email (optional)
             <input
@@ -539,6 +544,7 @@ function ThreadActions({
                   subject_kind: "saved_analysis",
                   subject_id: saved.saved_id,
                   audience_id: audience.trim(),
+                  notify_in_app: recipient.trim(),
                   notify_email: email.trim(),
                 });
                 setNotification(result.notification);

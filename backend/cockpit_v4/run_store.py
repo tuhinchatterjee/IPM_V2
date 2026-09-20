@@ -1549,6 +1549,44 @@ class RunStore:
                 "reason": reason, "delivered": state == "SENT",
                 "created_at": created}
 
+    def principals_of(self, *, tenant_id: str, limit: int = 200) -> list[str]:
+        """Who has actually used this tenant.
+
+        Read off the runs, because that is the only record this service
+        keeps of a person. It is not an org chart and the route that
+        serves it says so: somebody who has never opened CreditProbe is
+        not here, and offering a directory that quietly omits people is
+        worse than one that admits what it is.
+        """
+        rows = self._connect().execute(
+            "SELECT DISTINCT principal_id FROM runs WHERE tenant_id=?"
+            " AND principal_id != '' ORDER BY principal_id LIMIT ?",
+            (tenant_id, int(limit))).fetchall()
+        return [str(r["principal_id"]) for r in rows]
+
+    def inbox(self, *, tenant_id: str, recipient: str,
+              limit: int = 50) -> list[dict[str, Any]]:
+        """The messages addressed to ONE reader.
+
+        `list_notifications` is the tenant's whole outbox, which is what an
+        operator wants and the opposite of what a person wants. It also
+        withholds the body -- correctly, for an outbox view -- so even
+        filtering it would have handed a reader a subject line and no
+        message.
+
+        The body is here, because this IS the message.
+        """
+        rows = [dict(r) for r in self._connect().execute(
+            "SELECT notification_id, actor_id, recipient, subject, body,"
+            " subject_kind, subject_id, state, transport, receipt, reason,"
+            " created_at FROM notifications"
+            " WHERE tenant_id=? AND recipient=? AND state IN ('SENT',"
+            " 'RECORDED') ORDER BY created_at DESC, rowid DESC LIMIT ?",
+            (tenant_id, recipient.strip(), int(limit))).fetchall()]
+        for row in rows:
+            row["delivered"] = row["state"] == "SENT"
+        return rows
+
     def list_notifications(self, *, tenant_id: str, state: str = "",
                            limit: int = 50) -> list[dict[str, Any]]:
         sql = ("SELECT notification_id, recipient, subject, subject_kind,"
