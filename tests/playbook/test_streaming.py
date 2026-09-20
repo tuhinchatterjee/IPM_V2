@@ -800,3 +800,69 @@ class TestATimeoutLeavesNothingBehind:
         # collide with, and the retry did not produce a second copy.
         assert len(repo.artifacts(db, workspace.id)) == 1
         assert len(repo.versions(db, result["artifact_id"])) == 1
+
+
+class TestTheReasoningSummaryIsShownAndNeverKept:
+    """Chapter 15 draws a line through the middle of this.
+
+    On this model thinking is on by default and its display defaults to
+    omitted, so the model reasoned for as long as it needed and emitted
+    nothing — and the opening minutes of a run were indistinguishable from a
+    hang. The authoring call now asks for summarised reasoning, which is the
+    provider's own display summary and not hidden reasoning.
+
+    What must hold is that it is transient: written to the event log so a
+    refresh mid-run can replay it, and nowhere else. Not in the answer, not in
+    the document, not in the stored message.
+    """
+
+    def test_it_reaches_the_log_on_its_own_channel(
+            self, db, scope, workspace, ledger_calcs, scripted_author, job):
+        scripted_author(REPORT_MD, thinking="Weighing two structures for "
+                                            "the scenario section.")
+        writer = stream.Writer(session=db, job_id=job)
+        service.run_generation(
+            db, scope, workspace.id, job_id=job, text="Write the report.",
+            calculations=ledger_calcs, on_delta=writer.delta,
+            on_thinking=writer.thinking)
+        writer.flush()
+        writer.flush_thinking()
+
+        events = _events(db, job)
+        assert any(e.kind == "thinking"
+                   and "Weighing two structures" in (e.data or {}).get("text", "")
+                   for e in events), [e.kind for e in events]
+
+    def test_it_is_never_part_of_the_answer(
+            self, db, scope, workspace, ledger_calcs, scripted_author, job):
+        scripted_author(REPORT_MD, thinking="Weighing two structures for "
+                                            "the scenario section.")
+        writer = stream.Writer(session=db, job_id=job)
+        service.run_generation(
+            db, scope, workspace.id, job_id=job, text="Write the report.",
+            calculations=ledger_calcs, on_delta=writer.delta,
+            on_thinking=writer.thinking)
+        writer.flush()
+        writer.flush_thinking()
+
+        # The answer the interface assembles from the log.
+        assert "Weighing" not in stream.replay_text(_events(db, job))
+
+    def test_it_is_never_stored_on_the_message_or_the_document(
+            self, db, scope, workspace, ledger_calcs, scripted_author, job):
+        import json
+
+        scripted_author(REPORT_MD, thinking="Weighing two structures for "
+                                            "the scenario section.")
+        writer = stream.Writer(session=db, job_id=job)
+        result = service.run_generation(
+            db, scope, workspace.id, job_id=job, text="Write the report.",
+            calculations=ledger_calcs, on_delta=writer.delta,
+            on_thinking=writer.thinking)
+
+        message = [m for m in repo.messages(db, workspace.id)
+                   if m.role == "assistant"][-1]
+        assert "Weighing" not in json.dumps(message.content)
+
+        version = repo.versions(db, result["artifact_id"])[-1]
+        assert "Weighing" not in json.dumps(version.content)

@@ -405,6 +405,13 @@ def scripted_author(monkeypatch):
                                                or ["docx", "pdf"])})],
                 "tool_use", state["model"])
 
+        # The provider's display summary, when the test asked for one. A
+        # separate channel from `on_delta` on purpose: chapter 15 allows this
+        # to be SHOWN while the turn runs and forbids keeping it, and the
+        # separation is what makes that structural rather than careful.
+        if on_thinking and state.get("thinking"):
+            on_thinking(str(state["thinking"]))
+
         said = state.get("chat_text") or _plain(state["text"])
         if on_delta:
             size = state.get("chunk", 40)
@@ -432,7 +439,7 @@ def scripted_author(monkeypatch):
     def configure(text: str, files=None, model: str = "scripted-author",
                   chunk: int = 40, pause: float = 0.0,
                   makes_document: bool = True, chat_text: str = "",
-                  chat_formats=None):
+                  chat_formats=None, thinking: str = ""):
         state["text"] = text
         state["files"] = files or []
         state["model"] = model
@@ -441,6 +448,7 @@ def scripted_author(monkeypatch):
         state["makes_document"] = makes_document
         state["chat_text"] = chat_text
         state["chat_formats"] = chat_formats
+        state["thinking"] = thinking
         state["chat_calls"] = []
         state["assessment_calls"] = []
         return state

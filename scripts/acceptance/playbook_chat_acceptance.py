@@ -247,8 +247,18 @@ async def _settle(page, contains: str, timeout_ms: int = 90_000) -> bool:
         return False
 
 
-async def _open(page, workspace: int) -> None:
-    await page.goto(f"{WEB}/playbook/{workspace}", wait_until="networkidle")
+async def _open(page, workspace: int, *, streaming: bool = False) -> None:
+    """Open a workspace.
+
+    `streaming=True` for a page that is about to attach to a RUNNING
+    generation: that page holds an open SSE connection for as long as the run
+    lasts, so "network idle" is a condition that cannot be met until the thing
+    being watched has finished — and a check that waits for it is looking at
+    the end of the run rather than the middle of it.
+    """
+    await page.goto(f"{WEB}/playbook/{workspace}",
+                    wait_until="domcontentloaded" if streaming
+                    else "networkidle")
 
 
 async def _said(page, workspace: int) -> str:
@@ -717,11 +727,55 @@ async def journey_m(page, *, shoot: bool) -> None:
     # rather than the composer, so the page was never attached to its stream.
     # A refresh mid-generation is exactly what the product has to survive, so
     # it is the right way to wait for it here.
-    await _open(page, workspace)
+    await _open(page, workspace, streaming=True)
+
+    # The opening minutes of a real run are the model reading and planning,
+    # and with nothing shown they were indistinguishable from a hang. This
+    # fixture says what it is "thinking"; the screen has to show it WHILE the
+    # turn runs, and the stored message afterwards must not contain a word of
+    # it — chapter 15 allows the provider's own display summary and forbids
+    # keeping it.
+    thinking = page.locator('[data-testid="playbook-thinking"]')
+    seen = ""
+    for _ in range(40):
+        if await thinking.count():
+            seen = await thinking.inner_text()
+            break
+        await page.wait_for_timeout(250)
+    check("[M] the model's account of what it is doing is on screen",
+          "Reading the workbook" in seen or "Planning six sections" in seen,
+          seen[:90])
     check("[M] the first generation finishes normally",
           await _settle(page, "both files are ready", 150_000))
+
+    # `_settle` matches the answer's TEXT, which arrives on the delta stream
+    # while the turn is still running. Everything below is about what remains
+    # once it has ENDED, so it waits for the end rather than for the sentence.
+    await _idle(page)
     state = await _state(page, workspace)
     asked = [m for m in state["messages"] if m["role"] == "user"]
+    stored = await _said(page, workspace)
+    check("[M] and none of it is kept in the answer",
+          "Reading the workbook" not in stored
+          and "Planning six sections" not in stored)
+    # It goes when the turn goes — waited for, not asserted on the tick.
+    #
+    # The answer's TEXT arrives on the delta stream, and the turn continues
+    # after it: the files are still being built, checked and saved, and the
+    # completion card is still being written. So "the answer is on screen" is
+    # minutes away from "the turn has ended" on a real run, and this waits for
+    # the second. The claim is that the panel does not linger once the run is
+    # over, which is what a generous timeout tests; a millisecond-level
+    # assertion would be testing React's scheduler.
+    gone = True
+    try:
+        await page.wait_for_selector('[data-testid="playbook-thinking"]',
+                                     state="detached", timeout=60_000)
+    except Exception:  # noqa: BLE001 — a failed check, not a crash
+        gone = False
+    check("[M] nor in the thread once the turn has ended", gone,
+          "" if gone else await thinking.inner_text())
+
     check("[M] the refused send left no second question",
           len(asked) == 1, f"{len(asked)} user message(s)")
     if shoot:

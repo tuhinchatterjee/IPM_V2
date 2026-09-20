@@ -154,8 +154,18 @@ def call(client: Any, *, model: str, system: str, messages: list[dict],
 
     # A fixture has no reasoning, so none is invented: the channel carries
     # something only when the script says what it should carry.
-    if on_thinking and entry.get("thinking"):
-        on_thinking(str(entry["thinking"]))
+    #
+    # A pause between lines because the writer batches this channel like the
+    # draft — it flushes when a line has been waiting long enough — so a
+    # single line emitted in the first millisecond of a turn would not reach
+    # the screen until the turn ended, which is not what the channel is for.
+    lines = entry.get("thinking")
+    if on_thinking and lines:
+        import time as _time
+
+        for line in ([lines] if isinstance(lines, str) else lines):
+            on_thinking(str(line))
+            _time.sleep(1.2)
 
     # A generation that takes a measurable amount of time. Everything else
     # here answers instantly, which is right for a fixture and useless for the
