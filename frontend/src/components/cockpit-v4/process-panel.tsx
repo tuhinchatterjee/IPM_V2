@@ -61,14 +61,14 @@ function Marker({ state, failures }: { state: Step["state"]; failures: number })
             : "○";
   const tone =
     state === "failed"
-      ? "text-rose-600"
+      ? "text-negative"
       : recovered
-        ? "text-amber-600"
+        ? "text-warning"
         : state === "done"
-          ? "text-emerald-600"
+          ? "text-positive"
           : state === "running"
-            ? "text-sky-600"
-            : "text-slate-300";
+            ? "text-accent"
+            : "text-text-muted";
   return (
     <span aria-hidden className={`w-4 shrink-0 text-center ${tone}`}>
       {glyph}
@@ -141,13 +141,13 @@ export function ProcessPanel({
     <section
       data-testid="v4-process-panel"
       data-open={open ? "true" : "false"}
-      className="rounded-lg border border-slate-200 bg-slate-50/60 text-sm"
+      className="rounded-lg border border-border bg-surface-sunken/60 text-sm"
       aria-label="Process"
     >
       <div className="flex items-center justify-between gap-3 px-3 py-2">
         <p
           data-testid="v4-process-summary"
-          className="min-w-0 truncate text-slate-700"
+          className="min-w-0 truncate text-text-secondary"
           aria-live="polite"
         >
           {summary}
@@ -158,7 +158,7 @@ export function ProcessPanel({
               type="button"
               data-testid="v4-stop"
               onClick={onCancel}
-              className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-white"
+              className="rounded border border-border-strong px-2 py-1 text-xs text-text-secondary hover:bg-surface"
             >
               Stop
             </button>
@@ -169,7 +169,7 @@ export function ProcessPanel({
             onClick={toggle}
             aria-expanded={open}
             aria-controls="cockpit-v4-process-detail"
-            className="rounded px-2 py-1 text-xs font-medium text-sky-700 hover:bg-white"
+            className="rounded px-2 py-1 text-xs font-medium text-accent hover:bg-surface"
           >
             {open ? "Hide process ▴" : "Show process ▾"}
           </button>
@@ -177,7 +177,7 @@ export function ProcessPanel({
       </div>
 
       {view.connection === "lost" ? (
-        <p className="border-t border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="border-t border-warning bg-warning-muted px-3 py-2 text-xs text-warning">
           CONNECTION_LOST — this browser stopped receiving updates. The last
           stage it saw was{" "}
           <strong>{view.steps.find((s) => s.state === "running")?.label ?? "—"}</strong>
@@ -197,7 +197,7 @@ export function ProcessPanel({
       {open ? (
         <div
           id="cockpit-v4-process-detail"
-          className="border-t border-slate-200 px-3 py-2"
+          className="border-t border-border px-3 py-2"
         >
           <ol className="space-y-1" data-testid="v4-process-steps">
             {view.steps.map((step) => {
@@ -218,7 +218,7 @@ export function ProcessPanel({
                           }))
                         }
                         aria-expanded={isOpen}
-                        className={`flex w-full items-baseline justify-between gap-3 text-left text-slate-800 ${
+                        className={`flex w-full items-baseline justify-between gap-3 text-left text-text-primary ${
                           hasDetail ? "hover:underline" : "cursor-default"
                         }`}
                       >
@@ -230,7 +230,7 @@ export function ProcessPanel({
                           data-testid={`v4-step-elapsed-${step.stage}`}
                           data-running={step.state === "running"
                             ? "true" : "false"}
-                          className="shrink-0 tabular-nums text-xs text-slate-500"
+                          className="shrink-0 tabular-nums text-xs text-text-muted"
                         >
                           {step.state === "running"
                             ? formatElapsed(liveStepElapsedMs(step, view, now))
@@ -238,14 +238,14 @@ export function ProcessPanel({
                         </span>
                       </button>
                       {step.detail ? (
-                        <p className="truncate text-xs text-slate-500">
+                        <p className="truncate text-xs text-text-muted">
                           {step.detail}
                         </p>
                       ) : null}
                       {step.failures > 0 ? (
                         <p
                           data-testid={`v4-step-failures-${step.stage}`}
-                          className="text-xs text-amber-700"
+                          className="text-xs text-warning"
                         >
                           {step.failures === 1
                             ? "1 attempt failed here"
@@ -257,7 +257,7 @@ export function ProcessPanel({
                       ) : null}
 
                       {isOpen ? (
-                        <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">
+                        <ul className="mt-1 space-y-1 border-l border-border pl-3">
                           {step.substeps.map((sub) => (
                             <li
                               key={sub.seq}
@@ -265,31 +265,31 @@ export function ProcessPanel({
                               data-status={sub.status}
                               className="flex items-baseline gap-2 text-xs"
                             >
-                              <span className="shrink-0 tabular-nums text-slate-400">
+                              <span className="shrink-0 tabular-nums text-text-muted">
                                 {formatSeconds(sub.elapsedMs)}
                               </span>
                               <span
                                 className={
                                   sub.status === "failed" || sub.status === "rejected"
-                                    ? "text-rose-700"
-                                    : "text-slate-600"
+                                    ? "text-negative"
+                                    : "text-text-secondary"
                                 }
                               >
                                 {sub.message}
                                 {sub.attempt > 1 ? (
-                                  <span className="ml-1 text-slate-400">
+                                  <span className="ml-1 text-text-muted">
                                     (attempt {sub.attempt})
                                   </span>
                                 ) : null}
                               </span>
                               {operatorView && sub.operation ? (
-                                <span className="ml-auto shrink-0 text-slate-400">
+                                <span className="ml-auto shrink-0 text-text-muted">
                                   {sub.eventType} · {sub.operation}
                                   {sub.detailRef ? ` · ${sub.detailRef}` : ""}
                                 </span>
                               ) : null}
                               {sub.errorId ? (
-                                <span className="ml-2 font-mono text-rose-600">
+                                <span className="ml-2 font-mono text-negative">
                                   {sub.errorId}
                                 </span>
                               ) : null}
@@ -304,11 +304,11 @@ export function ProcessPanel({
             })}
           </ol>
 
-          <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-500">
+          <p className="mt-2 border-t border-border pt-2 text-xs text-text-muted">
             Memory maintenance is separate and never holds this answer open.
           </p>
           {view.errorId ? (
-            <p className="mt-1 text-xs text-slate-600">
+            <p className="mt-1 text-xs text-text-secondary">
               Support reference <span className="font-mono">{view.errorId}</span>
             </p>
           ) : null}

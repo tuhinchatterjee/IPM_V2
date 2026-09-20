@@ -96,7 +96,7 @@ function UserTurn({ question }: { question: string }) {
     <div data-testid="v4-turn-user" className="flex justify-end">
       <p
         dir="auto"
-        className="max-w-[48rem] rounded-2xl rounded-br-sm bg-slate-800 px-4 py-2.5 text-sm text-white"
+        className="max-w-[48rem] rounded-2xl rounded-br-sm bg-accent px-4 py-2.5 text-sm text-accent-contrast"
       >
         {question}
       </p>
@@ -162,12 +162,12 @@ function TurnTrace({ runId }: { runId: string }) {
         data-testid="v4-view-trace"
         onClick={() => void open()}
         aria-expanded={Boolean(view)}
-        className="text-xs font-medium text-sky-700 hover:underline"
+        className="text-xs font-medium text-accent hover:underline"
       >
         {busy ? "Reading trace…" : view ? "Hide trace" : "View trace"}
       </button>
       {failed ? (
-        <p className="mt-1 text-xs text-rose-700">{failed}</p>
+        <p className="mt-1 text-xs text-negative">{failed}</p>
       ) : null}
       {view ? (
         <div className="mt-2">
@@ -243,24 +243,24 @@ function SeedCard({
       data-testid="investigation-context"
       data-thread-id={threadId}
       data-segment={String(body.segment ?? "")}
-      className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3"
+      className="rounded-lg border border-accent bg-accent-muted/60 px-4 py-3"
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-sky-800">
+      <p className="text-xs font-medium uppercase tracking-wide text-accent">
         Investigating
       </p>
-      <p dir="auto" className="mt-1 text-sm font-medium text-slate-900">
+      <p dir="auto" className="mt-1 text-sm font-medium text-text-primary">
         {String(body.headline ?? "")}
       </p>
-      <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-600">
+      <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs text-text-secondary">
         {rows.map(([label, value]) => (
           <div key={label} className="flex gap-1.5">
-            <dt className="text-slate-500">{label}</dt>
-            <dd className="font-medium text-slate-800" dir="auto">{value}</dd>
+            <dt className="text-text-muted">{label}</dt>
+            <dd className="font-medium text-text-primary" dir="auto">{value}</dd>
           </div>
         ))}
       </dl>
       {body.issue ? (
-        <p dir="auto" className="mt-2 max-w-[68ch] text-xs text-slate-700">
+        <p dir="auto" className="mt-2 max-w-[68ch] text-xs text-text-secondary">
           {String(body.issue)}
         </p>
       ) : null}
@@ -302,9 +302,9 @@ function FollowUps({
   return (
     <div
       data-testid="v4-followups"
-      className="mb-3 rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_-4px_12px_-8px_rgba(15,23,42,0.25)] backdrop-blur-sm"
+      className="mb-3 rounded-xl border border-border bg-surface/95 px-3 py-2.5 shadow-[0_-4px_12px_-8px_rgba(15,23,42,0.25)] backdrop-blur-sm"
     >
-      <span className="mb-1.5 block text-[11px] uppercase tracking-wide text-slate-400">
+      <span className="mb-1.5 block text-[11px] uppercase tracking-wide text-text-muted">
         Ask next
       </span>
       <div className="flex flex-wrap items-start gap-x-2 gap-y-2">
@@ -316,7 +316,7 @@ function FollowUps({
             disabled={busy}
             dir="auto"
             onClick={() => onAsk(question)}
-            className="max-w-full rounded-full border border-slate-300 bg-white px-3 py-1.5 text-left text-xs leading-5 text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="max-w-full rounded-full border border-border-strong bg-surface px-3 py-1.5 text-left text-xs leading-5 text-text-secondary hover:border-border-strong hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
           >
             {question}
           </button>
@@ -350,7 +350,7 @@ function Composer({
   return (
     <div
       data-testid="v4-composer"
-      className="sticky bottom-0 z-10 -mx-1 bg-gradient-to-t from-white via-white to-white/0 px-1 pb-4 pt-6"
+      className="sticky bottom-0 z-10 -mx-1 bg-gradient-to-t from-surface via-surface to-transparent px-1 pb-4 pt-6"
     >
       {/*
         Inside the sticky block, so the suggestions travel with the box they
@@ -359,7 +359,7 @@ function Composer({
         the answer, arrived at differently.
       */}
       <FollowUps questions={followUps} busy={busy} onAsk={onAsk} />
-      <div className="rounded-xl border border-slate-300 bg-white shadow-sm focus-within:border-slate-400">
+      <div className="rounded-xl border border-border-strong bg-surface shadow-sm focus-within:border-border-strong">
         <textarea
           data-testid="v4-composer-input"
           dir="auto"
@@ -376,16 +376,16 @@ function Composer({
               submit();
             }
           }}
-          className="w-full resize-none rounded-xl px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-slate-50"
+          className="w-full resize-none rounded-xl px-4 py-3 text-sm text-text-primary outline-none disabled:bg-surface-sunken"
         />
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-3 py-2">
-          <label className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2">
+          <label className="flex items-center gap-2 text-xs text-text-muted">
             <span>Depth</span>
             <select
               data-testid="v4-composer-mode"
               value={mode}
               onChange={(event) => onMode(event.target.value as RunMode)}
-              className="rounded border border-slate-200 px-2 py-1 text-xs"
+              className="rounded border border-border px-2 py-1 text-xs"
             >
               <option value="standard">Standard</option>
               <option value="deep">Deep</option>
@@ -396,7 +396,7 @@ function Composer({
             data-testid="v4-composer-send"
             onClick={submit}
             disabled={busy || !text.trim()}
-            className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white disabled:bg-slate-300"
+            className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-contrast disabled:bg-border-strong"
           >
             {busy ? "Working…" : "Ask"}
           </button>
@@ -465,7 +465,7 @@ function ThreadActions({
           data-testid="v4-thread-share"
           aria-pressed={panel === "share"}
           onClick={() => setPanel(panel === "share" ? "" : "share")}
-          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+          className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken"
         >
           Share
         </button>
@@ -474,14 +474,14 @@ function ThreadActions({
           data-testid="v4-thread-investigate"
           aria-pressed={panel === "investigate"}
           onClick={() => setPanel(panel === "investigate" ? "" : "investigate")}
-          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+          className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken"
         >
           Add to investigation
         </button>
         <a
           data-testid="v4-thread-trace"
           href={`/trace/${encodeURIComponent(runId)}`}
-          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+          className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken"
         >
           Trace
         </a>
@@ -489,25 +489,25 @@ function ThreadActions({
 
       {panel === "share" ? (
         <div className="mt-2 max-w-md space-y-2" data-testid="v4-thread-share-panel">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-text-muted">
             Shares the latest answer in this conversation.
           </p>
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Colleague or group inside the bank
             <input
               data-testid="v4-thread-share-audience"
               value={audience}
               onChange={(event) => setAudience(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Notify by email (optional)
             <input
               data-testid="v4-thread-share-email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
           <button
@@ -530,7 +530,7 @@ function ThreadActions({
                 return `Shared with ${result.share.audience_id}.`;
               })
             }
-            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-contrast disabled:opacity-50"
           >
             Share
           </button>
@@ -539,7 +539,7 @@ function ThreadActions({
               data-testid="v4-thread-share-delivery"
               className={
                 "text-xs " +
-                (notification?.delivered ? "text-emerald-700" : "text-amber-700")
+                (notification?.delivered ? "text-positive" : "text-warning")
               }
             >
               {deliveryWording(notification)}
@@ -553,7 +553,7 @@ function ThreadActions({
           className="mt-2 max-w-md space-y-2"
           data-testid="v4-thread-investigate-panel"
         >
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-text-muted">
             Opens an investigation for this conversation.
           </p>
           <button
@@ -570,11 +570,11 @@ function ThreadActions({
                 return `Investigation opened: ${record.title}.`;
               })
             }
-            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-contrast disabled:opacity-50"
           >
             Open investigation
           </button>
-          <p className="text-xs text-slate-500" data-testid="v4-thread-no-projects">
+          <p className="text-xs text-text-muted" data-testid="v4-thread-no-projects">
             Add to Project is not available in this isolated Cockpit V4
             runtime. Projects are served by the main CreditProbe backend,
             which this instance does not start, so nothing here would reach
@@ -584,7 +584,7 @@ function ThreadActions({
       ) : null}
 
       {status ? (
-        <p className="mt-2 text-xs text-slate-600" data-testid="v4-thread-action-status">
+        <p className="mt-2 text-xs text-text-secondary" data-testid="v4-thread-action-status">
           {status}
         </p>
       ) : null}
@@ -618,7 +618,7 @@ function ThreadHeader({
   return (
     <header
       data-testid="v4-thread-header"
-      className="border-b border-slate-200 pb-4"
+      className="border-b border-border pb-4"
     >
       {/*
         §22: the way back is at the TOP LEFT, above the title, where every
@@ -631,7 +631,7 @@ function ThreadHeader({
         type="button"
         data-testid="v4-back-to-cockpit"
         onClick={onHome}
-        className="-ml-1 mb-2 inline-flex items-center gap-1.5 rounded px-1 py-0.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+        className="-ml-1 mb-2 inline-flex items-center gap-1.5 rounded px-1 py-0.5 text-sm text-text-muted hover:bg-surface-sunken hover:text-text-primary"
       >
         <span aria-hidden="true">←</span> Cockpit
       </button>
@@ -654,12 +654,12 @@ function ThreadHeader({
               dir="auto"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              className="w-[28rem] max-w-full rounded border border-slate-300 px-2 py-1 text-lg"
+              className="w-[28rem] max-w-full rounded border border-border-strong px-2 py-1 text-lg"
             />
             <button
               type="submit"
               data-testid="v4-thread-rename-save"
-              className="rounded bg-slate-900 px-3 py-1 text-xs text-white"
+              className="rounded bg-accent px-3 py-1 text-xs text-accent-contrast"
             >
               Save
             </button>
@@ -668,12 +668,12 @@ function ThreadHeader({
           <h1
             data-testid="v4-thread-title"
             dir="auto"
-            className="truncate text-xl font-semibold text-slate-900"
+            className="truncate text-xl font-semibold text-text-primary"
           >
             {title || "New conversation"}
           </h1>
         )}
-        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
           {/*
             §35: which book this conversation is held in, stated rather than
             inferred. A reader with a corporate and a retail thread open
@@ -683,7 +683,7 @@ function ThreadHeader({
             <span
               data-testid="v4-thread-domain"
               data-domain={domainId}
-              className="rounded-full border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+              className="rounded-full border border-border-strong px-2 py-0.5 text-[11px] font-medium text-text-secondary"
             >
               {domainLabel}
             </span>
@@ -703,7 +703,7 @@ function ThreadHeader({
           type="button"
           data-testid="v4-thread-rename"
           onClick={() => setEditing((prev) => !prev)}
-          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+          className="rounded border border-border-strong px-3 py-1.5 text-xs text-text-secondary hover:bg-surface-sunken"
         >
           Rename
         </button>
@@ -900,11 +900,11 @@ export function CockpitV4Thread({
   if (loadError) {
     return (
       <div data-testid="v4-thread-error" className="mx-auto max-w-2xl py-16">
-        <p className="text-sm text-rose-700">{loadError}</p>
+        <p className="text-sm text-negative">{loadError}</p>
         <button
           type="button"
           onClick={onHome}
-          className="mt-3 text-sm text-sky-700 hover:underline"
+          className="mt-3 text-sm text-accent hover:underline"
         >
           Back to Cockpit home
         </button>
@@ -1001,7 +1001,7 @@ export function CockpitV4Thread({
         ) : null}
 
         {error ? (
-          <p data-testid="v4-thread-ask-error" className="text-sm text-rose-700">
+          <p data-testid="v4-thread-ask-error" className="text-sm text-negative">
             {error}
           </p>
         ) : null}

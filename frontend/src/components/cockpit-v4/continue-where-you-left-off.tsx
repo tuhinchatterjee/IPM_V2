@@ -32,11 +32,11 @@ export function ContinueWhereYouLeftOff({
 }) {
   return (
     <section className="space-y-3" data-testid="continue-where-you-left-off">
-      <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+      <h2 className="text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted">
         Continue where you left off
       </h2>
       {threads.length ? (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
           {threads.map((thread) => (
             <button
               key={thread.thread_id}
@@ -47,13 +47,13 @@ export function ContinueWhereYouLeftOff({
               // and a reader can both see it before clicking.
               data-domain={thread.domain_id ?? ""}
               onClick={() => onOpen(thread)}
-              className="flex w-full items-baseline gap-3 border-b border-slate-100 px-5 py-3 text-left transition last:border-b-0 hover:bg-slate-50"
+              className="flex w-full items-baseline gap-3 border-b border-border px-5 py-3 text-left transition last:border-b-0 hover:bg-surface-sunken"
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm text-slate-900" dir="auto">
+                <span className="block truncate text-sm text-text-primary" dir="auto">
                   {thread.attention_item || thread.last_question}
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500">
+                <span className="mt-0.5 block text-xs text-text-muted">
                   {thread.origin === "attention_item"
                     ? `From Requires attention${
                         thread.segment ? ` · ${thread.segment}` : ""
@@ -63,7 +63,7 @@ export function ContinueWhereYouLeftOff({
                   {thread.turns} {thread.turns === 1 ? "turn" : "turns"}
                 </span>
               </span>
-              <span className="shrink-0 text-xs text-slate-400">
+              <span className="shrink-0 text-xs text-text-muted">
                 {when(thread.last_activity_at)}
               </span>
             </button>
@@ -71,7 +71,7 @@ export function ContinueWhereYouLeftOff({
         </div>
       ) : (
         <p
-          className="rounded-xl border border-dashed border-slate-200 px-5 py-6 text-sm text-slate-500"
+          className="rounded-xl border border-dashed border-border px-5 py-6 text-sm text-text-muted"
           data-testid="continue-empty"
         >
           Nothing to continue yet. Investigations you start here will appear in

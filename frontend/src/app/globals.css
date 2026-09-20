@@ -19,6 +19,21 @@
    default and is defined on :root so the page is never unstyled.
    ============================================================================= */
 
+/* Tailwind's `dark:` variant, bound to the theme the reader actually chose.
+   -----------------------------------------------------------------------------
+   Tailwind v4 defaults `dark:` to `@media (prefers-color-scheme: dark)`, which
+   reads the OPERATING SYSTEM. This product selects a theme by attribute, so the
+   two were entirely decoupled: a reader on a light OS who picked Midnight
+   Boardroom got light-mode `dark:` values on a near-black canvas, and a reader
+   on a dark OS got dark-mode values inside Executive Ivory. `color-scheme: dark`
+   further down sets scrollbar and form rendering; it does not feed
+   `prefers-color-scheme`, so it could not have rescued this.
+
+   Tokens remain the rule and `dark:` is not a way around them. This exists so
+   that the handful of call sites already using it follow the chosen theme
+   rather than an unrelated signal. */
+@custom-variant dark (&:where([data-theme="midnight"], [data-theme="graphite"], [data-theme="oxblood"], [data-theme="forest"]) *);
+
 @theme inline {
   /* Surfaces, in increasing prominence. */
   --color-canvas: var(--ipm-canvas);

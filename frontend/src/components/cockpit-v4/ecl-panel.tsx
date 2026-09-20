@@ -49,12 +49,12 @@ export function EclPanel({ domain }: { domain: DomainId }) {
   if (error) {
     return (
       <section data-testid="v4-ecl-panel" data-state="unavailable">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-text-primary">
           Expected credit loss
         </h2>
         <p
           data-testid="v4-ecl-unavailable"
-          className="mt-2 text-sm text-slate-600"
+          className="mt-2 text-sm text-text-secondary"
         >
           This panel could not be computed: {error} Nothing was substituted
           for it.
@@ -65,10 +65,10 @@ export function EclPanel({ domain }: { domain: DomainId }) {
   if (!body) {
     return (
       <section data-testid="v4-ecl-panel" data-state="loading">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-text-primary">
           Expected credit loss
         </h2>
-        <p className="mt-2 text-sm text-slate-500">Computing…</p>
+        <p className="mt-2 text-sm text-text-muted">Computing…</p>
       </section>
     );
   }
@@ -82,10 +82,10 @@ export function EclPanel({ domain }: { domain: DomainId }) {
       data-release={profile.release_id}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-text-primary">
           {profile.domain_label}: expected credit loss
         </h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-text-muted">
           {periodLabel(reportingPeriod(profile))} against{" "}
           {periodLabel(comparisonPeriod(profile))} · per{" "}
           {profile.exposure_grain}
@@ -104,12 +104,12 @@ export function EclPanel({ domain }: { domain: DomainId }) {
           <div
             key={entry.key}
             data-testid={`v4-ecl-${entry.key}`}
-            className="rounded-lg border border-slate-200 bg-white p-4"
+            className="rounded-lg border border-border bg-surface p-4"
           >
-            <dt className="text-xs uppercase tracking-wide text-slate-500">
+            <dt className="text-xs uppercase tracking-wide text-text-muted">
               {entry.term}
             </dt>
-            <dd className="mt-1 text-xl font-semibold text-slate-900">
+            <dd className="mt-1 text-xl font-semibold text-text-primary">
               {entry.value}
             </dd>
           </div>
@@ -121,7 +121,7 @@ export function EclPanel({ domain }: { domain: DomainId }) {
           data-testid="v4-ecl-stages"
           className="w-full min-w-[38rem] text-left text-sm"
         >
-          <thead className="text-xs uppercase tracking-wide text-slate-500">
+          <thead className="text-xs uppercase tracking-wide text-text-muted">
             <tr>
               <th className="py-2 pr-4 font-medium">Stage</th>
               <th className="py-2 pr-4 text-right font-medium">Exposure</th>
@@ -131,10 +131,10 @@ export function EclPanel({ domain }: { domain: DomainId }) {
               <th className="py-2 text-right font-medium">ECL movement</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {profile.stages.map((stage) => (
               <tr key={stage.stage} data-testid={`v4-ecl-stage-${stage.stage}`}>
-                <td className="py-2 pr-4 text-slate-900">{stage.label}</td>
+                <td className="py-2 pr-4 text-text-primary">{stage.label}</td>
                 <td className="py-2 pr-4 text-right tabular-nums">
                   {stage.display_ead}
                 </td>
@@ -155,9 +155,9 @@ export function EclPanel({ domain }: { domain: DomainId }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-500">{profile.note}</p>
+      <p className="mt-2 text-xs text-text-muted">{profile.note}</p>
 
-      <h3 className="mt-8 text-base font-semibold text-slate-900">
+      <h3 className="mt-8 text-base font-semibold text-text-primary">
         What moved it: {decomposition.display_opening} →{" "}
         {decomposition.display_closing} ({decomposition.display_movement})
       </h3>
@@ -166,17 +166,17 @@ export function EclPanel({ domain }: { domain: DomainId }) {
           <li
             key={component.component_id}
             data-testid={`v4-ecl-component-${component.component_id}`}
-            className="rounded-lg border border-slate-200 bg-white p-3"
+            className="rounded-lg border border-border bg-surface p-3"
           >
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-medium text-slate-900">
+              <span className="text-sm font-medium text-text-primary">
                 {component.label}
               </span>
-              <span className="text-sm tabular-nums text-slate-900">
+              <span className="text-sm tabular-nums text-text-primary">
                 {component.display_amount}
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-600">
+            <p className="mt-1 text-xs text-text-secondary">
               {component.explanation}
             </p>
           </li>
@@ -184,7 +184,7 @@ export function EclPanel({ domain }: { domain: DomainId }) {
       </ul>
       <p
         data-testid="v4-ecl-reconciliation"
-        className="mt-3 text-xs text-slate-500"
+        className="mt-3 text-xs text-text-muted"
       >
         {decomposition.reconciles
           ? "These components sum to the movement exactly."

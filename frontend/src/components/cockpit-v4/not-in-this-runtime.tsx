@@ -25,12 +25,12 @@ export function NotInThisRuntime({
   return (
     <section
       data-testid="v4-not-in-runtime"
-      className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-4 py-3"
+      className="rounded-lg border border-dashed border-border-strong bg-surface-sunken/60 px-4 py-3"
     >
-      <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
         {title}
       </h3>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-text-muted">
         {what} is not available in this isolated Cockpit V4 runtime. It is
         served by the main CreditProbe backend, which this instance does not
         start. Nothing was requested and nothing failed.

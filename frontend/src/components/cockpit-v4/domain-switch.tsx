@@ -35,7 +35,7 @@ export function DomainSwitch({
       data-domain={value}
       role="group"
       aria-label="Analytical domain"
-      className="inline-flex items-center rounded-lg border border-slate-300 bg-white p-0.5"
+      className="inline-flex items-center rounded-lg border border-border-strong bg-surface p-0.5"
     >
       {availability.domains.map((domain: DomainStatus) => {
         const selected = domain.domain_id === value;
@@ -61,8 +61,8 @@ export function DomainSwitch({
             className={
               "rounded-md px-3.5 py-1.5 text-sm font-medium transition " +
               (selected
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-100") +
+                ? "bg-accent text-accent-contrast"
+                : "text-text-secondary hover:bg-surface-sunken") +
               (domain.ready ? "" : " cursor-not-allowed opacity-40")
             }
           >

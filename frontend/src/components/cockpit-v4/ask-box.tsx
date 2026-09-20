@@ -73,7 +73,7 @@ export function AskBox({
         event.preventDefault();
         onAsk(question);
       }}
-      className="w-full rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="w-full rounded-xl border border-border bg-surface shadow-sm"
     >
       <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
         <label className="sr-only" htmlFor="cockpit-v4-question">
@@ -86,17 +86,17 @@ export function AskBox({
           value={question}
           onChange={(event) => onQuestionChange(event.target.value)}
           placeholder="What deteriorated this period?"
-          className="w-full flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
+          className="w-full flex-1 bg-transparent text-base text-text-primary outline-none placeholder:text-text-muted"
         />
         <div className="flex shrink-0 items-center gap-3 self-end sm:self-auto">
-          <span className="hidden text-xs text-slate-400 sm:inline">
+          <span className="hidden text-xs text-text-muted sm:inline">
             Enter to ask
           </span>
           <button
             type="submit"
             data-testid="cockpit-v4-ask"
             disabled={busy || !question.trim()}
-            className="rounded-lg bg-slate-700 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-40"
+            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-accent-contrast transition hover:bg-accent-hover disabled:opacity-40"
           >
             ↵ Ask
           </button>
@@ -106,7 +106,7 @@ export function AskBox({
       {showPrompts ? (
         <div
           data-testid="cockpit-v4-prompts"
-          className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3"
+          className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-3"
         >
           {promptsFor(domains, domain).map((prompt) => (
             <button
@@ -115,7 +115,7 @@ export function AskBox({
               data-testid="cockpit-v4-prompt"
               disabled={busy}
               onClick={() => onAsk(prompt)}
-              className="rounded-full border border-slate-200 px-4 py-1.5 text-sm text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-full border border-border px-4 py-1.5 text-sm text-text-secondary transition hover:border-border-strong hover:bg-surface-sunken disabled:opacity-40"
             >
               {prompt}
             </button>
@@ -125,7 +125,7 @@ export function AskBox({
             aria-label="Hide suggested questions"
             data-testid="cockpit-v4-prompts-dismiss"
             onClick={onDismissPrompts}
-            className="ml-auto rounded px-2 py-1 text-slate-400 hover:bg-slate-100"
+            className="ml-auto rounded px-2 py-1 text-text-muted hover:bg-surface-sunken"
           >
             ✕
           </button>
@@ -133,14 +133,14 @@ export function AskBox({
       ) : null}
 
       <fieldset
-        className="flex flex-wrap items-center gap-3 border-t border-slate-100 px-5 py-2.5"
+        className="flex flex-wrap items-center gap-3 border-t border-border px-5 py-2.5"
         disabled={busy}
       >
         <legend className="sr-only">Analysis depth</legend>
         {MODES.map((option) => (
           <label
             key={option.id}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-600"
+            className="inline-flex items-center gap-1.5 text-xs text-text-secondary"
           >
             <input
               type="radio"
@@ -153,7 +153,7 @@ export function AskBox({
             {option.label}
           </label>
         ))}
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-text-muted">
           {MODES.find((m) => m.id === mode)?.hint}
         </span>
       </fieldset>

@@ -37,17 +37,17 @@ export function quarterLabel(quarter: string): string {
 }
 
 const DOT: Record<string, string> = {
-  high: "bg-rose-500",
-  moderate: "bg-amber-500",
-  low: "bg-slate-300",
-  informational: "bg-sky-500",
+  high: "bg-negative",
+  moderate: "bg-warning",
+  low: "bg-border-strong",
+  informational: "bg-accent",
 };
 
 const SEVERITY: Record<string, string> = {
-  high: "bg-rose-100 text-rose-800 border-rose-200",
-  moderate: "bg-amber-100 text-amber-800 border-amber-200",
-  low: "bg-slate-100 text-slate-700 border-slate-200",
-  informational: "bg-sky-100 text-sky-800 border-sky-200",
+  high: "bg-negative-muted text-negative border-negative",
+  moderate: "bg-warning-muted text-warning border-warning",
+  low: "bg-surface-sunken text-text-secondary border-border",
+  informational: "bg-accent-muted text-accent border-accent",
 };
 
 function Card({
@@ -66,7 +66,7 @@ function Card({
       data-scope={item.scope}
       data-severity={item.severity}
       onClick={() => onOpen(item)}
-      className="flex w-full items-start gap-3 border-b border-slate-100 px-5 py-4 text-left transition last:border-b-0 hover:bg-slate-50"
+      className="flex w-full items-start gap-3 border-b border-border px-5 py-4 text-left transition last:border-b-0 hover:bg-surface-sunken"
     >
       <span
         aria-hidden="true"
@@ -75,11 +75,11 @@ function Card({
         }`}
       />
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-medium text-slate-900">
+        <span className="block text-[15px] font-medium text-text-primary">
           {item.headline}
         </span>
-        <span className="mt-1 block text-sm text-slate-500">
-          <span className="text-slate-600">{item.metric_label}</span>
+        <span className="mt-1 block text-sm text-text-muted">
+          <span className="text-text-secondary">{item.metric_label}</span>
           {" · "}
           {item.one_line}
         </span>
@@ -143,19 +143,19 @@ export function AttentionPanel({
   if (failure) {
     return (
       <section
-        className="rounded border border-amber-200 bg-amber-50 px-4 py-3"
+        className="rounded border border-warning bg-warning-muted px-4 py-3"
         data-testid="attention-unavailable"
       >
-        <h2 className="text-sm font-semibold text-amber-900">
+        <h2 className="text-sm font-semibold text-warning">
           Segment attention feed unavailable
         </h2>
-        <p className="mt-1 text-sm text-amber-800">{failure.message}</p>
+        <p className="mt-1 text-sm text-warning">{failure.message}</p>
         {failure.reference ? (
-          <p className="mt-1 text-xs text-amber-700">
+          <p className="mt-1 text-xs text-warning">
             Reference {failure.reference}
           </p>
         ) : null}
-        <p className="mt-1 text-xs text-amber-700">
+        <p className="mt-1 text-xs text-warning">
           Ask is unaffected — the question box above still works.
         </p>
       </section>
@@ -164,7 +164,7 @@ export function AttentionPanel({
 
   if (!feed) {
     return (
-      <p className="text-xs text-slate-400" data-testid="attention-loading">
+      <p className="text-xs text-text-muted" data-testid="attention-loading">
         Reading the latest period…
       </p>
     );
@@ -187,30 +187,30 @@ export function AttentionPanel({
               segments and a retail book watches its portfolio, and a
               hard-coded heading over retail data would be the label lying
               about the numbers under it. */}
-          <h2 className="text-lg font-semibold text-slate-900"
+          <h2 className="text-lg font-semibold text-text-primary"
               data-testid="attention-heading">
             {feed.attention_label || "Segments requiring attention"}
           </h2>
           <span
             data-testid="attention-reporting-period"
-            className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400"
+            className="text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted"
           >
             Reporting {noun} {period}
           </span>
         </div>
-        <p className="text-sm text-slate-600" data-testid="attention-summary">
+        <p className="text-sm text-text-secondary" data-testid="attention-summary">
           CreditProbe reviewed {period} against {against} and identified{" "}
           {segments.length}{" "}
           {segments.length === 1 ? "segment issue" : "segment issues"}.
         </p>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
           {segments.length ? (
             segments.map((item) => (
               <Card key={item.item_id} item={item} onOpen={onOpen} />
             ))
           ) : (
-            <p className="px-5 py-6 text-sm text-slate-500">
+            <p className="px-5 py-6 text-sm text-text-muted">
               No segment movement cleared the materiality floor for{" "}
               {period}.
             </p>
@@ -218,7 +218,7 @@ export function AttentionPanel({
         </div>
         {feed.segment_note ? (
           <p
-            className="text-xs text-slate-500"
+            className="text-xs text-text-muted"
             data-testid="segments-requiring-attention-note"
           >
             {feed.segment_note}
@@ -228,27 +228,27 @@ export function AttentionPanel({
 
       <section data-testid="ecl-highlights" className="space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-lg font-semibold text-slate-900"
+          <h2 className="text-lg font-semibold text-text-primary"
               data-testid="ecl-heading">
             {feed.highlights_label || `Latest-${noun} ECL highlights`}
           </h2>
-          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+          <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted">
             {period} vs {against}
           </span>
         </div>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-text-secondary">
           {highlights.length} distinct ECL{" "}
           {highlights.length === 1 ? "development" : "developments"} — by
           sector, by borrower and across the book.
         </p>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
           {highlights.map((item) => (
             <Card key={item.item_id} item={item} onOpen={onOpen} />
           ))}
         </div>
       </section>
 
-      <p className="text-[11px] text-slate-400" data-testid="attention-footnote">
+      <p className="text-[11px] text-text-muted" data-testid="attention-footnote">
         {feed.ownership?.note ??
           "Movements in the recorded book between two reporting periods."}{" "}
         Computed from release {feed.release_id}

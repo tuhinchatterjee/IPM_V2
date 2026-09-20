@@ -5,6 +5,7 @@ import * as React from "react";
 import {
   DEFAULT_THEME,
   THEME_STORAGE_KEY,
+  THEMES,
   type ThemeId,
   isThemeId,
 } from "@/lib/themes";
@@ -116,13 +117,20 @@ export function useTheme(): ThemeContextValue {
  * It has to be a blocking inline script, which is the one legitimate use of
  * dangerouslySetInnerHTML here: the content is a fixed string we author, with no
  * user input anywhere in it.
+ *
+ * The allowlist is DERIVED FROM `THEMES`, never typed out. It was typed out,
+ * and it was still the original four after the set grew to eight — so anyone
+ * on Alpine, Porcelain, Oxblood or Forest got the default painted first and
+ * the real theme a frame later. A light flash on every navigation, from the
+ * one piece of code whose entire job is to prevent it.
  */
 export function ThemeScript() {
+  const allowed = JSON.stringify(THEMES.map((theme) => theme.id));
   const script = `
 (function () {
   try {
     var stored = localStorage.getItem('${THEME_STORAGE_KEY}');
-    var allowed = ['executive-light','midnight','graphite','warm-institutional'];
+    var allowed = ${allowed};
     document.documentElement.setAttribute(
       'data-theme',
       allowed.indexOf(stored) !== -1 ? stored : '${DEFAULT_THEME}'

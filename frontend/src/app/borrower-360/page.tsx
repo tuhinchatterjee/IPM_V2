@@ -956,7 +956,7 @@ function WorkingSet({
       ) : null}
 
       {problem ? (
-        <p className="mt-3 text-xs text-[var(--danger,#b91c1c)]">{problem}</p>
+        <p className="mt-3 text-xs text-negative">{problem}</p>
       ) : null}
 
       {ran ? (
@@ -1031,7 +1031,7 @@ function PinButton({
         {pinned ? "Pinned" : "Pin"}
       </button>
       {problem ? (
-        <span className="mt-1 text-xs text-[var(--danger,#b91c1c)]">
+        <span className="mt-1 text-xs text-negative">
           {problem}
         </span>
       ) : null}

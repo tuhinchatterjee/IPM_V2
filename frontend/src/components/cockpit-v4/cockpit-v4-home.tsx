@@ -195,7 +195,7 @@ export function CockpitV4Home() {
     >
       <header className="space-y-1">
         <h1
-          className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl"
+          className="text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl"
           data-testid="cockpit-v4-greeting"
         >
           {hello.salutation}
@@ -208,7 +208,7 @@ export function CockpitV4Home() {
             </>
           ) : null}
         </h1>
-        <p className="text-base text-slate-500" data-testid="cockpit-v4-prompt-line">
+        <p className="text-base text-text-muted" data-testid="cockpit-v4-prompt-line">
           What&rsquo;s on your mind?
         </p>
       </header>
@@ -234,7 +234,7 @@ export function CockpitV4Home() {
             server, because a component that spells out a calendar spells
             out whichever one was true the day it was written.
           */}
-          <span className="text-xs text-slate-500"
+          <span className="text-xs text-text-muted"
                 data-testid="cockpit-v4-domain-meta"
                 data-frequency={domainFrequency(domainEntry(domains, domain))}>
             {domainHeadline(domains, domain)}
@@ -258,7 +258,7 @@ export function CockpitV4Home() {
           replaced -- and it is a promise about every answer, not about one
           run, so it lives with the box that makes the promise.
         */}
-        <p className="mt-3 text-xs text-slate-500"
+        <p className="mt-3 text-xs text-text-muted"
            data-testid="cockpit-v4-trace-note">
           <span aria-hidden="true">ⓘ </span>
           Every answer carries a Trace.{" "}
@@ -266,7 +266,7 @@ export function CockpitV4Home() {
             type="button"
             data-testid="cockpit-v4-trace-explain"
             onClick={() => setTraceHelp((open) => !open)}
-            className="underline underline-offset-2 hover:text-slate-700"
+            className="underline underline-offset-2 hover:text-text-secondary"
           >
             What is a Trace?
           </button>
@@ -274,7 +274,7 @@ export function CockpitV4Home() {
         {traceHelp ? (
           <p
             data-testid="cockpit-v4-trace-help"
-            className="mt-2 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600"
+            className="mt-2 rounded border border-border bg-surface-sunken px-4 py-3 text-xs text-text-secondary"
           >
             Every figure in an answer is bound to a query that actually ran.
             The process panel in the conversation shows each stage as it
@@ -287,7 +287,7 @@ export function CockpitV4Home() {
         {askError ? (
           <p
             data-testid="cockpit-v4-submit-error"
-            className="mt-2 text-sm text-rose-700"
+            className="mt-2 text-sm text-negative"
           >
             {askError}
           </p>

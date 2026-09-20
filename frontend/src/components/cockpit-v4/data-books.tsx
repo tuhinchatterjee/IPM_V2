@@ -59,22 +59,22 @@ export function DataBooks() {
 
   if (error) {
     return (
-      <p data-testid="v4-data-unavailable" className="text-sm text-slate-600">
+      <p data-testid="v4-data-unavailable" className="text-sm text-text-secondary">
         The books could not be listed: {error}
       </p>
     );
   }
   if (!availability) {
-    return <p className="text-sm text-slate-500">Reading the books…</p>;
+    return <p className="text-sm text-text-muted">Reading the books…</p>;
   }
 
   return (
     <div data-testid="v4-data-books" className="space-y-8">
       <header>
-        <h1 className="text-xl font-semibold text-slate-900">
+        <h1 className="text-xl font-semibold text-text-primary">
           Analytical books
         </h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600">
+        <p className="mt-1 max-w-3xl text-sm text-text-secondary">
           Two books, each its own published release. Switching between them
           opens different bytes, not a filter over one dataset. This is the
           same governed catalogue the Cockpit answers from — what you can see
@@ -131,12 +131,12 @@ function BookCard({ domain }: { domain: DomainStatus }) {
       <section
         data-testid={`v4-book-${domain.domain_id}`}
         data-state="unavailable"
-        className="rounded-xl border border-slate-200 bg-white p-5"
+        className="rounded-xl border border-border bg-surface p-5"
       >
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-text-primary">
           {domain.domain_label}
         </h2>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-text-secondary">
           Not published in this runtime: {domain.reason} Nothing was
           substituted for it.
         </p>
@@ -157,20 +157,20 @@ function BookCard({ domain }: { domain: DomainStatus }) {
       data-release={schema?.release_id ?? ""}
       data-frequency={schema?.reporting_frequency ?? ""}
       data-period-noun={schema?.period_noun ?? ""}
-      className="rounded-xl border border-slate-200 bg-white p-5"
+      className="rounded-xl border border-border bg-surface p-5"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-text-primary">
           {domain.domain_label}
         </h2>
         {schema ? (
-          <p className="font-mono text-xs text-slate-500">
+          <p className="font-mono text-xs text-text-muted">
             {schema.release_id} · {schema.release_fingerprint.slice(0, 16)}
           </p>
         ) : null}
       </div>
 
-      {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-negative">{error}</p> : null}
 
       {schema ? (
         <>
@@ -214,14 +214,14 @@ function BookCard({ domain }: { domain: DomainStatus }) {
           ) : null}
 
           {schema.not_client_data ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-text-muted">
               {schema.not_client_data}
             </p>
           ) : null}
 
           {schema.subject_areas?.length ? (
             <div className="mt-4">
-              <h3 className="text-xs uppercase tracking-wide text-slate-500">
+              <h3 className="text-xs uppercase tracking-wide text-text-muted">
                 Subject areas
               </h3>
               <ul
@@ -232,10 +232,10 @@ function BookCard({ domain }: { domain: DomainStatus }) {
                   <li
                     key={area.area}
                     data-testid={`v4-subject-area-${area.area}`}
-                    className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                    className="rounded border border-border bg-surface-sunken px-2 py-1 text-xs text-text-secondary"
                   >
                     {area.area}
-                    <span className="ml-1.5 text-slate-500">
+                    <span className="ml-1.5 text-text-muted">
                       {area.columns}
                     </span>
                   </li>
@@ -244,7 +244,7 @@ function BookCard({ domain }: { domain: DomainStatus }) {
             </div>
           ) : null}
 
-          <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
+          <ul className="mt-4 divide-y divide-border border-t border-border">
             {(schema.relations ?? []).map((relation) => (
               <li key={relation.relation} className="py-2">
                 <button
@@ -254,14 +254,14 @@ function BookCard({ domain }: { domain: DomainStatus }) {
                   onClick={() => drill(relation.relation)}
                   className="w-full text-left"
                 >
-                  <span className="font-mono text-sm text-slate-900">
+                  <span className="font-mono text-sm text-text-primary">
                     {relation.relation}
                   </span>
-                  <span className="ml-2 text-xs text-slate-500">
+                  <span className="ml-2 text-xs text-text-muted">
                     {relation.columns} columns ·{" "}
                     {relation.rows.toLocaleString("en")} rows
                   </span>
-                  <span className="block text-xs text-slate-600">
+                  <span className="block text-xs text-text-secondary">
                     {relation.grain}
                   </span>
                 </button>
@@ -274,17 +274,17 @@ function BookCard({ domain }: { domain: DomainStatus }) {
 
           {schema.joins?.length ? (
             <div className="mt-4">
-              <h3 className="text-xs uppercase tracking-wide text-slate-500">
+              <h3 className="text-xs uppercase tracking-wide text-text-muted">
                 How these join
               </h3>
-              <ul className="mt-2 space-y-1.5 text-xs text-slate-600">
+              <ul className="mt-2 space-y-1.5 text-xs text-text-secondary">
                 {schema.joins.map((join) => (
                   <li key={`${join.left}-${join.right}`}>
                     <span className="font-mono">{join.left}</span> →{" "}
                     <span className="font-mono">{join.right}</span> on{" "}
                     {join.on.join(", ")}
                     {join.warning ? (
-                      <span className="block text-slate-500">
+                      <span className="block text-text-muted">
                         {join.warning}
                       </span>
                     ) : null}
@@ -301,20 +301,20 @@ function BookCard({ domain }: { domain: DomainStatus }) {
 
 function RelationDetail({ detail }: { detail: BookSchema | null }) {
   if (!detail) {
-    return <p className="mt-2 text-xs text-slate-500">Reading columns…</p>;
+    return <p className="mt-2 text-xs text-text-muted">Reading columns…</p>;
   }
   return (
     <div
       data-testid={`v4-relation-detail-${detail.relation}`}
       className="mt-3 overflow-x-auto"
     >
-      <p className="text-xs text-slate-600">{detail.description}</p>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="text-xs text-text-secondary">{detail.description}</p>
+      <p className="mt-1 text-xs text-text-muted">
         Key: {(detail.key_columns ?? []).join(", ")} · period column{" "}
         {detail.period_column}
       </p>
       <table className="mt-2 w-full min-w-[42rem] text-left text-xs">
-        <thead className="text-slate-500">
+        <thead className="text-text-muted">
           <tr>
             <th className="py-1 pr-3 font-medium">Column</th>
             <th className="py-1 pr-3 font-medium">Type</th>
@@ -324,30 +324,30 @@ function RelationDetail({ detail }: { detail: BookSchema | null }) {
             <th className="py-1 font-medium">Holds</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border">
           {(detail.fields ?? []).map((field) => (
             <tr key={field.name} data-testid={`v4-field-${field.name}`}>
               <td className="py-1 pr-3 align-top">
                 {/* The label is what a person calls it; the identifier under
                     it is what a filter is written against. Both, because
                     showing only one of them makes the other unguessable. */}
-                <span className="block text-slate-900">
+                <span className="block text-text-primary">
                   {field.label || field.name}
                 </span>
-                <span className="block font-mono text-[11px] text-slate-500">
+                <span className="block font-mono text-[11px] text-text-muted">
                   {field.name}
                 </span>
               </td>
-              <td className="py-1 pr-3 align-top text-slate-600">
+              <td className="py-1 pr-3 align-top text-text-secondary">
                 {field.dtype}
               </td>
-              <td className="py-1 pr-3 align-top text-slate-600">
+              <td className="py-1 pr-3 align-top text-text-secondary">
                 {field.unit || "—"}
               </td>
-              <td className="py-1 pr-3 align-top text-slate-600">
+              <td className="py-1 pr-3 align-top text-text-secondary">
                 {field.aggregation === "additive" ? "yes" : "no"}
               </td>
-              <td className="py-1 pr-3 align-top text-slate-600">
+              <td className="py-1 pr-3 align-top text-text-secondary">
                 {field.definition}
               </td>
               <td className="py-1 align-top">
@@ -379,13 +379,13 @@ function FieldValues({ field }: { field: SchemaField }) {
             <li
               key={value}
               title={value}
-              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-700"
+              className="rounded border border-border bg-surface-sunken px-1.5 py-0.5 text-[11px] text-text-secondary"
             >
               {field.value_labels?.[value] || value}
             </li>
           ))}
         </ul>
-        <span className="mt-0.5 block text-[11px] text-slate-500">
+        <span className="mt-0.5 block text-[11px] text-text-muted">
           {field.distinct_values} governed value
           {field.distinct_values === 1 ? "" : "s"}
           {(field.distinct_values ?? 0) > 8 ? ", 8 shown" : ""}
@@ -396,16 +396,16 @@ function FieldValues({ field }: { field: SchemaField }) {
   if (field.sample_values?.length) {
     return (
       <div data-testid={`v4-field-values-${field.name}`} data-kind="sample">
-        <span className="font-mono text-[11px] text-slate-600">
+        <span className="font-mono text-[11px] text-text-secondary">
           {field.sample_values.slice(0, 3).join(", ")}
         </span>
-        <span className="mt-0.5 block text-[11px] text-slate-500">
+        <span className="mt-0.5 block text-[11px] text-text-muted">
           a sample, not the whole set
         </span>
       </div>
     );
   }
-  return <span className="text-[11px] text-slate-400">—</span>;
+  return <span className="text-[11px] text-text-muted">—</span>;
 }
 
 /** `sub_sectors` reads as `Sub sectors` on a fact line. */
@@ -423,10 +423,10 @@ function Fact({
 }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-500">
+      <dt className="text-xs uppercase tracking-wide text-text-muted">
         {term}
       </dt>
-      <dd className="text-slate-900">{children}</dd>
+      <dd className="text-text-primary">{children}</dd>
     </div>
   );
 }

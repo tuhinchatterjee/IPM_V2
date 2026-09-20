@@ -52,8 +52,8 @@ function Button({
       className={
         "rounded border px-2.5 py-1 text-xs font-medium transition " +
         (active
-          ? "border-slate-900 bg-slate-900 text-white"
-          : "border-slate-300 text-slate-700 hover:border-slate-400") +
+          ? "border-accent bg-accent text-accent-contrast"
+          : "border-border-strong text-text-secondary hover:border-border-strong") +
         (disabled ? " cursor-not-allowed opacity-50" : "")
       }
     >
@@ -118,11 +118,11 @@ export function AnswerActions({
 
   return (
     <div
-      className="mt-4 border-t border-slate-200 pt-3"
+      className="mt-4 border-t border-border pt-3"
       data-testid="v4-answer-actions"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wide text-slate-400">
+        <span className="text-xs uppercase tracking-wide text-text-muted">
           Do something with this
         </span>
         <Button
@@ -159,7 +159,7 @@ export function AnswerActions({
 
       {panel === "export" ? (
         <div className="mt-3 space-y-2" data-testid="v4-panel-export">
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-text-secondary">
             Every document below carries the book, the release and the
             fingerprint of the bytes it was computed from, so a figure pasted
             into a memo can still be traced back to the query that produced
@@ -170,7 +170,7 @@ export function AnswerActions({
               <a
                 data-testid="v4-export-analysis"
                 href={exportLinks(runId).analysis}
-                className="text-slate-900 underline underline-offset-2"
+                className="text-text-primary underline underline-offset-2"
               >
                 This analysis (Markdown)
               </a>
@@ -181,12 +181,12 @@ export function AnswerActions({
                   <a
                     data-testid={`v4-export-table-${index}`}
                     href={exportLinks(runId).table(table.artifact_id)}
-                    className="text-slate-900 underline underline-offset-2"
+                    className="text-text-primary underline underline-offset-2"
                   >
                     {table.title || "Result"} — every row as CSV
                   </a>
                   {typeof table.row_count === "number" ? (
-                    <span className="ml-1.5 text-xs text-slate-500">
+                    <span className="ml-1.5 text-xs text-text-muted">
                       ({table.row_count} rows)
                     </span>
                   ) : null}
@@ -198,7 +198,7 @@ export function AnswerActions({
                 <a
                   data-testid={`v4-export-chart-${index}`}
                   href={exportLinks(runId).chart(index)}
-                  className="text-slate-900 underline underline-offset-2"
+                  className="text-text-primary underline underline-offset-2"
                 >
                   {chart.title || "Chart"} — as SVG
                 </a>
@@ -210,22 +210,22 @@ export function AnswerActions({
 
       {panel === "save" ? (
         <div className="mt-3 space-y-2" data-testid="v4-panel-save">
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Title
             <input
               data-testid="v4-save-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Why you are keeping it
             <input
               data-testid="v4-save-note"
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
           <button
@@ -238,7 +238,7 @@ export function AnswerActions({
                 return `Saved as “${record.title}”.`;
               })
             }
-            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-contrast disabled:opacity-50"
           >
             Save this analysis
           </button>
@@ -247,13 +247,13 @@ export function AnswerActions({
 
       {panel === "investigate" ? (
         <div className="mt-3 space-y-2" data-testid="v4-panel-investigate">
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Investigation title
             <input
               data-testid="v4-investigation-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
           <button
@@ -273,7 +273,7 @@ export function AnswerActions({
                 return `Opened “${investigation.title}” with this analysis in it.`;
               })
             }
-            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-contrast disabled:opacity-50"
           >
             Open an investigation
           </button>
@@ -287,7 +287,7 @@ export function AnswerActions({
             value={comment}
             rows={3}
             onChange={(event) => setComment(event.target.value)}
-            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            className="w-full rounded border border-border-strong px-2 py-1 text-sm"
             placeholder="What should a reviewer check?"
           />
           <button
@@ -306,7 +306,7 @@ export function AnswerActions({
                 return "Comment added.";
               })
             }
-            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-contrast disabled:opacity-50"
           >
             Add comment
           </button>
@@ -315,22 +315,22 @@ export function AnswerActions({
 
       {panel === "share" ? (
         <div className="mt-3 space-y-2" data-testid="v4-panel-share">
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Colleague or group inside the bank
             <input
               data-testid="v4-share-audience"
               value={audience}
               onChange={(event) => setAudience(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
-          <label className="block text-xs text-slate-600">
+          <label className="block text-xs text-text-secondary">
             Notify by email (optional)
             <input
               data-testid="v4-share-email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              className="mt-1 w-full rounded border border-border-strong px-2 py-1 text-sm"
             />
           </label>
           <button
@@ -352,7 +352,7 @@ export function AnswerActions({
                 return `Shared with ${result.share.audience_id}.`;
               })
             }
-            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-contrast disabled:opacity-50"
           >
             Share
           </button>
@@ -361,7 +361,7 @@ export function AnswerActions({
               data-testid="v4-share-delivery"
               className={
                 "text-xs " +
-                (notification?.delivered ? "text-emerald-700" : "text-amber-700")
+                (notification?.delivered ? "text-positive" : "text-warning")
               }
             >
               {deliveryWording(notification)}
@@ -371,7 +371,7 @@ export function AnswerActions({
       ) : null}
 
       {status ? (
-        <p className="mt-2 text-xs text-slate-600" data-testid="v4-action-status">
+        <p className="mt-2 text-xs text-text-secondary" data-testid="v4-action-status">
           {status}
         </p>
       ) : null}

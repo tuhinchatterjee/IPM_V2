@@ -433,7 +433,7 @@ export function MatrixHeatmap({
                     title={`${from} → ${to}: ${value.toFixed(2)}%`}
                     className={cn(
                       "min-w-11 rounded-[3px] px-1.5 py-1.5 text-center tabular transition-colors",
-                      intensity > 0.55 ? "text-white" : "text-text-secondary",
+                      intensity > 0.55 ? "text-accent-contrast" : "text-text-secondary",
                       diagonalHint && isDiagonal && "ring-1 ring-inset ring-border-strong",
                     )}
                     style={{

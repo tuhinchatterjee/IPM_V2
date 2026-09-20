@@ -55,7 +55,7 @@ function ArtifactLinks({
 
   return (
     <div className="mt-3" data-testid="v4-artifacts">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-text-muted">
         Evidence
       </h4>
       <ul className="mt-1 space-y-1">
@@ -65,7 +65,7 @@ function ArtifactLinks({
               href={`${API_PREFIX}/runs/${runId}/artifacts/${id}`}
               target="_blank"
               rel="noreferrer"
-              className="font-mono text-xs text-sky-700 underline underline-offset-2"
+              className="font-mono text-xs text-accent underline underline-offset-2"
             >
               {id}
             </a>
@@ -97,7 +97,7 @@ function Coverage({ response }: { response: FinalResponse }) {
   if (!response.coverage.length) return null;
   return (
     <div className="mt-3">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-text-muted">
         What was covered
       </h4>
       <ul className="mt-1 space-y-1 text-sm">
@@ -106,18 +106,18 @@ function Coverage({ response }: { response: FinalResponse }) {
             <span
               className={
                 item.status === "answered"
-                  ? "text-emerald-600"
+                  ? "text-positive"
                   : item.status === "unsupported"
-                    ? "text-rose-600"
-                    : "text-amber-600"
+                    ? "text-negative"
+                    : "text-warning"
               }
               aria-hidden
             >
               •
             </span>
-            <span className="text-slate-700">
+            <span className="text-text-secondary">
               {item.subquestion}{" "}
-              <span className="text-slate-500">
+              <span className="text-text-muted">
                 — {COVERAGE_LABEL[item.status] ?? item.status}
               </span>
             </span>
@@ -150,9 +150,9 @@ export function ResponsePanel({
     return (
       <section
         data-testid="v4-terminal-failure"
-        className="rounded-lg border border-rose-200 bg-rose-50 p-3"
+        className="rounded-lg border border-negative bg-negative-muted p-3"
       >
-        <h3 className="text-sm font-medium text-rose-900">
+        <h3 className="text-sm font-medium text-negative">
           {view.state === "CANCELLED"
             ? "Cancelled"
             : view.state === "EXPIRED"
@@ -161,7 +161,7 @@ export function ResponsePanel({
                 ? "This request was interrupted"
                 : "This request stopped"}
         </h3>
-        <p className="mt-1 text-sm text-rose-800">
+        <p className="mt-1 text-sm text-negative">
           {view.errorCode
             ? `Reason: ${view.errorCode}.`
             : "No answer was produced, and nothing was substituted for one."}
@@ -169,7 +169,7 @@ export function ResponsePanel({
         {view.errorId ? (
           <p
             data-testid="v4-support-reference"
-            className="mt-1 text-xs text-rose-700"
+            className="mt-1 text-xs text-negative"
           >
             Quote <span className="font-mono">{view.errorId}</span> to an
             operator. Rephrasing the question is unlikely to help.
@@ -183,21 +183,21 @@ export function ResponsePanel({
     <section
       data-testid="v4-response"
       data-disposition={response.disposition}
-      className="rounded-lg border border-slate-200 p-3"
+      className="rounded-lg border border-border p-3"
     >
-      <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
         {DISPOSITION_LABEL[response.disposition] ?? response.disposition}
       </h3>
 
       {response.result_only ? (
         <div
           data-testid="v4-result-only-caveat"
-          className="mt-2 rounded border border-amber-300 bg-amber-50 p-2"
+          className="mt-2 rounded border border-warning bg-warning-muted p-2"
         >
-          <p className="text-sm font-medium text-amber-900">
+          <p className="text-sm font-medium text-warning">
             The analysis ran. The written explanation did not.
           </p>
-          <p className="mt-1 text-sm text-amber-800">
+          <p className="mt-1 text-sm text-warning">
             {response.result_only_reason
               ? `${response.result_only_reason} The result below is the query's own output, computed and stored by CreditProbe, with no commentary on it.`
               : "The result below is the query's own output, computed and stored by CreditProbe, with no commentary on it."}
@@ -211,8 +211,8 @@ export function ResponsePanel({
 
       {response.disposition === "clarification" &&
       response.clarification_question ? (
-        <div className="mt-3 rounded border border-sky-200 bg-sky-50 p-2">
-          <p className="text-sm text-sky-900">{response.clarification_question}</p>
+        <div className="mt-3 rounded border border-accent bg-accent-muted p-2">
+          <p className="text-sm text-accent">{response.clarification_question}</p>
           {response.clarification_options.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {response.clarification_options.map((option) => (
@@ -220,7 +220,7 @@ export function ResponsePanel({
                   key={option}
                   type="button"
                   onClick={() => onAsk?.(option)}
-                  className="rounded border border-sky-300 bg-white px-2 py-1 text-xs text-sky-800"
+                  className="rounded border border-accent bg-surface px-2 py-1 text-xs text-accent"
                 >
                   {option}
                 </button>
@@ -231,7 +231,7 @@ export function ResponsePanel({
       ) : null}
 
       {response.disposition === "referral" && response.referral_owner ? (
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-text-secondary">
           {response.referral_reason}
         </p>
       ) : null}
@@ -240,10 +240,10 @@ export function ResponsePanel({
 
       {response.numeric_claims.length ? (
         <div className="mt-3">
-          <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <h4 className="text-xs font-medium uppercase tracking-wide text-text-muted">
             Figures, and where each came from
           </h4>
-          <ul className="mt-1 space-y-1 text-xs text-slate-600">
+          <ul className="mt-1 space-y-1 text-xs text-text-secondary">
             {response.numeric_claims.map((claim) => (
               <li key={claim.claim_id} className="font-mono">
                 {claim.claim_id}: {claimDisplayLine(claim)}
@@ -258,7 +258,7 @@ export function ResponsePanel({
       {view.errorId ? (
         <p
           data-testid="v4-support-reference"
-          className="mt-3 text-xs text-slate-600"
+          className="mt-3 text-xs text-text-secondary"
         >
           Support reference{" "}
           <span className="font-mono">{view.errorId}</span>
@@ -267,10 +267,10 @@ export function ResponsePanel({
 
       {response.limitations.length ? (
         <div className="mt-3">
-          <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <h4 className="text-xs font-medium uppercase tracking-wide text-text-muted">
             Limitations
           </h4>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-slate-600">
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-text-secondary">
             {response.limitations.map((item, i) => (
               <li key={i}>{item}</li>
             ))}
@@ -293,7 +293,7 @@ export function ResponsePanel({
               key={i}
               type="button"
               onClick={() => onAsk(suggestion.question)}
-              className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+              className="rounded-full border border-border-strong px-3 py-1 text-xs text-text-secondary hover:bg-surface-sunken"
             >
               {suggestion.question}
             </button>
