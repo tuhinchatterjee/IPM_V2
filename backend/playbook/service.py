@@ -40,6 +40,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from backend.playbook import (
+    assessment,
     capabilities,
     documents,
     grounding,
@@ -699,6 +700,13 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
             # — writing is not reviewing — and the findings travel with it
             # rather than having been edited out of it.
             "review": review.initial(outcome.review_items),
+            # Where the time went, kept because it is the only place it is
+            # kept: three durations were measured on every run and read by
+            # nothing, so a user who waited seven minutes could not be told
+            # what for. Authoring is the provider; rendering is local.
+            "timings": {"authoring_ms": outcome.authoring_ms,
+                        "render_ms": outcome.render_ms,
+                        "provider_ms": outcome.provider_ms},
         },
     )
 
@@ -1097,6 +1105,21 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
 
     produced = turn["produced"]
     last = produced[-1] if produced else {}
+
+    # What was actually delivered, counted from the rows that were just
+    # written, plus one bounded written reading of those counts. Only for a
+    # turn that produced a version: there is nothing to assess otherwise, and
+    # an assessment of nothing is the invented completion figure chapter 12
+    # forbids. It is carried on the message so reopening the workspace shows
+    # it, and it never fails the turn — see `assessment.write_verdict`.
+    card: dict = {}
+    if last.get("version_id"):
+        # Said out loud: the written half is a provider call, and a run that
+        # goes quiet for another ten seconds with the files already built is
+        # the frozen screen this work exists to end.
+        milestone("validating", "assessing what was delivered")
+        card = assessment.for_delivery(session, ws.id)
+
     message = repo.add_message(
         session, ws.id, role="assistant",
         content={
@@ -1128,6 +1151,10 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             # transaction commits, so saying anything else here would be
             # inventing state the client can simply read for itself.
             "dashboard": {"state": "updating"},
+            # Counted from rows, with the written verdict labelled as
+            # judgement where it is shown. Empty for a turn that wrote no
+            # version.
+            "assessment": card,
         },
         origin="assistant_live", model=reply.model_served,
         request_ids=list(reply.request_ids), job_id=job.id)
@@ -1140,6 +1167,7 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             "no_file": reply.broke_its_promise,
             "files": list(produced),
             "notes": [n for p in produced for n in p.get("review_notes", [])],
+            "assessment": card,
             # A list: one turn may write more than one version, and every one
             # of them has to be projected or the next comparison is wrong.
             "projections": list(turn["projections"])}

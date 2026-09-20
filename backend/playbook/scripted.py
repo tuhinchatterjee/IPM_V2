@@ -117,9 +117,17 @@ def faults() -> dict:
 
 def call(client: Any, *, model: str, system: str, messages: list[dict],
          tools: list[dict], container: dict, purpose: str, role: Any,
-         on_delta=None, is_cancelled=None, deadline=None,
-         with_tools: bool = False, tool_choice: dict | None = None) -> Any:
-    """Stand in for `provider._call`. Same signature, no network."""
+         on_delta=None, on_thinking=None, is_cancelled=None, deadline=None,
+         with_tools: bool = False, tool_choice: dict | None = None,
+         max_tokens: int | None = None) -> Any:
+    """Stand in for `provider._call`. Same signature, no network.
+
+    "Same signature" is load-bearing and has to stay literally true: this is
+    installed OVER `provider._call`, so a parameter added there and not here
+    fails every scripted turn with a TypeError — which is what happened when
+    reasoning summaries were added and the browser suites could no longer run
+    at all. `tests/playbook/test_provider_bounds.py` compares the two.
+    """
     logger.warning(
         "Playbook is answering from a SCRIPTED assistant (%s). "
         "No model was called.", SCRIPT_PATH)
@@ -128,9 +136,26 @@ def call(client: Any, *, model: str, system: str, messages: list[dict],
 
         raise provider.Cancelled("stopped")
 
+    # The completion assessment is not a turn of the conversation: it is given
+    # the delivery record and nothing else. Matching it against the script
+    # would replace the entry the person's message selected, and with it any
+    # fault that entry asked for — the broken dashboard is raised after this
+    # call, not before it.
+    if purpose == "playbook_assessment":
+        return _Response(
+            [_Block(type="text",
+                    text=_CURRENT.get("assessment")
+                    or "Both files were produced and saved as a draft.")],
+            "end_turn", model or "scripted-assistant")
+
     entry = _match(_script(), messages)
     _CURRENT.clear()
     _CURRENT.update(entry)
+
+    # A fixture has no reasoning, so none is invented: the channel carries
+    # something only when the script says what it should carry.
+    if on_thinking and entry.get("thinking"):
+        on_thinking(str(entry["thinking"]))
 
     # A generation that takes a measurable amount of time. Everything else
     # here answers instantly, which is right for a fixture and useless for the

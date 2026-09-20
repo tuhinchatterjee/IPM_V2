@@ -93,6 +93,8 @@ export interface GenerationProgressProps {
   quietFor: number;
   /** The document as it is being written. */
   draft: string;
+  /** What the model says it is working on, right now. Transient. */
+  thinking: string;
 }
 
 export function GenerationProgress({
@@ -102,6 +104,7 @@ export function GenerationProgress({
   at,
   quietFor,
   draft,
+  thinking,
 }: GenerationProgressProps) {
   const [open, setOpen] = React.useState(false);
   const total = useElapsed(at, running);
@@ -180,6 +183,22 @@ export function GenerationProgress({
           </li>
         ))}
       </ol>
+      )}
+
+      {/* The model's own account of what it is doing, while it does it. The
+          opening minutes of a run are real work — reading the evidence and
+          planning the document — and with nothing shown they were
+          indistinguishable from a hang. Only the newest line: a running
+          transcript of reasoning is the thing chapter 15 forbids, and this is
+          the provider's display summary, which is not that. It is never
+          stored and never becomes part of the answer. */}
+      {running && thinking && (
+        <p
+          className="border-l-2 border-border pl-2 text-xs italic text-text-muted"
+          data-testid="playbook-thinking"
+        >
+          {thinking.length > 240 ? `…${thinking.slice(-240)}` : thinking}
+        </p>
       )}
 
       {running && (

@@ -354,9 +354,24 @@ def scripted_author(monkeypatch):
 
     def fake_call(client, *, model, system, messages, tools, container,
                   purpose, role, on_delta=None, is_cancelled=None,
-                  deadline=None, with_tools=False, tool_choice=None, on_thinking=None):
+                  deadline=None, with_tools=False, tool_choice=None,
+                  on_thinking=None, max_tokens=None):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("stopped")
+
+        # The completion assessment is a call of its own, with its own system
+        # prompt and no tools, and it must not be mistaken for a turn of the
+        # conversation — a test counting what the assistant was asked would
+        # otherwise read the card as the user's next message.
+        if purpose == "playbook_assessment":
+            state.setdefault("assessment_calls", []).append(
+                {"system": system, "given": messages[-1]["content"],
+                 "max_tokens": max_tokens})
+            return _Response(
+                [_Block("text", text=state.get("verdict")
+                        or "Both files were produced.")],
+                "end_turn", state["model"])
+
         state.setdefault("chat_calls", []).append(
             {"system": system, "messages": [dict(m) for m in messages],
              "tools": [t["name"] for t in (tools or [])],
@@ -427,6 +442,7 @@ def scripted_author(monkeypatch):
         state["chat_text"] = chat_text
         state["chat_formats"] = chat_formats
         state["chat_calls"] = []
+        state["assessment_calls"] = []
         return state
 
     configure.state = state

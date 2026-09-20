@@ -85,6 +85,13 @@ export interface PlaybookStreamEvent {
     | "draft_delta"
     /** The steps this turn intends, named before any of them has happened. */
     | "plan"
+    /**
+     * The model's own summary of what it is working on, while it works.
+     * Transient activity, never the answer: it fills the opening silence and
+     * it is gone when the turn ends. Chapter 15 forbids showing hidden
+     * reasoning, and this is the provider's display summary, which is not it.
+     */
+    | "thinking"
     | "artifact"
     /** The connection is open and the worker has not been heard from. */
     | "ping"
@@ -100,6 +107,7 @@ export function toPlaybookEvent(raw: StreamEvent): PlaybookStreamEvent | null {
     "delta",
     "draft_delta",
     "plan",
+    "thinking",
     "artifact",
     "ping",
     "done",
@@ -150,6 +158,9 @@ export function assemble(events: PlaybookStreamEvent[]): {
   text: string;
   /** The document being written, when a tool is writing one. */
   draft: string;
+  /** The newest reasoning summary. Not accumulated: it is what is happening
+   *  now, not a transcript of what was thought. */
+  thinking: string;
   state: string;
   detail: string;
   steps: StreamStep[];
@@ -166,6 +177,7 @@ export function assemble(events: PlaybookStreamEvent[]): {
 } {
   let text = "";
   let draft = "";
+  let thinking = "";
   let state = "";
   let detail = "";
   let plan: string[] = [];
@@ -189,6 +201,11 @@ export function assemble(events: PlaybookStreamEvent[]): {
       text += String(event.data.text ?? "");
     } else if (event.kind === "draft_delta") {
       draft += String(event.data.text ?? "");
+    } else if (event.kind === "thinking") {
+      // Replaced, not appended. A running account of what the model is doing
+      // is worth a line; the whole of it stacked up is a transcript of
+      // reasoning, which is the thing that must not be shown.
+      thinking = String(event.data.text ?? "").trim();
     } else if (event.kind === "ping") {
       quietFor = Number(event.data.quiet_for ?? 0);
     } else if (event.kind === "plan") {
@@ -228,10 +245,11 @@ export function assemble(events: PlaybookStreamEvent[]): {
       // whole design exists to prevent.
       text = "";
       draft = "";
+      thinking = "";
     }
   }
   return {
-    text, draft, state, detail, steps, plan, at, quietFor,
+    text, draft, thinking, state, detail, steps, plan, at, quietFor,
     done, error, cancelled, version,
   };
 }

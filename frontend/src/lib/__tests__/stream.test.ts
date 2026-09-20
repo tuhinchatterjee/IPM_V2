@@ -282,8 +282,37 @@ test("an unknown event kind is dropped rather than shown", () => {
 });
 
 test("the new kinds are accepted", () => {
-  for (const kind of ["draft_delta", "plan", "ping"]) {
+  for (const kind of ["draft_delta", "plan", "thinking", "ping"]) {
     const parsed = toPlaybookEvent({ id: "1", event: kind, data: "{}" });
     assert.equal(parsed?.kind, kind);
   }
+});
+
+test("the reasoning summary is what is happening now, not a transcript", () => {
+  const view = assemble([
+    event("thinking", { text: "Reading the workbook.", at: 5 }, 1),
+    event("thinking", { text: "Planning the sections.", at: 20 }, 2),
+  ]);
+  // Replaced, never accumulated. A running account of what the model is doing
+  // is worth a line; the whole of it stacked up is a reasoning transcript,
+  // which is the thing chapter 15 forbids showing.
+  assert.equal(view.thinking, "Planning the sections.");
+});
+
+test("the reasoning summary never becomes the answer", () => {
+  const view = assemble([
+    event("thinking", { text: "Weighing two structures.", at: 5 }, 1),
+    event("delta", { text: "Here is the report.", at: 30 }, 2),
+  ]);
+  assert.equal(view.text, "Here is the report.");
+  assert.ok(!view.text.includes("Weighing"));
+  assert.ok(!view.draft.includes("Weighing"));
+});
+
+test("a failure discards the reasoning summary too", () => {
+  const view = assemble([
+    event("thinking", { text: "Still reading.", at: 5 }, 1),
+    event("error", { message: "The provider did not respond in time." }, 2),
+  ]);
+  assert.equal(view.thinking, "");
 });

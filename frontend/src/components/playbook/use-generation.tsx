@@ -139,6 +139,8 @@ export function useGeneration(
     text: view.text,
     /** The document as it is written, separate from the chat answer. */
     draft: view.draft,
+    /** What the model says it is doing, now. Transient, never stored. */
+    thinking: view.thinking,
     state: view.state,
     detail: view.detail,
     /** Every step this turn has taken, in order, with its own offset. */

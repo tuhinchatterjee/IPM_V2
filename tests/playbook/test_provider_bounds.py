@@ -382,3 +382,51 @@ class TestATruncatedDocumentIsNeverDelivered:
         assert provider.MAX_OUTPUT_TOKENS >= 64000
         assert provider.MAX_OUTPUT_TOKENS <= 128000, (
             "128,000 is the model's ceiling; above it the request is refused")
+
+
+class TestTheScriptedStandInIsCalledTheSameWay:
+    """`scripted.call` is installed OVER `provider._call`.
+
+    So "same signature" is not a comment, it is a contract: a parameter added
+    to the real function and not to the stand-in fails every scripted turn
+    with a TypeError, and the browser suites — the only place the interface is
+    exercised end to end — stop running entirely. That happened, twice, and
+    each time the failure read like a product defect several layers away from
+    the cause.
+    """
+
+    def test_every_parameter_the_product_sends_is_accepted(self):
+        import inspect
+
+        from backend.playbook import scripted
+
+        real = set(inspect.signature(provider._call).parameters)
+        stand_in = set(inspect.signature(scripted.call).parameters)
+        missing = real - stand_in - {"args", "kwargs"}
+        assert not missing, (
+            f"scripted.call cannot be called the way the product calls "
+            f"provider._call: it is missing {sorted(missing)}")
+
+    def test_the_stand_in_invents_no_parameters_of_its_own(self):
+        """The other direction. A stand-in with an argument the product never
+        sends is a behaviour only a fixture can reach."""
+        import inspect
+
+        from backend.playbook import scripted
+
+        real = set(inspect.signature(provider._call).parameters)
+        extra = set(inspect.signature(scripted.call).parameters) - real
+        assert not extra, f"scripted.call declares {sorted(extra)}"
+
+    def test_the_document_author_matches_too(self):
+        import inspect
+
+        from backend.playbook import scripted
+
+        real = set(inspect.signature(provider.author).parameters)
+        stand_in = inspect.signature(scripted.author).parameters
+        accepts_anything = any(p.kind is inspect.Parameter.VAR_KEYWORD
+                               for p in stand_in.values())
+        missing = real - set(stand_in) - {"args", "kwargs"}
+        assert accepts_anything or not missing, (
+            f"scripted.author is missing {sorted(missing)}")

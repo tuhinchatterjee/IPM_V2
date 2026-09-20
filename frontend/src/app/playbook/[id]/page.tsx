@@ -17,6 +17,7 @@ import { DocumentStatusPanel } from "@/components/playbook/status/status-panel";
 import { UploadedMetricUpdates } from "@/components/playbook/status/uploaded-updates";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
 import { SourceCard } from "@/components/playbook/source-card";
+import { AssessmentCard } from "@/components/playbook/assessment";
 import { GenerationProgress } from "@/components/playbook/progress";
 import { useGeneration } from "@/components/playbook/use-generation";
 import { VersionPreview } from "@/components/playbook/version-preview";
@@ -40,6 +41,7 @@ import {
 import { useAsync } from "@/lib/hooks";
 import { elapsed } from "@/lib/stream";
 import { readDraft, saveDraft } from "@/lib/playbook-draft";
+import type { PbAssessmentCard } from "@/lib/playbook-assessment";
 import {
   composerState,
   currentVersion,
@@ -357,6 +359,13 @@ export default function PlaybookThreadPage({
                       Nothing was saved. Ask again, and it will be written.
                     </p>
                   )}
+                  {/* Counted from the rows this turn wrote, under the files
+                      it produced. See `lib/playbook-assessment.ts`. */}
+                  <AssessmentCard
+                    card={
+                      (message.content.assessment ?? {}) as PbAssessmentCard
+                    }
+                  />
                   {message.content.evidence_complete === false && (
                     <p className="text-xs text-warning">
                       Some attached evidence was not fully read; conclusions
@@ -378,6 +387,7 @@ export default function PlaybookThreadPage({
                 at={generation.at}
                 quietFor={generation.quietFor}
                 draft={generation.draft}
+                thinking={generation.thinking}
               />
               {/* No placeholder: the progress panel above already says what
                   is happening, and said it twice while the answer was still

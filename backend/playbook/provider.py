@@ -639,7 +639,8 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
           is_cancelled: Callable[[], bool] | None = None,
           deadline: float | None = None,
           with_tools: bool = False,
-          tool_choice: dict | None = None) -> Any:
+          tool_choice: dict | None = None,
+          max_tokens: int | None = None) -> Any:
     """One provider call, with bounded retries and honest telemetry.
 
     Streamed, always. The completed message is still what the caller gets back —
@@ -662,7 +663,10 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
         seen: dict = {"request_id": ""}
         try:
             kwargs: dict[str, Any] = {
-                "max_tokens": MAX_OUTPUT_TOKENS,
+                # The authoring ceiling by default. A caller that knows its
+                # answer is short — the completion assessment writes a
+                # paragraph — says so, and pays for a paragraph.
+                "max_tokens": max_tokens or MAX_OUTPUT_TOKENS,
                 "messages": messages,
                 "system": system,
             }
