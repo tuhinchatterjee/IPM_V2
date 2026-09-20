@@ -339,10 +339,16 @@ not something a scripted provider can tell us.
 3. **`python_analysis_ready` is false.** `pyrunner` reports UNAVAILABLE in the
    frozen source. A source limitation, disclosed, not fixed here.
 4. **`/health` on the engine reports stale capability flags.** `create_app`
-   closes over the runtime it built, and the candidate installs its own
-   afterwards; the route-level guards read the installed one and are correct.
-   `check_ready.py` uses behaviour, not that endpoint. Cosmetic, but it will
-   mislead anyone who curls it.
+   closes over the runtime it built (`app.py:125-132`, read by the `/health`
+   closure at `app.py:184-196`) and the candidate installs its own afterwards
+   through `bootstrap.install`; the route-level guards read `routes._STATE`,
+   which bootstrap does update, and are correct. So under
+   `RETAIL_COCKPIT_OFFLINE` you will see `release_ready: false` and
+   `sql_analysis_ready: false` on `/health` while the Cockpit accepts runs —
+   `check_ready.py` handles exactly this, raising the missing-flags finding
+   only when the run is *also* not 202 (`check_ready.py:175`). Cosmetic, but
+   it will mislead anyone who curls it, and it did mislead during the
+   offline-capability diagnosis below.
 5. **Two engine processes must not share a runtime directory.** Fixed for the
    candidate entrypoint (each engine gets a spill directory named for its
    port), but the underlying `catalog.py` default is still one directory per
@@ -355,6 +361,30 @@ not something a scripted provider can tell us.
    12 in the frozen ported tree. Re-run after F1: still exactly 16.
 8. **`backend/api/main.py` fails ruff's import-order rule at the baseline
    too.** Pre-existing; not touched.
+9. ~~**Offline acceptance was blocked by the live price card.**~~ **CLOSED.**
+   A Mac launch from `.env.retail-candidate.example` refused every question
+   with `503 CAPABILITY_UNVERIFIED: the price card
+   config/cockpit_v4/price_card.json carries no entry for model '…'`. Cause:
+   `--offline` sets `verify_model=False`, and `service.load_capability` reads
+   that flag at one place only — the live probe at `service.py:141`. The
+   price card is read unconditionally at `service.py:136`, so offline removed
+   the need for a *credential* but not for a *price*, and a run that calls
+   nothing was blocked by the absence of a price for a call it could not
+   make. `bootstrap.install` caught the `PreflightFailed`, the runtime became
+   `None`, and every analytical route refused. Two template defects of mine
+   made it certain on a fresh clone: an `AI_COCKPIT_REASONING_MODEL` I had
+   invented (the engine defaults none, and that id is not in
+   `model_capabilities.REGISTRY`), and a Mac step that copied the
+   fail-closed placeholder card onto a fixture path. Fixed in
+   `backend/retail_cockpit_host/offline.py` + a four-line branch in
+   `bootstrap.build_runtime`: a provider that **cannot reach a paid API**
+   gets an in-process capability that names no model and declares no price.
+   The gate is the provider object, never `verify_model` and never an
+   environment variable — a real provider with verification off is still
+   refused by a card that does not carry its model, proved by
+   `tests/retail_cockpit/test_offline_capability.py` (13 tests). Nothing in
+   the repository had exercised `capability.load_price_card` before; it does
+   now, against the shipped card.
 
 ## 20. Status
 

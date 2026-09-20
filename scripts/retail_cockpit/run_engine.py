@@ -22,30 +22,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-class OfflineProvider:
-    """A provider that cannot call anything. Present so a run can be driven.
-
-    `--think SECONDS` makes it spend that long before failing, which is how
-    the stream is shown to be UNBUFFERED: a proxy that held frames until the
-    response completed would deliver `model.requested` and `run.failed` in
-    the same instant, and the live panel exists to make that impossible.
-    """
-
-    def __init__(self, think: float = 0.0) -> None:
-        self.think = float(think)
-
-    def count_tokens(self, **_: object) -> int:
-        return 1
-
-    def converse(self, **_: object):
-        if self.think:
-            import time
-
-            time.sleep(self.think)
-        raise RuntimeError(
-            "This runtime has no provider credential. The run was accepted, "
-            "driven and settled by the real worker; only the model call is "
-            "absent.")
+#: Lives in the host package now, because the bootstrap has to recognise it:
+#: a runtime built behind a provider that cannot call out is the one case
+#: that does not need a price card, and the gate for that is this class
+#: rather than a flag. Re-exported here so the name this script has always
+#: used still resolves.
+from backend.retail_cockpit_host.offline import OfflineProvider  # noqa: E402
 
 
 def _own_spill_directory(port: int) -> None:

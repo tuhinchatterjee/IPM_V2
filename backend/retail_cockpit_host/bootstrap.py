@@ -34,6 +34,16 @@ readiness about a domain book should be decided by the domain book.
 `capability` and `provider` are built by the engine's own `load_capability`
 and `resolve_provider`, unchanged, so the model verification, the price card
 and the fail-closed behaviour on an unverified model are all the engine's.
+
+The one exception, and its boundary
+-----------------------------------
+A provider that CANNOT REACH A PAID API gets its capability from
+`offline.offline_capability` instead, because a price for a call that cannot
+happen is not a thing to fail closed on. The gate is the provider object --
+`offline.is_offline` -- and not `verify_model`, which the engine reads only
+for the live probe and which a live deployment could carry by accident. A
+real provider always goes through `load_capability` and is still refused by a
+card that does not carry its model. See `offline` for the full rule.
 """
 
 from __future__ import annotations
@@ -89,6 +99,7 @@ def build_runtime(cfg: Any = None, *, domain_id: str = "retail",
     from backend.cockpit_v4 import catalog as cat
     from backend.cockpit_v4 import config as config_mod
     from backend.cockpit_v4 import lake, service
+    from backend.retail_cockpit_host import offline
 
     cfg = cfg or config_mod.load()
     release_id = domain_release_id(cfg, domain_id)
@@ -106,7 +117,17 @@ def build_runtime(cfg: Any = None, *, domain_id: str = "retail",
 
     if provider is None:
         provider = service.resolve_provider(cfg)
-    capability = service.load_capability(cfg, provider, verify=verify_model)
+    # A provider that cannot call out does not need a price for a call it
+    # cannot make. `verify_model=False` alone is NOT enough to reach this:
+    # `load_capability` reads the price card unconditionally and only skips
+    # the LIVE probe, so a real provider with verification off is still
+    # refused by a card that does not carry its model. The gate is the
+    # provider object itself -- see `offline.is_offline`.
+    if offline.is_offline(provider):
+        capability = offline.offline_capability(cfg)
+    else:
+        capability = service.load_capability(cfg, provider,
+                                             verify=verify_model)
 
     return service.Runtime(
         cfg=cfg, capability=capability, provider=provider, catalog=catalog,

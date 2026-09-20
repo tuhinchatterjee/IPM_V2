@@ -54,6 +54,14 @@ the engine with a provider that cannot reach the network. The path can then
 be exercised end to end, and the banner says READY (OFFLINE) so nobody reads
 it as "the Cockpit can answer".
 
+An offline run needs **no model id and no price card**: because the provider
+cannot reach a paid API, the runtime is built from an offline capability that
+names no model and declares no price
+(`backend/retail_cockpit_host/offline.py`). Live mode is unaffected — it
+still goes through the engine's own `load_capability`, and the shipped
+placeholder card still refuses every real model until you replace it with a
+verified schedule.
+
 ## The gates
 
 | | |
@@ -160,8 +168,6 @@ set -a; . ./.env.retail-candidate; set +a
 mkdir -p var/retail-candidate-book/analytics var/retail-candidate-book/metadata
 rsync -a "$DEMO/data/retail/analytics/"  var/retail-candidate-book/analytics/
 rsync -a "$DEMO/metadata/retail/"        var/retail-candidate-book/metadata/
-mkdir -p var/retail-cockpit-candidate/testing
-cp config/cockpit_v4/price_card.json var/retail-cockpit-candidate/testing/price_card.fixture.json
 
 # ── 7. publish the final immutable release, into the CANDIDATE lake ─────────
 .venv/bin/python scripts/retail_cockpit/publish_release.py --revision 7
