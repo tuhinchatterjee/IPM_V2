@@ -38,6 +38,13 @@ Verify what it wrote:
 Twenty-eight cases, each computed with pandas from the source book by a
 different implementation and compared against the engine's own session.
 
+It resolves `.env.retail-candidate` and reads the book that configuration
+names, printing it first. Its defaults used to be the installation's
+`data/retail/analytics`, which a candidate clone does not have, so this step
+could only ever run with `--analytics-dir` and `--metadata-dir` passed by
+hand. It also verifies every month the manifest names is on disk before it
+computes anything.
+
 ## Start it
 
     launchers/retail/start-retail-candidate.command
@@ -122,6 +129,53 @@ It refuses to start unless `check_live.py` is satisfied, writes
 `docs/retail_cockpit/evidence/live_uat.json` after every question, stops at
 the cap, stops on question 2 failing and stops on a containment failure, and
 resumes with `--from N` so a stop never costs what was already paid for.
+
+**It resolves `.env.retail-candidate` itself**, before it reads anything, and
+prints what it resolved -- model, card, book, ledger, cap. It does not need
+to be run from a shell that sourced the file, and it will not run a live UAT
+against a file that is not there. Pass `--env-file ''` if you really do mean
+the bare shell.
+
+**Before the first question it checks the book and computes every oracle**
+(about nine seconds). If a month the manifest names is not on disk, or an
+oracle cannot be computed, it refuses and nothing is bought. That check
+exists because the first live UAT did not have it: question 1 was answered,
+charged USD 0.24853, and thrown away when the oracle turned out to be reading
+a directory that a candidate clone does not have.
+
+## Re-judging an answer already paid for
+
+An answer is not lost when the judgement fails. The worker writes the full
+response into the run record on settle, so it can be scored again from the
+engine's own store -- read-only, no client, no provider call, nothing spent:
+
+    .venv/bin/python scripts/retail_cockpit/run_uat.py --rejudge
+
+It reads the ledger this configuration points the engine at (or
+`--rejudge-db PATH`), matches each question to its settled run, judges it,
+and merges the result into the evidence file. The cost of each answer comes
+from the engine's `reservations` by `run_id` -- what the run actually cost
+when it was given -- so a re-judge records the money rather than erasing it.
+Questions it has nothing for are recorded as unjudged, never dropped.
+
+To see a settled run without running anything at all:
+
+    .venv/bin/python - <<'PY'
+    import json, sqlite3
+    from pathlib import Path
+    db = Path("var/retail-cockpit-candidate/runtime/state/uat.sqlite3")
+    c = sqlite3.connect(f"file:{db}?mode=ro", uri=True); c.row_factory = sqlite3.Row
+    for r in c.execute("SELECT * FROM runs ORDER BY created_at"):
+        print(r["created_at"], r["run_id"], r["thread_id"], r["state"])
+        print("  Q:", r["question"])
+        final = json.loads(r["final_response"] or "{}")
+        print("  disposition:", final.get("disposition"))
+        print("  narrative  :", str(final.get("narrative"))[:600])
+        print("  claims     :", json.dumps(final.get("numeric_claims"), indent=2)[:2000])
+        print("  cost USD   :", c.execute(
+            "SELECT COALESCE(SUM(COALESCE(settled_usd,reserved_usd)),0.0)"
+            " FROM reservations WHERE run_id=?", (r["run_id"],)).fetchone()[0])
+    PY
 
 The model is `claude-opus-5` and the card is
 `config/cockpit_v4/price_card.candidate.json`, at Anthropic's published

@@ -38,6 +38,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -143,6 +144,144 @@ def test_a_stale_file_beats_an_export_and_the_preflight_says_so(
     assert report["price_card"].endswith("price_card.json")
     assert not report["price_card"].endswith(EXPECT_CARD)
     assert any("carries no entry for model" in f for f in report["findings"])
+
+
+# ------------------------- 2b. the UAT harness resolves it too, and FIRST
+
+RUN_UAT = ROOT / "scripts" / "retail_cockpit" / "run_uat.py"
+CHECK_ORACLES = ROOT / "scripts" / "retail_cockpit" / "check_oracles.py"
+
+
+def test_the_uat_harness_resolves_the_env_file_before_it_reads_anything(
+) -> None:
+    """The ordering is load-bearing, so it is asserted mechanically.
+
+    `backend/config.py` ends with `settings = _load()` at module scope and
+    `lake.root()` is derived from it, so resolving after the first backend
+    import leaves the harness reading a different lake than the engine serves
+    from -- and `config._resolve_dir` would have created several empty
+    directories in the worktree on the way past.
+    """
+    source = RUN_UAT.read_text(encoding="utf-8")
+    assert "--env-file" in source
+    # Scoped to `main()`. Every backend import in this script is inside a
+    # function body, so a whole-file scan would find one that does not run
+    # until it is called; what matters is the order things EXECUTE in on the
+    # one path that reaches the engine.
+    body = source[source.index("def main() -> int:"):]
+    resolved_at = body.index("resolve_environment(args.env_file)")
+    first_backend = body.index("from backend.")
+    assert resolved_at < first_backend, (
+        "run_uat.py imports backend before it resolves the configuration, so "
+        "`settings` freezes against the operator's bare shell")
+
+
+def test_the_uat_harness_preflights_what_it_already_resolved() -> None:
+    """`--env-file ""`, the same rule the launcher follows.
+
+    Letting the subprocess resolve the file a second time would read its
+    `${VAR:-default}` defaults over whatever the parent settled on -- and the
+    parent and its own preflight could then disagree, which is the exact
+    shape of the failure being repaired.
+    """
+    source = RUN_UAT.read_text(encoding="utf-8")
+    preflight = source[source.index("def preflight("):
+                       source.index("def preflight(") + 1200]
+    assert '"--env-file", ""' in preflight
+
+
+@pytest.mark.parametrize("script", [RUN_UAT, CHECK_ORACLES])
+def test_the_oracle_harnesses_no_longer_guess_a_relative_book(script) -> None:
+    """The literal that cost USD 0.24853.
+
+    `run_uat.py` resolved its book as a bare, CWD-relative
+    `"data/retail/analytics"` -- the installation's path, which a candidate
+    clone does not have. The traceback printed a relative path, which is how
+    that literal was identified as the source rather than the ROOT-anchored
+    default `check_oracles.py` used. Both now anchor.
+    """
+    source = script.read_text(encoding="utf-8")
+    assert '"data/retail/analytics"' not in source, (
+        "a bare relative default resolves against the process working "
+        "directory, so which book is read depends on where the operator "
+        "was standing")
+    assert 'ROOT / "data" / "retail" / "analytics"' in source
+
+
+def test_the_harness_anchors_the_book_wherever_it_is_run_from(
+        tmp_path, template_defaults) -> None:
+    """End to end, from a working directory that is not the repository.
+
+    The template's own `${VAR:-default}` form, resolved by the real script,
+    printed back as absolute paths. This is the behavioural half of the two
+    source assertions above: it would fail if the anchoring were dropped.
+    """
+    env_file = tmp_path / ".env.candidate"
+    env_file.write_text(
+        "DATA_ANALYTICS_DIR=${DATA_ANALYTICS_DIR:-"
+        + template_defaults["DATA_ANALYTICS_DIR"] + "}\n"
+        "METADATA_DIR=${METADATA_DIR:-"
+        + template_defaults["METADATA_DIR"] + "}\n"
+        "COCKPIT_V4_RUNTIME_DIR=${COCKPIT_V4_RUNTIME_DIR:-"
+        "var/retail-cockpit-candidate/runtime}\n", encoding="utf-8")
+
+    bare = {k: v for k, v in os.environ.items()
+            if k not in ("DATA_ANALYTICS_DIR", "METADATA_DIR",
+                         "COCKPIT_V4_RUNTIME_DIR", "COCKPIT_V4_STATE_DATABASE")}
+    done = subprocess.run(
+        [sys.executable, str(RUN_UAT), "--env-file", str(env_file),
+         "--rejudge",
+         "--rejudge-db", str(tmp_path / "absent.sqlite3"),
+         "--out", str(tmp_path / "out.json")],
+        capture_output=True, text=True, cwd=str(tmp_path), env=bare)
+
+    printed = done.stdout + done.stderr
+    expected = ROOT / template_defaults["DATA_ANALYTICS_DIR"]
+    assert f"analytics       {expected}" in printed, printed[:1500]
+    assert f"state database  {ROOT}/var/retail-cockpit-candidate" in printed
+    # It refused, because that ledger does not exist -- not because it
+    # could not work out where anything was.
+    assert "no state database" in printed
+
+
+def test_the_harness_says_when_the_cap_is_not_guarding_it(
+        tmp_path) -> None:
+    """The quiet half of the same defect, made loud.
+
+    `RETAIL_COCKPIT_SPEND_CAP_USD` lives in the env file, so in a shell that
+    never sourced it the runner's own cumulative cap was `None` and
+    `spend.spent()` read a ledger under `~/.creditprobe` that does not exist
+    -- returning 0.0. The cap guarded nothing and every recorded cost would
+    have been 0.00. It now says so before anything is bought.
+    """
+    bare = {k: v for k, v in os.environ.items()
+            if not k.startswith(("COCKPIT_V4_", "RETAIL_COCKPIT_",
+                                 "DATA_ANALYTICS", "METADATA"))}
+    done = subprocess.run(
+        [sys.executable, str(RUN_UAT), "--env-file", "", "--rejudge",
+         "--rejudge-db", str(tmp_path / "absent.sqlite3"),
+         "--out", str(tmp_path / "out.json")],
+        capture_output=True, text=True, cwd=str(ROOT), env=bare)
+
+    printed = done.stdout + done.stderr
+    assert "cumulative cap  (UNSET -- this runner will not stop)" in printed
+
+
+def test_a_live_run_refuses_a_configuration_file_that_is_not_there() -> None:
+    """`resolve()` returns {} for a missing path, silently.
+
+    `.env.retail-candidate` is gitignored, so a fresh candidate clone has
+    none -- and a silent fall-through to the bare shell is precisely how a
+    paid answer came to be judged against a book that was never there.
+    """
+    source = RUN_UAT.read_text(encoding="utf-8")
+    assert "REFUSING TO START" in source
+    done = subprocess.run(
+        [sys.executable, str(RUN_UAT), "--env-file",
+         str(ROOT / ".env.does-not-exist"), "--i-accept-the-cost"],
+        capture_output=True, text=True, cwd=str(ROOT))
+    assert done.returncode == 1
+    assert "REFUSING TO START" in done.stdout
 
 
 # --------------------------------- 3. the engine is asked, not trusted

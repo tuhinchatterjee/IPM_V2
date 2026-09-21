@@ -15,6 +15,7 @@ at, because "they differ" is not a finding anybody can act on.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -31,16 +32,26 @@ def _close(a, b, tolerance) -> bool:
     return abs(float(a) - float(b)) <= float(tolerance)
 
 
-def main() -> int:
-    from backend.cockpit_v4 import catalog as cat
-    from backend.retail_cockpit_adapter import oracle as orc
-    from backend.retail_cockpit_adapter.source import open_snapshot
+def _check_live():
+    """`check_live.py`, loaded by path -- `scripts/` is not a package."""
+    import importlib.util
 
+    spec = importlib.util.spec_from_file_location(
+        "_check_live", ROOT / "scripts" / "retail_cockpit" / "check_live.py")
+    if spec is None or spec.loader is None:  # pragma: no cover - unreachable
+        raise SystemExit("check_live.py could not be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--analytics-dir", type=Path,
-                    default=ROOT / "data" / "retail" / "analytics")
-    ap.add_argument("--metadata-dir", type=Path,
-                    default=ROOT / "metadata" / "retail")
+    ap.add_argument("--analytics-dir", type=Path, default=None)
+    ap.add_argument("--metadata-dir", type=Path, default=None)
+    ap.add_argument("--env-file", default=str(ROOT / ".env.retail-candidate"),
+                    help="the candidate configuration to resolve before "
+                         "reading anything. Pass '' to use this shell.")
     ap.add_argument("--tenant", default=None,
                     help="the tenant the release was stamped with")
     ap.add_argument("--release", default="",
@@ -49,10 +60,47 @@ def main() -> int:
     ap.add_argument("--only", default="", help="one case id, e.g. Q01")
     args = ap.parse_args()
 
+    # BEFORE THE BACKEND IMPORTS, and before the directories are chosen.
+    # `settings` is frozen at `backend.config` import and `lake.root()` is
+    # derived from it, so a later resolution would compare the candidate's
+    # oracle against a release read from a different lake. The defaults below
+    # used to be `ROOT/data/retail/analytics` unconditionally -- the
+    # installation's path, which a candidate clone does not have -- so this
+    # step could only ever run with the flags passed by hand.
+    check_live = _check_live()
+    resolved = check_live.apply_environment(args.env_file)
+    if args.env_file and not resolved:
+        print(f"  note: {args.env_file} does not exist; reading this shell "
+              f"as it stands.")
+
+    from backend.cockpit_v4 import catalog as cat
     from backend.cockpit_v4 import lake as lake_mod
+    from backend.retail_cockpit_adapter import oracle as orc
+    from backend.retail_cockpit_adapter.source import open_snapshot
+
+    analytics = args.analytics_dir or Path(check_live.anchored(
+        os.environ.get("DATA_ANALYTICS_DIR")
+        or str(ROOT / "data" / "retail" / "analytics")))
+    metadata = args.metadata_dir or Path(check_live.anchored(
+        os.environ.get("METADATA_DIR")
+        or str(ROOT / "metadata" / "retail")))
 
     tenant = args.tenant or lake_mod.DEFAULT_TENANT
-    snapshot = open_snapshot(args.analytics_dir, args.metadata_dir)
+    snapshot = open_snapshot(analytics, metadata)
+
+    # `open_snapshot` validates the MANIFEST and nothing else, so a book
+    # whose metadata resolves and whose parquet does not opens cleanly and
+    # fails at the first read. That is how a live UAT crashed after paying
+    # for an answer. `verify()` is the adapter's own check and had exactly
+    # one caller in the repository: the publisher.
+    findings = snapshot.verify()
+    if findings:
+        print(f"The source book at {analytics} cannot be read:")
+        for finding in findings:
+            print(f"  - {finding}")
+        return 1
+    print(f"source book  {analytics}  "
+          f"({len(snapshot.months)} months, latest {snapshot.latest_period})")
     catalog = cat.build(domain_id="retail", release_id=args.release,
                         tenant_id=tenant)
     session = cat.open_session(catalog=catalog)

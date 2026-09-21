@@ -80,6 +80,64 @@ def resolve(env_file: str) -> dict[str, str]:
             if isinstance(v, str)}
 
 
+#: Settings whose value names a place on disk. Anchored to the repository
+#: root before anything reads them, because the engine resolves a relative
+#: path against the PROCESS WORKING DIRECTORY -- so which ledger a cap counts
+#: and which lake a release is looked for in would otherwise depend on where
+#: the operator happened to be standing.
+PATH_SETTINGS = ("DATA_ANALYTICS_DIR", "METADATA_DIR",
+                 "COCKPIT_V4_RUNTIME_DIR", "COCKPIT_V4_STATE_DATABASE",
+                 "COCKPIT_V4_PRICE_CARD")
+
+
+def anchored(value: str) -> str:
+    """A relative path made absolute against ROOT. Creates nothing.
+
+    Deliberately NOT `backend.config._resolve_dir`, which `mkdir`s what it
+    resolves. A script that creates the book directory it was about to read
+    turns a loud "this is not published" into a quiet pass over an empty
+    book, which is the opposite of what reading it was for.
+    """
+    value = value.strip()
+    if not value or value.startswith("~"):
+        return value
+    path = Path(value)
+    return str(path if path.is_absolute() else (ROOT / path))
+
+
+def apply_environment(env_file: str) -> dict[str, str]:
+    """Resolve the candidate's configuration INTO THIS PROCESS, once.
+
+    `resolve()` reports what the launcher would use; this makes the calling
+    process actually use it, with every path absolute. Two things make the
+    ordering load-bearing for any caller, and neither is tidiness:
+
+    * `backend/config.py` ends with `settings = _load()` at module scope and
+      `lake.root()` is derived from it, so resolving after the first
+      `backend.*` import leaves the caller reading a different lake than the
+      engine serves from;
+    * `config._resolve_dir` creates what it resolves, so importing backend
+      under a bare shell silently makes `data/analytics` and friends in the
+      worktree.
+
+    So callers do this before importing backend. It is the repair for a live
+    UAT that judged a paid answer against `data/retail/analytics` -- a path
+    that does not exist in a candidate clone -- because the script resolved
+    the env file in a SUBPROCESS and then read its own bare shell.
+    """
+    resolved = resolve(env_file)
+    for name in PATH_SETTINGS:
+        if resolved.get(name):
+            resolved[name] = anchored(resolved[name])
+    os.environ.update(resolved)
+    # An exported value is anchored too: a shell holds a relative path as
+    # readily as the file does.
+    for name in PATH_SETTINGS:
+        if not resolved.get(name) and os.environ.get(name):
+            os.environ[name] = anchored(os.environ[name])
+    return resolved
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true")

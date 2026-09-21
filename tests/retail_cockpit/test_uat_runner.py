@@ -25,6 +25,7 @@ No provider call, and no part of this reads a credential.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -268,25 +269,166 @@ def test_the_evidence_keeps_the_house_shape(field: str) -> None:
     assert f'"{field}"' in RUNNER.read_text(encoding="utf-8")
 
 
-def test_the_oracle_path_works_against_the_real_book(published_release) -> None:
-    """The rehearsal cannot reach this, and a live run reaches it at question 1.
+def test_every_oracle_the_plan_names_runs_against_the_real_book(
+        published_release) -> None:
+    """The rehearsal cannot reach this, and a live run reaches it at Q1.
 
     If `expected_numbers` is broken the UAT crashes AFTER paying for an
-    answer, so it is exercised here against the real snapshot rather than a
-    stub. (An earlier draft named the registry `CASES`; it is `ORACLES`, and
+    answer, so it is exercised against the real snapshot rather than a stub.
+    (An earlier draft named the registry `CASES`; it is `ORACLES`, and
     nothing would have caught that until the live run had spent money.)
+
+    Two things changed after the failure this file is named for, and both are
+    the point:
+
+    * it covers EVERY case the plan names, not `Q01` alone. `Q01` passing
+      says nothing about `Q26`, which walks a twelve-month window and reads
+      partitions the first eight questions never touch;
+    * it reads the book through the environment the runner resolves, rather
+      than repeating the very `os.environ.get(..., "data/retail/analytics")`
+      literal that sent the live oracle to a directory a candidate clone does
+      not have. A test that reproduces the defect it is guarding against is
+      not a guard.
+
+    And it is still not sufficient on its own, which is why `gate()` exists:
+    this skips whenever the candidate release is not visible to the shell
+    running pytest, and in the operator's UAT shell it always was.
     """
     import os
 
     from backend.retail_cockpit_adapter.source import open_snapshot
 
-    snapshot = open_snapshot(
-        Path(os.environ.get("DATA_ANALYTICS_DIR", "data/retail/analytics")),
-        Path(os.environ.get("METADATA_DIR", "metadata/retail")))
-    values, spec = uat.expected_numbers("Q01", snapshot)
-    assert values, "the oracle produced no numbers to compare against"
-    assert spec.tolerance > 0 and spec.period
-    # And the comparison agrees with the oracle's own figures, in either
-    # denomination.
-    assert uat.agrees(values[0], values, spec.tolerance)
-    assert uat.agrees(values[0] * 1e6, values, spec.tolerance)
+    analytics, metadata = (os.environ.get("DATA_ANALYTICS_DIR"),
+                           os.environ.get("METADATA_DIR"))
+    if not analytics or not metadata:
+        pytest.skip("the candidate book is not configured in this shell")
+    snapshot = open_snapshot(analytics, metadata)
+
+    for case in uat.oracle_cases():
+        values, spec = uat.expected_numbers(case, snapshot)
+        assert values, f"oracle {case} produced no numbers to compare against"
+        # Zero is a real tolerance and not a missing one: Q05 compares
+        # COUNTS, where anything but exact equality would be wrong.
+        assert spec.tolerance >= 0 and spec.period, case
+        # And the comparison agrees with the oracle's own figures, in either
+        # denomination.
+        assert uat.agrees(values[0], values, spec.tolerance), case
+        assert uat.agrees(values[0] * 1e6, values, spec.tolerance), case
+
+
+# ------------------------------------------------------------------ the gate
+
+def test_the_gate_names_every_oracle_the_plan_uses() -> None:
+    from backend.retail_cockpit_adapter import oracle as orc
+
+    cases = uat.oracle_cases()
+    assert cases, "the gate would check no oracles at all"
+    assert set(cases) == {q["oracle"] for q in uat.QUESTIONS if q.get("oracle")}
+    assert all(case in orc.ORACLES for case in cases)
+
+
+def _book_missing_its_last_month(tmp_path: Path) -> tuple[Path, Path]:
+    """The candidate book with one partition withheld.
+
+    Built from the real manifest and real parquet parts rather than invented
+    ones, because the fault being reproduced is precisely a manifest that is
+    right and a lake that is incomplete -- the shape a candidate clone has
+    when the oracle is pointed at the installation's directory.
+    """
+    import os
+    import shutil
+
+    analytics = Path(os.environ.get("DATA_ANALYTICS_DIR", ""))
+    metadata = Path(os.environ.get("METADATA_DIR", ""))
+    if not analytics.exists() or not metadata.exists():
+        pytest.skip("the candidate book is not configured in this shell")
+
+    book, meta = tmp_path / "analytics", tmp_path / "metadata"
+    meta.mkdir(parents=True)
+    for name in ("retail_dataset_manifest.json", "retail_data_contract.json",
+                 "catalog.json"):
+        if (metadata / name).exists():
+            shutil.copy2(metadata / name, meta / name)
+
+    source = analytics / "retail_facility_month"
+    months = sorted(p.name for p in source.iterdir() if p.is_dir())
+    for part in months[:-1]:
+        target = book / "retail_facility_month" / part
+        target.mkdir(parents=True)
+        (target / "data.parquet").symlink_to(source / part / "data.parquet")
+    return book, meta
+
+
+def test_the_gate_refuses_a_month_the_manifest_names_and_the_lake_lacks(
+        tmp_path) -> None:
+    """The regression. This is the failure that cost USD 0.24853.
+
+    `open_snapshot` validates the MANIFEST and nothing else, so a book whose
+    metadata resolves and whose parquet does not opens cleanly and raises at
+    the first read -- which, in the live UAT, was inside `judge()`, after the
+    answer had been bought.
+    """
+    from backend.retail_cockpit_adapter.source import open_snapshot
+
+    book, meta = _book_missing_its_last_month(tmp_path)
+    snapshot = open_snapshot(book, meta)
+
+    findings = uat.gate(snapshot, check_engine=False)
+
+    assert findings, "the gate accepted a book it cannot read"
+    assert any("named by the manifest" in f for f in findings)
+    assert any(snapshot.latest_period in f for f in findings)
+
+
+def test_the_gate_runs_before_anything_can_be_asked(
+        tmp_path, monkeypatch) -> None:
+    """No money, not merely an error.
+
+    `Cockpit` is the only route to the engine and the only way to start a
+    run, so proving it was never constructed proves nothing was bought.
+    """
+    def _explode(*_: object, **__: object):  # pragma: no cover - must not run
+        raise AssertionError("the runner reached the engine on a broken book")
+
+    book, meta = _book_missing_its_last_month(tmp_path)
+    monkeypatch.setattr(uat, "Cockpit", _explode)
+    monkeypatch.setenv("DATA_ANALYTICS_DIR", str(book))
+    monkeypatch.setenv("METADATA_DIR", str(meta))
+    out = tmp_path / "live_uat.json"
+    monkeypatch.setattr(
+        sys, "argv",
+        ["run_uat.py", "--rejudge", "--rejudge-db", str(tmp_path / "x.db"),
+         "--out", str(out), "--env-file", ""])
+
+    assert uat.main() == 1
+    assert not out.exists(), "a refusal wrote an evidence file"
+
+
+def test_the_book_binding_does_not_pretend_to_catch_a_missing_partition(
+        published_release, tmp_path) -> None:
+    """A guard nobody understands is worse than no guard.
+
+    The lineage check compares the oracle's `manifest_hash` against the one
+    the release records being projected from. It is here for a book that is
+    PRESENT and DIFFERENT, which yields a confident false verdict rather than
+    a crash. It would NOT have caught the failure this module exists for:
+    `metadata/retail` is committed to git and carries the same manifest as
+    the candidate's own copy, so the hashes matched in exactly the
+    misconfiguration that burned the money. This asserts that limit, so the
+    next reader does not trust it for something it does not do.
+    """
+    from backend.cockpit_v4 import lake
+    from backend.retail_cockpit_adapter.source import open_snapshot
+
+    book, meta = _book_missing_its_last_month(tmp_path)
+    snapshot = open_snapshot(book, meta)
+
+    projected = str(((lake.read_manifest(published_release).get("notes") or {})
+                     .get("projected_from") or {}).get("manifest_hash") or "")
+    assert projected
+    assert projected == str(snapshot.manifest.get("manifest_hash")), (
+        "the premise of this test no longer holds")
+    assert uat._release_findings(published_release, snapshot) == [], (
+        "the lineage check reported a book it cannot actually distinguish")
+    # And the check that DOES catch it, on the same snapshot.
+    assert snapshot.verify()

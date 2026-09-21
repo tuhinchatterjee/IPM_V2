@@ -474,6 +474,79 @@ not something a scripted provider can tell us.
    including the p5/p6 era. No `ecl.py` patch and no adapter change: there is
    nothing wrong to correct on the current release.
 
+### 19.16 The live UAT lost the answer it had just paid for — CLOSED
+
+Question 1 of the first live UAT made a real provider call, completed, and was
+destroyed by the harness that was supposed to score it. `run_uat.py` entered
+`judge()`, the independent oracle raised `SnapshotUnavailable`, and the
+process died at that call -- which sits **before** the append and the
+`save()`. USD 0.24853 bought an answer that was never written down.
+
+**The engine is not implicated.** It answered, settled, and stored the answer
+durably: `worker.py:405` writes `final_response` into the run record, so the
+answer was recoverable from the store for nothing.
+
+**One cause, three consequences.** `run_uat.py` measured the operator's shell
+instead of resolving the candidate's configuration -- the same disease as
+§19.14's 503, one layer further out, and this time it surfaced *after* the
+money was spent. `preflight()` ran `check_live.py` as a SUBPROCESS, which
+resolved `.env.retail-candidate` correctly and reported LIVE READY; that
+resolved environment died with the subprocess, and the parent then read its
+own raw `os.environ`:
+
+* `DATA_ANALYTICS_DIR` fell back to the cwd-relative literal
+  `data/retail/analytics` -- the installation's path, which a candidate clone
+  does not have. The traceback printed a RELATIVE path, which is how that
+  literal was identified as the source rather than `check_oracles.py`'s
+  ROOT-anchored default;
+* `AI_COCKPIT_REASONING_MODEL` was empty, so the evidence would have recorded
+  no model;
+* `COCKPIT_V4_STATE_DATABASE` and `COCKPIT_V4_RUNTIME_DIR` were unset, so
+  `spend.state_database()` resolved to a non-existent `~/.creditprobe/...`
+  file and `spend.spent()` returned 0.0. **This runner's own cumulative cap
+  was therefore inert and every `cost_usd` would have been written as 0.00**
+  -- a $9 UAT recorded as free. The money itself was still guarded: the real
+  cap is `_spend_guard` in the retail API proxy, and that process WAS started
+  by the launcher with the file sourced.
+
+**The asymmetry is git.** `metadata/retail/` is tracked (4 files), so the
+manifest always resolves; `data/retail/analytics` is untracked and absent, so
+the parquet does not. `open_snapshot` validates only the manifest; the
+month-existence check is `Snapshot.verify()`, whose only caller in the
+repository was `publish.py`. A half-resolved snapshot therefore opened
+cleanly and failed at the first read.
+
+**Both guards were structurally blind.** `--rehearse` runs offline, where
+every run settles `PROVIDER_UNAVAILABLE`, so `state != "COMPLETED"` and the
+oracle branch is unreachable -- a rehearsal can never reach `judge()`. And
+`test_the_oracle_path_works_against_the_real_book`, written for exactly this
+("the UAT crashes AFTER paying for an answer"), SKIPS in a bare shell: its
+fixture resolves `DEFAULT_RELEASES[retail]` to `v4-saudi-retail-20m-v5` and
+`lake.root()` to `data/cockpit_v4_lake`, finds no p7, and skips. Measured:
+**41 tests** in `tests/retail_cockpit` skip in a bare shell with *"p7 is not
+published in this runtime"*.
+
+**The repair.** `run_uat.py` and `check_oracles.py` resolve the env file
+before any `backend.` import (the ordering is load-bearing: `settings` is
+frozen at module scope and `lake.root()` derives from it) and anchor every
+path to the repository root. Both print what they resolved. `run_uat.py`
+gains a gate that runs `Snapshot.verify()` and computes every oracle the plan
+names -- about nine seconds -- before a client is even constructed, so the
+failure above is now a refusal that costs nothing. The evidence entry is
+written BEFORE it is judged and carries `final_response` verbatim; a judging
+exception is recorded as `rejudgeable` and stops the run. After the first
+settled question, a ledger that has not moved while a cap is configured stops
+the run -- the money-path defect caught after $0.25 rather than after $9.
+And `--rejudge` re-scores answers already paid for from the store, read-only,
+constructing no client, taking each cost from `reservations` by `run_id`.
+
+**Stated as a limit:** the p7 lineage check in the gate would NOT have caught
+this. `metadata/retail`'s committed manifest carries the same `3268b725...`
+as the candidate's own copy, so the hashes matched in exactly the
+misconfiguration that burned the money. It is there for a *present but
+different* book, and a test asserts that it does not cover a missing
+partition.
+
 ## 20. Status
 
 **READY FOR MAC ACCEPTANCE — PROVIDER TEST STILL REQUIRED.**

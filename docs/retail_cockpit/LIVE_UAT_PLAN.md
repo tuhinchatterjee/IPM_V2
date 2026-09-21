@@ -75,7 +75,27 @@ are all true and whose conclusion is wrong; a human reads the narratives for
 that, and the report says so rather than claiming the stronger thing.
 
 `--rehearse` drives the same twelve against an OFFLINE engine, proving the
-runner for nothing and refusing to point at an engine that could spend.
+runner for nothing and refusing to point at an engine that could spend. Note
+what it cannot prove: an offline run settles `PROVIDER_UNAVAILABLE`, so it
+never reaches the judgement of an ANSWER. That is structural, and it is why
+the gate below exists.
+
+**It resolves the candidate configuration itself** -- book, ledger, model,
+card, cap -- before it reads anything, and prints what it resolved. It does
+not have to be launched from a shell that sourced `.env.retail-candidate`,
+and it refuses a live run against a file that is not there.
+
+**It checks the book and computes every oracle before the first question**,
+about nine seconds, and refuses if a month the manifest names is not on disk
+or an oracle cannot be computed. The first live UAT had no such gate:
+question 1 was answered, charged USD 0.24853, and lost when the oracle turned
+out to be reading a directory a candidate clone does not have.
+
+**An answer that has been paid for is not lost if judging it fails.** The
+entry is written before it is judged and carries the engine's response
+verbatim, and `--rejudge` scores settled runs again from the engine's own
+store -- read-only, no client, no provider call, each cost taken from
+`reservations` by `run_id` so the money is recorded rather than erased.
 
 ## The plan
 
