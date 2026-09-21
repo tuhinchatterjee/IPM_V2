@@ -178,7 +178,8 @@ def test_bootstrap_uses_the_offline_capability_only_for_an_offline_provider(
 
 # ------------------------------------------------- the template and the runbook
 
-def test_the_template_names_a_model_the_engine_knows() -> None:
+def test_the_template_names_a_model_the_engine_knows(
+        template_defaults) -> None:
     """The template may name a model only because an operator chose one.
 
     This assertion used to be "names no model at all", which was right while
@@ -192,17 +193,15 @@ def test_the_template_names_a_model_the_engine_knows() -> None:
     """
     from backend.cockpit_v4 import model_capabilities as caps
 
-    assigned = re.findall(r"^\s*AI_COCKPIT_REASONING_MODEL=(.*)$",
-                          TEMPLATE.read_text(encoding="utf-8"), re.M)
-    assert len(assigned) == 1, assigned
-    model = assigned[0].strip()
+    model = template_defaults["AI_COCKPIT_REASONING_MODEL"]
     assert caps.traits_for(model).source == "registry", (
         f"the template names {model!r}, which is not in "
         f"model_capabilities.REGISTRY (checked {caps.CHECKED_AT}). The "
         f"engine would guess its request shape.")
 
 
-def test_the_template_points_live_pricing_at_a_committed_card() -> None:
+def test_the_template_points_live_pricing_at_a_committed_card(
+        template_defaults) -> None:
     """Never a fixture, and never a path under `var/`.
 
     A card under `var/` is untracked, machine-local and can be anything --
@@ -212,10 +211,7 @@ def test_the_template_points_live_pricing_at_a_committed_card() -> None:
     under `config/`, and the shipped placeholder's own fail-closed behaviour
     is asserted separately in `test_live_wiring.py`.
     """
-    value = re.findall(r"^\s*COCKPIT_V4_PRICE_CARD=(.*)$",
-                       TEMPLATE.read_text(encoding="utf-8"), re.M)
-    assert len(value) == 1, value
-    card = value[0].strip()
+    card = template_defaults["COCKPIT_V4_PRICE_CARD"]
     assert card.startswith("config/cockpit_v4/"), card
     assert "var/" not in card and "fixture" not in card, card
     assert (ROOT / card).exists(), f"{card} is not in the repository"

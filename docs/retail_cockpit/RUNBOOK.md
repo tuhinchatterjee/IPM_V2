@@ -75,7 +75,14 @@ Offline proves the plumbing. Live costs money, so it is deliberate:
     # 2. Start WITHOUT RETAIL_COCKPIT_OFFLINE.
     launchers/retail/start-retail-candidate.command
 
-Three things to know before you do:
+The launcher now checks this for you. In live mode it runs `check_live.py`
+against **the environment it has already resolved** and refuses to start
+anything if the card cannot price the model; after startup it asks the engine
+through `/diagnostics` what it actually loaded and fails READY if that
+disagrees with what was resolved. Both exist because their absence cost a live
+UAT -- see HANDOFF §19.14.
+
+Four things to know before you do:
 
 * **Starting makes two `count_tokens` calls** (`verify_live`, once in
   `create_app` and once in the candidate bootstrap). Not billed, but real
@@ -88,6 +95,18 @@ Three things to know before you do:
 * **The cumulative cap is `RETAIL_COCKPIT_SPEND_CAP_USD`**, enforced by the
   proxy against the engine's own ledger. The engine itself bounds only one
   run at a time. Unset it and there is no cap at all.
+* **The env file is defaults; your shell wins.** Every line is
+  `VAR=${VAR:-default}`, so `export COCKPIT_V4_PRICE_CARD=... ; launcher` does
+  what you would expect. If your `.env.retail-candidate` predates this and
+  still holds bare `VAR=value` lines, it will keep overriding your exports --
+  regenerate it from the template, keeping only your `DATABASE_URL` and
+  `SECRET_KEY`.
+
+**For the UAT, give it a fresh ledger.** The cap counts everything in the
+engine's state store, including runs from before the cap existed. Uncomment
+`COCKPIT_V4_STATE_DATABASE=var/retail-cockpit-candidate/runtime/state/uat.sqlite3`
+so the $15 budgets the twelve questions and nothing else. Nothing is deleted;
+the existing store stays as evidence.
 
 Rehearse the runner first -- it costs nothing and refuses to point at a live
 engine:

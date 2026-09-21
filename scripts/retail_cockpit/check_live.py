@@ -14,6 +14,18 @@ set. The one thing it therefore cannot tell you is whether the provider will
 actually serve the model; that is `verify_live`'s job, and it happens when the
 engine starts.
 
+It measures the environment THE LAUNCHER WILL USE
+-------------------------------------------------
+By default it resolves `.env.retail-candidate` exactly as the launcher does --
+`set -a; . file` -- and reads the result, not your bare shell. That is not a
+nicety. This script used to read `os.environ` alone, so it reported the card
+an operator had EXPORTED while the launcher went on to source a file that
+overwrote it, and the two never met: the preflight said LIVE READY about the
+candidate card, the engine loaded the fail-closed placeholder, and the first
+live question came back 503 with no provider call and no spend.
+
+`--env-file ""` reads the bare environment, for when you mean to.
+
 Exit 0 when a live start would work.
 """
 
@@ -22,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,10 +53,45 @@ UAT_OUTPUT_TOKENS = 4_000
 UAT_GENERATIONS = 4
 
 
+def resolve(env_file: str) -> dict[str, str]:
+    """The environment the launcher will hand the engine.
+
+    The launcher does `set -a; . "$ENV_FILE"; set +a`, so the file is SHELL,
+    not a key-value list: its `${VAR:-default}` forms have to be expanded by a
+    shell that already holds the current environment. So a shell expands it
+    and prints the result, rather than this script pretending to parse it --
+    a parser that ignored the `:-` forms would report the file's defaults over
+    an operator's exports and reintroduce the very mismatch this exists to
+    stop.
+    """
+    if not env_file:
+        return {}
+    path = Path(env_file)
+    if not path.exists():
+        return {}
+    script = (f'set -a; . "{path}"; set +a; '
+              f'python3 -c "import json,os;print(json.dumps(dict(os.environ)))"')
+    done = subprocess.run(["bash", "-c", script], capture_output=True,
+                          text=True, cwd=str(ROOT))
+    if done.returncode != 0:
+        raise SystemExit(f"{path} could not be resolved: "
+                         f"{(done.stderr or '').strip()[:300]}")
+    return {k: v for k, v in json.loads(done.stdout).items()
+            if isinstance(v, str)}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--env-file", default=str(ROOT / ".env.retail-candidate"),
+        help="resolve this the way the launcher does before reading the "
+             "configuration. Pass an empty string to read the bare shell.")
     args = parser.parse_args()
+
+    resolved = resolve(args.env_file)
+    if resolved:
+        os.environ.update(resolved)
 
     from backend.cockpit_v4 import capability as cap_mod
     from backend.cockpit_v4 import config as config_mod

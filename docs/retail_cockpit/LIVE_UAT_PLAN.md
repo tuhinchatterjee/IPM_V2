@@ -35,6 +35,16 @@ approval before anything runs.
    model, the card's four rates, both caps and the projected cost of these
    twelve questions, and **makes no provider call**. Run it first.
 
+## Give it a fresh ledger
+
+The cap counts everything in the engine's state store. Before the UAT, set
+
+    COCKPIT_V4_STATE_DATABASE=var/retail-cockpit-candidate/runtime/state/uat.sqlite3
+
+so the $15 budgets these twelve questions and nothing else, and leave it set
+for any `--from N` resume so they count against the same budget. Nothing is
+deleted; the existing store stays where it is.
+
 ## What a live start costs before a question is asked
 
 Two things, neither of them obvious:

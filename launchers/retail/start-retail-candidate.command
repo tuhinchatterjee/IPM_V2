@@ -64,6 +64,21 @@ set +a
 RELEASE="${COCKPIT_V4_RETAIL_RELEASE_ID:-}"
 [ -n "$RELEASE" ] || die "COCKPIT_V4_RETAIL_RELEASE_ID is not set in $ENV_FILE."
 
+# ---- 1b. say what this launch resolved to ----------------------------------
+#
+# Printed because it was invisible, and invisible is how a live UAT reached
+# the engine with the fail-closed placeholder price card while the operator's
+# preflight -- reading their shell, not this -- reported the candidate card
+# and said LIVE READY. The env file provides DEFAULTS now (`VAR=${VAR:-...}`),
+# so an export wins; these are the values that actually won.
+MODEL="${AI_COCKPIT_REASONING_MODEL:-(unset)}"
+CARD="${COCKPIT_V4_PRICE_CARD:-(unset)}"
+STATE_DB="${COCKPIT_V4_STATE_DATABASE:-<runtime>/state/cockpit_v4.sqlite3}"
+say "  model  $MODEL"
+say "  card   $CARD"
+say "  state  $STATE_DB"
+say "  cap    ${RETAIL_COCKPIT_SPEND_CAP_USD:-(none)}"
+
 # The boundary secret, per launch. Never committed, never reused across runs,
 # and the same value handed to both processes.
 RETAIL_COCKPIT_HOST_SECRET="$("$PYTHON" -c 'import secrets;print(secrets.token_urlsafe(32))')"
@@ -127,6 +142,16 @@ if [ -n "${RETAIL_COCKPIT_OFFLINE:-}" ]; then
   say ""
   say "  !! RETAIL_COCKPIT_OFFLINE is set. No provider will be called and no"
   say "  !! question can be answered. This is for testing the path only."
+else
+  # LIVE. Check the configuration that is about to run -- this environment,
+  # already resolved -- rather than whatever the operator's shell happens to
+  # hold. `--env-file ""` because the file has been sourced above; resolving
+  # it a second time would read the defaults over an export.
+  say ""
+  say "Live mode. Checking the configuration this launch resolved to..."
+  "$PYTHON" scripts/retail_cockpit/check_live.py --env-file "" \
+    || die "the live configuration is not ready. Nothing was started with a
+  half-configured provider; fix what check_live.py named and run this again."
 fi
 
 say "Starting the Cockpit engine on $ENGINE_PORT (materialising the book)..."
@@ -175,9 +200,15 @@ curl -fsS "http://127.0.0.1:$FRONTEND_PORT" >/dev/null 2>&1 \
 # ---- 7. READY, and only if the Cockpit path actually answers ----------------
 say ""
 say "Checking the Cockpit path end to end..."
+# The engine is asked what it loaded, not trusted to have loaded it. A stale
+# env file, a clobbered export or a typo now fails HERE, in a second, instead
+# of on the first live question.
 "$PYTHON" scripts/retail_cockpit/check_ready.py \
   --api "http://127.0.0.1:$BACKEND_PORT" \
   --engine "http://127.0.0.1:$ENGINE_PORT" \
+  --expect-release "$RELEASE" \
+  ${AI_COCKPIT_REASONING_MODEL:+--expect-model "$AI_COCKPIT_REASONING_MODEL"} \
+  ${COCKPIT_V4_PRICE_CARD:+--expect-card "$(basename "$COCKPIT_V4_PRICE_CARD")"} \
   || die "the Cockpit did not come up ready. Nothing was substituted for it.
   The stack is still running; see $ENGINE_LOG and $BACKEND_LOG."
 

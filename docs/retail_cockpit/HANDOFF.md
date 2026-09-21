@@ -439,6 +439,41 @@ not something a scripted provider can tell us.
    the ledger as the design intends. Host-side; `anthropic_provider.py` stays
    verbatim, and an injected test transport is left alone.
 
+14. ~~**The live UAT's first question returned 503 with no provider call.**~~
+   **CLOSED.** `check_live.py` read `os.environ` and reported the price card
+   the operator had EXPORTED; the launcher then sourced
+   `.env.retail-candidate` under `set -a`, where every line was an
+   unconditional `VAR=value`, and the file's
+   `COCKPIT_V4_PRICE_CARD=config/cockpit_v4/price_card.json` overwrote it.
+   The engine inherited the placeholder, `load_price_card` found no
+   `claude-opus-5`, `bootstrap.install` installed no runtime and `POST /runs`
+   refused with the typed 503. Spend stayed at $0 because nothing reached a
+   provider. The operator's evidence pinned it further: the engine's message
+   named the model but not the card, which is only possible with the OLD
+   template where the model line was commented out (so the export survived)
+   and the card line was not.
+
+   Three changes, none in the engine: every template line is now
+   `VAR=${VAR:-default}` so an export wins; `check_live.py --env-file`
+   resolves the file the way the launcher does, and the launcher runs it on
+   the environment it has ALREADY resolved before starting anything live; and
+   `check_ready.py` reads `/diagnostics` and fails READY when the RUNNING
+   engine's model, card or book disagrees with what was resolved.
+   `/diagnostics` had been reporting the answer all along and nothing asked
+   it. Held by `tests/retail_cockpit/test_engine_configuration.py` (11),
+   three of which interrogate a started engine.
+
+15. **The `ecl.py` stage traceback was stale.** `ValueError: invalid literal
+   for int() with base 10: 'Auto Finance'` in `stage_profile`/`_stage_rows`
+   does **not** reproduce on p7: the `stage` column is `BIGINT` holding only
+   1, 2 and 3 (1,168,518 / 146,043 / 32,453) and `stage_profile` returns
+   cleanly. `_stage_rows` takes no dimension parameter -- it groups on the
+   `stage` column itself -- so the message means that column once held a
+   product label, which it does not now. The launcher appends to
+   `engine.log` (`>>`), so a candidate log holds every run since the first,
+   including the p5/p6 era. No `ecl.py` patch and no adapter change: there is
+   nothing wrong to correct on the current release.
+
 ## 20. Status
 
 **READY FOR MAC ACCEPTANCE — PROVIDER TEST STILL REQUIRED.**

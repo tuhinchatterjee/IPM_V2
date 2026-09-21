@@ -66,6 +66,13 @@ def main() -> int:
     parser.add_argument("--api", default="http://127.0.0.1:8329")
     parser.add_argument("--engine", default="http://127.0.0.1:8415")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--expect-model", default="",
+                        help="the model the RUNNING engine must report")
+    parser.add_argument("--expect-card", default="",
+                        help="the price card filename the RUNNING engine "
+                             "must report, e.g. price_card.candidate.json")
+    parser.add_argument("--expect-release", default="",
+                        help="the release id the RUNNING engine must report")
     parser.add_argument(
         "--allow-paid-run", action="store_true",
         help="submit the readiness question even in live mode, where "
@@ -131,10 +138,67 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         findings.append(f"the engine boundary could not be checked: {exc}")
 
+    offline = bool(os.environ.get("RETAIL_COCKPIT_OFFLINE", "").strip())
+
+    # 4b. WHAT THE RUNNING ENGINE IS ACTUALLY CONFIGURED WITH.
+    #
+    # Not what the env file says, not what the operator exported: what the
+    # process loaded. `/diagnostics` reports the live `config.load()` result
+    # and answers even when the runtime is None, which is precisely the state
+    # a bad price card leaves behind.
+    #
+    # This check exists because its absence cost a live UAT: the preflight
+    # read the operator's shell, the launcher sourced a file that overwrote
+    # it, and nothing compared either with the engine. The first question
+    # came back 503.
+    try:
+        diag = client.get(f"{args.api}/api/v1/cockpit-v4/diagnostics")
+        settings = (diag.json().get("settings") or {}) if \
+            diag.status_code == 200 else {}
+        report["engine_settings"] = {
+            k: settings.get(k) for k in
+            ("reasoning_model", "price_card_path", "release_id",
+             "state_database", "credential")}
+        if diag.status_code != 200:
+            findings.append(f"the engine would not report its configuration "
+                            f"({diag.status_code})")
+        else:
+            got = str(settings.get("reasoning_model") or "")
+            if args.expect_model and got != args.expect_model:
+                findings.append(
+                    f"the RUNNING engine's reasoning_model is {got!r}, not "
+                    f"{args.expect_model!r}. The launcher and the engine "
+                    f"disagree.")
+            # NOT `settings.release_id`: that is the engine's PRE-DOMAIN
+            # release, which this candidate never publishes and which stays
+            # at the engine's own default. The book the Cockpit actually
+            # opens is the DOMAIN release, reported by /domains and already
+            # read in step 3.
+            book = str((report.get("book") or {}).get("release_id") or "")
+            if args.expect_release and book != args.expect_release:
+                findings.append(
+                    f"the RUNNING engine opened release {book!r}, not "
+                    f"{args.expect_release!r}. The launcher and the engine "
+                    f"disagree about the book.")
+            card = str(settings.get("price_card_path") or "")
+            if args.expect_card and not card.endswith(args.expect_card):
+                findings.append(
+                    f"the RUNNING engine's price card is {card!r}, not "
+                    f"{args.expect_card!r}. This is the mismatch that "
+                    f"refuses every question with CAPABILITY_UNVERIFIED.")
+            missing = settings.get("missing_settings") or []
+            # A missing credential is expected offline and is not a finding
+            # here; check_live.py is where live readiness is decided.
+            unexpected = [m for m in missing
+                          if m != "COCKPIT_ANTHROPIC_API_KEY" or not offline]
+            if unexpected:
+                report["engine_missing_settings"] = unexpected
+    except Exception as exc:  # noqa: BLE001
+        findings.append(f"the engine's configuration could not be read: {exc}")
+
     # 5. a real Cockpit call, through the proxy, that writes something.
     #    Billed in live mode, so it is opt-in there. See the module docstring.
     run = ""
-    offline = bool(os.environ.get("RETAIL_COCKPIT_OFFLINE", "").strip())
     may_spend = offline or args.allow_paid_run
     if not may_spend:
         report["run"] = "skipped"
@@ -234,6 +298,12 @@ def main() -> int:
               f"analysis={book.get('analysis_ready')}")
         print(f"  engine flags    "
               f"{ {k: flags.get(k) for k in REQUIRED} }")
+        engine_settings = report.get("engine_settings") or {}
+        if engine_settings:
+            print(f"  engine model    {engine_settings.get('reasoning_model')}")
+            print(f"  engine card     "
+                  f"{engine_settings.get('price_card_path')}")
+            print(f"  engine state db {engine_settings.get('state_database')}")
         print(f"  boundary        unauthenticated call -> "
               f"{report.get('engine_without_a_principal')}")
         print(f"  question        {report.get('run')}")

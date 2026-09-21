@@ -212,3 +212,30 @@ def drive_chain(chain_store, chain_runtime, chain_release) -> Any:
         return outcome, provider, record
 
     return _drive
+
+
+@pytest.fixture(scope="session")
+def template_defaults() -> dict[str, str]:
+    """The candidate template's values, resolved the way the launcher does.
+
+    The file is SHELL, not a key-value list: every line is
+    `VAR=${VAR:-default}` so an operator's export wins, which is the fix for
+    the live 503 where the file silently overwrote an exported price card. A
+    regex over the raw text would read the `${...}` wrapper rather than the
+    value, so a shell expands it -- with the relevant names UNSET, so what
+    comes back is the file's own defaults.
+    """
+    import json
+    import os
+    import subprocess
+
+    root = Path(__file__).resolve().parents[2]
+    clean = {k: v for k, v in os.environ.items()
+             if not k.startswith(("COCKPIT_", "AI_COCKPIT_", "RETAIL_COCKPIT_",
+                                  "DATA_ANALYTICS", "METADATA_"))}
+    script = (f'set -a; . "{root / ".env.retail-candidate.example"}"; set +a; '
+              f'python3 -c "import json,os;print(json.dumps(dict(os.environ)))"')
+    done = subprocess.run(["bash", "-c", script], capture_output=True,
+                          text=True, cwd=str(root), env=clean)
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)

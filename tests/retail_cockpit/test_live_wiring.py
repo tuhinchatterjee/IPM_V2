@@ -108,15 +108,15 @@ def test_the_shipped_card_is_untouched_and_still_fails_closed() -> None:
                                 provider="anthropic")
 
 
-def test_the_template_points_at_the_candidate_card_not_the_placeholder() -> None:
+def test_the_template_points_at_the_candidate_card_not_the_placeholder(
+        template_defaults) -> None:
+    assert template_defaults["COCKPIT_V4_PRICE_CARD"] == \
+        "config/cockpit_v4/price_card.candidate.json"
+    assert template_defaults["AI_COCKPIT_REASONING_MODEL"] == MODEL
+    # The credential still must not be assigned at all. Not because the file
+    # would clobber an export any more -- it would not -- but because a key
+    # in a file is a key that gets committed and copied.
     body = TEMPLATE.read_text(encoding="utf-8")
-    card = re.findall(r"^\s*COCKPIT_V4_PRICE_CARD=(.*)$", body, re.M)
-    assert card == ["config/cockpit_v4/price_card.candidate.json"], card
-    model = re.findall(r"^\s*AI_COCKPIT_REASONING_MODEL=(.*)$", body, re.M)
-    assert model == [MODEL], model
-    # The credential still must not be assigned: the launcher sources this
-    # file under `set -a`, so an assignment here beats an exported value --
-    # including an empty one, which fails with PROVIDER_CREDENTIAL_MISSING.
     assert not re.findall(r"^\s*COCKPIT_ANTHROPIC_API_KEY=", body, re.M)
 
 
