@@ -391,7 +391,7 @@ unverified one, which it did not until §10 of this round.
    enforced rather than requested: the card refuses to load without them,
    so a template left half-filled stops the run instead of costing it at
    zero.
-3. `COCKPIT_ANTHROPIC_API_KEY` or `ANTHROPIC_API_KEY`.
+3. `COCKPIT_ANTHROPIC_API_KEY`. There is no fallback: V4 deliberately does not read `ANTHROPIC_API_KEY`, an SDK default, or any other module's key.
 4. `AI_COCKPIT_REASONING_MODEL` set to the same id.
 5. A stated spend cap.
 
