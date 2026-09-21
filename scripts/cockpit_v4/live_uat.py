@@ -363,9 +363,68 @@ def reconcile(journey: Journey, taken: dict[str, Any]) -> dict[str, Any]:
                     "mapping this is meant to check"}
 
 
+# ---- where the ledger lives ---------------------------------------------
+
+#: The paid ledger and the scripted one are DIFFERENT FILES.
+#:
+#: They used to be one. The dry run settles real reservations -- scripted
+#: token counts priced at the real card -- so it leaves a ledger with
+#: committed spend in it, and the live pre-flight then has to decide whether
+#: that spend is real. There is nothing in the store to decide it WITH: the
+#: schema records no provider or model anywhere. `runs`, `reservations` and
+#: `events` have no such column, and the whole event stream contains zero
+#: occurrences of "model". `startup_sha` is "live-uat" in both modes.
+#:
+#: So the only sound answer to "is this spend real?" is never to have mixed
+#: the two. Two paths, chosen by the mode, and no deletion is needed for the
+#: live one at all.
+STATE_DIR = Path("/tmp/cockpit_v4_live_uat")
+DRY_RUN_DB = STATE_DIR / "dry_run.sqlite3"
+LIVE_DB = STATE_DIR / "live.sqlite3"
+
+
+def state_db_for(*, live: bool, override: str = "") -> Path:
+    if override:
+        return Path(override).expanduser()
+    return LIVE_DB if live else DRY_RUN_DB
+
+
+def open_store(db: Path, *, live: bool):
+    """The store for this mode, opened under the rule its mode deserves.
+
+    A scripted ledger is disposable and is recreated each run: nothing live
+    can ever have written to it, because live never opens this path.
+
+    A live ledger is NEVER deleted here. If one already holds anything, the
+    run refuses to start and says where it is. Moving a paid record aside is
+    an operator's decision, and a harness that made it silently would be the
+    one thing a spend control must never do.
+    """
+    from backend.cockpit_v4.run_store import RunStore
+
+    db.parent.mkdir(parents=True, exist_ok=True)
+    if not live:
+        if db.exists():
+            db.unlink()
+        return RunStore(db)
+
+    store = RunStore(db)
+    conn = store._connect()
+    runs = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+    reservations = conn.execute(
+        "SELECT COUNT(*) FROM reservations").fetchone()[0]
+    if runs or reservations:
+        raise Stop(
+            "live_ledger_not_empty",
+            f"{db} already holds {runs} run(s) and {reservations} "
+            f"reservation(s). A live UAT starts from an empty ledger. Move "
+            f"that file aside yourself and re-run; nothing has been deleted.")
+    return store
+
+
 # ---- the runner ---------------------------------------------------------
 
-def build_runtime(live: bool, capability, provider):
+def build_runtime(live: bool, capability, provider, *, state_db: Path):
     from backend.cockpit_v4 import analytical_runtime as arun
     from backend.cockpit_v4 import config as config_mod
     from backend.cockpit_v4 import domains as dom
@@ -375,8 +434,8 @@ def build_runtime(live: bool, capability, provider):
     cfg = config_mod.V4Config(
         enabled=True, provider="anthropic",
         reasoning_model=capability.model_id,
-        runtime_dir=Path("/tmp/cockpit_v4_live_uat"),
-        state_database="/tmp/cockpit_v4_live_uat/state.sqlite3",
+        runtime_dir=STATE_DIR,
+        state_database=str(state_db),
         release_id=book.release_id, api_port=8414, ui_port=5414,
         local_demo_auth=True, price_card_path=APPROVED_CARD,
         memory_enabled=False, memory_model="", default_mode="standard",
@@ -419,6 +478,8 @@ def main() -> int:
     parser.add_argument("--max-runs", type=int, default=0)
     parser.add_argument("--only", default="")
     parser.add_argument("--out", default="")
+    parser.add_argument("--state-db", default="",
+                        help="override the ledger path for this mode")
     args = parser.parse_args()
 
     if args.live == args.dry_run:
@@ -449,12 +510,14 @@ def main() -> int:
             APPROVED_CARD, model_id=APPROVED_MODEL, provider="anthropic")
         provider = None  # set per turn below
 
-    runtime = build_runtime(args.live, capability, provider)
-    Path("/tmp/cockpit_v4_live_uat").mkdir(parents=True, exist_ok=True)
-    db = Path("/tmp/cockpit_v4_live_uat/state.sqlite3")
-    if db.exists():
-        db.unlink()
-    store = RunStore(db)
+    db = state_db_for(live=bool(args.live), override=args.state_db)
+    runtime = build_runtime(args.live, capability, provider, state_db=db)
+    try:
+        store = open_store(db, live=bool(args.live))
+    except Stop as stop:
+        print(f"STOP [{stop.condition}] {stop.detail}")
+        return 1
+    print(f"ledger: {db}")
 
     guard = Guard(cap_usd=args.cap, stop_at_usd=args.stop_at,
                   per_run_ceiling_usd=config_mod.ANALYTICAL_STANDARD_LIMITS
