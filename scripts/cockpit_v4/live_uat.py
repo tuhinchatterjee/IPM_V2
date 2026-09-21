@@ -460,8 +460,27 @@ def main() -> int:
                   per_run_ceiling_usd=config_mod.ANALYTICAL_STANDARD_LIMITS
                   .spend_ceiling_usd, max_runs=args.max_runs)
 
-    wanted = [j for j in matrix()
-              if not args.only or j.jid in args.only.split(",")]
+    # --only IS AN ORDER, NOT JUST A FILTER.
+    #
+    # A comprehension over `matrix()` keeps the DEFINITION order however the
+    # ids were listed, so an approved queue that runs the load-bearing
+    # journeys first would silently execute in the order this file happens
+    # to declare them. The run order is a spend decision -- it decides what
+    # is already proven when a cap stops the queue -- so the caller's order
+    # is the one that runs.
+    #
+    # An id that is not in the matrix stops the run rather than being
+    # skipped: a typo in an approved queue must not quietly shorten it.
+    if args.only:
+        index = {j.jid: j for j in matrix()}
+        asked = [x.strip() for x in args.only.split(",") if x.strip()]
+        unknown = [x for x in asked if x not in index]
+        if unknown:
+            print(f"unknown journey id(s): {', '.join(unknown)}")
+            return 2
+        wanted = [index[x] for x in asked]
+    else:
+        wanted = matrix()
     results: list[dict[str, Any]] = []
     stopped: dict[str, Any] | None = None
 
