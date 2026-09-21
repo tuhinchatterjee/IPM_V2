@@ -2,7 +2,7 @@
 name = "ipm-tool"
 version = "0.1.0"
 description = "Intelligent Portfolio Manager — credit-risk & CBUAE regulatory reporting cockpit."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 # Exact pins captured from the working environment (2026-07). Bump deliberately,
 # re-lock, and re-test — never float these, so every install is reproducible.

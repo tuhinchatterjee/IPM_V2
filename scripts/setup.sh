@@ -24,11 +24,15 @@ echo "${BOLD}CreditProbe — first-time setup${RESET}"
 
 step "Setting up Python"
 PY="$(command -v python3 || command -v python || true)"
-[ -n "$PY" ] || die "Python is not installed." "Install Python 3.11+ from https://www.python.org/downloads/"
+[ -n "$PY" ] || die "Python is not installed." "Install Python 3.12+ from https://www.python.org/downloads/"
 
 VERSION="$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
-"$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
-  || die "Python $VERSION is too old. CreditProbe needs 3.11 or newer." "Install a newer Python from https://www.python.org/downloads/"
+# 3.12, not 3.11: `requirements.txt` pins numpy==2.5.0, which declares
+# `Requires-Python >=3.12`. On 3.11 the dependency set cannot install at
+# all, so a gate that admitted 3.11 only moved the failure later, into a
+# pip resolution error nobody would read as a Python-version problem.
+"$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)' \
+  || die "Python $VERSION is too old. CreditProbe needs 3.12 or newer." "Install a newer Python from https://www.python.org/downloads/"
 ok "Python $VERSION"
 
 if [ ! -d .venv ]; then

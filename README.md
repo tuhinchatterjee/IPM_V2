@@ -228,7 +228,7 @@ Three things, once. Install each one and accept all the defaults.
 |---|---|---|---|
 | 1 | **Docker Desktop** — runs the database for you, so you never have to install or configure a database yourself | https://www.docker.com/products/docker-desktop/ | Open it. Wait until it says **Running** in the bottom-left corner. |
 | 2 | **Node.js** (version 20 or newer) — runs the user interface | https://nodejs.org/ (choose the **LTS** version) | Open a terminal and type `node -v`. You should see something like `v22.x.x`. |
-| 3 | **Python** (version 3.11 or newer) — runs the analytics | https://www.python.org/downloads/ | Type `python --version`. You should see `3.11` or higher. |
+| 3 | **Python** (version 3.12 or newer) — runs the analytics | https://www.python.org/downloads/ | Type `python --version`. You should see `3.12` or higher. |
 
 > **Windows users:** when installing Python, tick the box that says
 > **"Add python.exe to PATH"** on the very first screen. It is easy to miss and

@@ -79,7 +79,7 @@ elif [ -x .venv/Scripts/python.exe ]; then
 else
   PYTHON="$(command -v python3 || command -v python || true)"
   [ -n "$PYTHON" ] || die "Python is not installed." \
-    "Install Python 3.11 or newer from https://www.python.org/downloads/"
+    "Install Python 3.12 or newer from https://www.python.org/downloads/"
   warn "No .venv found — using $PYTHON. Create one with:  python -m venv .venv"
 fi
 ok "Python $("$PYTHON" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"

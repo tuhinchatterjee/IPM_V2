@@ -71,7 +71,7 @@ and where it conflicts with the target.
 | 10 | Roles are a single `admin \| analyst` string | No teams, no object-level or data-level permissions. | Users / Teams / Roles / Permissions model with capability, object and data scoping. |
 | 11 | **Dash** is weak for token-streaming chat and for interactive graph editing | The AI Cockpit and Trace are the two most important surfaces in the product, and they are the two Dash handles worst. | See §7. Keep Dash for the near-term demo; put every capability behind an HTTP API so the UI can be replaced without touching the engine. |
 | 12 | Large source workbooks (2.3 MB) committed at the **repository root** | Source data mixed with source code; no raw/curated/analytical separation. | Move to `data/raw/`. |
-| 13 | `requires-python = ">=3.14"` | Narrow; this build environment runs 3.11. | Relax to `>=3.11` unless a 3.14-only feature is genuinely used. |
+| 13 | `requires-python = ">=3.14"` | Narrow; this build environment runs 3.11. | Relax to `>=3.12` unless a 3.14-only feature is genuinely used. **3.12 is the floor, not 3.11:** `requirements.txt` pins `numpy==2.5.0`, which declares `Requires-Python >=3.12`, so a 3.11 floor cannot install its own dependency set. |
 
 **Nothing in §2.1 is deleted.** The migration wraps and re-homes existing code; it does
 not rewrite the working maths.

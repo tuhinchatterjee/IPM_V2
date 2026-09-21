@@ -143,12 +143,56 @@ def test_exact_mean_is_the_same_double_on_every_interpreter():
     assert totals.exact_mean(values) != float(exact / len(values))
 
 
-def test_exact_total_beats_the_naive_sum_where_it_matters():
+def test_exact_total_beats_a_naive_accumulation_where_it_matters():
     """A case built to separate them, so the helper is demonstrably doing
-    something rather than wrapping the builtin."""
+    something rather than wrapping an accumulation.
+
+    THE COMPARATOR IS AN EXPLICIT LEFT FOLD, NOT THE BUILTIN `sum`.
+
+    This test used to assert `sum(values) != 2.0`, which is the very
+    assumption the module it guards exists to distrust. CPython 3.12 gave
+    the builtin Neumaier compensated summation (gh-100425), so from 3.12
+    onwards `sum` returns 2.0 as well and the discriminator silently
+    stopped discriminating: the test still passed on 3.11 while proving
+    nothing, and failed on 3.12 while the code under test was correct.
+
+    It surfaced on the runtime the dependencies actually require -- numpy
+    2.5.0 declares `Requires-Python >=3.12` -- which is where the whole
+    suite has to run.
+
+    `acc += value` is plain IEEE-754 double addition and has never
+    changed in any release. 1.0 is lost twice against 1e16, so the fold
+    lands on 0.0 on every interpreter, and `math.fsum` lands on 2.0 on
+    every interpreter. That is the difference this test is about.
+    """
     values = [1.0, 1e16, 1.0, -1e16]
+
+    naive = 0.0
+    for value in values:
+        naive += value
+
+    assert naive == 0.0
     assert totals.exact_total(values) == 2.0
-    assert sum(values) != 2.0
+    assert totals.exact_total(values) != naive
+
+
+def test_that_guard_fails_against_a_naive_implementation(monkeypatch):
+    """The mutation check.
+
+    A guard nobody has watched fail is a guard whose comparator may simply
+    have stopped comparing -- which is exactly what happened to the
+    version above. Replace `exact_total` with the left fold it is supposed
+    to beat and the assertions must go red.
+    """
+    def naive_total(values):
+        accumulated = 0.0
+        for value in values:
+            accumulated += value
+        return accumulated
+
+    monkeypatch.setattr(totals, "exact_total", naive_total)
+    with pytest.raises(AssertionError):
+        test_exact_total_beats_a_naive_accumulation_where_it_matters()
 
 
 def test_a_mean_of_nothing_is_refused_rather_than_zero():

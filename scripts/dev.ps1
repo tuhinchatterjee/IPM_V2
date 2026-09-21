@@ -71,7 +71,7 @@ if (Test-Path ".venv\Scripts\python.exe") {
     $Python = Join-Path $Root ".venv/bin/python"
 } else {
     $Python = (Get-Command python -ErrorAction SilentlyContinue).Source
-    if (-not $Python) { Die "Python is not installed." "Install Python 3.11 or newer from https://www.python.org/downloads/" }
+    if (-not $Python) { Die "Python is not installed." "Install Python 3.12 or newer from https://www.python.org/downloads/" }
     Warn "No .venv found - using $Python. Create one with:  python -m venv .venv"
 }
 Ok "Python found"
