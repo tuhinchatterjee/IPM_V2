@@ -243,8 +243,11 @@ def test_it_will_not_score_a_run_that_did_not_answer(
 
     first = json.loads(out.read_text(encoding="utf-8"))["questions"][0]
     assert first["passed"] is False
-    assert first["judgement"]["kind"] == "unjudged"
-    assert "no settled answer" in first["judgement"]["why"]
+    assert first["judgement"]["kind"] == "run"
+    assert first["run_id"] == "run-q1"
+    # It IS recorded, because it was really asked and really cost money.
+    # That is the distinction a question never asked does not have.
+    assert first["cost_usd"] == Q1_COST_USD
 
 
 def test_it_matches_the_question_exactly_and_says_how(
@@ -301,3 +304,82 @@ def test_it_merges_and_never_drops_what_it_did_not_judge(
     assert [e["n"] for e in
             json.loads(out.read_text(encoding="utf-8"))["questions"]][:2] == \
         ["1", "2"], "the plan's order was not preserved"
+
+
+# ------------------------------------------- one question, one entry, always
+
+def test_a_recovery_invents_no_entry_for_a_question_never_asked(
+        tmp_path, real_book, monkeypatch) -> None:
+    """A question with no run has no result, and must not be given one.
+
+    The first draft recorded an `unjudged` row for every question the ledger
+    had nothing for. That row is not a preserved record -- nothing was ever
+    recorded to preserve -- it is a fabricated failure, and it was counted
+    against the pass rate and collided with the real answer when the UAT was
+    continued.
+    """
+    database = _settled(tmp_path / "uat.sqlite3",
+                        question=uat.QUESTIONS[0]["ask"],
+                        values=_q1_oracle_values(real_book))
+    out = tmp_path / "live_uat.json"
+
+    _run(monkeypatch, ["--rejudge", "--rejudge-db", str(database),
+                       "--out", str(out), "--env-file", ""])
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert [e["n"] for e in report["questions"]] == ["1"], (
+        "the recovery invented entries for questions that were never asked")
+
+
+def test_continuing_a_uat_replaces_a_question_rather_than_repeating_it(
+) -> None:
+    """The 13-entries-for-12-questions defect, at its mechanism.
+
+    `--rejudge` followed by `run_uat.py --from 2` wrote the re-judge's row
+    for question 2 AND the live run's row for question 2, one saying "no
+    settled answer" and the other carrying the answer that had just been paid
+    for. Both paths appended; neither replaced.
+    """
+    report = {"questions": [
+        {"n": "1", "passed": True},
+        {"n": "2", "passed": False,
+         "judgement": {"kind": "unjudged", "why": "no settled answer"}},
+        {"n": "3", "passed": False}]}
+
+    uat.record_entry(report, {
+        "n": "2", "ask": uat.QUESTIONS[1]["ask"], "passed": False,
+        "cost_usd": 0.26710,
+        "judgement": {"kind": "denomination", "passed": False,
+                      "why": "published SAR 0 million at facility grain"}})
+
+    numbers = [e["n"] for e in report["questions"]]
+    assert numbers == ["1", "2", "3"], f"a question was repeated: {numbers}"
+    second = next(e for e in report["questions"] if e["n"] == "2")
+    assert second["judgement"]["kind"] == "denomination", (
+        "the later result did not supersede the placeholder")
+    assert second["cost_usd"] == 0.26710
+
+
+def test_an_entry_the_plan_no_longer_names_is_kept_at_the_end() -> None:
+    """Merging orders by the plan and drops nothing it did not write."""
+    report = {"questions": [{"n": "99", "passed": True, "ask": "retired"}]}
+    uat.record_entry(report, {"n": "1", "passed": True})
+    assert [e["n"] for e in report["questions"]] == ["1", "99"]
+
+
+def test_the_tally_counts_the_plan_and_not_the_rows() -> None:
+    """"0 of 13 questions passed (12 in the plan)" was the symptom.
+
+    The denominator was the number of rows, so a duplicated row inflated it
+    past the plan. It is now the number of PLAN questions that have a result.
+    """
+    report = {"questions": [
+        {"n": "1", "passed": True},
+        {"n": "2", "passed": False},
+        {"n": "99", "passed": True, "ask": "not in the plan"}]}
+
+    passed, recorded = uat.plan_tally(report)
+
+    assert (passed, recorded) == (1, 2), (
+        "the tally counted a row the plan does not name")
+    assert recorded <= len(uat.QUESTIONS)

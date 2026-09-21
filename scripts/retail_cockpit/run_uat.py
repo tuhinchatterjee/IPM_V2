@@ -548,6 +548,45 @@ def preflight(python: str) -> tuple[bool, str]:
     return done.returncode == 0, (done.stdout or "") + (done.stderr or "")
 
 
+# ------------------------------------------------------ one entry per question
+
+def record_entry(report: dict[str, Any], entry: dict[str, Any]) -> None:
+    """Put this question's result in, REPLACING any earlier one.
+
+    The defect this exists for
+    --------------------------
+    Both paths used to `append`, so a continuation over an evidence file that
+    already mentioned the question wrote a SECOND row for it. A `--rejudge`
+    followed by `run_uat.py --from 2` produced thirteen entries for twelve
+    questions -- the re-judge's row for question 2 and the live run's row for
+    question 2, side by side, one saying "no settled answer" and the other
+    carrying the answer that had just been paid for. The verdict line then
+    counted the rows rather than the plan and reported "0 of 13 questions
+    passed (12 in the plan)".
+
+    A question has one result. Later supersedes earlier, and the order
+    follows the plan rather than the order things happened to be written.
+    """
+    number = str(entry.get("n"))
+    entries = {str(e.get("n")): e for e in report["questions"]}
+    entries[number] = entry
+    order = [str(q["n"]) for q in QUESTIONS]
+    report["questions"] = (
+        [entries[n] for n in order if n in entries]
+        + [e for n, e in entries.items() if n not in order])
+
+
+def plan_tally(report: dict[str, Any]) -> tuple[int, int]:
+    """(passed, recorded) counted against THE PLAN, never against rows.
+
+    The denominator is what the plan asks for. Counting rows let a duplicate
+    row inflate it, which is how "0 of 13 ... (12 in the plan)" was printed.
+    """
+    order = {str(q["n"]) for q in QUESTIONS}
+    recorded = [e for e in report["questions"] if str(e.get("n")) in order]
+    return sum(1 for e in recorded if e.get("passed")), len(recorded)
+
+
 # --------------------------------------------------------------- the rejudge
 
 def _ledger(database: Any) -> Any:
@@ -585,15 +624,25 @@ def settled_run(connection: Any, question: dict[str, Any],
             return None, f"no run {run_id} in this store"
         return dict(row), f"run_id {run_id}, as recorded in the evidence"
 
+    # ANY run of this question, not only a settled one. A run that was
+    # accepted and then failed is a real attempt that may have cost real
+    # money, and leaving it out of the evidence would hide a paid failure;
+    # a question that was never asked has no run at all and gets no entry.
+    # An answered run wins over a failed one whatever their order.
     rows = connection.execute(
-        "SELECT * FROM runs WHERE question=? AND state='COMPLETED'"
-        " AND final_response <> '' ORDER BY created_at DESC",
+        "SELECT * FROM runs WHERE question=? ORDER BY created_at DESC",
         (question["ask"],)).fetchall()
     if not rows:
-        return None, "no settled answer to this question in this store"
-    how = (f"matched on the question text ({len(rows)} settled "
-           f"candidate{'s' if len(rows) != 1 else ''}, newest taken)")
-    return dict(rows[0]), how
+        return None, "never asked: no run of this question in this store"
+    answered = [r for r in rows
+                if str(r["state"]) == "COMPLETED" and r["final_response"]]
+    if answered:
+        how = (f"matched on the question text ({len(answered)} settled "
+               f"candidate{'s' if len(answered) != 1 else ''}, newest taken)")
+        return dict(answered[0]), how
+    return dict(rows[0]), (f"matched on the question text ({len(rows)} run"
+                           f"{'s' if len(rows) != 1 else ''}, none of which "
+                           f"produced an answer; newest taken)")
 
 
 def run_cost_usd(connection: Any, run_id: str) -> float:
@@ -651,13 +700,14 @@ def rejudge(args: Any, report: dict[str, Any], snapshot: Any,
             row, how = settled_run(connection, question,
                                    str(previous.get("run_id") or ""))
             if row is None:
+                # NOT an entry. A question that was never asked has no
+                # result, and manufacturing a row for it puts a fabricated
+                # "unjudged" failure in the evidence -- which then collided
+                # with the real answer when the UAT was continued, and was
+                # counted against the pass rate as though it were a verdict.
+                # An entry the evidence ALREADY holds is left exactly as it
+                # is: this path adds nothing and removes nothing.
                 print(f"[{number}] not judged: {how}")
-                if number not in recorded:
-                    recorded[number] = {
-                        "n": number, "ask": question["ask"],
-                        "settles": question["settles"], "passed": False,
-                        "judged_from": "nothing", "judgement": {
-                            "kind": "unjudged", "passed": False, "why": how}}
                 continue
 
             final = json.loads(row["final_response"] or "{}")
@@ -717,12 +767,12 @@ def rejudge(args: Any, report: dict[str, Any], snapshot: Any,
                               "nothing.")
     report["rejudged_at"] = _now()
     report["rejudged_from"] = str(database)
-    passed = [e for e in report["questions"] if e.get("passed")]
+    passed, recorded_n = plan_tally(report)
     report["stopped_because"] = ""
     report["verdict"] = (
-        f"RE-JUDGED: {len(passed)} of {len(report['questions'])} recorded "
-        f"questions pass ({len(QUESTIONS)} in the plan). No question was "
-        f"asked and nothing was spent.")
+        f"RE-JUDGED: {passed} of {recorded_n} answered questions pass "
+        f"({len(QUESTIONS)} in the plan). No question was asked and nothing "
+        f"was spent.")
     save(recompute=False)
 
     print(f"\n  re-judged {judged} question(s) without a provider call")
@@ -948,7 +998,7 @@ def main() -> int:
             entry = {"n": question["n"], "ask": question["ask"],
                      "accepted": accepted.status_code,
                      "error": accepted.text[:400], "passed": False}
-            report["questions"].append(entry)
+            record_entry(report, entry)
             save()
             stopped = (f"question {question['n']} was not accepted "
                        f"({accepted.status_code})")
@@ -988,7 +1038,7 @@ def main() -> int:
         # raised between building this dict and saving it. The money buys the
         # answer; the judgement is an opinion about it, and an opinion that
         # fails must not be able to destroy the thing it was about.
-        report["questions"].append(entry)
+        record_entry(report, entry)
         save()
 
         if state != "COMPLETED" or not final:
@@ -1050,21 +1100,20 @@ def main() -> int:
             break
 
     report["stopped_because"] = stopped
-    passed = [q for q in report["questions"] if q.get("passed")]
+    passed_n, recorded_n = plan_tally(report)
     if rehearsal:
         # A rehearsal cannot pass or fail the UAT: nothing was answered. What
         # it reports is whether the RUNNER drove all twelve.
-        drove = len(report["questions"])
         report["verdict"] = (
-            f"REHEARSAL: the runner drove {drove} of {len(QUESTIONS)} "
+            f"REHEARSAL: the runner drove {recorded_n} of {len(QUESTIONS)} "
             f"questions. No answer was produced and none was possible.")
     else:
         report["verdict"] = (
-            "UAT PASSED" if not stopped and len(passed) == len(QUESTIONS)
+            "UAT PASSED" if not stopped and passed_n == len(QUESTIONS)
             else "UAT FAILED")
     save()
 
-    print(f"\n  {len(passed)} of {len(report['questions'])} questions passed "
+    print(f"\n  {passed_n} of {recorded_n} answered questions passed "
           f"({len(QUESTIONS)} in the plan)")
     print(f"  spent ${report['spend_this_run_usd']:.4f} this run, "
           f"${report['spend_after_usd']:.4f} recorded in total")
@@ -1077,7 +1126,7 @@ def main() -> int:
             print(f"    - [{entry['n']}] "
                   f"{entry.get('judgement', {}).get('why', 'failed')}")
     if rehearsal:
-        return 0 if len(report["questions"]) == len(QUESTIONS) else 1
+        return 0 if recorded_n == len(QUESTIONS) else 1
     return 0 if report["verdict"] == "UAT PASSED" else 1
 
 
