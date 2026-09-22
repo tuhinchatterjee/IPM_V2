@@ -6,7 +6,7 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 31837,
+      "system_bytes": 32849,
       "message_bytes": 221,
       "tools": [
         {
@@ -21,7 +21,7 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 4,
-      "system_bytes": 38446,
+      "system_bytes": 39400,
       "message_bytes": 167,
       "tools": [
         {
@@ -44,7 +44,7 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 4,
-      "system_bytes": 38450,
+      "system_bytes": 39404,
       "message_bytes": 167,
       "tools": [
         {
