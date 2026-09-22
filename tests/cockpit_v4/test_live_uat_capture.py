@@ -345,9 +345,8 @@ def test_the_declared_mapping_is_the_matrix_and_not_the_claim_ids(uat,
     report = uat.reconcile(_journey(uat), taken, store=store,
                            tenant_id=TENANT)
     assert report["mapping"] == {
-        "key_columns": ["sector"], "key_separator": " / ",
-        "value_columns": ["ead_sar_mn"], "oracle_scale": "1",
-        "tolerance": 0.01,
+        "key_shapes": [["sector"]], "key_separator": " / ",
+        "accepted_values": [["ead_sar_mn", "1"]], "tolerance": 0.01,
         "declared": "in the approved matrix, before the run"}
     # The analyst's claim id is nowhere in the mapping.
     assert "manufacturing_ead" not in repr(report["mapping"])

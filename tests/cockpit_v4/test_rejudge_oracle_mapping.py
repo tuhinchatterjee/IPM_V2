@@ -127,8 +127,8 @@ def test_l12_compares_ead_coverage_across_the_ratio_percent_boundary(
         value_column="cov_on_ead_pct")
     report = _report(uat, store, run_id, journey)
 
-    assert report["mapping"]["oracle_scale"] == "100"
-    assert "cov_on_ead_pct" in report["mapping"]["value_columns"]
+    assert ["cov_on_ead_pct", "100"] in report["mapping"]["accepted_values"]
+    assert report["claims"][0]["oracle_scale"] == "100"
     assert report["checked"] is True
     assert report["ok"] is True, report
     assert report["claims"][0]["ok"] is True
@@ -165,7 +165,7 @@ def test_l08_compares_stage_tenure_under_its_live_alias(uat, index,
         value_column="avg_quarters_in_stage")
     report = _report(uat, store, run_id, journey)
 
-    assert report["mapping"]["oracle_scale"] == "1", "same unit, no scaling"
+    assert report["value_column_used"] == "avg_quarters_in_stage"
     assert report["ok"] is True, report
     assert sorted(report["rows_matched"]) == sorted(truth)
 
@@ -187,7 +187,7 @@ def test_l10_compares_every_product_region_cell(uat, index, tmp_path):
         value_column="ead_sar_mn")
     report = _report(uat, store, run_id, journey)
 
-    assert report["mapping"]["key_columns"] == ["product", "region"]
+    assert ["product", "region"] in report["mapping"]["key_shapes"]
     assert report["ok"] is True, report
     assert len(report["rows_matched"]) == len(truth) > 1
     assert report["rows_missing_from_the_answer"] == []
@@ -272,19 +272,50 @@ def test_an_output_name_nobody_declared_is_not_matched(uat, index, tmp_path):
 # ---- the declarations themselves --------------------------------------
 
 def test_every_repaired_mapping_is_declared_in_the_matrix(index):
-    assert index["L12"].oracle_scale == "100"
-    assert "cov_on_ead_pct" in index["L12"].value_aliases
-    assert index["L11"].oracle_scale == "100"
-    assert "coverage_on_ead_pct" in index["L11"].value_aliases
-    assert index["L08"].oracle_scale == "1"
-    assert "avg_quarters_in_stage" in index["L08"].value_aliases
-    assert index["L10"].key_columns == ("product", "region")
+    assert ("cov_on_ead_pct", "100") in index["L12"].value_scales
+    assert ("coverage_on_ead_pct", "100") in index["L11"].value_scales
+    assert ("avg_quarters_in_stage", "1") in index["L08"].value_scales
+    assert ("product", "region") in index["L10"].key_shapes
     assert index["L10"].key_separator == " / "
 
 
-def test_the_bank_name_is_still_first_in_line(index):
-    """A repaired mapping ADDS names; it does not replace the bank's."""
+def test_the_bank_name_is_first_and_carries_no_conversion(uat, index):
+    """A repaired mapping ADDS names; it does not replace the bank's.
+
+    The bank's own column is the one the oracle was written beside, in the
+    oracle's own unit, so it converts by one. Without that the dry run --
+    which executes the bank's SQL -- would be broken by the repair.
+    """
     for jid in ("L11", "L12", "L08", "L10"):
         journey = index[jid]
-        assert journey.value
-        assert journey.value not in journey.value_aliases
+        accepted = uat.accepted_values_of(journey)
+        assert accepted[0] == (journey.value, "1")
+        assert journey.value not in {n for n, _ in journey.value_scales}
+    # And the bank's own key shape is tried first.
+    assert uat.key_shapes_of(index["L10"])[0] == ("product_region",)
+
+
+def test_the_banks_own_shape_still_reconciles(uat, index, tmp_path):
+    """The dry run runs the bank's SQL. A repair that only understood the
+    live shape would report every dry run not-ok."""
+    journey = index["L11"]
+    truth = journey.oracle()
+    rows = [{"sector": k, "coverage": float(v)}
+            for k, v in sorted(truth.items())]
+
+    store, run_id = _settled(
+        tmp_path / "bank.sqlite3", columns=["sector", "coverage"],
+        rows=rows, value_column="coverage")
+    report = _report(uat, store, run_id, journey)
+
+    assert report["value_column_used"] == "coverage"
+    assert report["ok"] is True, report
+    assert sorted(report["rows_matched"]) == sorted(truth)
+
+
+def test_the_two_shapes_carry_different_conversions(uat, index):
+    """The same journey accepts a proportion column and a percent column,
+    and knows which is which."""
+    accepted = dict(uat.accepted_values_of(index["L11"]))
+    assert accepted["coverage"] == "1"
+    assert accepted["coverage_on_ead_pct"] == "100"
