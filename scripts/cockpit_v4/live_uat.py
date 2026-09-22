@@ -145,6 +145,32 @@ class Journey:
     units: str = ""
     key: str = ""
     value: str = ""
+    # ---- CLOSURE-03: the predeclared join, repaired ---------------------
+    #
+    # The bank's `key` and `value` are the names the BANK's own SQL gives
+    # its columns. A live analyst writes its own SQL and names its own
+    # output, and it is not asked to match: renaming model output to suit
+    # an oracle would be the harness marking its own homework.
+    #
+    # So the matrix declares, BEFORE the run, every governed output name it
+    # will accept for the figure, how to build the oracle's key out of the
+    # output's own key columns, and any fixed conversion between the
+    # oracle's canonical unit and the published one. All three are frozen
+    # here. Nothing is matched by shape, by position or by resemblance at
+    # rejudge time.
+    #: Governed output names this journey accepts for the figure, beyond
+    #: `value`. The first one present in the artifact is used.
+    value_aliases: tuple[str, ...] = ()
+    #: The output columns that together form the oracle's key, for an
+    #: oracle keyed on more than one dimension, and the separator the
+    #: oracle itself puts between them.
+    key_columns: tuple[str, ...] = ()
+    key_separator: str = " / "
+    #: Multiply the ORACLE's value by this to reach the unit the product
+    #: publishes. A coverage oracle computes a proportion of one and the
+    #: governed answer is a percentage: 100, declared, not inferred from
+    #: the size of the numbers.
+    oracle_scale: str = "1"
     tolerance: float = 0.01
     expect_chart: str = ""          # "", "yes", "no"
     expect_clarification: str = ""  # "", "yes", "no"
@@ -176,13 +202,19 @@ def _case_index() -> dict[str, Any]:
 
 
 def _from_case(jid: str, case_id: str, coverage: str, *,
-               expect_chart: str = "", notes: str = "") -> Journey:
+               expect_chart: str = "", notes: str = "",
+               value_aliases: tuple[str, ...] = (),
+               key_columns: tuple[str, ...] = (),
+               key_separator: str = " / ",
+               oracle_scale: str = "1") -> Journey:
     case = _case_index()[case_id]
     return Journey(
         jid=jid, domain_id=case.domain_id, turns=[case.question],
         coverage=coverage, oracle=case.oracle, sql=case.sql,
         fields=tuple(case.fields), grain=case.grain, units=case.units,
         key=case.key, value=case.value, tolerance=case.tolerance,
+        value_aliases=value_aliases, key_columns=key_columns,
+        key_separator=key_separator, oracle_scale=oracle_scale,
         expect_chart=expect_chart, notes=notes or case.notes)
 
 
@@ -196,12 +228,41 @@ def single_turn() -> list[Journey]:
         _from_case("L05", "C10", "concentration", expect_chart="yes"),
         _from_case("L06", "C11", "rating movement"),
         _from_case("L07", "R10", "score movement"),
-        _from_case("L08", "C35", "migration / staging"),
+        _from_case("L08", "C35", "migration / staging",
+                   # CLOSURE-03. `quarters` in the bank's SQL, and the
+                   # first live answer wrote `avg_quarters_in_stage`. Same
+                   # unit, so no conversion.
+                   value_aliases=("avg_quarters_in_stage",
+                                  "average_quarters_in_stage",
+                                  "quarters_in_stage", "avg_quarters")),
         _from_case("L09", "C13", "multi-relation"),
-        _from_case("L10", "R34", "multi-relation, two-key grain"),
-        _from_case("L11", "C05", "ratio and denominator"),
+        _from_case("L10", "R34", "multi-relation, two-key grain",
+                   # CLOSURE-03. The oracle keys on "<product> / <region>"
+                   # because the bank's SQL concatenates them into one
+                   # column. A live analyst returns the two governed
+                   # columns separately, which is the better result and is
+                   # not something to penalise. The composite key is
+                   # declared: these two columns, in this order, joined the
+                   # way the oracle joins them.
+                   key_columns=("product", "region"), key_separator=" / ",
+                   value_aliases=("exposure_sar_mn", "ead_total")),
+        _from_case("L11", "C05", "ratio and denominator",
+                   # CLOSURE-03, as L12: the oracle is a proportion of one
+                   # per sector and the published figure is a percentage.
+                   value_aliases=("coverage_on_ead_pct", "cov_on_ead_pct",
+                                  "coverage_pct", "ecl_coverage_pct"),
+                   oracle_scale="100"),
         _from_case("L12", "R15", "portfolio aggregation, single scalar",
                    expect_chart="no",
+                   # CLOSURE-03. The bank's SQL calls it `coverage`; the
+                   # first live answer called it `cov_on_ead_pct`, and a
+                   # live analyst is entitled to. The oracle computes
+                   # ecl/ead as a PROPORTION (0.0113...) and the governed
+                   # answer is a PERCENTAGE (1.1376...), so the conversion
+                   # is declared rather than guessed from magnitudes.
+                   value_aliases=("cov_on_ead_pct", "coverage_pct",
+                                  "ecl_coverage_pct", "coverage_on_ead_pct"),
+                   oracle_scale="100",
                    notes="A single coverage ratio. A chart of one number is "
                          "decoration: the Round H restraint rule says say it "
                          "and send no chart."),
@@ -637,14 +698,60 @@ def governed_value(claim: dict[str, Any],
         return None, str(exc)
 
 
-def _keyed_rows(record: dict[str, Any], key_column: str,
-                value_column: str) -> dict[str, Any]:
-    """`{key: value}` from one stored artifact, at full precision."""
-    if key_column not in record["columns"] \
-            or value_column not in record["columns"]:
+def value_column_of(record: dict[str, Any],
+                    names: tuple[str, ...]) -> str:
+    """The first DECLARED output name this artifact actually holds."""
+    columns = set(record["columns"])
+    return next((name for name in names if name in columns), "")
+
+
+def key_of(row: dict[str, Any], key_columns: tuple[str, ...],
+           separator: str) -> str:
+    """The oracle's key for one row, built from the declared columns."""
+    return separator.join(str(row.get(column)) for column in key_columns)
+
+
+def _keyed_rows(record: dict[str, Any], key_columns: tuple[str, ...],
+                separator: str, value_names: tuple[str, ...]
+                ) -> dict[str, Any]:
+    """`{key: value}` from one stored artifact, at full precision.
+
+    CLOSURE-03. This used to take ONE key column and ONE value column and
+    return nothing when either name was absent -- so a live answer that
+    named its output `cov_on_ead_pct` instead of `coverage`, or returned
+    `product` and `region` as two columns instead of one concatenation,
+    reconciled zero rows and was reported not-ok while being numerically
+    right. The names it will accept, and the way a composite key is built,
+    are declared on the journey before the run.
+    """
+    value_column = value_column_of(record, value_names)
+    columns = set(record["columns"])
+    if not value_column or not key_columns \
+            or not set(key_columns) <= columns:
         return {}
-    return {str(row.get(key_column)): row.get(value_column)
-            for row in record["rows"]}
+    keyed: dict[str, Any] = {}
+    for row in record["rows"]:
+        key = key_of(row, key_columns, separator)
+        if key in keyed:
+            # TWO ROWS, ONE KEY. The declared key does not identify a row
+            # of this result, so nothing here can be compared against an
+            # oracle keyed that way. Reported, never silently folded.
+            return {"__collision__": key}
+        keyed[key] = row.get(value_column)
+    return keyed
+
+
+def key_columns_of(journey: Journey) -> tuple[str, ...]:
+    """The output columns that carry this journey's oracle key."""
+    if journey.key_columns:
+        return journey.key_columns
+    return (journey.key,) if journey.key else ()
+
+
+def value_names_of(journey: Journey) -> tuple[str, ...]:
+    """Every governed output name the matrix accepts for the figure."""
+    return tuple(dict.fromkeys(
+        x for x in (journey.value, *journey.value_aliases) if x))
 
 
 def _oracle_key_of(ref: dict[str, Any], journey: Journey,
@@ -654,20 +761,22 @@ def _oracle_key_of(ref: dict[str, Any], journey: Journey,
     The claim id is the analyst's word for its own number and is never
     assumed to mean anything. What is trustworthy is the cell the claim
     names: resolve its row against the stored artifact with the product's
-    OWN resolver, then read the key column the matrix declared. A claim
-    bound to r7 of the sector result is about whatever sector is in r7.
+    OWN resolver, then build the key from the columns the matrix declared.
+    A claim bound to r7 of the sector result is about whatever sector is in
+    r7.
     """
     from backend.cockpit_v4 import derivation as deriv
 
     record = artifacts.get(str(ref.get("artifact_id") or ""))
-    if record is None or not journey.key \
-            or journey.key not in record["columns"]:
+    columns = key_columns_of(journey)
+    if record is None or not columns \
+            or not set(columns) <= set(record["columns"]):
         return ""
     index = deriv.row_index_for(str(ref.get("row_key") or ""),
                                 record["rows"])
     if index < 0:
         return ""
-    return str(record["rows"][index].get(journey.key))
+    return key_of(record["rows"][index], columns, journey.key_separator)
 
 
 def _close(left: Any, right: Any, tolerance: float) -> bool:
@@ -693,13 +802,20 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
     if journey.oracle is None:
         return {"has_oracle": False, "checked": False,
                 "why": "graded on behaviour, not on a figure"}
-    mapping = {"key_column": journey.key, "value_column": journey.value,
+    from decimal import Decimal
+
+    key_columns = key_columns_of(journey)
+    value_names = value_names_of(journey)
+    mapping = {"key_columns": list(key_columns),
+               "key_separator": journey.key_separator if key_columns else "",
+               "value_columns": list(value_names),
+               "oracle_scale": journey.oracle_scale,
                "tolerance": journey.tolerance,
                "declared": "in the approved matrix, before the run"}
     if store is None:
         return {"has_oracle": True, "checked": False, "mapping": mapping,
                 "why": "no ledger was supplied to read the governed values"}
-    if not journey.value:
+    if not value_names:
         return {"has_oracle": True, "checked": False, "mapping": mapping,
                 "why": "the matrix declares no value column for this journey"}
     try:
@@ -710,15 +826,32 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
 
     artifacts = evidence_artifacts(store, taken, tenant_id)
     scalar = not isinstance(expected, dict)
-    truth = {"": expected} if scalar else {str(k): v
-                                           for k, v in expected.items()}
+    # THE DECLARED CONVERSION, applied to the ORACLE and never to the
+    # published figure. A coverage oracle computes a proportion of one; the
+    # governed answer is a percentage. Which one is scaled matters: the
+    # published number is evidence and is not adjusted to fit.
+    scale = Decimal(journey.oracle_scale)
+    truth = ({"": Decimal(str(expected)) * scale} if scalar else
+             {str(k): Decimal(str(v)) * scale for k, v in expected.items()})
 
     # -- the rows the answer published, from the artifacts themselves ----
+    #
+    # WHENEVER A ROW-LEVEL ORACLE IS DECLARED, THESE ARE THE COMPARISON.
+    # The claims below are an additional check on what the prose asserted;
+    # they are not a substitute for the rows, and a keyed journey whose
+    # rows could not be read is not reconciled however many claims agreed.
     rows: dict[str, Any] = {}
+    collision = ""
     for record in artifacts.values():
         if scalar:
             continue
-        rows.update(_keyed_rows(record, journey.key, journey.value))
+        found = _keyed_rows(record, key_columns, journey.key_separator,
+                            value_names)
+        if "__collision__" in found:
+            collision = str(found["__collision__"])
+            rows = {}
+            break
+        rows.update(found)
     row_matches = {k: _close(v, truth[k], journey.tolerance)
                    for k, v in rows.items() if k in truth}
     missing_keys = sorted(set(truth) - set(rows)) if not scalar else []
@@ -750,7 +883,7 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
         # columns and is a different number from the one under test.
         columns = claim_columns(claim)
         entry["columns_read"] = columns
-        on_the_measure = bool(columns) and all(c == journey.value
+        on_the_measure = bool(columns) and all(c in value_names
                                                for c in columns)
         oracle_key = ("" if scalar or entry["kind"] == "derived"
                       else _oracle_key_of(ref, journey, artifacts))
@@ -764,27 +897,36 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
             entry["ok"] = None
             entry["why"] = why or (
                 f"this claim reads {columns or ['nothing']}, and the matrix "
-                f"declares the figure under test is in {journey.value!r}"
+                f"declares the figure under test is in one of "
+                f"{list(value_names)}"
                 if not on_the_measure else
                 "no oracle entry is bound to this claim's evidence row")
         claims.append(entry)
 
     graded = [c for c in claims if c.get("ok") is not None]
+    rows_ok = bool(row_matches) and all(row_matches.values()) \
+        and not missing_keys
+    if scalar:
+        # No rows to key. The claims ARE the comparison.
+        verdict = bool(graded) and all(c["ok"] for c in graded)
+    else:
+        # A row-level oracle: the artifact rows decide, and the claims must
+        # not contradict them.
+        verdict = rows_ok and all(c["ok"] for c in graded)
     return {
         "has_oracle": True, "checked": True, "mapping": mapping,
-        "expected": truth if scalar else {k: str(v) for k, v in truth.items()},
+        "expected": {k: str(v) for k, v in truth.items()},
         "published_rows": {k: str(v) for k, v in rows.items()},
         "rows_matched": sorted(k for k, ok in row_matches.items() if ok),
         "rows_mismatched": sorted(k for k, ok in row_matches.items()
                                   if not ok),
         "rows_missing_from_the_answer": missing_keys,
+        "key_collision": collision,
         "claims": claims,
         "claims_compared": len(graded),
         "claims_not_compared": [c["claim_id"] for c in claims
                                 if c.get("ok") is None],
-        "ok": (bool(row_matches) or bool(graded))
-              and not any(not ok for ok in row_matches.values())
-              and all(c["ok"] for c in graded),
+        "ok": verdict,
     }
 
 
