@@ -247,3 +247,47 @@ Tested at `da974348` before anything changed: **not** already fixed.
 and UNKNOWN carries two decimal places. A unit no table spells is now read
 from its words, and a phrase whose words disagree stays UNKNOWN rather than
 being guessed.
+
+
+---
+
+# L08 — comparison precision
+
+The second offline rejudge returned `reconciled_ok` for L01, L02, L04, L05,
+L10, L11, L12 and L17, and `reconciled_not_ok` for L15 and **L08**.
+
+L15 is expected: that paid run published no analytical result.
+
+L08 is not a portfolio-number error. The analyst's own SQL computed
+`ROUND(AVG(quarters_in_stage), 2)`, so the authoritative artifact holds two
+decimals and nothing finer, while the oracle recomputes from the parquet at
+full double precision:
+
+| stage | oracle | published | delta |
+|---|---|---|---|
+| 1 | 16.620207108872098 | 16.62 | 0.0002071 |
+| 2 | 6.096634281748786 | 6.10 | 0.0033657 |
+| 3 | 5.699785177228787 | 5.70 | 0.0002148 |
+
+Every one is inside half a unit in the second decimal place, and the matrix
+declared a 1e-6 **relative** tolerance. Asking that artifact for six
+decimals is a question about the artifact, not about the analysis.
+
+The matrix now declares `comparison_decimals=2` for this figure, before the
+run, as a property of what a tenure in quarters is — quarters and hundredths
+of a quarter; a third decimal is under a day. The case's own 1e-6 tolerance
+is untouched and still governs every other journey, and L08 is the only
+journey that declares a precision.
+
+The rule is half a unit in the last declared place of the exact oracle — the
+interval any correct rounding to that precision lands in, whichever way the
+database breaks a tie. Measured at the boundary: 6.1016 in, 6.1017 out,
+6.0917 in, 6.0916 out.
+
+**The distinction is published, not absorbed.** Every reconciliation report
+carries `comparison_basis` (`declared_precision` or `relative_tolerance`),
+`comparison_precision` and the reason, and the rejudge summary lists
+`reconciled_at_declared_precision` beside `reconciled_ok`. A pass at a
+declared precision is a weaker statement than a pass against the exact
+oracle, and a report that did not say so would be hiding that the submitted
+SQL rounded.
