@@ -572,6 +572,21 @@ PRESENTATION: dict[str, Any] = {
         "shows what the rows would make the reader work out -- a ranking, "
         "a movement, a concentration, a migration, a spread -- and leave "
         "it out when it would only repeat a small table."),
+    # CLOSURE-04. The two blocks above answer "does this result have a
+    # shape?" with a list of shapes, and an ORDERED DISTRIBUTION is not
+    # obviously any of them: a delinquency mix is not a ranking (the order
+    # is the bucket's, not the measure's), not a movement, and not a
+    # concentration. The first live UAT returned a correct delinquency
+    # table with no chart for exactly that reason. It is named here, as a
+    # kind of shape, rather than as a rule about delinquency.
+    "an_ordered_distribution_has_a_shape": (
+        "A measure spread across a set of bands that have a natural ORDER "
+        "-- delinquency buckets, rating grades, IFRS 9 stages, tenor "
+        "bands, vintages, score bands -- has a shape even when no bucket "
+        "stands out, because where the weight sits ALONG that order is the "
+        "finding. Several such bands normally read better drawn than "
+        "listed. The order is the axis, so draw it as a sequence or as a "
+        "composition of one whole, not as a ranking by size."),
     "say_why_in_one_line": (
         "Put that reason in `why_this_chart`: the reader's question this "
         "form answers. It is published with the chart and appears in the "
