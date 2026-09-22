@@ -163,3 +163,87 @@ established here.
 `D-003` — `catalog._SESSIONS` evicts the session it is about to return.
 Pre-existing, reproducible on a clean `ac315dd`, out of this round's scope on
 instruction.
+
+
+---
+
+# Offline rejudge closure
+
+The repaired rejudge was run against the real preserved 28-run evidence and
+surfaced four more items.
+
+## CLOSURE-01 — a facility count published as a borrower count
+
+L18's result was right: one row per borrower, 5,412 of them. The narrative
+said "2 borrowers carry facilities in 2026Q2" from a claim whose unit was
+`borrowers`, whose operation was `identity`, and whose cell was
+`facility_count` at r0. The first borrower held two facilities.
+
+`da974348` blocks no part of it: that fix governs operations which CHANGE a
+unit, `identity` preserves it, and both values are COUNT class. Nothing
+asked WHAT WAS BEING COUNTED. `display.entity_of` now answers that from the
+words of a phrase, and the finalizer refuses a claim whose unit names one
+entity while the column it reads names another — for a direct cell and for
+a derivation's operands alike.
+
+The refusal names the governed alternatives, and one of them did not work:
+`count` converted every cell to a Decimal, so counting borrowers over
+`borrower_name` failed with *"'Tuwaiq Gulf Energy' is not a number this can
+compute with"*. `count` now resolves without converting.
+
+**L18's UAT wording is revised.** A correct first submission is a pass. The
+old wording read as requiring a failed attempt, which tests nothing.
+
+## CLOSURE-02 — a movement described backwards
+
+M04's final turn said past-due exposure went "from 8.08% of exposure to
+8.42%" and then that "it has actually eased slightly".
+
+`_check_movement` reads nothing about the analysis. It takes one sentence
+naming a start and an end figure *through the claims the server computed*
+and refuses it when the direction word contradicts the arithmetic. It fires
+only on a sentence with exactly two numeric claims in the same unit, one
+after "from" and one after "to", and direction words of exactly one sense.
+"deteriorated" and "improved" are not in the vocabulary: the same word means
+opposite arithmetic on ECL and on coverage.
+
+## CLOSURE-03 — four false negatives in the oracle join
+
+`reconciled_not_ok` listed L15, L12, L11, L08, L10. Only **L15** is a real
+failure — that run published nothing.
+
+| | declared | published |
+|---|---|---|
+| L12 | `coverage` | `cov_on_ead_pct`, and a percentage against a proportion |
+| L11 | `coverage` | `coverage_on_ead_pct`, same conversion |
+| L08 | `quarters` | `avg_quarters_in_stage` |
+| L10 | key `product_region` | two governed columns, `product` and `region` |
+
+The matrix now declares every governed name it accepts for the figure, the
+conversion **each one** carries, and the key shapes a result may take —
+frozen before the run, never matched by resemblance afterwards. The
+conversion belongs to the column and not to the journey: the bank's own
+`coverage` IS the oracle's proportion and converts by one, while
+`cov_on_ead_pct` converts by a hundred. A journey-wide scale reconciled the
+live answer by breaking every dry run, which is how that was found.
+
+Where a row-level oracle is declared, **the artifact rows are the
+comparison**. A keyed journey whose rows could not be read is not
+reconciled however many prose claims agreed.
+
+## CLOSURE-04 — a correct table with no chart
+
+L04 returned exposure by delinquency bucket and drew nothing. The answer-turn
+guidance asks "does this result have a shape?" and lists a ranking, a
+movement, a concentration, a migration, a spread. An ordered distribution is
+none of them. It is now named as a kind of shape — bands with a natural
+order, where the weight along that order is the finding — with the form it
+takes. The restraint rule is untouched: one figure still has no shape.
+
+## Count formatting
+
+Tested at `da974348` before anything changed: **not** already fixed.
+`classify` was an exact-string lookup, `"facility records"` is not a key,
+and UNKNOWN carries two decimal places. A unit no table spells is now read
+from its words, and a phrase whose words disagree stays UNKNOWN rather than
+being guessed.
