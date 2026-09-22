@@ -202,6 +202,7 @@ def test_the_canonical_values_are_untouched(published):
     ("difference", 2),
     ("ratio", 0), ("percentage", 0), ("percentage_change", 0),
     ("share_of_total", 0), ("count", 0), ("rank", 0),
+    ("result_rows", 0),
     ("weighted_average", 1),
 ])
 def test_which_operations_carry_their_unit_onto_their_operands(operation,
@@ -216,12 +217,21 @@ def test_which_operations_carry_their_unit_onto_their_operands(operation,
 
 def test_every_operation_is_classified():
     """A new operation must be decided about, not defaulted."""
-    unpreserving = (deriv.FRACTION_OPERATIONS | deriv.PERCENT_OPERATIONS
-                    | {deriv.COUNT, deriv.RANK})
     classified = (deriv.UNIT_PRESERVING_OPERATIONS
-                  | deriv.FIRST_OPERAND_CARRIES_THE_UNIT | unpreserving)
+                  | deriv.FIRST_OPERAND_CARRIES_THE_UNIT
+                  | deriv.UNIT_CHANGING_OPERATIONS)
     assert set(deriv.OPERATIONS) == classified, (
         f"unclassified: {set(deriv.OPERATIONS) - classified}")
+
+
+def test_the_three_classes_do_not_overlap():
+    """One operation, one answer to 'is my operand in my unit?'."""
+    sets = (deriv.UNIT_PRESERVING_OPERATIONS,
+            deriv.FIRST_OPERAND_CARRIES_THE_UNIT,
+            deriv.UNIT_CHANGING_OPERATIONS)
+    for i, left in enumerate(sets):
+        for right in sets[i + 1:]:
+            assert not (left & right), (left & right)
 
 
 # ---- the mutation check ------------------------------------------------

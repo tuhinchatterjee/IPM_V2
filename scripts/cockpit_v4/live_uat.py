@@ -1163,6 +1163,138 @@ def run_turn(store, runtime, *, thread_id: str, domain_id: str,
     return outcome, record.run_id, latency_ms
 
 
+# ---- why an answer was refused, from the ledger --------------------------
+
+def refusals(store, run_id: str) -> list[dict[str, Any]]:
+    """Every answer this run SENT, and exactly what was said back.
+
+    The store keeps the analyst's canonical conversation, so a finalize
+    payload that was refused is still there in full, and so is the tool
+    result that refused it. A PARTIAL state says an answer could not be
+    validated; this says which answer and which sentence.
+
+    Read-only, and no provider: it is the messages table and nothing else.
+    """
+    out: list[dict[str, Any]] = []
+    pending: dict[str, dict[str, Any]] = {}
+    for message in store.load_messages(run_id):
+        for part in message.get("content") or []:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "tool_use" \
+                    and part.get("name") == "finalize_response":
+                pending[str(part.get("id") or "")] = {
+                    "attempt": len(out) + 1,
+                    "tool_use_id": str(part.get("id") or ""),
+                    "payload": part.get("input"),
+                }
+            if part.get("type") != "tool_result":
+                continue
+            entry = pending.pop(str(part.get("tool_use_id") or ""), None)
+            if entry is None:
+                continue
+            try:
+                body = json.loads(part["content"]) \
+                    if isinstance(part.get("content"), str) \
+                    else part.get("content")
+            except (TypeError, ValueError):
+                body = {"unparsed": part.get("content")}
+            entry["status"] = str((body or {}).get("status") or "")
+            entry["problems"] = list((body or {}).get("problems") or ())
+            entry["warnings"] = list((body or {}).get("warnings") or ())
+            entry["error_code"] = str((body or {}).get("error_code") or "")
+            entry["what_to_do"] = str((body or {}).get("what_to_do") or "")
+            out.append(entry)
+    out += list(pending.values())
+    return out
+
+
+def explain(ledger: Path, *, out: Path, tenant_id: str,
+            only: list[str] | None = None) -> int:
+    """Dump every refused answer in a settled ledger, with its reason.
+
+    Offline. The provider is sealed exactly as it is for a rejudge, the
+    preserved file is never opened -- a byte copy is -- and its digest is
+    compared before and after.
+    """
+    import hashlib
+    import shutil
+    import tempfile
+
+    from backend.cockpit_v4.run_store import RunStore
+
+    if not ledger.exists():
+        print(f"no such ledger: {ledger}")
+        return 2
+    before = hashlib.sha256(ledger.read_bytes()).hexdigest()
+    restore = seal_the_provider()
+    workspace = Path(tempfile.mkdtemp(prefix="cockpit_v4_explain_"))
+    working = workspace / ledger.name
+    try:
+        shutil.copy2(ledger, working)
+        for suffix in ("-wal", "-shm"):
+            sidecar = ledger.with_name(ledger.name + suffix)
+            if sidecar.exists():
+                shutil.copy2(sidecar, working.with_name(working.name + suffix))
+        store = RunStore(working)
+        wanted = {x.strip() for x in (only or []) if x.strip()}
+        runs: list[dict[str, Any]] = []
+        for _thread_id, run_id in _ledger_runs(store):
+            record = store.get_run(run_id)
+            question = str(getattr(record, "question", ""))
+            if wanted and run_id not in wanted \
+                    and not any(w.lower() in question.lower()
+                                for w in wanted):
+                continue
+            answer = published_answer(record)
+            runs.append({
+                "run_id": run_id,
+                "question": question,
+                "state": str(getattr(record, "state", "")),
+                "error_code": str(getattr(record, "error_code", "") or ""),
+                "result_only": bool(answer.get("result_only")),
+                "result_only_reason": answer.get("result_only_reason", ""),
+                "evidence_bound": bool(answer.get("evidence_bound")),
+                "validation": dict(answer.get("validation") or {}),
+                "artifacts": [
+                    {"artifact_id": a,
+                     "columns": (store.get_artifact(a, tenant_id=tenant_id)
+                                 or {}).get("columns"),
+                     "rows_held": len((store.get_artifact(
+                         a, tenant_id=tenant_id) or {}).get("rows") or ()),
+                     "scope": (store.get_artifact(a, tenant_id=tenant_id)
+                               or {}).get("scope")}
+                    for a in store.artifact_ids_for_run(
+                        run_id, tenant_id=tenant_id)],
+                "answers_sent": refusals(store, run_id),
+            })
+        after = hashlib.sha256(ledger.read_bytes()).hexdigest()
+        if after != before:
+            print(f"REFUSED: {ledger} changed while being read")
+            return 1
+        body = {"label": "REFUSED ANSWERS, READ FROM A SETTLED LEDGER · "
+                         "NO PROVIDER CALL",
+                "source_ledger": str(ledger),
+                "source_ledger_sha256": before,
+                "provider_doors_sealed": [f"{m}.{a}"
+                                          for m, a in PROVIDER_DOORS],
+                "runs": runs}
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(body, indent=2, default=str) + "\n",
+                       encoding="utf-8")
+        refused = sum(1 for r in runs
+                      for a in r["answers_sent"] if a.get("problems"))
+        print(f"{len(runs)} run(s); {refused} refused answer(s)")
+        print(f"source ledger unchanged: sha256 {before}")
+        print("NO PROVIDER CALL WAS MADE")
+        print(f"written to {out}")
+        return 0
+    finally:
+        for module, attribute, original in restore:
+            setattr(module, attribute, original)
+        shutil.rmtree(workspace, ignore_errors=True)
+
+
 # ---- offline rejudge of a settled first pass ----------------------------
 
 #: Everything a provider could be built from. Rejudge replaces each one with
@@ -1535,11 +1667,29 @@ def main() -> int:
     parser.add_argument("--first-pass", default="",
                         help="the preserved first-pass evidence JSON, "
                              "hashed into the rejudge for provenance")
+    parser.add_argument("--explain", default="",
+                        help="dump every refused answer in an ALREADY "
+                             "SETTLED ledger, with the exact payload sent "
+                             "and the exact validator problems; offline")
     parser.add_argument("--queue", default="",
                         help="the order the recorded threads were executed "
                              "in, so two journeys that ask the same question "
                              "can be told apart by position")
     args = parser.parse_args()
+
+    if args.explain:
+        if args.live or args.dry_run:
+            print("--explain is offline; do not pass --live or --dry-run")
+            return 2
+        from backend.cockpit_v4 import lake as lake_mod
+
+        out = Path(args.out) if args.out else (
+            ROOT / "docs" / "cockpit_v4" / "evidence" /
+            "live_uat_refused_answers.json")
+        return explain(
+            Path(args.explain).expanduser(), out=out,
+            tenant_id=lake_mod.DEFAULT_TENANT,
+            only=[x.strip() for x in args.only.split(",") if x.strip()])
 
     if args.rejudge:
         if args.live or args.dry_run:

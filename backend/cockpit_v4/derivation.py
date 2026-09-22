@@ -64,6 +64,7 @@ MIN = "min"
 MAX = "max"
 COUNT = "count"
 RANK = "rank"
+RESULT_ROWS = "result_rows"
 
 #: operation -> (operand count, one-line meaning). The arity is part of the
 #: contract: an operation given the wrong number of operands is refused
@@ -88,6 +89,9 @@ OPERATIONS: dict[str, tuple[int, str]] = {
                        "rows in the same order"),
     RANK: (2, "the 1-based position of the first operand's single cell "
               "within the second operand's cells, largest first"),
+    RESULT_ROWS: (1, "how many rows the referenced result PRODUCED, "
+                     "published or not; send rows='all' and the column "
+                     "that identifies what each row is"),
 }
 
 #: WHOSE UNIT IS THE RESULT'S UNIT.
@@ -111,6 +115,15 @@ UNIT_PRESERVING_OPERATIONS = frozenset({IDENTITY, SUM, MIN, MAX, DIFFERENCE})
 #: others do not. A weighted average is in the unit of its values; its
 #: weights are whatever they weigh by.
 FIRST_OPERAND_CARRIES_THE_UNIT = frozenset({WEIGHTED_AVERAGE})
+
+
+#: Operations whose result is in a unit of its OWN, whatever its operands
+#: are measured in. Declared rather than derived by subtraction, so a new
+#: operation has to be decided about here and `test_units_across_kinds`
+#: fails until it is.
+UNIT_CHANGING_OPERATIONS = frozenset({
+    RATIO, PERCENTAGE, PERCENTAGE_CHANGE, SHARE_OF_TOTAL, COUNT, RANK,
+    RESULT_ROWS})
 
 
 def operands_in_the_result_unit(derivation: "Derivation") -> tuple[CellSet, ...]:
@@ -373,9 +386,12 @@ def _incomplete(record: dict[str, Any], artifact_id: str, *,
         return (f"{label} says 'every row' of artifact {artifact_id!r}, but "
                 f"that result produced {int(produced):,} rows and only "
                 f"{held:,} of them were published. A total over part of a "
-                f"result is not that result's total: either narrow the "
-                f"query so the whole result fits, or name in 'row_ids' the "
-                f"rows you actually mean.")
+                f"result is not that result's total: narrow the query so "
+                f"the whole result fits, or name in 'row_ids' the rows you "
+                f"actually mean, or -- if what you want is HOW MANY ROWS "
+                f"the result had -- use the 'result_rows' operation, which "
+                f"reads the {int(produced):,} CreditProbe recorded when it "
+                f"ran the query.")
     return (f"{label} says 'every row' of artifact {artifact_id!r}, which "
             f"does not record whether it holds its whole result. Name the "
             f"rows you mean in 'row_ids'.")
@@ -496,9 +512,58 @@ def compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
     return plain(_compute(derivation, artifacts, label=label))
 
 
+def _result_rows(cells: CellSet, artifacts: dict[str, dict[str, Any]], *,
+                 label: str) -> Decimal:
+    """HOW MANY ROWS THE RESULT HAD, from the server's own record of it.
+
+    A SQL result past the preview cap is clipped before it is stored, and
+    `_incomplete` rightly refuses a total over the part that was kept. But
+    the SIZE of the whole result is a fact CreditProbe measured when it ran
+    the query and wrote onto the artifact, and until this existed there was
+    no way for an answer to say it.
+
+    The live UAT found that the hard way. Asked for average utilisation and
+    facility count "for each borrower", the analyst produced a correct
+    5,412-row result of which 100 were published, wanted to say how many
+    borrowers that was, and had nowhere to get the number: `rows='all'` is
+    refused because the artifact holds a prefix, and counting the published
+    rows answers 100. Both permitted attempts went on discovering that, and
+    the run fell back to publishing rows with no explanation.
+
+    The figure is the SERVER'S. The analyst names the artifact and the
+    column that says what a row is -- which is what keeps the entity check
+    meaningful -- and CreditProbe supplies the count.
+    """
+    record = artifacts.get(cells.artifact_id)
+    if record is None:
+        raise DerivationError(
+            f"{label} references artifact {cells.artifact_id!r}, which this "
+            f"run did not produce or which is not available to you.")
+    if cells.column_id not in record["columns"]:
+        raise DerivationError(
+            f"{label} names column {cells.column_id!r}, which is not in "
+            f"artifact {cells.artifact_id!r}. Its columns are "
+            f"{record['columns']}.")
+    if not cells.all_rows:
+        raise DerivationError(
+            f"{label} uses 'result_rows', which counts the WHOLE result and "
+            f"not a selection of it. Send rows='all'.")
+    scope = record.get("scope") or {}
+    produced = scope.get("produced_rows")
+    if produced is None:
+        if scope.get("complete") is True:
+            return Decimal(len(record.get("rows") or ()))
+        raise DerivationError(
+            f"{label} asks how many rows artifact {cells.artifact_id!r} "
+            f"produced, and that artifact does not record it.")
+    return Decimal(int(produced))
+
+
 def _compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
              label: str) -> Decimal:
     operation = derivation.operation
+    if operation == RESULT_ROWS:
+        return _result_rows(derivation.operands[0], artifacts, label=label)
     resolved = [
         _resolve(cells, artifacts,
                  label=(f"{label} operand {i + 1}" if len(derivation.operands)
@@ -605,8 +670,8 @@ def unit_problem(derivation: Derivation, unit: str) -> str:
                 f"proportion of one, so its unit cannot be {unit!r}. Use "
                 f"'percentage' as the operation, or state the unit as a "
                 f"ratio.")
-    if derivation.operation == COUNT and (lowered in PERCENT_UNITS
-                                          or lowered in FRACTION_UNITS):
+    if derivation.operation in (COUNT, RESULT_ROWS) \
+            and (lowered in PERCENT_UNITS or lowered in FRACTION_UNITS):
         return f"a count is not measured in {unit!r}."
     return ""
 
