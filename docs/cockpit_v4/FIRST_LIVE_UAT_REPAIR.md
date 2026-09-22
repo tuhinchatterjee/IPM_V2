@@ -437,6 +437,29 @@ whether a live `claude-opus-5`, sent the corrected context, asks on M06 turn
 1 and binds `result_rows` on L18. That is a behavioural question and it is
 the only one left open.
 
+## Verification
+
+Run at `353ab96`.
+
+| Suite | Result | Wall |
+|---|---|---|
+| `tests/cockpit_v4` + `tests/frontend` | 3367 passed, 4 skipped, 0 failed | 15m 45s |
+| `tests/cockpit_agentic` (V3) | 564 passed, 26 skipped, 0 failed | 2m 09s |
+
+The four skips are the round's own four; none is new and no test was turned
+into one. V3 is unchanged at 564/26 — nothing outside `backend/cockpit_v4`
+was touched, and no frontend file changed at all.
+
+A note on one number, because it was wrong before it was right: the V3 suite
+first came back `1 failed` on
+`test_the_namespace_is_where_the_release_actually_goes`. That was the
+harness, not the code — the run still had `COCKPIT_AGENTIC_V3_NAMESPACE`
+pointing at `cockpit_v4`, which is precisely what that test checks. Run
+without it, the file is 21/21 and the suite is 564/26.
+
+Ruff on every changed file reports the same findings as the commit this
+round started from, and none on the new test file.
+
 ## Out of scope, still logged
 
 `D-003` — `catalog._SESSIONS` evicts the session it is about to return.
