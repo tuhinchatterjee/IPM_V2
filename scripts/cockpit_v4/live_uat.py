@@ -504,21 +504,29 @@ def chains() -> list[Journey]:
         # Turn 1 is the proven blocking ambiguity (L19). The governed
         # readings are `ead_sar_mn`, `limit_sar_mn` and `drawn_sar_mn`, so
         # "Exposure at default" IS one of the choices on the table rather
-        # than a new request that happens to name a measure. Turns 3 and 4
-        # then narrow within the reading turn 2 chose.
+        # than a new request that happens to name a measure. Turn 3 then
+        # narrows within the reading turn 2 chose.
+        #
+        # THREE TURNS. The chain was authored with a fourth ("And how much
+        # of that is Stage 2?") and the approved paid retest ran three, so
+        # the fourth was never executed and the note claimed a turn that
+        # does not exist. Narrowing once is what this chain is for --
+        # whether the chosen reading survives a follow-up -- and a second
+        # narrowing tests nothing the first does not.
         Journey("M06", dom.CORPORATE,
                 ["Which sectors have the largest exposure?",
                  "Exposure at default",
-                 "Just the top five by that measure",
-                 "And how much of that is Stage 2?"],
+                 "Just the top five by that measure"],
                 "clarification answered, then narrowing",
                 expect_clarification="yes",
-                notes="Turn 1 must ask. Turn 2 must be read as ANSWERING "
-                      "it -- the question stands, with exposure now fixed "
-                      "to EAD -- and not as a new question about EAD. The "
-                      "history projection must carry `you_asked` so the "
-                      "analyst does not have to guess what three words "
-                      "mean. Turns 3 and 4 must inherit that reading."),
+                notes="Turn 1 must ask: the question names no clause, and "
+                      "the three governed readings of \"exposure\" rank the "
+                      "sectors differently. Turn 2 must be read as "
+                      "ANSWERING it -- the question stands, with exposure "
+                      "now fixed to EAD -- and not as a new question about "
+                      "EAD. The history projection must carry `you_asked` "
+                      "so the analyst does not have to guess what three "
+                      "words mean. Turn 3 must inherit that reading."),
         # M07: THE CONTROL. A genuinely new question after a clarification.
         #
         # Turn 1 asks the same thing. Turn 2 changes the subject to a

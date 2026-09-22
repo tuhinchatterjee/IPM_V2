@@ -18,6 +18,7 @@ packet tells the analyst which fields to use or what method to apply.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -673,7 +674,9 @@ PRESENTATION: dict[str, Any] = {
 
 def finalization_system(system_blocks: list[dict[str, Any]], *,
                         domain_id: str = "",
-                        question: str = "") -> list[dict[str, Any]]:
+                        question: str = "",
+                        undecided: Sequence[str] = ()
+                        ) -> list[dict[str, Any]]:
     """The system context a turn needs when its job is to WRITE THE ANSWER.
 
     The starting context is built for AUTHORING an analysis: the catalogue
@@ -727,7 +730,8 @@ def finalization_system(system_blocks: list[dict[str, Any]], *,
         ANALYTICAL_ANSWER, ensure_ascii=False)})
     kept.append({"type": "text", "text": json.dumps(
         PRESENTATION, ensure_ascii=False)})
-    kept += policy_blocks(domain_id=domain_id, question=question)
+    kept += policy_blocks(domain_id=domain_id, question=question,
+                          undecided=undecided)
     return kept
 
 
@@ -744,9 +748,65 @@ POLICY_RULE = (
     "figure, as an artifact cell is for a portfolio figure, and an uncited "
     "threshold reads as governance without being governed. Never say this "
     "book records no policy on something without reading what is here. "
-    "Where a clause settles a term -- which measure a limit is tested on, "
-    "for instance -- that term is settled, and treating it as open invents "
-    "an ambiguity the policy has already closed.")
+    "A definition inside a clause governs THAT CLAUSE'S OWN TEST. It does "
+    "not decide which measure a question that is not asking to apply it "
+    "means: where the question names no clause and two governed readings "
+    "would rank or total the book differently, that is a real ambiguity "
+    "and the reader chooses, not the pack.")
+
+#: AND THE OTHER HALF, sent only when the question reached a clause.
+#:
+#: The paid retest asked "Which sectors have the largest exposure?" -- a
+#: generic ranking question that names no limit and no clause, and whose
+#: three governed readings (`ead_sar_mn`, `limit_sar_mn`, `drawn_sar_mn`)
+#: order the sectors differently. `cp.retrieve` returns nothing for it. The
+#: synopsis is attached anyway, as it must be, and it carries CP-1.1 --
+#: "Exposure is measured as EAD, funded and unfunded together" -- because
+#: that is the rule CP-1.1's own breach test runs on.
+#:
+#: `POLICY_RULE` then said, unconditionally, that a term a clause settles is
+#: settled and that treating it as open "invents an ambiguity the policy has
+#: already closed". So the one turn whose entire job was to put the question
+#: back to the reader was handed a rule telling it the question was invented.
+#: It stopped asking, and the reader got one of three answers with no way to
+#: know which.
+#:
+#: The distinction is not about exposure, CP-1.1 or sectors. A policy
+#: definition settles terminology for the TEST IT DEFINES -- which the
+#: reader has invoked when the question reaches that clause -- and settles
+#: nothing for a data-analysis question that never invoked it. The server
+#: already decides that deterministically: `cp.retrieve` returns the clauses
+#: the question names, in the reader's own words. When it returns none,
+#: nothing was invoked and this sentence is not sent at all.
+POLICY_SETTLES_THE_TERM = (
+    "This question reaches the clauses attached here, so it is asking to "
+    "apply them. Where one of them settles a term -- which measure its "
+    "limit is tested on, for instance -- that term is settled FOR THIS "
+    "TEST, and treating it as open invents an ambiguity the policy has "
+    "already closed.")
+
+#: AND THE GUARD ON THAT, for the case retrieval gets generous.
+#:
+#: Retrieval matches a clause on the reader's own topic words, which is what
+#: lets "single name" reach CP-1.1 without the reader knowing a clause id.
+#: The same generosity reaches a clause from a question that merely uses a
+#: policy word in passing -- "What is our concentration by sector?" reaches
+#: CP-1.2 -- and there the sentence above would close a reading the reader
+#: has not settled.
+#:
+#: So it is sent only when the server ALSO has nothing open. `readiness`
+#: names the governed terms this question leaves undecided, deterministically
+#: and before any model call, and an undecided term is precisely "an
+#: alternative that can change the answer". When the server is still holding
+#: one, no clause gets to close it quietly; the analyst is told which term,
+#: and told to ask.
+POLICY_DOES_NOT_CLOSE_AN_OPEN_READING = (
+    "These clauses are here because the question names their topic. They do "
+    "not decide which measure the question means: {terms}. Each clause's own "
+    "definition governs that clause's own test. If two governed readings "
+    "would rank or total the book differently, that is a real ambiguity -- "
+    "put it to the reader rather than letting a rule about a different "
+    "question answer this one.")
 
 
 def policy_retrieval(*, domain_id: str, question: str) -> dict[str, Any]:
@@ -780,7 +840,8 @@ def policy_retrieval(*, domain_id: str, question: str) -> dict[str, Any]:
             "retrieved": found if found.get("clauses") else {}}
 
 
-def policy_blocks(*, domain_id: str, question: str) -> list[dict[str, Any]]:
+def policy_blocks(*, domain_id: str, question: str,
+                  undecided: Sequence[str] = ()) -> list[dict[str, Any]]:
     """The credit policy as system blocks, for a turn that can collide
     with it.
 
@@ -804,8 +865,13 @@ def policy_blocks(*, domain_id: str, question: str) -> list[dict[str, Any]]:
         {**retrieval["synopsis"], "how_to_use_this": POLICY_RULE},
         ensure_ascii=False)}]
     if retrieval["retrieved"]:
+        open_terms = [t for t in (str(x).strip() for x in undecided) if t]
+        how = (POLICY_DOES_NOT_CLOSE_AN_OPEN_READING.format(
+            terms=", ".join(sorted(set(open_terms))[:6]))
+            if open_terms else POLICY_SETTLES_THE_TERM)
         blocks.append({"type": "text", "text": json.dumps(
-            retrieval["retrieved"], ensure_ascii=False)})
+            {**retrieval["retrieved"], "how_to_use_this": how},
+            ensure_ascii=False)})
     return blocks
 
 
@@ -849,6 +915,8 @@ def policy_receipt(*, domain_id: str, question: str) -> dict[str, Any]:
 
 
 __all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "POLICY_RULE",
+           "POLICY_DOES_NOT_CLOSE_AN_OPEN_READING",
+           "POLICY_SETTLES_THE_TERM",
            "PRESENTATION", "PRODUCT_ANSWER",
            "Packet", "analyst_instruction", "build", "finalization_system",
            "policy_blocks", "policy_receipt", "policy_retrieval",

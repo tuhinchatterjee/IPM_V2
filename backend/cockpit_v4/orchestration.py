@@ -728,7 +728,7 @@ class Orchestrator:
 
             compact = ctx.finalization_system(
                 self.analyst.system, domain_id=domain_id,
-                question=self._asked())
+                question=self._asked(), undecided=self._undecided_terms())
             if compact is not self.analyst.system:
                 restore_system = self.analyst.system
                 self.analyst.system = compact
@@ -754,7 +754,8 @@ class Orchestrator:
             from backend.cockpit_v4 import context as ctx
 
             extra = ctx.policy_blocks(domain_id=domain_id,
-                                      question=self._asked())
+                                      question=self._asked(),
+                                      undecided=self._undecided_terms())
             # AND THE SHAPE A PRODUCT ANSWER WANTS REACHES THE TURN THAT
             # WRITES ONE. The four outlines used to sit in `analyst.md`,
             # which every action attempt carries and pays for; an action
@@ -1227,6 +1228,19 @@ class Orchestrator:
                 "pack_version": result["pack_version"],
                 "sections": [s.get("title") for s in result["sections"]]}))
         return None
+
+    def _undecided_terms(self) -> list[str]:
+        """The governed terms the SERVER could not decide for this question.
+
+        `semantics.readiness` computes them deterministically before any
+        model call, and an undecided term is exactly "an alternative that
+        can change the answer". A policy clause the question happens to
+        reach must not close one of these quietly: see
+        `context.POLICY_DOES_NOT_CLOSE_AN_OPEN_READING`.
+        """
+        terms = (dict(self.readiness or {})
+                 .get("terms_still_needing_a_decision") or ())
+        return [str(t.get("term") or "") for t in terms if t.get("term")]
 
     def _asked(self) -> str:
         """The reader's own words, as the first user message carries them.

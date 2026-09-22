@@ -291,3 +291,153 @@ carries `comparison_basis` (`declared_precision` or `relative_tolerance`),
 declared precision is a weaker statement than a pass against the exact
 oracle, and a report that did not say so would be hiding that the submitted
 SQL rounded.
+
+---
+
+# Paid retest closure
+
+Seven paid runs, USD 2.55683. L15, L16 and L04 came back correct and are
+untouched by anything below. Two issues remained.
+
+## The preserved evidence
+
+| File | SHA-256, as reported |
+|---|---|
+| `live_uat_retest_live.json` | `1c58a1cfa785d3faab878ad35ae60faf4ae52e3e7e1dd9ab23387201e68df636` |
+| `live-retest.sqlite3` | `41c9ddd81e5dc967b9c8984b4594fd57489b99b03c229e3f236e6e32a66bde25` |
+
+Both live at `/Users/tuhinchatterjee/Desktop/CockpitLiveUAT_Evidence/`, on
+the Mac. **That path does not exist in the environment this work was done
+in**, so neither digest was computed here and neither file was opened, read
+or written. The values above are the ones reported with the retest, repeated
+so the Mac can check them against itself; they are not an independent
+confirmation and must not be read as one. The same holds for
+`live-first-pass.sqlite3`.
+
+Everything below was reproduced from the runtime, the real books and the
+real policy pack, with a scripted provider and no provider call.
+
+## ISSUE 1 — an answer about a long result had nowhere to bind
+
+L18's repair path still ended in a refusal. The full account is in the two
+commits that close it; in one paragraph: the server records `produced_rows`
+on the artifact scope, and no claim could bind to it. `rows: "all"` over a
+truncated result is refused by the `_incomplete` rule, counting the
+published rows answers a different question, and narrowing the query answers
+a third. A refusal that leaves nowhere to go spends the correction it
+offers.
+
+`derivation.result_rows` is that binding: arity 1, unit-changing, reading
+the row count CreditProbe recorded when it ran the query. The `_incomplete`
+refusal now names it as the third way out, beside narrowing and naming
+rows. The entity safeguard is untouched and tested — a claim in unit
+`borrowers` still cannot read `facility_count` merely because both are
+COUNT-class values.
+
+Adding it to the operation table in `analyst.md` cost 101 bytes the action
+payload did not have. The bound was **not** raised. What paid for it: four
+outline blocks describing how to write a PRODUCT answer, carried on every
+action attempt by a file measured against that bound, on turns that can
+write no product answer at all. They now reach the PRODUCT_HELP turn
+instead, unchanged in content. Headroom after: 1,123 bytes on
+`stage2_ecl_growth`, 1,122 on `seeded_construction`.
+
+## ISSUE 2 — a policy definition answered a question that never asked it
+
+M06 turn 1:
+
+    Which sectors have the largest exposure?
+
+No clause, no limit, no threshold. `sem.readiness` returns
+`sufficient=False` with `exposure` undecided between `ead_sar_mn`,
+`limit_sar_mn` and `drawn_sar_mn`, which order the sectors differently.
+`cp.retrieve` returns no clause. It is the matrix's proven blocking
+ambiguity, L19. The run answered anyway, on EAD.
+
+Reproduced offline by driving the real worker to NEEDS_CLARIFICATION and
+reading the system context that turn was sent:
+
+  * `policy_blocks` attaches the **synopsis** to every turn that can
+    publish. It must: H-LIVE-05 exists because a turn without it stated
+    that this book records no single-name limit when CP-1.1 does.
+  * The synopsis carries CP-1.1 in full — "Exposure is measured as EAD,
+    funded and unfunded together" — because that is the rule CP-1.1's own
+    breach test runs on.
+  * `POLICY_RULE` then said, unconditionally, that a term a clause settles
+    is settled, and that treating it as open "invents an ambiguity the
+    policy has already closed".
+
+The turn whose entire job was to put the question back to the reader was
+handed a rule telling it the question was invented.
+
+**The rule.** A policy definition settles terminology *for the test it
+defines*. The reader has invoked that test when the question reaches that
+clause; they have not when the question is ordinary data analysis that never
+mentioned it. The server already decides which is which, deterministically,
+before any model call — `cp.retrieve` returns the clauses the question names
+in the reader's own words.
+
+So the settling sentence leaves the standing rule and rides on the
+retrieved-clauses block, which is sent only when a clause was reached. A
+question that invokes nothing is sent nothing. And `POLICY_RULE` now carries
+the other half: a definition inside a clause governs that clause's own test,
+and where the question names no clause and two governed readings would rank
+or total the book differently, the reader chooses, not the pack.
+
+| Question | Clause reached | Settling sentence sent |
+|---|---|---|
+| Which sectors have the largest exposure? | — | no |
+| Just the top five by that measure | — | no |
+| What is total ECL this quarter? | — | no |
+| Which sectors are above the single-name limit? | CP-1.1 | yes |
+| Which borrowers breach the single obligor limit? | CP-1.1 | yes |
+| What does CP-1.1 say? | CP-1.1 | yes |
+| *(Retail)* Which products have the largest balances? | — | no |
+| *(Retail)* When does the collections ladder start? | RP-4.1 | yes |
+
+**And a guard on that**, because retrieval is deliberately generous: it
+matches a clause on the reader's own topic words, which is what lets "single
+name" reach CP-1.1 without a clause id. The same generosity reaches CP-1.2
+from "Show me exposure concentration", which is an ordinary ranking
+question. So the settling sentence goes out only when the server ALSO has
+nothing open — `sem.readiness` names the governed terms this question leaves
+undecided, deterministically and before any model call, and an undecided
+term is exactly "an alternative that can change the answer". When one is
+open, the clauses are still attached and the analyst is told which term they
+do not decide, and to ask.
+
+| Question | Clause | Server's undecided terms | What the clauses are for |
+|---|---|---|---|
+| Which sectors are above the single-name limit? | CP-1.1 | — | settles the term for its test |
+| What is our concentration by sector? | CP-1.2 | — | settles the term for its test |
+| Show me exposure concentration | CP-1.2 | `exposure` | does not close it — ask |
+
+Nothing keys on exposure, CP-1.1, sectors or a book. A test refuses any
+book-specific word in either sentence.
+
+**L16 is preserved.** It retrieves CP-1.1, receives the settling sentence,
+and `sem.readiness` still returns `sufficient=True` — no new round trip.
+
+**The clarification history projection needed no change.** `you_asked`,
+`you_offered` and the note that allows a new question have been in
+`context.build` since H8 and behave correctly on M06's own words: turn 2
+"Exposure at default" is one of the offered choices verbatim, turn 3 sees
+both prior turns, and M07's turn 2 is left free to be a new question. What
+was missing was never the projection; it was that turn 1 never asked.
+
+**M06 is three turns.** The chain was authored with a fourth — "And how much
+of that is Stage 2?" — that the approved paid retest never ran, and its note
+claimed turns that do not exist. Narrowing once is what the chain is for.
+
+## What a further paid run would and would not add
+
+Nothing in either issue needs one to be *diagnosed*: both were reproduced
+offline against the real runtime. What no offline test can establish is
+whether a live `claude-opus-5`, sent the corrected context, asks on M06 turn
+1 and binds `result_rows` on L18. That is a behavioural question and it is
+the only one left open.
+
+## Out of scope, still logged
+
+`D-003` — `catalog._SESSIONS` evicts the session it is about to return.
+Pre-existing, reproducible on a clean `ac315dd`, untouched here.
