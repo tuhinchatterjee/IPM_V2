@@ -279,11 +279,19 @@ def single_turn() -> list[Journey]:
                 ["For each borrower, what is the average utilisation of their "
                  "facilities this quarter, and how many facilities does each "
                  "have?"],
-                "grain refusal + analyst-authored repair",
-                notes="Borrower grain from a facility-grain relation. The "
-                      "product must refuse an ungoverned collapse and the "
-                      "ANALYST must author the corrected submission. "
-                      "CreditProbe must not rewrite the SQL."),
+                "borrower grain from a facility-grain relation",
+                notes="A CORRECT FIRST SUBMISSION IS A PASS. The old wording "
+                      "read as requiring a failed attempt, which is a test "
+                      "of nothing: an analyst that gets the grain right the "
+                      "first time is the outcome we want. What is graded is "
+                      "that IF a submission collapses grain ungoverned, "
+                      "CreditProbe refuses it and the ANALYST authors the "
+                      "repair -- CreditProbe never rewrites the SQL. "
+                      "CLOSURE-01: any entity count in the answer must be "
+                      "counted over a column that identifies THAT entity. "
+                      "The first pass published a per-row facility_count as "
+                      "the borrower count; a claim in 'borrowers' reading "
+                      "'facility_count' is now refused."),
         # THE REPLACEMENT TRUE-CLARIFICATION CASE, proven rather than
         # invented. Against the live corporate catalogue and the governed
         # policy pack:

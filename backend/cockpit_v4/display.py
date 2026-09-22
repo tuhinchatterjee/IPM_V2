@@ -184,6 +184,7 @@ ANSWER_UNITS: dict[str, str] = {
     "multiple": RATIO,
     "x": RATIO,
     "count": COUNT,
+    "counts": COUNT,
     "borrowers": COUNT,
     "facilities": COUNT,
     "obligors": COUNT,
@@ -192,6 +193,28 @@ ANSWER_UNITS: dict[str, str] = {
     "rows": COUNT,
     "days": COUNT,
     "notches": COUNT,
+    # THE NOUNS A ROW IS COUNTED IN. A result has records, entries,
+    # observations and items, and the live answer said "facility records".
+    # Listed because a phrase is read from its words and a word nothing
+    # names cannot carry the phrase: "records" is what makes "facility
+    # records" a count.
+    #
+    # ONLY the cardinality nouns are here. Putting the ENTITY singulars in
+    # -- "borrower", "facility" -- would read `borrower_id` as a count,
+    # which it is not: an identifier is not a tally of anything. Entities
+    # have their own table, `_ENTITY_NOUNS`, and a different job.
+    "record": COUNT,
+    "records": COUNT,
+    "entry": COUNT,
+    "entries": COUNT,
+    "observation": COUNT,
+    "observations": COUNT,
+    "item": COUNT,
+    "items": COUNT,
+    "customers": COUNT,
+    "clients": COUNT,
+    "loans": COUNT,
+    "cases": COUNT,
     "amount": MONETARY_AMOUNT,
     "stage": IFRS_STAGE,
     "ifrs9 stage": IFRS_STAGE,
@@ -230,8 +253,86 @@ MONEY_SCALES: dict[str, Decimal] = {
 }
 
 
+#: A unit phrase is split on anything that is not a letter or a digit, so
+#: "facility_count", "facility count" and "facility-count" are one unit.
+_WORDS = re.compile(r"[a-z0-9]+")
+
+#: Words that name no class and must not stop a phrase being read. "of",
+#: "per" and "in" are grammar; a phrase is not ambiguous for containing one.
+_FILLER = frozenset({"of", "per", "in", "the", "a", "an", "and", "by",
+                     "at", "on", "to"})
+
+
+#: WHAT A COUNT IS A COUNT OF.
+#:
+#: The cardinality words -- "count", "rows", "records" -- say that
+#: something was counted and not what. The ENTITY words say what. Singular
+#: form is the identity, so "facilities" and "facility" are one entity.
+_ENTITY_NOUNS: dict[str, str] = {
+    "borrower": "borrower", "borrowers": "borrower",
+    "obligor": "obligor", "obligors": "obligor",
+    "facility": "facility", "facilities": "facility",
+    "account": "account", "accounts": "account",
+    "customer": "customer", "customers": "customer",
+    "client": "client", "clients": "client",
+    "loan": "loan", "loans": "loan",
+    "name": "name", "names": "name",
+    "case": "case", "cases": "case",
+    "group": "group", "groups": "group",
+    "sector": "sector", "sectors": "sector",
+    "product": "product", "products": "product",
+    "region": "region", "regions": "region",
+    "covenant": "covenant", "covenants": "covenant",
+    "collateral": "collateral",
+}
+
+
+def entity_of(text: str) -> str:
+    """WHICH ENTITY a phrase counts, or "" when it does not say.
+
+    Read from the words, like `classify`: "borrowers" and
+    "borrower_count" both name the borrower; "facility_count" names the
+    facility; "n", "cnt" and "total" name nothing and this says so rather
+    than guessing.
+
+    A phrase naming TWO entities names none of them for this purpose --
+    "facilities per borrower" is a rate, not a count of either -- because
+    the caller uses this to refuse a mismatch and a phrase that could be
+    read two ways is not a mismatch it can prove.
+    """
+    found = {_ENTITY_NOUNS[w] for w in _WORDS.findall(str(text or "").lower())
+             if w in _ENTITY_NOUNS}
+    return found.pop() if len(found) == 1 else ""
+
+
 def classify(unit: str) -> str:
-    """The semantic class of a unit. Read from the unit and nothing else."""
+    """The semantic class of a unit. Read from the unit and nothing else.
+
+    THE WHOLE PHRASE FIRST, THEN ITS WORDS.
+    -----------------------------------------
+    This was an exact-string lookup, and a unit the tables do not spell
+    exactly fell to UNKNOWN, whose precision is two decimal places. The
+    first live UAT published
+
+        21,918.00 facility records
+         1,949.00 facility records
+           170.00 facility records
+
+    because "facility records" is not a key. "facilities" is, "records" is
+    not, and a count written to two decimals is a count written wrong.
+
+    So a phrase no table spells is read from the words it is made of: every
+    word that names a class must name the SAME class, and then the phrase
+    is that class. "facility records", "borrower records", "facility
+    count", "loan accounts" and "days past due" are all counts on that
+    rule. A phrase whose words DISAGREE stays UNKNOWN -- "percentage of
+    borrowers" names both a percentage and a count, and guessing between
+    them is how a share becomes a headcount.
+
+    Deliberately not a substring match. "percentage" contains no count word
+    and "accounts" is not found inside "accounting"; the unit is split on
+    word boundaries and each word is looked up whole.
+    """
     raw = str(unit or "").strip().lower()
     if not raw:
         return UNKNOWN
@@ -241,7 +342,12 @@ def classify(unit: str) -> str:
         return ANSWER_UNITS[raw]
     if _MONEY.match(raw):
         return MONETARY_AMOUNT
-    return UNKNOWN
+    words = [w for w in _WORDS.findall(raw) if w not in _FILLER]
+    if len(words) < 2:
+        return UNKNOWN
+    named = {CATALOG_UNITS.get(w) or ANSWER_UNITS.get(w) for w in words}
+    named.discard(None)
+    return named.pop() if len(named) == 1 else UNKNOWN
 
 
 def decimals(unit: str) -> int:
@@ -442,6 +548,7 @@ def unit_for_field(catalog: Any, relation: str, column: str) -> str:
 
 
 __all__ = ["CATALOG_UNITS", "CATEGORICAL", "COUNT", "DECIMALS",
+           "entity_of",
            "MONEY_SCALES",
            "DISPLAY_FACTOR", "IFRS_STAGE", "INTEGER", "MONETARY_AMOUNT",
            "PERCENTAGE", "PERCENTAGE_POINT", "PERIOD", "PERMITTED",

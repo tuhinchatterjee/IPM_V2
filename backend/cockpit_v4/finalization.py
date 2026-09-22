@@ -529,6 +529,14 @@ class Finalizer:
         if unit_wrong:
             return f"{label}: {unit_wrong}"
 
+        # The same entity check, over the columns the arithmetic reads.
+        # A `count` over `facility_id` is not a count of borrowers however
+        # the claim is labelled.
+        wrong_entity = self._wrong_entity(
+            claim, [o.column_id for o in derivation.operands if o.column_id])
+        if wrong_entity:
+            return wrong_entity
+
         try:
             computed = deriv.compute(derivation,
                                      self._artifacts(derivation.artifact_ids),
@@ -539,6 +547,55 @@ class Finalizer:
         problem = self._settle(claim, computed, label=label)
         if problem:
             return f"{problem} (derivation: {derivation.operation})"
+        return ""
+
+    @staticmethod
+    def _wrong_entity(claim: NumericClaim, columns: list[str]) -> str:
+        """A COUNT OF ONE THING SOURCED FROM A COUNT OF ANOTHER.
+
+        CLOSURE-01. A live answer to "for each borrower, what is the
+        average utilisation of their facilities, and how many facilities
+        does each have?" returned one row per borrower -- 5,412 of them --
+        and published
+
+            "2 borrowers carry facilities in 2026Q2"
+
+        from a claim whose unit was `borrowers`, whose operation was
+        `identity`, and whose cell was `facility_count` at row r0. The
+        first borrower happened to hold two facilities. A per-row count of
+        FACILITIES became a portfolio count of BORROWERS, and nothing
+        stopped it: both are COUNT class, `identity` preserves the unit, so
+        the unit machinery saw two counts and agreed.
+
+        What it did not check is WHAT IS BEING COUNTED. The unit names the
+        entity; so does the column. When both name one, and they differ,
+        the claim is reading a number about one thing and calling it a
+        number about another.
+
+        Deliberately narrow, and not an L18 rule. It says nothing when the
+        unit names no entity (`SAR million`, `percent`), nothing when the
+        column names none (`n`, `total`), and nothing when a phrase could
+        be read two ways -- `facilities per borrower` names both and is
+        therefore proof of nothing.
+        """
+        from backend.cockpit_v4 import display as disp
+
+        wanted = disp.entity_of(claim.unit)
+        if not wanted:
+            return ""
+        for column in columns:
+            got = disp.entity_of(column)
+            if got and got != wanted:
+                return (
+                    f"claim {claim.claim_id!r} is declared in "
+                    f"{claim.unit!r} -- a count of one thing per "
+                    f"{wanted} -- and reads column {column!r}, which "
+                    f"counts one thing per {got}. A count of one thing is "
+                    f"not a count of another. Either count the {wanted} "
+                    f"rows with a 'count' derivation over a column that "
+                    f"identifies a {wanted}, naming the rows you mean, or "
+                    f"run a query that returns the figure, or do not state "
+                    f"it.")
         return ""
 
     def _check_claim(self, claim: NumericClaim) -> str:
@@ -563,6 +620,9 @@ class Finalizer:
                     f"{record['columns']}.")
         if not ref.column_id:
             return ""
+        wrong_entity = self._wrong_entity(claim, [str(ref.column_id)])
+        if wrong_entity:
+            return wrong_entity
         found = _locate(record["rows"], ref.row_key, ref.column_id)
         if found is _MISSING:
             return (f"claim {claim.claim_id!r} names row {ref.row_key!r}, "

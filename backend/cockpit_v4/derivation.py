@@ -343,6 +343,8 @@ def _decimal(value: Any) -> Decimal:
 
 @dataclass
 class _Resolved:
+    #: Empty for a resolution that did not need numbers. `indices` is
+    #: always populated, so "how many cells" never depends on this.
     values: list[Decimal]
     indices: list[int]
 
@@ -379,7 +381,23 @@ def _incomplete(record: dict[str, Any], artifact_id: str, *,
             f"rows you mean in 'row_ids'.")
 
 def _resolve(cells: CellSet, artifacts: dict[str, dict[str, Any]],
-             *, label: str) -> _Resolved:
+             *, label: str, numeric: bool = True) -> _Resolved:
+    """Resolve a cell set against the stored artifact.
+
+    `numeric` is False for `count`, whose documented meaning is "how many
+    referenced cells hold a value" and which therefore does not need those
+    values to BE numbers. Everything else is unchanged: the row must exist,
+    it may not be named twice, a NULL is still refused, and the reference
+    bound still applies.
+
+    CLOSURE-01. This used to convert every cell to a Decimal whatever the
+    operation was, so counting borrowers over `borrower_name` failed with
+    "'Tuwaiq Gulf Energy' is not a number this can compute with". A
+    borrower-grain result identifies its borrowers by NAME, so the one
+    governed way to count them was refused -- which left an analyst that
+    wanted to state a borrower count with nothing supported to state it
+    with.
+    """
     record = artifacts.get(cells.artifact_id)
     if record is None:
         raise DerivationError(
@@ -433,7 +451,8 @@ def _resolve(cells: CellSet, artifacts: dict[str, dict[str, Any]],
                    if cells.all_rows else
                    "exclude the row and say so")
                 + ", or report the figure as unavailable.")
-        values.append(_decimal(cell))
+        if numeric:
+            values.append(_decimal(cell))
         indices.append(index)
     return _Resolved(values, indices)
 
@@ -483,7 +502,8 @@ def _compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
     resolved = [
         _resolve(cells, artifacts,
                  label=(f"{label} operand {i + 1}" if len(derivation.operands)
-                        > 1 else label))
+                        > 1 else label),
+                 numeric=operation != COUNT)
         for i, cells in enumerate(derivation.operands)]
 
     # THE BOUND, WHERE THE COUNT IS FINALLY KNOWN. `parse` checks it too,
@@ -491,7 +511,9 @@ def _compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
     # but `parse` cannot count a shorthand, and the shorthand is the form
     # that can expand without the analyst seeing how far. Both checks say
     # the same thing; this is the one that cannot be walked around.
-    referenced = sum(len(r.values) for r in resolved)
+    # `indices`, not `values`: a `count` resolves no numbers and a bound
+    # read off an empty list is a bound that does not apply.
+    referenced = sum(len(r.indices) for r in resolved)
     if referenced > MAX_REFS:
         raise DerivationError(
             f"{label} references {referenced:,} cells and a single "
@@ -512,7 +534,7 @@ def _compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
     if operation == MAX:
         return max(resolved[0].values)
     if operation == COUNT:
-        return Decimal(len(resolved[0].values))
+        return Decimal(len(resolved[0].indices))
     if operation == DIFFERENCE:
         return _sum(resolved[0]) - _sum(resolved[1])
     if operation == RATIO:
