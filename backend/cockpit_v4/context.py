@@ -259,12 +259,31 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
                        in (prior.get("clarification_options") or ())]
             if offered:
                 entry["you_offered"] = offered[:CLARIFICATION_OPTIONS]
+            # AND THE QUESTION THAT IS STILL WAITING TO BE ANSWERED.
+            #
+            # `you_asked` and `you_offered` carry the clarification. They do
+            # not carry the REQUEST it interrupted, and that is the thing the
+            # next turn has to act on: "Exposure at default" supplies one
+            # missing word, and everything else -- the dimension, the
+            # ranking, the book, the period -- is still sitting in the
+            # question above it, which this block was leaving the analyst to
+            # reassemble from two separate fields and a hint.
+            #
+            # Stated once, as a field, so the effective request after the
+            # reply is not something the analyst has to infer.
+            if entry["question"]:
+                entry["the_question_still_standing"] = str(entry["question"])
             entry["note"] = (
                 "The question that follows this turn is most likely the "
                 "reader ANSWERING it, often one of the offered choices word "
-                "for word. Read it that way and carry on with the analysis "
-                "rather than asking again. If it plainly asks something "
-                "else, it is a new question.")
+                "for word. Read it that way and carry on with the "
+                "analysis rather than asking again. What you are answering "
+                "is the request in `the_question_still_standing`: the reply "
+                "supplies ONLY the part you asked about, and every other "
+                "part of it -- dimension, ranking, filters, period, book -- "
+                "stands exactly as written. A three-word reply is not a new "
+                "three-word question. If it plainly asks something else, it "
+                "is a new question.")
         history.append(entry)
 
     from backend.cockpit_v4 import product_knowledge as pk
@@ -317,7 +336,14 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
             catalog=catalog, session=session, seed=investigation)
     _readiness = sem.readiness(
         catalog, question, seed_packet=seed_packet,
-        value_resolution=_value_resolution(resolved, asked))
+        value_resolution=_value_resolution(resolved, asked),
+        # The reader's own earlier wording in this thread. A follow-up that
+        # says "the top five by that measure" names no measure by itself and
+        # was therefore sent to the catalogue for facts the thread had
+        # already established. Their words only -- never the analyst's
+        # declared mappings -- so no run can widen its own surface.
+        already_asked=[str(t.get("question") or "")
+                       for t in (recent_turns or [])])
 
     system_blocks: list[dict[str, Any]] = [
         # Stable prefix first, so a cache write is reusable and a changing

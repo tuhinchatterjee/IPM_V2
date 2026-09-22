@@ -27,7 +27,8 @@ from backend.cockpit_v4.states import (ACTION_FORMAT_EXHAUSTED,
                                        ANSWER_FORMAT_EXHAUSTED,
                                        CALL_LIMIT, COST_LIMIT,
                                        DEADLINE_EXPIRED, EXECUTION_LIMIT,
-                                       NO_PROGRESS, ROUND_LIMIT)
+                                       NO_PROGRESS,
+                                       PROVIDER_UNAVAILABLE, ROUND_LIMIT)
 
 
 class BudgetExceeded(RuntimeError):
@@ -387,10 +388,41 @@ class Ledger:
         self.counters.answer_corrections += 1
 
     def spend_transport_retry(self) -> None:
+        """The one retry a network fault gets, and what a second one IS.
+
+        THIS USED TO RAISE `CALL_LIMIT`, WHICH WAS NOT TRUE.
+
+        The live M06 turn 3 settled as CALL_LIMIT with "the run used its
+        model-call allowance before the answer was written". It had used 4
+        of 12 generations, 4 of 24 provider attempts, 1 of 5 submissions and
+        1 of 3 rounds. Nothing about the model-call allowance was exhausted.
+        The provider failed twice, and the retry this method bounds was the
+        only thing that ran out -- which is a fact about the network, not
+        about the run's budget.
+
+        The distinction is already written down one caller away, in the
+        message the FIRST failure prints: "a turn that ran past the time one
+        action is allowed is not the same event as a network fault, and
+        neither of them is a call limit." The code then reported exactly the
+        call limit that comment denies, and a diagnosis reading the ledger
+        for an exhausted allowance finds a healthy one.
+
+        So the second transport failure settles under PROVIDER_UNAVAILABLE,
+        the code that already exists for the provider being unreachable.
+        `finalization.RESULT_ONLY_REASON` carries it, so a run whose query
+        already succeeded still publishes its rows -- which is what the live
+        turn did, correctly, under the wrong name.
+
+        The allowance itself is UNCHANGED: one retry per run. Two network
+        failures in one run is not a budget to widen.
+        """
         if self.counters.transport_retries >= 1:
             raise BudgetExceeded(
-                CALL_LIMIT,
-                "the one transport retry for this run was already used.")
+                PROVIDER_UNAVAILABLE,
+                "the provider failed twice on this run and the one retry a "
+                "transport fault is allowed was already used. This is not a "
+                "budget: generations, provider attempts, submissions and "
+                "rounds all remain.")
         self.counters.transport_retries += 1
 
     # -- cost ------------------------------------------------------------

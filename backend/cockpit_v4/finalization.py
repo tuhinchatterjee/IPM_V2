@@ -44,7 +44,7 @@ from backend.cockpit_v4.states import (ACTION_FORMAT_EXHAUSTED,
                                        ANSWER_VALIDATION, CALL_LIMIT,
                                        COST_LIMIT, DEADLINE_EXPIRED,
                                        EXECUTION_LIMIT, OUTPUT_LIMIT,
-                                       ROUND_LIMIT)
+                                       PROVIDER_UNAVAILABLE, ROUND_LIMIT)
 
 PLACEHOLDER = re.compile(r"\{\{claim\.([A-Za-z0-9_.:-]{1,64})\}\}")
 
@@ -74,6 +74,16 @@ RESULT_ONLY_REASON: dict[str, str] = {
     CALL_LIMIT: (
         "The run used its model-call allowance before the answer was "
         "written."),
+    # A NETWORK FAULT IS NOT A BUDGET, and the rows survive it either way.
+    #
+    # `budgets.spend_transport_retry` used to raise CALL_LIMIT when a second
+    # transport failure arrived, so the live M06 turn 3 published its five
+    # rows under "the run used its model-call allowance" having used 4 of
+    # its 12 generations. It settles under its own code now, and it has to
+    # be here or that same run would publish nothing at all.
+    PROVIDER_UNAVAILABLE: (
+        "The provider could not be reached to write the answer. The "
+        "analysis below had already run and is unaffected."),
     EXECUTION_LIMIT: (
         "The run used its execution allowance before the answer was "
         "written."),

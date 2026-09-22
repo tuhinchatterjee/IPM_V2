@@ -464,3 +464,154 @@ round started from, and none on the new test file.
 
 `D-003` — `catalog._SESSIONS` evicts the session it is about to return.
 Pre-existing, reproducible on a clean `ac315dd`, untouched here.
+
+---
+
+# Final live closure — M06
+
+Four paid runs at `dac15d6`, USD 1.049695. **L18 passed** and is a
+regression guard from here on. M06 failed in three places with three
+different causes.
+
+## The preserved evidence
+
+| File | SHA-256 |
+|---|---|
+| `live_uat_final_closure_live.json` | `2643f82967a1a626d3fcecfa2a3b3bd89785a8953418cb388c6ada16f2431ecd` |
+| `live-final-closure.sqlite3` | `acbea17a0498509e89e46ba44e0570fe20a8fbff1b4447c313a94d26eecb816f` |
+
+The JSON was attached to this session and its digest was **computed here**
+and matches. The SQLite file is on the Mac, which this environment cannot
+reach; its digest is repeated as reported and is not independently
+confirmed.
+
+## L18 — closed
+
+The published narrative opens "Across the corporate book, 5,412 borrowers
+held live facilities in 2026Q2", bound through
+`derivation.result_rows` over `borrower_id`, `evidence_bound: true`,
+`result_only: false`. The operation added last round did the job it was
+added for.
+
+## M06.1 — the turn that had to ask was not allowed to
+
+**Not the policy pack.** The previous round's repair held: the live turn's
+recorded intent shows no policy-driven resolution, and the answer cites
+CP-1.1 and CP-1.2 only to say that a sector aggregate does not test either.
+The brief's reading — that CP-1.1 silently resolved the term again — is not
+what the evidence shows.
+
+**The analyst saw the ambiguity.** Its own intent says so:
+
+> "exposure" is not uniquely defined in this book (EAD, drawn balance or
+> sanctioned limit): ranked on EAD as the primary measure and reported drawn
+> and limit alongside, since all three give the same sector order
+
+It executed because executing was the only legal move. Reproduced offline:
+
+```
+readiness("Which sectors have the largest exposure?")
+  sufficient          False
+  still undecided     exposure -> ead_sar_mn | limit_sar_mn | drawn_sar_mn
+  normal_first_action inspect_catalog
+decide(...)           NEEDS_METADATA      tools=(inspect_catalog,)   REQUIRED
+after_catalog(...)    READY_FOR_EXECUTION tools=(execute_analysis,)  REQUIRED
+CAN ASK?              False
+```
+
+`finalize_response` was not on the turn, so `disposition: "clarification"`
+was unreachable. The catalogue could not help — the three candidates were
+read out of it — and `after_catalog` was handed `readiness` and never looked
+at it. This is H-LIVE-03 in a different state: not an analyst choosing
+silently, but the only move the surface allowed.
+
+Two things pushed the same way:
+
+* `semantics.block` published a key called **`terms_needing_a_question`**
+  under a `how_to_use` that opened *"These are resolutions, not assumptions
+  to ask about. Declare them in canonical_mappings or resolved_assumptions
+  and proceed."* The live run did exactly that, in those words.
+* `analyst.md` stated the blocking test as "two readings that would produce
+  materially different numbers" — a question about the **result**, and the
+  only way to answer it is to run them. The live run ran all three, saw the
+  same ordering, and called the ambiguity immaterial.
+
+**The repair.** `after_catalog` now reads the readiness it already receives:
+when a governed term is still undecided after the catalogue has been read,
+it offers `execute_analysis` **and** `finalize_response` and requires
+neither. It decides nothing about whether the question is ambiguous — that
+stays the analyst's, against the same candidate fields the server has been
+carrying. What it removes is a gate that could only be passed by guessing.
+`semantics.block` now states the two keys as the opposites they are;
+`readiness` says what a catalogue read cannot settle; and the contract asks
+its question about the request:
+
+> The test is about the REQUEST, not the result … A reading you can only
+> rule out by executing it is one you have already taken … same order is not
+> the same number.
+
+## M06.2 — the reply read as a new question
+
+Downstream of the above: turn 1 ended `disposition: "answer"`, so the
+clarification projection was never armed — it only fires on a prior turn
+that asked.
+
+A second, independent gap: the projection carried `you_asked` and
+`you_offered` and **not the request they interrupted**, leaving the analyst
+to reassemble "sectors, ranked, latest quarter, Corporate" from two other
+fields. The history entry now carries `the_question_still_standing`, and the
+note says the reply supplies only the part that was asked about while
+dimension, ranking, filters, period and book stand exactly as written.
+
+## M06.3 — this was never a call limit
+
+The events are
+
+```
+model.requested -> retry.requested -> model.requested -> analysis.preserved
+```
+
+with no `model.response_received` before the retry, which is reachable only
+from the transport branch. `OutputTruncated` is excluded: it is bounded by
+`answer_format_regenerations=2`, so one truncation cannot end a run. The
+answer-correction path is excluded: `validation` is empty, so no answer was
+ever checked against evidence.
+
+The run held **4 of 12 generations, 4 of 24 provider attempts, 1 of 5
+submissions and 1 of 3 rounds**. The provider failed twice,
+`spend_transport_retry` raised `CALL_LIMIT`, and the reader was told the
+model-call allowance ran out. The comment one caller above it already says
+*"a turn that ran past the time one action is allowed is not the same event
+as a network fault, and neither of them is a call limit."*
+
+**The repair is the truth, not a bigger budget.** A second transport failure
+settles under `PROVIDER_UNAVAILABLE`, which is added to
+`RESULT_ONLY_REASON` so the rows still publish — which is what the live turn
+did, correctly, under the wrong name. **The allowance is unchanged at one
+retry per run**, and nothing else was widened.
+
+### The waste, reported as waste
+
+Turn 3 was *also* required to spend a generation on `inspect_catalog`,
+because `readiness` read the current question alone and "Just the top five
+by that measure" names no term — on a query built entirely from what the
+thread had already resolved. That is real and is now fixed: measure matching
+runs over the reader's earlier wording in the thread as well.
+
+It is **not** what killed the run. Four generations out of twelve were
+spent; the network was the cause. Both are reported because the brief asked
+whether the orchestration wastes a turn, and it did.
+
+The asymmetry is the safety of it: **what has been named accumulates across
+a thread; what is undecided is read off the current question alone.** No
+previous turn can settle a reading this one leaves open, and only the
+reader's words are inherited — never the analyst's declared mappings, so no
+run can widen its own surface by asserting it understood something.
+
+## What the next paid run is for
+
+Every cause above was reproduced offline against the real runtime, the real
+book and the real policy pack. What no scripted provider can settle is
+whether a live `claude-opus-5`, standing on a turn that now offers it both
+tools, chooses to ask. That is behavioural, it is the only open question,
+and it needs **M06 only, three turns**.

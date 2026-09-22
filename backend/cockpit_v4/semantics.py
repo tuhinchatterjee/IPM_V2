@@ -38,6 +38,7 @@ term is listed as one that needs a question.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Any
 
 #: term -> (relation, field, what it means, why this and not the other)
@@ -1000,8 +1001,8 @@ def _mentions(text: str, phrase: str) -> bool:
 
 def readiness(catalog: Any, question: str, *,
               seed_packet: dict[str, Any] | None = None,
-              value_resolution: dict[str, Any] | None = None
-              ) -> dict[str, Any]:
+              value_resolution: dict[str, Any] | None = None,
+              already_asked: Sequence[str] = ()) -> dict[str, Any]:
     """Whether the governed metadata already in this packet is enough.
 
     §7, §8. A DETERMINISTIC check, computed by the server before any model
@@ -1020,17 +1021,42 @@ def readiness(catalog: Any, question: str, *,
     nothing else, and `inspect_catalog` remains available either way.
     """
     text = " ".join(str(question or "").lower().split())
+    # WHAT A FOLLOW-UP INHERITS FROM THE QUESTIONS BEFORE IT.
+    #
+    # `already_asked` is the reader's own earlier wording in this thread.
+    # Measure matching runs over it too, because a thread that has said
+    # "exposure at default" has named the measure and a follow-up that says
+    # "just the top five by that measure" is not a question with no measure
+    # in it -- it is the same measure, referred to.
+    #
+    # Without this, M06 turn 3 matched nothing, came back `sufficient:
+    # false`, and was REQUIRED to call inspect_catalog before it could
+    # author a query built entirely from terms the thread had already
+    # resolved. One generation, spent by the server, on a turn that needed
+    # no metadata.
+    #
+    # Deliberately asymmetric, and this is the whole safety of it: what has
+    # been NAMED accumulates across the thread, but what is UNDECIDED is
+    # read off the CURRENT question alone. Nothing a previous turn said can
+    # settle a reading this one leaves open, and `sufficient` still requires
+    # `not unmapped and not open_values`. It is also the reader's words
+    # only -- never the analyst's declared mappings -- so a run cannot widen
+    # its own surface by asserting it understood something.
+    history = " ".join(str(q or "").lower() for q in already_asked)
+    searchable = " ".join(x for x in (text, " ".join(history.split())) if x)
     measures_here = field_packet(catalog)
     matched: list[dict[str, str]] = []
     for entry in measures_here:
         names = [str(entry.get("term") or "")]
         names += [str(a) for a in (entry.get("also_known_as") or [])]
-        hit = next((n for n in names if n and _mentions(text, n)), "")
+        hit = next((n for n in names if n and _mentions(searchable, n)), "")
         if hit:
             matched.append({"term": str(entry.get("term") or ""),
                             "matched_on": hit,
                             "field_id": str(entry.get("field_id") or ""),
-                            "relation": str(entry.get("relation") or "")})
+                            "relation": str(entry.get("relation") or ""),
+                            "from": ("this question" if _mentions(text, hit)
+                                     else "earlier in this thread")})
     structural = sorted({name for name, phrases in _STRUCTURAL_TERMS.items()
                          if any(_mentions(text, w) for w in phrases)})
 
@@ -1097,6 +1123,20 @@ def readiness(catalog: Any, question: str, *,
         "Something this question names is not resolved here, so a metadata "
         "lookup is reasonable before authoring the query. Ask for exactly "
         "the field ids you are missing.")
+    # AND WHAT A CATALOGUE READ CANNOT FIX.
+    #
+    # The note above offers one remedy -- read the catalogue -- and for a
+    # missing field fact that is the right one. For a term under
+    # `terms_still_needing_a_decision` it is not a remedy at all: the
+    # candidates were read FROM the catalogue, so reading it again returns
+    # them unchanged. What is missing is not a fact about the book. It is
+    # the reader's choice, and only the reader has it.
+    if unmapped:
+        body["what_the_catalogue_cannot_settle"] = (
+            "Each term above maps to several materially different columns, "
+            "read out of the catalogue -- so inspect_catalog returns the "
+            "same ones. Unless this question picks one, or invokes a policy "
+            "test that picks one, the choice is the reader's.")
     return body
 
 
@@ -1112,16 +1152,34 @@ def block(catalog: Any) -> dict[str, Any]:
                            "materially different figures. 'Exposure at "
                            "default' is NOT this case: it is EAD.")}
             for term, options in ambiguous_terms(catalog).items()},
-        "how_to_use": (
+        # THE TWO KEYS ABOVE ARE OPPOSITES AND THIS SENTENCE USED TO TREAT
+        # THEM ALIKE.
+        #
+        # It opened "These are resolutions, not assumptions to ask about.
+        # Declare them in canonical_mappings or resolved_assumptions and
+        # proceed" -- written about `canonical_measures`, but standing as
+        # the how_to_use for the whole block, `terms_needing_a_question`
+        # included. So the one key whose entire purpose is to say "this word
+        # needs a question" was introduced by a sentence telling the analyst
+        # not to ask one, and to write it into `resolved_assumptions` and
+        # carry on. The live M06 turn 1 did exactly that, in those words.
+        "how_to_use_canonical_measures": (
             "These are resolutions, not assumptions to ask about. Declare "
             "them in canonical_mappings or resolved_assumptions and proceed. "
-            "Reserve blocking_ambiguities for a term with two defensible "
-            "readings that would produce materially different numbers. "
             "`canonical_measures` carries the relation, column, type, unit, "
             "grain, period column and join key for each mapped term: a "
             "question that uses only these terms can go straight to "
             "execute_analysis. Call inspect_catalog for a fact that is "
             "genuinely missing from here, naming the field ids you need."),
+        "how_to_use_terms_needing_a_question": (
+            "These are the opposite: several materially different columns "
+            "for one word, and nothing in the book saying which was meant. "
+            "inspect_catalog returns the same candidates -- it is where "
+            "they came from. Unless the question itself picks one, or "
+            "invokes a policy test that picks one, the choice is the "
+            "reader's and this is a blocking_ambiguity: ask, with the "
+            "candidates as clarification_options. Running one and saying "
+            "which you ran is making the choice, not declaring it."),
     }
 
 

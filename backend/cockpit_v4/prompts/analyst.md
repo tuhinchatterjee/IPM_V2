@@ -130,6 +130,15 @@ Three different things, and they go in three different fields:
 A resolution written into `blocking_ambiguities` refuses your own analysis;
 a genuine ambiguity left out of it produces a confident wrong number.
 
+**The test is about the REQUEST, not the result**, so ask it before running
+anything: does the reader's wording pick one candidate column, or invoke a
+policy test that picks one? If not, the choice is theirs and it is blocking.
+A reading you can only rule out by executing it is one you have already
+taken. Running the candidates to see whether they agree is not a defence
+either: same order is not the same number, and "which is largest" still
+publishes ONE headline figure. Ask, with the candidates as
+`clarification_options`.
+
 **A METHOD can be ambiguous too, and the catalogue will never say so.** A
 question whose every term resolves can still have two defensible answers,
 because a decomposition order, an attribution scheme or a weighting is a

@@ -259,9 +259,45 @@ def after_catalog(previous: Decision, readiness: dict[str, Any] | None
     said were missing; the next legal transition is to use them. A run that
     could ask the catalogue again and again is the run that died having
     read it twice and answered nothing.
+
+    A MISSING FACT AND AN UNDECIDED READING ARE NOT THE SAME MISSING THING,
+    and this transition used to treat them alike.
+
+    `readiness` arrives here and was ignored. So a run the server had itself
+    flagged -- `terms_still_needing_a_decision: [{"term": "exposure",
+    "candidate_fields": ["ead_sar_mn", "limit_sar_mn", "drawn_sar_mn"]}] --
+    was sent to the catalogue, which returned the same three columns because
+    that is all it holds, and then landed here, where the only offered tool
+    was `execute_analysis` and it was REQUIRED. `finalize_response` was not
+    on the turn at all, so `disposition: "clarification"` was unreachable.
+
+    The live M06 turn 1 stood exactly there. Its own intent records that it
+    saw the ambiguity -- "exposure is not uniquely defined in this book (EAD,
+    drawn balance or sanctioned limit)" -- and it executed anyway, because
+    executing was the only legal move. It was not the analyst choosing
+    silently. It was the only move the surface allowed, which is the
+    H-LIVE-03 finding in a different state.
+
+    So when a governed term is STILL undecided after the catalogue has been
+    read, both tools are offered and NEITHER is required. This decides
+    nothing about whether the question is ambiguous -- that judgement stays
+    the analyst's, made against the same candidate fields the server has
+    been carrying all along. What it removes is a gate that could only be
+    passed by guessing.
     """
     if previous.state != NEEDS_METADATA:
         return previous
+    ready = dict(readiness or {})
+    undecided = (ready.get("terms_still_needing_a_decision")
+                 or ready.get("values_still_ambiguous") or [])
+    if undecided:
+        return Decision(
+            state=READY_FOR_EXECUTION, tools=(TOOL_EXECUTE, TOOL_FINALIZE),
+            require="",
+            because=("the catalogue has been read and a governed term this "
+                     "question names is still undecided, so the run may "
+                     "either analyse or put the choice to the reader"),
+            detail={"after": NEEDS_METADATA, "still_undecided": undecided})
     return Decision(
         state=READY_FOR_EXECUTION, tools=(TOOL_EXECUTE,),
         require=TOOL_EXECUTE,
