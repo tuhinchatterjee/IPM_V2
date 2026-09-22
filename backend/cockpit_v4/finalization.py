@@ -122,6 +122,30 @@ _POLICY_LIMIT = re.compile(
 #: A written figure, with or without thousands separators.
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
+#: WORDS THAT ASSERT A DIRECTION, and nothing else.
+#:
+#: CLOSURE-02. The verbs only, in their unambiguous senses. "deteriorated"
+#: and "improved" are judgements -- ECL deteriorating is ECL RISING and
+#: coverage improving is coverage rising, so the same word means opposite
+#: arithmetic on two measures. "widened" and "narrowed" describe a gap
+#: between two numbers rather than either number. Bare "up" and "down" are
+#: prepositions half the time ("broken down by sector"). None of them is
+#: here, because a check that refuses an answer must be sure.
+_MOVED_UP = frozenset({
+    "rose", "rise", "rises", "rising", "risen", "increased", "increases",
+    "increasing", "increase", "grew", "grown", "grows", "growing",
+    "climbed", "climbs", "climbing", "higher"})
+_MOVED_DOWN = frozenset({
+    "fell", "fall", "falls", "falling", "fallen", "declined", "declines",
+    "declining", "decline", "dropped", "drops", "dropping", "drop",
+    "decreased", "decreases", "decreasing", "decrease", "eased", "eases",
+    "easing", "ease", "shrank", "shrunk", "shrinks", "shrink", "lower"})
+
+#: The two prepositions that fix WHICH figure is the start and which the
+#: end. "from A to B" and "to B from A" both say the same thing and both
+#: are unambiguous; "B, up from A" is not this pattern and is left alone.
+_FROM_TO = re.compile(r"(?i)\b(from|to)\b")
+
 #: Language that asserts an order. Matched against the narrative to decide
 #: whether a published chart is making a ranking claim.
 _SUPERLATIVE = re.compile(
@@ -413,6 +437,7 @@ class Finalizer:
             problems.extend(self._check_table(table, i))
 
         problems.extend(self._check_ordering(final))
+        problems.extend(self._check_movement(final))
         problems.extend(self._check_policy_citation(final))
 
         rendered = final.narrative
@@ -1276,6 +1301,90 @@ class Finalizer:
                         f"draw it as a sequence rather than a ranking, or "
                         f"drop the ranking language.")
         return problems
+
+    def _check_movement(self, final: FinalResponse) -> list[str]:
+        """A MOVEMENT STATEMENT CHECKED AGAINST ITS OWN TWO FIGURES.
+
+        CLOSURE-02. A live answer wrote, of past-due exposure, that it had
+        gone "from 8.08% of exposure to 8.42%" and then that "it has
+        actually eased slightly". The numbers were right and the sentence
+        contradicted them.
+
+        This does NOT read the analysis. It makes no judgement about
+        whether a move is material, what caused it, or whether easing is
+        good. It takes one sentence that names a start figure and an end
+        figure THROUGH THE CLAIMS THE SERVER COMPUTED, and refuses it when
+        the direction word says the opposite of the arithmetic. The
+        interpretation stays the model's; the arithmetic stays the
+        server's.
+
+        NARROW BY CONSTRUCTION, on the same discipline as
+        `_check_policy_citation`. It fires only on a sentence that:
+
+          * carries EXACTLY TWO claim placeholders, both numeric and both
+            in the same unit -- two measures moving in one sentence are two
+            statements and this cannot tell which word belongs to which;
+          * puts one of them after "from" and the other after "to", which
+            is the one English structure that says unambiguously which
+            figure is the start ("B, up from A" does not match and is left
+            alone);
+          * contains direction words of exactly ONE sense.
+
+        Anything else is silent.
+        """
+        if not final.narrative or not self.canonical:
+            return []
+        problems: list[str] = []
+        for sentence in re.split(r"(?<=[.!?])\s+", final.narrative):
+            problem = self._movement_problem(sentence)
+            if problem:
+                problems.append(problem)
+        return problems
+
+    def _movement_problem(self, sentence: str) -> str:
+        found = list(PLACEHOLDER.finditer(sentence))
+        if len(found) != 2:
+            return ""
+        words = {w.lower() for w in re.findall(r"[A-Za-z]+", sentence)}
+        up, down = words & _MOVED_UP, words & _MOVED_DOWN
+        if bool(up) == bool(down):
+            return ""
+
+        ends: dict[str, Any] = {}
+        units: dict[str, str] = {}
+        for match in found:
+            claim_id = match.group(1)
+            verdict = self.canonical.get(claim_id)
+            if verdict is None or verdict.canonical is None:
+                return ""
+            prepositions = _FROM_TO.findall(sentence[:match.start()])
+            if not prepositions:
+                return ""
+            which = prepositions[-1].lower()
+            if which in ends:
+                return ""
+            ends[which] = verdict.canonical
+            units[claim_id] = next(
+                (c.unit for c in self._claims if c.claim_id == claim_id), "")
+        if set(ends) != {"from", "to"}:
+            return ""
+        if len({u.strip().lower() for u in units.values()}) != 1:
+            return ""
+
+        start, end = ends["from"], ends["to"]
+        if start == end:
+            return ""
+        went_up = end > start
+        if went_up == bool(up):
+            return ""
+        said = sorted(up or down)[0]
+        return (
+            f"the answer says {said!r} of a movement from "
+            f"{start} to {end}, which went "
+            f"{'up' if went_up else 'down'}. Those are CreditProbe's own "
+            f"figures for the two claims in that sentence: describe the "
+            f"movement they show, or name the measure that did move the "
+            f"way you meant.")
 
     def _check_policy_citation(self, final: FinalResponse) -> list[str]:
         """A policy action names the clause it changes.

@@ -516,6 +516,15 @@ ANALYTICAL_ANSWER: dict[str, Any] = {
         "Where the result shows direction, name the driver and how much of "
         "the change it accounts for. Where it does not, say that this cut "
         "shows the movement and not its cause."),
+    # CLOSURE-02. Here rather than in `analyst.md`: this is only true of a
+    # turn that HOLDS two figures, and the instruction is carried on every
+    # attempt and measured against a bound.
+    "get_the_direction_right": (
+        "Read the two figures before you describe the movement between "
+        "them. A larger end figure has not eased, fallen or declined, and "
+        "a smaller one has not risen, grown or increased -- whether or not "
+        "the move is good news for the book. Say whether it is small if it "
+        "is small; do not say it went the other way."),
     "what_it_means_for_the_book": (
         "A sentence or two on the consequence, and what is worth doing "
         "next -- a name to look at, a limit to check, an analysis to run. "
