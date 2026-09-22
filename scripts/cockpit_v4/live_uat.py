@@ -176,6 +176,24 @@ class Journey:
     #: The separator the ORACLE itself puts between the parts of a
     #: composite key.
     key_separator: str = " / "
+    # ---- the comparison precision, declared ----------------------------
+    #
+    # An oracle recomputes from the parquet at full double precision. A
+    # published artifact holds whatever the analyst's SQL put in it, and an
+    # analyst is entitled to write `ROUND(AVG(x), 2)` -- rounding a tenure
+    # in quarters to two places is a reasonable thing for a credit analyst
+    # to do. The evidence then carries two decimals and NO MORE, and a
+    # comparison demanding six is asking the artifact for precision it does
+    # not contain.
+    #
+    # Where a journey's figure is expected at a fixed precision, the matrix
+    # says so HERE, before the run. -1 means "not declared", and the
+    # journey keeps the strict relative tolerance it always had.
+    #: Decimal places this journey's figure is compared at, or -1.
+    comparison_decimals: int = -1
+    #: Why, in the report, so a reader is never shown a pass at a looser
+    #: precision without being told it was looser.
+    comparison_reason: str = ""
     tolerance: float = 0.01
     expect_chart: str = ""          # "", "yes", "no"
     expect_clarification: str = ""  # "", "yes", "no"
@@ -210,7 +228,9 @@ def _from_case(jid: str, case_id: str, coverage: str, *,
                expect_chart: str = "", notes: str = "",
                value_scales: tuple[tuple[str, str], ...] = (),
                key_shapes: tuple[tuple[str, ...], ...] = (),
-               key_separator: str = " / ") -> Journey:
+               key_separator: str = " / ",
+               comparison_decimals: int = -1,
+               comparison_reason: str = "") -> Journey:
     case = _case_index()[case_id]
     return Journey(
         jid=jid, domain_id=case.domain_id, turns=[case.question],
@@ -219,6 +239,8 @@ def _from_case(jid: str, case_id: str, coverage: str, *,
         key=case.key, value=case.value, tolerance=case.tolerance,
         value_scales=value_scales, key_shapes=key_shapes,
         key_separator=key_separator,
+        comparison_decimals=comparison_decimals,
+        comparison_reason=comparison_reason,
         expect_chart=expect_chart, notes=notes or case.notes)
 
 
@@ -239,7 +261,26 @@ def single_turn() -> list[Journey]:
                    value_scales=(("avg_quarters_in_stage", "1"),
                                  ("average_quarters_in_stage", "1"),
                                  ("quarters_in_stage", "1"),
-                                 ("avg_quarters", "1"))),
+                                 ("avg_quarters", "1")),
+                   # A TENURE IN QUARTERS IS REPORTED TO TWO PLACES.
+                   #
+                   # Declared as a property of this figure, not as a
+                   # reaction to a number. "How long have exposures been in
+                   # their stage?" is answered in quarters and hundredths
+                   # of a quarter; a third decimal is a thousandth of a
+                   # quarter, which is under a day and is not a credit
+                   # fact. The bank's own C35 SQL leaves it unrounded, an
+                   # analyst's may not, and the matrix must be able to
+                   # reconcile either.
+                   #
+                   # The case's 1e-6 relative tolerance is what an EXACT
+                   # oracle needs when the artifact carries full precision.
+                   # It stays the default everywhere else.
+                   comparison_decimals=2,
+                   comparison_reason=(
+                       "a tenure in quarters is a two-decimal figure, and "
+                       "an artifact whose SQL rounded to two places carries "
+                       "no more precision than that to compare")),
         _from_case("L09", "C13", "multi-relation"),
         _from_case("L10", "R34", "multi-relation, two-key grain",
                    # CLOSURE-03. The oracle keys on "<product> / <region>"
@@ -814,13 +855,32 @@ def _oracle_key_of(ref: dict[str, Any], journey: Journey,
     return key_of(record["rows"][index], shape, journey.key_separator)
 
 
-def _close(left: Any, right: Any, tolerance: float) -> bool:
+def _close(left: Any, right: Any, tolerance: float,
+           decimals: int = -1) -> bool:
+    """Is the PUBLISHED value `left` consistent with the ORACLE `right`?
+
+    Two bases, and the journey says which before the run.
+
+    RELATIVE TOLERANCE is the default and is unchanged: the published
+    figure must agree with the oracle to within `tolerance` of it.
+
+    DECLARED PRECISION applies where the matrix says the figure is expected
+    at a fixed number of decimal places. The published value must then lie
+    within HALF A UNIT IN THE LAST DECLARED PLACE of the exact oracle --
+    the interval any correct rounding to that precision lands in, whichever
+    way the database breaks a tie. It is not a looser tolerance chosen to
+    make a number fit; it is the precision the evidence actually carries,
+    and asking the artifact for more than it holds is a question about the
+    artifact rather than about the analysis.
+    """
     from decimal import Decimal, InvalidOperation
 
     try:
         a, b = Decimal(str(left)), Decimal(str(right))
     except (InvalidOperation, ValueError, TypeError):
         return str(left) == str(right)
+    if decimals >= 0:
+        return abs(a - b) <= Decimal(5) * Decimal(10) ** -(decimals + 1)
     if b == 0:
         return abs(a) <= Decimal(str(tolerance))
     return abs(a - b) / abs(b) <= Decimal(str(tolerance))
@@ -842,10 +902,20 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
     shapes = key_shapes_of(journey)
     accepted = accepted_values_of(journey)
     value_names = tuple(name for name, _ in accepted)
+    declared_precision = journey.comparison_decimals >= 0
     mapping = {"key_shapes": [list(x) for x in shapes],
                "key_separator": journey.key_separator if shapes else "",
                "accepted_values": [list(x) for x in accepted],
                "tolerance": journey.tolerance,
+               # HOW TWO NUMBERS WERE JUDGED EQUAL, said out loud. A pass
+               # at a declared precision is not the same evidence as a pass
+               # against the exact oracle, and a report that did not
+               # distinguish them would be hiding that the submitted SQL
+               # rounded.
+               "comparison_basis": ("declared_precision" if declared_precision
+                                    else "relative_tolerance"),
+               "comparison_precision": journey.comparison_decimals,
+               "comparison_reason": journey.comparison_reason,
                "declared": "in the approved matrix, before the run"}
     if store is None:
         return {"has_oracle": True, "checked": False, "mapping": mapping,
@@ -898,8 +968,10 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
         used_column = used_column or column
         truth_here = scaled(scale)
         rows.update(found)
-        row_matches.update({k: _close(v, truth_here[k], journey.tolerance)
-                            for k, v in found.items() if k in truth_here})
+        row_matches.update({
+            k: _close(v, truth_here[k], journey.tolerance,
+                      journey.comparison_decimals)
+            for k, v in found.items() if k in truth_here})
     truth = scaled(scale_for(used_column) if used_column else "1")
     missing_keys = sorted(set(raw) - set(rows)) if not scalar else []
 
@@ -941,8 +1013,10 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
             entry["oracle_key"] = oracle_key
             entry["oracle_scale"] = scale_for(columns[0])
             entry["expected"] = str(claim_truth[oracle_key])
+            entry["comparison_basis"] = mapping["comparison_basis"]
             entry["ok"] = _close(value, claim_truth[oracle_key],
-                                 journey.tolerance)
+                                 journey.tolerance,
+                                 journey.comparison_decimals)
         else:
             entry["ok"] = None
             entry["why"] = why or (
@@ -966,6 +1040,8 @@ def reconcile(journey: Journey, taken: dict[str, Any], *,
     return {
         "has_oracle": True, "checked": True, "mapping": mapping,
         "value_column_used": used_column,
+        "comparison_basis": mapping["comparison_basis"],
+        "comparison_precision": journey.comparison_decimals,
         "expected": {k: str(v) for k, v in truth.items()},
         "published_rows": {k: str(v) for k, v in rows.items()},
         "rows_matched": sorted(k for k, ok in row_matches.items() if ok),
@@ -1397,6 +1473,19 @@ def rejudge(ledger: Path, *, out: Path, first_pass: Path | None,
                 if not j["oracle"].get("has_oracle")],
             "reconciled_ok": [j["journey"] for j in with_oracle
                               if j["oracle"].get("ok") is True],
+            # THE DISTINCTION, KEPT. A journey listed here passed, and it
+            # passed at the precision its matrix entry declares rather than
+            # against the exact oracle -- because the submitted SQL rounded
+            # and the artifact carries no more. It is a weaker statement
+            # than the others on that list, and a reader is told so.
+            "reconciled_at_declared_precision": [
+                {"journey": j["journey"],
+                 "decimals": j["oracle"].get("comparison_precision"),
+                 "why": j["oracle"].get("mapping", {}).get(
+                     "comparison_reason", "")}
+                for j in with_oracle
+                if j["oracle"].get("comparison_basis") == "declared_precision"
+                and j["oracle"].get("checked")],
             "reconciled_not_ok": [j["journey"] for j in with_oracle
                                   if j["oracle"].get("checked")
                                   and j["oracle"].get("ok") is not True],

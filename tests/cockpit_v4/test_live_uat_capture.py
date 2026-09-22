@@ -347,6 +347,8 @@ def test_the_declared_mapping_is_the_matrix_and_not_the_claim_ids(uat,
     assert report["mapping"] == {
         "key_shapes": [["sector"]], "key_separator": " / ",
         "accepted_values": [["ead_sar_mn", "1"]], "tolerance": 0.01,
+        "comparison_basis": "relative_tolerance",
+        "comparison_precision": -1, "comparison_reason": "",
         "declared": "in the approved matrix, before the run"}
     # The analyst's claim id is nowhere in the mapping.
     assert "manufacturing_ead" not in repr(report["mapping"])
