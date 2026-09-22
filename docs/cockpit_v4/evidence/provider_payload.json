@@ -6,7 +6,7 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 32928,
+      "system_bytes": 31837,
       "message_bytes": 221,
       "tools": [
         {
@@ -20,8 +20,8 @@
       "question": "Explain TAC.",
       "model": "mock-analyst",
       "max_tokens": 3072,
-      "system_blocks": 3,
-      "system_bytes": 38092,
+      "system_blocks": 4,
+      "system_bytes": 38446,
       "message_bytes": 167,
       "tools": [
         {
@@ -43,8 +43,8 @@
       "question": "Who are you?",
       "model": "mock-analyst",
       "max_tokens": 3072,
-      "system_blocks": 3,
-      "system_bytes": 38096,
+      "system_blocks": 4,
+      "system_bytes": 38450,
       "message_bytes": 167,
       "tools": [
         {

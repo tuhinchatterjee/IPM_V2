@@ -548,6 +548,60 @@ ANALYTICAL_ANSWER: dict[str, Any] = {
 }
 
 
+#: THE SHAPE OF A PRODUCT ANSWER, carried only on the turn that writes one.
+#:
+#: These four outlines lived in `analyst.md`, which is sent on EVERY action
+#: attempt and measured against a payload bound. They describe how to write
+#: a product answer, and an action turn cannot write one: it is choosing
+#: what to run. So the run paid for them on every attempt and could act on
+#: them on at most one -- exactly the argument that put the chart policy and
+#: the policy pack here rather than there.
+#:
+#: Moving them freed the room the `result_rows` operation needed in the
+#: instruction file. Nothing about their content changed; what changed is
+#: which turn receives them.
+PRODUCT_ANSWER: dict[str, Any] = {
+    "phase": "THE ANSWER",
+    "match_the_shape_to_the_question": (
+        "Use the shape that fits. Do not walk through every section of one "
+        "of these outlines because it is there."),
+    "a_broad_product_question": (
+        "\"Who are you?\", \"What problem does CreditProbe solve?\", \"Why "
+        "would a CRO use this?\" wants: one strong line of positioning; the "
+        "problem a senior credit officer actually has; how CreditProbe "
+        "addresses it; the connected workflow -- Detect, Diagnose, Decide, "
+        "Drive Alignment; the functionalities that matter to them; one "
+        "concrete example; the governance boundary; and two or three "
+        "questions worth asking next."),
+    "a_single_module_question": (
+        "\"What does Early Warning do?\" wants: what it is; why a senior "
+        "credit officer needs it; how it works; what it produces; a "
+        "practical example; how it connects to the rest; what to ask next."),
+    "a_module_question_about_cockpit": (
+        "\"What is Cockpit?\", \"Why should I use Cockpit?\", \"What problem "
+        "does Cockpit solve?\" wants: what Cockpit is; the problem it solves "
+        "for a senior credit officer; how it works -- spot the movement, "
+        "explain the drivers, prioritise the follow-ups; what it owns and "
+        "what it answers from; a practical example; where Cockpit ends and "
+        "Early Warning or What-If begins; and what to ask next."),
+    "a_narrow_concept_question": (
+        "\"What is TAC?\" wants a direct answer. Do not produce a brochure "
+        "for it."),
+}
+
+
+def product_blocks() -> list[dict[str, Any]]:
+    """The product-answer shape, for the turn that can publish one.
+
+    Appended on a PRODUCT_HELP turn, beside the credit policy, for the same
+    reason: it is only true of a turn that writes a user-facing answer, and
+    `finalization_system` -- which carries the ANALYTICAL shape -- runs only
+    when the action state is RESULT_READY.
+    """
+    return [{"type": "text", "text": json.dumps(
+        PRODUCT_ANSWER, ensure_ascii=False)}]
+
+
 #: Four live answers came back as tables and nothing else, one of them to a
 #: reader who had asked for a line chart by name. The instruction file did
 #: not contain the word "chart", so nothing told the analyst that the form
@@ -795,6 +849,7 @@ def policy_receipt(*, domain_id: str, question: str) -> dict[str, Any]:
 
 
 __all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "POLICY_RULE",
-           "PRESENTATION",
+           "PRESENTATION", "PRODUCT_ANSWER",
            "Packet", "analyst_instruction", "build", "finalization_system",
-           "policy_blocks", "policy_receipt", "policy_retrieval"]
+           "policy_blocks", "policy_receipt", "policy_retrieval",
+           "product_blocks"]

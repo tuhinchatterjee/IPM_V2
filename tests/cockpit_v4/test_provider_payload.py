@@ -75,7 +75,22 @@ def test_the_system_context_is_present_and_ordered(key, payload):
     # Stable prefix first so a cache write is reusable; volatile budget last.
     assert "CreditProbe Cockpit's analyst" in blocks[0]["text"]
     assert "cockpit_semantics" in blocks[1]["text"]
-    assert "pinned_scope" in blocks[-1]["text"]
+    # The volatile block closes the CARRIED context -- it sits behind the
+    # whole stable prefix and there is exactly one of it. Guidance that is
+    # true only of THIS turn is appended behind it (`finalization_system`,
+    # `policy_blocks`, `product_blocks`), so "last in the list" and "last of
+    # the context" are not the same assertion; this is the one that holds.
+    volatile = [i for i, block in enumerate(blocks)
+                if "pinned_scope" in str(block.get("text") or "")]
+    assert volatile == [2], [str(b.get("text"))[:60] for b in blocks]
+    if key == "ead_by_sector":
+        # An action turn is choosing what to run. It can publish nothing,
+        # so nothing turn-scoped is appended and the volatile block is last.
+        assert len(blocks) == 3, len(blocks)
+    else:
+        # A PRODUCT_HELP turn CAN publish, so it carries the shape a product
+        # answer wants -- the outlines an action turn could never act on.
+        assert "a_narrow_concept_question" in blocks[-1]["text"]
     # The product pack rides on a PRODUCT question and not on an analytical
     # one: about five kilobytes describing what CreditProbe is, handed to a
     # turn that was asked what a book did. `inspect_product_knowledge` is

@@ -252,3 +252,60 @@ def test_the_instruction_states_the_scope_rule():
     instruction = context_mod.analyst_instruction()
     assert "Answer it in\nthis one action" in instruction
     assert "not the same answer" in instruction
+
+
+# The four product-answer outlines moved out of `analyst.md` and onto the
+# turn that writes a product answer. `analyst.md` is carried on EVERY action
+# attempt and measured against a payload bound, and an action turn -- which
+# is choosing what to run -- can write no product answer at all, so the run
+# paid for them on every attempt and could act on them on at most one. These
+# three tests hold the move honest: the outlines still exist, they reach the
+# product turn, and they no longer ride on the action turn.
+
+OUTLINES = ("a_broad_product_question", "a_single_module_question",
+            "a_module_question_about_cockpit", "a_narrow_concept_question")
+
+
+def test_the_four_product_shapes_all_still_exist():
+    from backend.cockpit_v4 import context as context_mod
+
+    for key in OUTLINES:
+        assert key in context_mod.PRODUCT_ANSWER, key
+        assert len(context_mod.PRODUCT_ANSWER[key]) > 60, key
+    # The substance, not just the keys: the arc, the boundary and the
+    # instruction not to brochure a one-word concept.
+    blob = " ".join(context_mod.PRODUCT_ANSWER.values())
+    for phrase in ("Detect, Diagnose, Decide, Drive Alignment",
+                   "the governance boundary",
+                   "where Cockpit ends and Early Warning or What-If begins",
+                   "Do not produce a brochure for it",
+                   "Do not walk through every section"):
+        assert phrase in blob, phrase
+
+
+def test_the_outlines_reach_the_turn_that_writes_a_product_answer(drive):
+    script = [ScriptedResult(tool_calls=[tool_call("finalize_response", {
+        **intent(mode="PRODUCT_HELP", owner="COCKPIT"),
+        **final(disposition="answer", narrative="Hello.")})])]
+    _outcome, provider, _record = drive("Who are you?", script)
+    blob = " ".join(block["text"] for block in provider.sent[0]["system"])
+    for key in OUTLINES:
+        assert key in blob, key
+
+
+def test_the_outlines_do_not_ride_on_an_analytical_action_turn(drive):
+    script = [ScriptedResult(tool_calls=[tool_call("finalize_response", {
+        **intent(), **final(disposition="answer", narrative="ok")})])]
+    _outcome, provider, _record = drive(
+        "What is total exposure at default by sector in the latest quarter?",
+        script)
+    blob = " ".join(block["text"] for block in provider.sent[0]["system"])
+    for key in OUTLINES:
+        assert key not in blob, key
+    from backend.cockpit_v4 import context as context_mod
+
+    # And they are not smuggled back in through the instruction file, which
+    # is the thing that was paying for them.
+    instruction = context_mod.analyst_instruction()
+    assert "wants: one strong line of positioning" not in instruction
+    assert "Do not produce a brochure for it" not in instruction

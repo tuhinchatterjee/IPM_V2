@@ -755,6 +755,14 @@ class Orchestrator:
 
             extra = ctx.policy_blocks(domain_id=domain_id,
                                       question=self._asked())
+            # AND THE SHAPE A PRODUCT ANSWER WANTS REACHES THE TURN THAT
+            # WRITES ONE. The four outlines used to sit in `analyst.md`,
+            # which every action attempt carries and pays for; an action
+            # turn is choosing what to run and can write no product answer
+            # at all. They belong here, on the one turn that can act on
+            # them, exactly like the chart policy and the policy pack.
+            if decision.state == acts.PRODUCT_HELP:
+                extra = extra + ctx.product_blocks()
             if extra:
                 restore_system = self.analyst.system
                 self.analyst.system = list(self.analyst.system) + extra
