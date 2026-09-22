@@ -520,11 +520,10 @@ ANALYTICAL_ANSWER: dict[str, Any] = {
     # turn that HOLDS two figures, and the instruction is carried on every
     # attempt and measured against a bound.
     "get_the_direction_right": (
-        "Read the two figures before you describe the movement between "
-        "them. A larger end figure has not eased, fallen or declined, and "
-        "a smaller one has not risen, grown or increased -- whether or not "
-        "the move is good news for the book. Say whether it is small if it "
-        "is small; do not say it went the other way."),
+        "Read both figures before describing the movement. A larger end "
+        "figure has not eased, fallen or declined, and a smaller one has "
+        "not risen -- whatever the move means for the book. Say it is "
+        "small if it is small; do not say it went the other way."),
     "what_it_means_for_the_book": (
         "A sentence or two on the consequence, and what is worth doing "
         "next -- a name to look at, a limit to check, an analysis to run. "
@@ -580,13 +579,13 @@ PRESENTATION: dict[str, Any] = {
     # table with no chart for exactly that reason. It is named here, as a
     # kind of shape, rather than as a rule about delinquency.
     "an_ordered_distribution_has_a_shape": (
-        "A measure spread across a set of bands that have a natural ORDER "
-        "-- delinquency buckets, rating grades, IFRS 9 stages, tenor "
-        "bands, vintages, score bands -- has a shape even when no bucket "
-        "stands out, because where the weight sits ALONG that order is the "
-        "finding. Several such bands normally read better drawn than "
-        "listed. The order is the axis, so draw it as a sequence or as a "
-        "composition of one whole, not as a ranking by size."),
+        "A measure spread across bands with a natural ORDER -- delinquency "
+        "buckets, rating grades, IFRS 9 stages, tenor bands, vintages, "
+        "score bands -- has a shape even when no band stands out, because "
+        "where the weight sits ALONG it is the finding. Several such bands "
+        "read better drawn than listed. The order is the axis: draw a "
+        "sequence or a composition of one whole, not as a ranking by "
+        "size."),
     "say_why_in_one_line": (
         "Put that reason in `why_this_chart`: the reader's question this "
         "form answers. It is published with the chart and appears in the "
