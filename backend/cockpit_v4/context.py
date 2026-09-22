@@ -650,35 +650,128 @@ def finalization_system(system_blocks: list[dict[str, Any]], *,
         ANALYTICAL_ANSWER, ensure_ascii=False)})
     kept.append({"type": "text", "text": json.dumps(
         PRESENTATION, ensure_ascii=False)})
-    # THE CREDIT POLICY, on the turn that can collide with it.
-    #
-    # An action turn is choosing what to run; it holds no number, so a
-    # threshold in front of it is a threshold nothing can be compared
-    # against. The answer turn has the result in hand, and that is the
-    # moment "this is above the limit" becomes a sentence worth writing.
-    #
-    # RETRIEVED HERE RATHER THAN THROUGH A TOOL. It was a tool first, and
-    # the tool could never be called: the state that holds a result REQUIRES
-    # `finalize_response`, so a companion offered beside it is a schema the
-    # run pays for and cannot reach. Retrieval is deterministic and needs no
-    # judgement -- the clause ids and topics are in the reader's own words,
-    # exactly like `value_resolution` -- so the server does it and the
-    # analyst cannot fail to have asked. A question that names no policy
-    # topic gets the synopsis and nothing else.
-    if domain_id:
-        try:
-            from backend.cockpit_v4 import credit_policy as cp
-
-            kept.append({"type": "text", "text": json.dumps(
-                cp.synopsis(domain_id), ensure_ascii=False)})
-            found = cp.retrieve(domain_id, question=question)
-            if found.get("clauses"):
-                kept.append({"type": "text", "text": json.dumps(
-                    found, ensure_ascii=False)})
-        except Exception:  # noqa: BLE001 - a book with no policy pack
-            pass
+    kept += policy_blocks(domain_id=domain_id, question=question)
     return kept
 
 
-__all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "PRESENTATION",
-           "Packet", "analyst_instruction", "build", "finalization_system"]
+#: HOW TO USE THE POLICY, carried with it.
+#:
+#: Here rather than in `analyst.md` because it is only true on a turn that
+#: HAS the pack, exactly like the chart policy. The instruction is carried
+#: on every attempt and is measured against a bound, so a rule about
+#: material the action turn does not receive would be a rule the action turn
+#: pays for and cannot use.
+POLICY_RULE = (
+    "These clauses are in front of you. A threshold you quote must name the "
+    "clause that sets it -- the clause id is the binding for a policy "
+    "figure, as an artifact cell is for a portfolio figure, and an uncited "
+    "threshold reads as governance without being governed. Never say this "
+    "book records no policy on something without reading what is here. "
+    "Where a clause settles a term -- which measure a limit is tested on, "
+    "for instance -- that term is settled, and treating it as open invents "
+    "an ambiguity the policy has already closed.")
+
+
+def policy_retrieval(*, domain_id: str, question: str) -> dict[str, Any]:
+    """What this book's credit policy puts in front of THIS question.
+
+    Deterministic and server-side. `synopsis` always carries the sections
+    and every threshold a portfolio number can be measured against;
+    `retrieve` attaches, in full, the clauses whose ids or topics the
+    question names -- in the reader's own words, exactly like
+    `value_resolution`.
+
+    RETRIEVED RATHER THAN OFFERED AS A TOOL. It was a tool first and the
+    tool could never be called: the state that holds a result REQUIRES
+    `finalize_response`, so a companion beside it is a schema the run pays
+    for and cannot reach. Retrieval needs no judgement, so the server does
+    it and the analyst cannot fail to have asked.
+
+    Returns `{}` for a run with no book -- a product question has no credit
+    policy to cite -- or a book with no pack.
+    """
+    if not domain_id:
+        return {}
+    try:
+        from backend.cockpit_v4 import credit_policy as cp
+
+        synopsis = cp.synopsis(domain_id)
+        found = cp.retrieve(domain_id, question=question)
+    except Exception:  # noqa: BLE001 - a book with no policy pack
+        return {}
+    return {"synopsis": synopsis,
+            "retrieved": found if found.get("clauses") else {}}
+
+
+def policy_blocks(*, domain_id: str, question: str) -> list[dict[str, Any]]:
+    """The credit policy as system blocks, for a turn that can collide
+    with it.
+
+    H-LIVE-05. These used to be appended by `finalization_system` alone,
+    which `orchestration` applies only when the action state is
+    RESULT_READY. A PRODUCT_HELP turn also publishes a user-facing answer,
+    and it got no policy at all -- so the live answer to "Which sectors are
+    above the single-name limit?" was written with an empty policy context
+    and said "There is no recorded single-name policy limit in the
+    Corporate Credit book", which is false: CP-1.1 exists, its keyword map
+    holds "single name", and `retrieve` returns it for that exact question.
+
+    An ACTION turn still gets none. It is choosing what to run and holds no
+    number, so a threshold in front of it is a threshold nothing can be
+    compared against.
+    """
+    retrieval = policy_retrieval(domain_id=domain_id, question=question)
+    if not retrieval:
+        return []
+    blocks = [{"type": "text", "text": json.dumps(
+        {**retrieval["synopsis"], "how_to_use_this": POLICY_RULE},
+        ensure_ascii=False)}]
+    if retrieval["retrieved"]:
+        blocks.append({"type": "text", "text": json.dumps(
+            retrieval["retrieved"], ensure_ascii=False)})
+    return blocks
+
+
+def policy_receipt(*, domain_id: str, question: str) -> dict[str, Any]:
+    """WHAT THE ANSWER WAS GIVEN, recorded so a reader can check it.
+
+    H-LIVE-06. A later live turn wrote "well inside the CP-1.1 single
+    obligor limit of SAR 25,000 million". The figure is right --
+    `credit_policy.json` sets `single_obligor_ead_sar_mn` to 25000 -- and
+    the answer showed no retrieval, because there was none to show: the
+    threshold reached that turn inside `cp.synopsis`, which the server
+    attached. Correct is not the same as governed, and nothing in the
+    published answer said where the number came from.
+
+    This is that provenance: the pack, its version, which clauses were
+    attached in full and which thresholds were in front of the answer. It
+    is built from the same deterministic retrieval, so it cannot claim the
+    answer was given something it was not.
+    """
+    retrieval = policy_retrieval(domain_id=domain_id, question=question)
+    if not retrieval:
+        return {}
+    synopsis = retrieval["synopsis"]
+    thresholds = {
+        str(entry.get("clause") or ""): dict(entry.get("thresholds") or {})
+        for entry in (synopsis.get("thresholds_a_portfolio_number_meets")
+                      or ())}
+    return {
+        "book": str(synopsis.get("book") or domain_id),
+        "policy": str(synopsis.get("policy") or ""),
+        "pack_version": str(synopsis.get("pack_version") or ""),
+        "how": "attached by the server to the turn that wrote the answer",
+        # Every clause whose threshold was in front of the answer, whether
+        # or not the question named it.
+        "thresholds_in_context": thresholds,
+        # The clauses the question reached, attached in full.
+        "clauses_attached": [str(c.get("clause") or "")
+                             for c in (retrieval["retrieved"].get("clauses")
+                                       or ())],
+    }
+
+
+__all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "POLICY_RULE",
+           "PRESENTATION",
+           "Packet", "analyst_instruction", "build", "finalization_system",
+           "policy_blocks", "policy_receipt", "policy_retrieval"]

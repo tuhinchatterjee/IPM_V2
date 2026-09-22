@@ -37,15 +37,37 @@ import test_mac_action_replay as mac
 #: The measured ceiling for one analytical ACTION request, in bytes on the
 #: wire.
 #:
-#: The plain question measures 47.9KB and the seeded one 55.7KB, of which
-#: 7.7KB is the analysis packet -- the thing that stops a seeded thread
-#: going to look for its own relation, segment value and periods, and worth
-#: every byte it costs. Both were about 8KB larger before this round: the
-#: product pack and the answer half of `finalize_response` came off.
-MAX_ACTION_BYTES = 52_000
+#: The plain question measures 52.1KB and the seeded one 60.1KB, of which
+#: the analysis packet is a few hundred bytes -- the thing that stops a
+#: seeded thread going to look for its own relation, segment value and
+#: periods, and worth every byte it costs. Both were about 8KB larger
+#: before the compaction round: the product pack and the answer half of
+#: `finalize_response` came off.
+#:
+#: RE-BASELINED IN THE FIRST-LIVE-UAT REPAIR, by 130 measured bytes.
+#:
+#: The bound stood at 52,000 against a measured 51,926 -- seventy-four
+#: bytes of headroom -- and H-LIVE-03 needs one rule ON THE ACTION TURN,
+#: because the action turn is where the decision it governs is made:
+#:
+#:     "Once you can name the measure, dimension, book and period a data
+#:      question means, RUN IT -- never ask permission to do what was just
+#:      asked."
+#:
+#: The live analyst understood a typo-heavy data question completely and
+#: then published PRODUCT_HELP / unsupported with an offer to proceed if
+#: the reader said "go ahead". Opening the tool surface (`action_state`)
+#: makes that possible; this sentence is what makes it expected. It was
+#: paid for where it could be: the policy rule the same round needed moved
+#: into `context.POLICY_RULE`, carried with the pack on the answer turn, so
+#: it costs the action turn nothing, and the clarification paragraph it
+#: joins was rewritten tighter. What is left is 130 bytes, and the numbers
+#: below are the measurement rather than a round figure with room in it:
+#: the headroom is 44 bytes, as tight as it was before.
+MAX_ACTION_BYTES = 52_100
 #: A seeded thread pays for its seed. Bounded separately so the allowance
 #: for one cannot quietly become the allowance for the other.
-MAX_SEEDED_ACTION_BYTES = 60_000
+MAX_SEEDED_ACTION_BYTES = 60_100
 #: The tool schemas alone. The full contract is ~16.8KB; the action set is
 #: ~8.6KB because the answer half of `finalize_response` is not on it.
 MAX_ACTION_TOOL_BYTES = 10_000

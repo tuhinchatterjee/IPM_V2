@@ -112,6 +112,16 @@ _POLICY_ACTION = re.compile(
     r"amend|change|revise|cap|freeze|introduce|relax|restrict)\w*\b"
     r"(?=[^.!?]*\bpolic(?:y|ies)\b)")
 
+#: A sentence that CALLS A NUMBER A LIMIT. Narrow on purpose: the check it
+#: gates refuses an answer, and a credit write-up says "reduce" and
+#: "exposure" in every other sentence without proposing anything.
+_POLICY_LIMIT = re.compile(
+    r"(?i)\b(?:limit|threshold|cap|ceiling|floor|covenant|"
+    r"polic(?:y|ies))\b")
+
+#: A written figure, with or without thousands separators.
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
 #: Language that asserts an order. Matched against the narrative to decide
 #: whether a published chart is making a ranking claim.
 _SUPERLATIVE = re.compile(
@@ -1247,13 +1257,78 @@ class Finalizer:
 
         sentences = [x for x in re.split(r"(?<=[.!?])\s+", final.narrative)
                      if _POLICY_ACTION.search(x)]
-        if sentences and not cp.citations(final.narrative, self.domain_id):
+        cited = cp.citations(final.narrative, self.domain_id)
+        if sentences and not cited:
             problems.append(
                 "the answer proposes a policy change and cites no clause of "
                 "this book's credit policy. The clauses this question "
                 "reaches are attached to this turn: name the one the change "
                 "would alter and quote the rule in force, or state the "
                 "finding without proposing an action.")
+        if not cited:
+            problems += self._unbound_thresholds(final.narrative, cp)
+        return problems
+
+    def _unbound_thresholds(self, narrative: str, cp: Any) -> list[str]:
+        """A POLICY THRESHOLD QUOTED WITH NO CLAUSE NAMED.
+
+        H-LIVE-06. A live answer wrote "well inside the CP-1.1 single
+        obligor limit of SAR 25,000 million". That one was cited and is
+        governed; `finalize_response` warned only that the bare figure was
+        not bound to artifact evidence, which it could not be -- a policy
+        threshold is not a cell in a result and the claim contract has
+        nowhere to put it. So the warning was noise on a correct answer and
+        would have been the same noise on an uncited one, and the answer
+        published either way.
+
+        A threshold is bound to the PACK, not to an artifact. The pack is in
+        front of every turn that writes an answer, and naming the clause is
+        the binding. This refuses the case where neither happened: a figure
+        this book's policy sets, presented as a limit, with no clause of
+        this book named anywhere in the answer.
+
+        DELIBERATELY NARROW, on the same discipline as `_POLICY_ACTION`.
+        The sentence must call the number a limit, and the number must be
+        one this book's pack actually sets. An ordinary sentence about a
+        ratio of 1.2 is not a covenant citation, and a portfolio figure
+        that happens to equal a threshold is not either unless the
+        sentence says it is one.
+        """
+        thresholds: set[Decimal] = set()
+        try:
+            for entry in (cp.synopsis(self.domain_id).get(
+                    "thresholds_a_portfolio_number_meets") or ()):
+                for value in (entry.get("thresholds") or {}).values():
+                    try:
+                        thresholds.add(Decimal(str(value)))
+                    except (InvalidOperation, ValueError):
+                        continue
+        except Exception:  # noqa: BLE001 - a book with no policy pack
+            return []
+        if not thresholds:
+            return []
+        problems: list[str] = []
+        for sentence in re.split(r"(?<=[.!?])\s+", narrative):
+            if not _POLICY_LIMIT.search(sentence):
+                continue
+            for written in _NUMBER.findall(sentence):
+                try:
+                    value = Decimal(written.replace(",", ""))
+                except (InvalidOperation, ValueError):
+                    continue
+                if value not in thresholds:
+                    continue
+                problems.append(
+                    f"the answer presents {written} as a policy limit and "
+                    f"names no clause of this book's credit policy. That "
+                    f"figure is one this book's pack sets, and the pack is "
+                    f"attached to this turn: cite the clause it comes from "
+                    f"and quote the rule in force. A threshold is bound to "
+                    f"the clause that sets it, not to a result cell, and an "
+                    f"uncited one reads as governance whether or not it is.")
+                break
+            if problems:
+                break
         return problems
 
     def _check_chart(self, chart: dict[str, Any], index: int) -> str:

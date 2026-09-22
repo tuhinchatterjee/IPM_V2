@@ -149,6 +149,11 @@ class Journey:
     expect_chart: str = ""          # "", "yes", "no"
     expect_clarification: str = ""  # "", "yes", "no"
     notes: str = ""
+    #: Why this journey is no longer valid evidence for what it was written
+    #: to test. It stays in the matrix so an already-executed first pass can
+    #: still be mapped and read; it must not be graded against the
+    #: behaviour it was designed for.
+    retired: str = ""
 
 
 _CASES: dict[str, Any] = {}
@@ -228,13 +233,39 @@ def single_turn() -> list[Journey]:
                 notes="Must reach L01's answer. Typos are not an ambiguity, "
                       "and the trace must show entity/value resolution, not a "
                       "fabricated spelling-correction stage."),
+        # L16 IS NOT A CLARIFICATION TEST. It never was, once CP-1.1 existed.
+        #
+        # The original expectation was that "exposure" behind "single-name
+        # limit" is a blocking ambiguity between `ead_sar_mn`,
+        # `limit_sar_mn` and `drawn_sar_mn`. The governed policy closes it:
+        # CP-1.1 reads "Total exposure to a single obligor may not exceed
+        # SAR 25,000 million. Exposure is measured as EAD, funded and
+        # unfunded together." Measured against the live runtime rather than
+        # argued:
+        #
+        #   cp.retrieve(corporate, question=...)  -> ["CP-1.1"]
+        #   sem.readiness(catalog, question)      -> sufficient=True,
+        #                                            resolved {limit, sector}
+        #
+        # So the question is fully answerable, and asking here would be the
+        # same failure L17 exists to catch. What it is a good test OF is
+        # policy retrieval, a borrower-grain aggregation from a
+        # facility-grain relation, and an honest empty result: no borrower
+        # in the book breaches CP-1.1 -- the largest single obligor holds
+        # SAR 14,432.08 million of EAD at 2026Q2 against a SAR 25,000
+        # million limit -- so the correct answer is "none", with the
+        # headroom stated and the clause cited.
         Journey("L16", corp,
                 ["Which sectors are above the single-name limit?"],
-                "true clarification", expect_clarification="yes",
-                notes="The bare word 'exposure' behind 'single-name limit' is "
-                      "the documented blocking ambiguity: ead_reported, "
-                      "gross_carrying_amount or drawn_balance. CP-1.1 should "
-                      "also be retrieved by name after the Round H fix."),
+                "governed policy threshold, answerable",
+                expect_clarification="no",
+                notes="CP-1.1 must be RETRIEVED and CITED, 'exposure' must "
+                      "resolve to EAD because the clause says so, the test "
+                      "must be at borrower grain, and the honest answer is "
+                      "that no borrower breaches it -- the largest is SAR "
+                      "14,432 million against SAR 25,000 million. Asking a "
+                      "clarification here is a failure, and so is reporting "
+                      "no such policy exists."),
         Journey("L17", corp, [_case_index()["C01"].question],
                 "unnecessary-clarification negative control",
                 oracle=_case_index()["C01"].oracle,
@@ -253,6 +284,30 @@ def single_turn() -> list[Journey]:
                       "product must refuse an ungoverned collapse and the "
                       "ANALYST must author the corrected submission. "
                       "CreditProbe must not rewrite the SQL."),
+        # THE REPLACEMENT TRUE-CLARIFICATION CASE, proven rather than
+        # invented. Against the live corporate catalogue and the governed
+        # policy pack:
+        #
+        #   sem.readiness(catalog, "Which sectors have the largest
+        #                           exposure?")
+        #     -> sufficient=False
+        #     -> exposure needs a decision between
+        #        ead_sar_mn | limit_sar_mn | drawn_sar_mn
+        #   cp.retrieve(corporate, question=...) -> no clauses
+        #
+        # Three governed readings that produce three different rankings,
+        # and nothing in the catalogue or the policy chooses between them.
+        # CP-1.1 settles "exposure" only for the single obligor limit; this
+        # question names no limit, so the clause does not reach it. That is
+        # what a blocking ambiguity is, and it is the one L16 was believed
+        # to be.
+        Journey("L19", corp,
+                ["Which sectors have the largest exposure?"],
+                "true clarification", expect_clarification="yes",
+                notes="The analyst must ASK, offering the governed readings "
+                      "rather than choosing one silently. Answering this "
+                      "with a number is the failure; so is offering a "
+                      "reading the catalogue does not hold."),
     ]
     return out
 
@@ -295,16 +350,72 @@ def chains() -> list[Journey]:
                  "How much of that is past due?",
                  "How did that compare a month ago?"],
                 "period-changing follow-up, Retail"),
+        # M05 AS IT RAN, KEPT AND RETIRED. H-UAT-01.
+        #
+        # The chain assumed turn 1 would ask which exposure measure was
+        # meant, so that "Exposure at default" would be an ANSWER to it. Two
+        # things make that invalid. L16 is answerable and should not clarify
+        # at all (see `single_turn`); and when the live turn 1 did ask, it
+        # asked for the BREACH-TEST DEFINITION -- which threshold, measured
+        # how -- and "Exposure at default" does not answer that question.
+        # The live analyst read turn 2 as a broader new EAD request, which
+        # is a defensible reading of what it was actually sent.
+        #
+        # So the first-pass M05 result is NOT evidence that
+        # clarification-answer projection works, and it is NOT evidence
+        # that it is broken. It is an invalid test design for that
+        # behaviour. It stays here so the executed first pass can still be
+        # mapped and read, and it must not be graded against the behaviour
+        # it was written for. M06 replaces it.
         Journey("M05", dom.CORPORATE,
                 ["Which sectors are above the single-name limit?",
                  "Exposure at default",
                  "Just the top five by that measure",
                  "And how much of that is Stage 2?"],
-                "narrowing across a clarification",
+                "narrowing across a clarification (retired)",
+                retired="Turn 2 does not answer the clarification turn 1 "
+                        "actually asks, and turn 1 should no longer clarify "
+                        "at all now that CP-1.1 resolves it. Not evidence "
+                        "either way for clarification-answer projection.",
+                notes="EXECUTED IN THE FIRST PASS. Read it for what it "
+                      "shows -- multi-turn narrowing, period handling, "
+                      "policy behaviour -- and not as a clarification test."),
+        # M06: TURN 2 ANSWERS ONE OF THE OFFERED CHOICES.
+        #
+        # Turn 1 is the proven blocking ambiguity (L19). The governed
+        # readings are `ead_sar_mn`, `limit_sar_mn` and `drawn_sar_mn`, so
+        # "Exposure at default" IS one of the choices on the table rather
+        # than a new request that happens to name a measure. Turns 3 and 4
+        # then narrow within the reading turn 2 chose.
+        Journey("M06", dom.CORPORATE,
+                ["Which sectors have the largest exposure?",
+                 "Exposure at default",
+                 "Just the top five by that measure",
+                 "And how much of that is Stage 2?"],
+                "clarification answered, then narrowing",
                 expect_clarification="yes",
-                notes="Turn 2 ANSWERS turn 1's clarification. The Round H "
+                notes="Turn 1 must ask. Turn 2 must be read as ANSWERING "
+                      "it -- the question stands, with exposure now fixed "
+                      "to EAD -- and not as a new question about EAD. The "
                       "history projection must carry `you_asked` so the "
-                      "analyst does not have to guess what three words mean."),
+                      "analyst does not have to guess what three words "
+                      "mean. Turns 3 and 4 must inherit that reading."),
+        # M07: THE CONTROL. A genuinely new question after a clarification.
+        #
+        # Turn 1 asks the same thing. Turn 2 changes the subject to a
+        # measure the clarification never offered, and the runtime must
+        # answer THAT rather than treating it as a choice of exposure
+        # reading. Without this, a projection that read every second turn
+        # as an answer to the pending question would look correct.
+        Journey("M07", dom.CORPORATE,
+                ["Which sectors have the largest exposure?",
+                 "What is total ECL this quarter?"],
+                "new question after a clarification",
+                expect_clarification="yes",
+                notes="Turn 2 is NOT one of the offered readings and names "
+                      "a different measure. It must be answered as the new "
+                      "question it is, and the unanswered clarification "
+                      "must not be silently resolved by it."),
     ]
     return out
 
@@ -923,6 +1034,15 @@ def grade(journey: Journey | None, turns: list[dict[str, Any]]
     if journey is None:
         out["expectations"] = {"checked": False,
                               "why": "this question is not in the matrix"}
+        return out
+    if journey.retired:
+        # H-UAT-01. A retired journey is READ, not graded. Grading it
+        # against the behaviour it was written for is exactly the mistake
+        # that would turn an invalid test design into a verdict.
+        out["expectations"] = {"checked": False, "retired": journey.retired,
+                               "why": "this journey is retired: it is not "
+                                      "valid evidence for the behaviour it "
+                                      "was designed to test"}
         return out
     expectations: dict[str, Any] = {"checked": True}
     if journey.expect_chart:

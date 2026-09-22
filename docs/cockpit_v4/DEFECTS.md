@@ -200,3 +200,78 @@ a real failure.
    in palette and in whether `@custom-variant dark` matches.
 4. A regression test that fails without the fix. A test that merely passes
    more often is not one.
+
+---
+
+## D-003 · The session cache evicts the session it is about to return
+
+| | |
+|---|---|
+| **Status** | OPEN — deliberately not fixed in the first-live-UAT repair round |
+| **Severity** | P1 by consequence, narrow by reach |
+| **Found** | 2026-09-21, while running a targeted batch of five V4 test modules |
+| **Failing test** | `tests/cockpit_v4/test_release_history.py::test_a_pinned_thread_replays_its_own_sql_against_its_own_release[v4-saudi-retail-20m-v4]`, in a batch that opens five or more distinct releases. Passes in isolation. |
+| **Out of scope because** | It predates this round's work and is not a defect the first live UAT demonstrated. It is logged rather than repaired on instruction. |
+
+### What happens
+
+`backend/cockpit_v4/catalog.py:430-434`:
+
+```python
+_SESSIONS[key] = session
+while len(_SESSIONS) > MAX_CACHED_SESSIONS:     # = 4
+    _, evicted = _SESSIONS.popitem()
+    evicted.close()
+return session
+```
+
+`dict.popitem()` removes the **most recently inserted** entry, and the entry
+just inserted is `session` itself. So once four distinct
+`(tenant, domain, release, fingerprint)` keys are cached, every subsequent
+`open_session` builds a session, caches it, immediately evicts and closes
+it, and hands the caller a dead DuckDB connection. The caller's first query
+raises:
+
+```
+_duckdb.ConnectionException: Connection Error: Connection already closed!
+```
+
+### What was proved
+
+Through the real `open_session`, with `_build_session` stubbed so that only
+the caching code runs:
+
+```
+open release-0: returned session closed = False   cached = 1
+open release-1: returned session closed = False   cached = 2
+open release-2: returned session closed = False   cached = 3
+open release-3: returned session closed = False   cached = 4
+open release-4: returned session closed = True    cached = 4
+open release-5: returned session closed = True    cached = 4
+```
+
+It is pre-existing: stashing every edit and re-running the identical batch
+on a clean `ac315dd` reproduces it exactly (`1 failed, 76 passed`).
+
+The sibling cache does it correctly — `analytical_runtime.py:198` is
+`_CACHE.pop(next(iter(_CACHE)))`, which pops the **oldest**. `catalog.py` is
+the one that pops the newest.
+
+### What was NOT proved
+
+That it can be reached in the deployed product. A deployment serving more
+than four distinct `(tenant, domain, release, fingerprint)` combinations
+would reach it; the two-book Cockpit with one tenant holds two keys. The
+first live UAT was never at risk: the approved queue opens two session keys
+against a cap of four.
+
+### What a fix must include
+
+1. Eviction of the **oldest** entry, not the newest, and a note saying why
+   the two caches must agree.
+2. A test that opens `MAX_CACHED_SESSIONS + 2` distinct sessions through the
+   real `open_session` and asserts the returned session is usable.
+3. A test that the evicted session IS closed, so the fix does not trade a
+   dead connection for a leaked one.
+4. Whether `_SESSIONS.get` should move the key to the end — the cache is
+   described as an LRU and is not one. Decide it explicitly.

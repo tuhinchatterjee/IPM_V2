@@ -722,16 +722,42 @@ class Orchestrator:
         restore_tools = self.analyst.tools
         restore_system = None
         self.analyst.tools = tools
+        domain_id = str(getattr(self.envelope, "domain_id", "") or "")
         if answering:
             from backend.cockpit_v4 import context as ctx
 
             compact = ctx.finalization_system(
-                self.analyst.system,
-                domain_id=str(getattr(self.envelope, "domain_id", "") or ""),
+                self.analyst.system, domain_id=domain_id,
                 question=self._asked())
             if compact is not self.analyst.system:
                 restore_system = self.analyst.system
                 self.analyst.system = compact
+        elif acts.TOOL_FINALIZE in decision.tools:
+            # THE CREDIT POLICY REACHES EVERY TURN THAT CAN WRITE THE ANSWER.
+            #
+            # H-LIVE-05. The policy pack was attached by
+            # `finalization_system`, which runs only when the action state
+            # is RESULT_READY. A PRODUCT_HELP turn publishes a user-facing
+            # answer too, and it got no policy at all -- so the live answer
+            # to "Which sectors are above the single-name limit?" was
+            # written with an empty policy context and stated that no
+            # single-name limit is recorded in the Corporate book. CP-1.1
+            # is recorded, its keyword map holds "single name", and
+            # `cp.retrieve` returns it for that exact question.
+            #
+            # An ACTION turn still gets none: it is choosing what to run
+            # and holds no number, so a threshold in front of it is a
+            # threshold nothing can be measured against. The condition is
+            # therefore the surface -- can this turn call
+            # `finalize_response` -- and not whether a query happened to
+            # run.
+            from backend.cockpit_v4 import context as ctx
+
+            extra = ctx.policy_blocks(domain_id=domain_id,
+                                      question=self._asked())
+            if extra:
+                restore_system = self.analyst.system
+                self.analyst.system = list(self.analyst.system) + extra
         self.emitter.append(
             ev.MODEL_REQUESTED, stage="understanding", operation="generate",
             status=ev.STATUS_STARTED,
@@ -1650,6 +1676,29 @@ class Orchestrator:
         published["validation"] = report.to_dict()
         published["evidence_bound"] = bool(final.numeric_claims)
         published["executed"] = self.executed
+        # WHERE A POLICY NUMBER IN THIS ANSWER CAME FROM.
+        #
+        # H-LIVE-06. A live turn wrote "well inside the CP-1.1 single
+        # obligor limit of SAR 25,000 million". The figure is right and the
+        # answer showed no retrieval, because there was none to show: the
+        # threshold reached that turn inside the policy synopsis the server
+        # attaches. Correct is not the same as governed -- nothing in the
+        # published answer said where the number came from, and a reader
+        # could not tell it from a figure the model remembered.
+        #
+        # Built from the same deterministic retrieval that fed the turn, so
+        # it cannot claim the answer was given something it was not, and
+        # paired with the clause ids the narrative actually cites.
+        from backend.cockpit_v4 import context as ctx_mod
+        from backend.cockpit_v4 import credit_policy as cp_mod
+
+        receipt = ctx_mod.policy_receipt(
+            domain_id=str(getattr(self.envelope, "domain_id", "") or ""),
+            question=self._asked())
+        if receipt:
+            published["policy_context"] = receipt
+            published["policy_citations"] = cp_mod.citations(
+                report.rendered_narrative, receipt["book"])
         # From here a real answer exists. A later terminal stop must not
         # replace it with the bare-result channel.
         self.answer_published = True

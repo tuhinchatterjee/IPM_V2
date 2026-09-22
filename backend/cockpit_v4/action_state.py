@@ -174,16 +174,64 @@ def decide(*, executed: bool, answer_only: bool, analytical: bool,
                      "do with it is publish an answer"))
 
     if not analytical:
-        tools = ((TOOL_FINALIZE,) if product_tool_withheld
-                 else (TOOL_PRODUCT, TOOL_FINALIZE))
+        # THE PRODUCT-HELP SURFACE IS NOT A DEAD END.
+        #
+        # H-LIVE-03 and H-LIVE-05. `analytical` is `envelope.classify`'s
+        # verdict, read off the question's words before any model call, and
+        # it can be wrong. It read
+        #
+        #   "wat is the toatl expsoure at defalt by secter this qtr"
+        #
+        # as non-analytical, because no measure in its lexicon survives
+        # those typos; and it read "Which sectors are above the single-name
+        # limit?" the same way, because that question names a policy concept
+        # rather than a measure.
+        #
+        # This state then offered `inspect_product_knowledge` and
+        # `finalize_response`, and on a question the product synopsis
+        # already covers it offered `finalize_response` ALONE and required
+        # it. So the first live UAT put the analyst on a surface with one
+        # tool and no way to reach the book. It understood the typo-heavy
+        # question exactly -- exposure at default by sector for 2026Q2,
+        # mapped to `corp_facility_quarter.ead_sar_mn` and
+        # `corp_borrower_quarter.sector`, no blocking ambiguity, "every term
+        # in the question resolves cleanly" -- and then published
+        # PRODUCT_HELP / unsupported and offered to proceed if the reader
+        # said "go ahead". That was not a failure of autonomy. It was the
+        # only move the surface allowed.
+        #
+        # Both `envelope.classify` and `IntentEnvelope.escalate_to_analysis`
+        # already promise the turn widens on the analyst's declaration, and
+        # SUBMITTING SQL IS THAT DECLARATION -- `_do_execute` adopts the
+        # analytical allowance and escalates the envelope before it parses a
+        # field. Withholding `execute_analysis` here is what made that
+        # promise unreachable, because the flat intent fields an answer may
+        # restate do not include `query_mode`, so `finalize_response` cannot
+        # carry the declaration either.
+        #
+        # So `execute_analysis` is offered, and nothing is required. This
+        # decides NOTHING about whether a question is analytical: the
+        # judgement stays the analyst's, made against the catalogue index
+        # and the canonical semantics the opening packet already carries on
+        # every turn. No lexicon is consulted, no question is rewritten and
+        # no SQL is suggested.
+        #
+        # The one-generation economy for a broad product question is
+        # unchanged: it is `inspect_product_knowledge` being off the first
+        # action, not a required tool. A product question still answers in
+        # one generation, because answering is what the analyst does with
+        # a product question.
+        tools = ((TOOL_EXECUTE, TOOL_FINALIZE) if product_tool_withheld
+                 else (TOOL_PRODUCT, TOOL_EXECUTE, TOOL_FINALIZE))
         return Decision(
-            state=PRODUCT_HELP, tools=tools,
-            require=TOOL_FINALIZE if product_tool_withheld else "",
-            because=("a product question: the synopsis in the opening "
-                     "context already covers it"
+            state=PRODUCT_HELP, tools=tools, require="",
+            because=("read as a product question, and the book is still "
+                     "reachable if it is not: the synopsis in the opening "
+                     "context covers this question"
                      if product_tool_withheld else
-                     "a product question that names detail beyond the "
-                     "synopsis"))
+                     "read as a product question that names detail beyond "
+                     "the synopsis, and the book is still reachable if it "
+                     "is not"))
 
     if ready.get("sufficient"):
         return Decision(
