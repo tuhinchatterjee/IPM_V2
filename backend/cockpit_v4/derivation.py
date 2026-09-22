@@ -118,7 +118,7 @@ class DerivationError(Exception):
 
 
 #: The one value `rows` may take. A word, not a wildcard: `*` and `all` and
-#: `:` are all things `_index_of` would happily try to match against a cell
+#: `:` are all things `row_index_for` would happily try to match against a cell
 #: value, and a token that can resolve to data is not a token.
 ALL_ROWS = "all"
 
@@ -137,7 +137,7 @@ class CellSet:
     WHY THE SHORTHAND IS A SEPARATE FIELD, NOT A TOKEN IN `row_ids`.
     A four-step answer used to spend about 8.3 KB -- two thirds of its whole
     output -- reciting row ids back to the server, because a sum over a
-    hundred rows had to name a hundred rows. But `_index_of`'s last rule
+    hundred rows had to name a hundred rows. But `row_index_for`'s last rule
     matches a key against any cell value in any row, so a sentinel inside
     `row_ids` would silently resolve to a data row that happened to hold
     that string. A separate field cannot collide with a value, and it leaves
@@ -259,8 +259,16 @@ def row_id_for(index: int) -> str:
     return f"r{index}"
 
 
-def _index_of(row_id: str, rows: list[dict[str, Any]]) -> int:
-    """Resolve a published row id, a bare index, or a `column=value` key."""
+def row_index_for(row_id: str, rows: list[dict[str, Any]]) -> int:
+    """Resolve a published row id, a bare index, or a `column=value` key.
+
+    PUBLIC because the live-UAT reconciliation has to resolve a claim's
+    `row_key` against a stored artifact the same way the finalizer did. A
+    second implementation of these four rules in the harness would be a
+    second answer to "which row is r3", and the one place that must never
+    disagree is the one that decides whether a published figure matches the
+    independent oracle.
+    """
     key = str(row_id or "").strip()
     if not key:
         return -1
@@ -281,6 +289,11 @@ def _index_of(row_id: str, rows: list[dict[str, Any]]) -> int:
         if any(str(v) == key for v in row.values()):
             return i
     return -1
+
+
+#: The private name this had for two rounds, kept so nothing that already
+#: imported it breaks.
+_index_of = row_index_for
 
 
 def _decimal(value: Any) -> Decimal:
@@ -358,7 +371,7 @@ def _resolve(cells: CellSet, artifacts: dict[str, dict[str, Any]],
     values: list[Decimal] = []
     indices: list[int] = []
     for row_id in wanted:
-        index = _index_of(row_id, rows)
+        index = row_index_for(row_id, rows)
         if index < 0:
             raise DerivationError(
                 f"{label} names row {row_id!r}, which is not in artifact "
@@ -552,4 +565,5 @@ __all__ = [
     "PERCENT_OPERATIONS", "RANK", "RATIO", "SHARE_OF_TOTAL", "SUM",
     "WEIGHTED_AVERAGE", "compute", "describe", "parse", "plain",
     "row_id_for",
+    "row_index_for",
     "unit_problem"]
