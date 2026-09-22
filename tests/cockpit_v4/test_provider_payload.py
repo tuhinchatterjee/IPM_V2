@@ -141,24 +141,34 @@ def test_the_request_fits_the_model(key, payload, runtime):
 
 
 def test_a_broad_product_question_is_offered_only_what_it_can_use(payload):
-    """A product question cannot execute anything, so nothing that executes
-    is on its request. The synopsis already covers it, so the retrieval tool
-    is not there either: one generation, and the two tools it could use."""
+    """The synopsis already covers it, so the retrieval tool is not on the
+    first action: one generation.
+
+    It used to assert `names == [TOOL_FINALIZE]`, on the reasoning that a
+    product question cannot execute anything. True of a question that IS
+    one -- and the surface is chosen from the question's WORDS before
+    anybody knows which kind it is. The first live UAT sent a typo-heavy
+    data question that matched no measure, and the analyst, which had read
+    it correctly, was left with one tool and no way to reach the book.
+    `execute_analysis` is therefore on the request; `inspect_catalog` is
+    not, because submitting SQL is the declaration that widens the
+    allowance and reading the catalogue is not.
+    """
     sent = payload(QUESTIONS["who_are_you"])
     names = [tool["name"] for tool in sent["tools"]]
     assert c.TOOL_PRODUCT not in names
-    assert names == [c.TOOL_FINALIZE]
+    assert c.TOOL_INSPECT not in names
+    assert set(names) == {c.TOOL_EXECUTE, c.TOOL_FINALIZE}
 
 
 def test_a_named_deep_topic_is_offered_the_retrieval_tool(payload):
     """It names detail the synopsis does not carry, so it may go and read
-    it. It still cannot execute a query, and is not offered the tools for
-    one."""
+    it. The catalogue is still not on the request."""
     sent = payload(QUESTIONS["explain_tac"])
     names = [tool["name"] for tool in sent["tools"]]
     assert c.TOOL_PRODUCT in names
-    assert set(names) == {c.TOOL_PRODUCT, c.TOOL_FINALIZE}
-    assert c.TOOL_EXECUTE not in names and c.TOOL_INSPECT not in names
+    assert set(names) == {c.TOOL_PRODUCT, c.TOOL_EXECUTE, c.TOOL_FINALIZE}
+    assert c.TOOL_INSPECT not in names
 
 
 def test_the_sanitized_payload_is_written_as_evidence(payload, tmp_path):

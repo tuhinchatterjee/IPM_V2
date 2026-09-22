@@ -6,7 +6,7 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 32783,
+      "system_bytes": 32928,
       "message_bytes": 221,
       "tools": [
         {
@@ -21,12 +21,16 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 37947,
+      "system_bytes": 38092,
       "message_bytes": 167,
       "tools": [
         {
           "name": "inspect_product_knowledge",
           "schema_bytes": 845
+        },
+        {
+          "name": "execute_analysis",
+          "schema_bytes": 2409
         },
         {
           "name": "finalize_response",
@@ -40,9 +44,13 @@
       "model": "mock-analyst",
       "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 37951,
+      "system_bytes": 38096,
       "message_bytes": 167,
       "tools": [
+        {
+          "name": "execute_analysis",
+          "schema_bytes": 2409
+        },
         {
           "name": "finalize_response",
           "schema_bytes": 2245

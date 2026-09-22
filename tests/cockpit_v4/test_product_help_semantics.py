@@ -13,7 +13,8 @@ from __future__ import annotations
 import pytest
 
 from backend.cockpit_v4 import product_knowledge as pk
-from backend.cockpit_v4.contracts import (TOOL_FINALIZE, TOOL_NAMES,
+from backend.cockpit_v4.contracts import (TOOL_EXECUTE, TOOL_FINALIZE,
+                                          TOOL_INSPECT, TOOL_NAMES,
                                           TOOL_PRODUCT, provider_tools)
 from conftest import ScriptedResult, final, intent, tool_call
 
@@ -152,9 +153,28 @@ def test_who_are_you_is_offered_four_tools_and_costs_one_generation(
     assert len(provider.sent) == 1, "one generation, no retrieval round trip"
     offered = [t["name"] for t in provider.sent[0]["tools"]]
     assert TOOL_PRODUCT not in offered
-    assert offered == [TOOL_FINALIZE], (
-        "a product question cannot execute or inspect anything, so the "
-        "tools that do those things are not on its request")
+    # THIS USED TO ASSERT `offered == [TOOL_FINALIZE]`, on the reasoning that
+    # "a product question cannot execute or inspect anything". True of a
+    # question that IS one -- and the surface is chosen before anybody knows
+    # which kind it is. `envelope.classify` reads the words; the first live
+    # UAT sent it "wat is the toatl expsoure at defalt by secter this qtr",
+    # it read no measure, and the analyst -- which understood the sentence
+    # perfectly -- had `finalize_response` alone and no way to reach the
+    # book. Neither `classify` nor `sem.readiness` can tell that question
+    # from this one: both resolve nothing for both.
+    #
+    # So `execute_analysis` is on the request and nothing is required.
+    # What this test protects is unchanged and still asserted: ONE
+    # generation, no retrieval round trip, and the product tool off the
+    # first action.
+    assert TOOL_EXECUTE in offered, (
+        "the book must stay reachable, because the surface was chosen "
+        "before anyone knew this was a product question")
+    assert TOOL_INSPECT not in offered, (
+        "the catalogue is not the way out: a run that read it would still "
+        "be on the product-help clock, which is the defect envelope.py "
+        "exists for. Submitting SQL is the declaration that widens it.")
+    assert set(offered) == {TOOL_EXECUTE, TOOL_FINALIZE}
 
     run = store_db.get_run(record.run_id)
     assert run.budget["generation_attempts"][0] == 1
@@ -213,7 +233,7 @@ def test_a_withheld_tool_comes_back_for_the_second_action(drive):
     # It comes back on the SECOND ACTION. It does not come back on a
     # recovery: a re-ask after a malformed action is never a broader
     # question than the one that failed.
-    assert set(second_offer) == {TOOL_PRODUCT, TOOL_FINALIZE}
+    assert set(second_offer) == {TOOL_PRODUCT, TOOL_EXECUTE, TOOL_FINALIZE}
 
 
 def test_the_context_tells_the_model_which_policy_applies(drive):

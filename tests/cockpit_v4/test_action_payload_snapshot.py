@@ -44,7 +44,7 @@ import test_mac_action_replay as mac
 #: before the compaction round: the product pack and the answer half of
 #: `finalize_response` came off.
 #:
-#: RE-BASELINED IN THE FIRST-LIVE-UAT REPAIR, by 130 measured bytes.
+#: RE-BASELINED IN THE FIRST-LIVE-UAT REPAIR, by 142 measured bytes.
 #:
 #: The bound stood at 52,000 against a measured 51,926 -- seventy-four
 #: bytes of headroom -- and H-LIVE-03 needs one rule ON THE ACTION TURN,
@@ -60,10 +60,9 @@ import test_mac_action_replay as mac
 #: makes that possible; this sentence is what makes it expected. It was
 #: paid for where it could be: the policy rule the same round needed moved
 #: into `context.POLICY_RULE`, carried with the pack on the answer turn, so
-#: it costs the action turn nothing, and the clarification paragraph it
-#: joins was rewritten tighter. What is left is 130 bytes, and the numbers
-#: below are the measurement rather than a round figure with room in it:
-#: the headroom is 44 bytes, as tight as it was before.
+#: it costs the action turn nothing. What is left is 142 bytes, and the
+#: numbers below are the measurement rather than a round figure with room
+#: in it: the headroom is 32 bytes, as tight as the 74 it replaces.
 MAX_ACTION_BYTES = 52_100
 #: A seeded thread pays for its seed. Bounded separately so the allowance
 #: for one cannot quietly become the allowance for the other.
