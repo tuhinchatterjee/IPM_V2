@@ -600,14 +600,32 @@ class Finalizer:
             ref = claim.evidence
             if ref.artifact_id == artifact_id and ref.column_id:
                 out.setdefault(str(ref.column_id), claim.unit)
-            for operand in ((claim.derivation or {}).get("operands") or []):
-                if not isinstance(operand, dict):
+            # AN OPERAND IS IN THE CLAIM'S UNIT ONLY WHERE THE ARITHMETIC
+            # PRESERVES IT.
+            #
+            # H-LIVE-04. This used to read the claim's unit onto EVERY
+            # operand column of its derivation, so the live answer to "What
+            # is ECL coverage of exposure?" published `balance_total` as
+            # 19,619.22% and `limit_total` as 35,932.22%: their only
+            # appearance in any claim was as the denominator of a coverage
+            # percentage, and a ratio's denominator is not measured in
+            # percent. `ecl_total` and `ead_total` escaped only because
+            # direct claims had already named them in SAR million and
+            # `setdefault` keeps the first answer.
+            #
+            # Which operations preserve a unit is declared beside the
+            # operation table in `derivation`, from the arithmetic each one
+            # does. Nothing here knows anything about `balance_total`.
+            if not claim.derivation:
+                continue
+            try:
+                parsed = deriv.parse(claim.derivation)
+            except deriv.DerivationError:
+                continue
+            for operand in deriv.operands_in_the_result_unit(parsed):
+                if operand.artifact_id != artifact_id or not operand.column_id:
                     continue
-                if str(operand.get("artifact_id") or "") != artifact_id:
-                    continue
-                column = str(operand.get("column_id") or "")
-                if column:
-                    out.setdefault(column, claim.unit)
+                out.setdefault(str(operand.column_id), claim.unit)
         if catalog is not None:
             from backend.cockpit_v4 import display as disp
 

@@ -90,6 +90,43 @@ OPERATIONS: dict[str, tuple[int, str]] = {
               "within the second operand's cells, largest first"),
 }
 
+#: WHOSE UNIT IS THE RESULT'S UNIT.
+#:
+#: H-LIVE-04. A claim's unit may be read back onto the columns it was
+#: computed from only where the arithmetic preserves the unit. `sum`,
+#: `min`, `max` and `difference` of amounts in SAR million are amounts in
+#: SAR million, and `identity` is the cell itself. Everything else changes
+#: the unit: `percentage`, `ratio`, `share_of_total` and
+#: `percentage_change` produce a proportion out of two amounts, `count`
+#: produces a count out of anything, and `rank` produces a position.
+#:
+#: The live answer to "What is ECL coverage of exposure?" published
+#: `balance_total` as 19,619.22% and `limit_total` as 35,932.22%, because
+#: their only appearance in any claim was as the DENOMINATOR of a coverage
+#: percentage and the renderer read the percentage's unit off the operand.
+#: A ratio's denominator is not measured in percent.
+UNIT_PRESERVING_OPERATIONS = frozenset({IDENTITY, SUM, MIN, MAX, DIFFERENCE})
+
+#: Operations where the FIRST operand carries the result's unit and the
+#: others do not. A weighted average is in the unit of its values; its
+#: weights are whatever they weigh by.
+FIRST_OPERAND_CARRIES_THE_UNIT = frozenset({WEIGHTED_AVERAGE})
+
+
+def operands_in_the_result_unit(derivation: "Derivation") -> tuple[CellSet, ...]:
+    """The operands that are measured in the unit of this derivation.
+
+    Empty for every operation that changes the unit, which is the honest
+    answer: a column whose unit nothing can name is published as a plain
+    number, and that is better than a denomination nobody computed.
+    """
+    if derivation.operation in UNIT_PRESERVING_OPERATIONS:
+        return derivation.operands
+    if derivation.operation in FIRST_OPERAND_CARRIES_THE_UNIT:
+        return derivation.operands[:1]
+    return ()
+
+
 #: Operations whose result is a proportion of one (`ratio`, `share_of_total`)
 #: and operations whose result is already multiplied by a hundred. Units are
 #: checked against this, because "percent" and "percentage point" being
@@ -565,5 +602,6 @@ __all__ = [
     "PERCENT_OPERATIONS", "RANK", "RATIO", "SHARE_OF_TOTAL", "SUM",
     "WEIGHTED_AVERAGE", "compute", "describe", "parse", "plain",
     "row_id_for",
+    "operands_in_the_result_unit",
     "row_index_for",
     "unit_problem"]
