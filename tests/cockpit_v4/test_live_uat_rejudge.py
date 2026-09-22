@@ -160,6 +160,11 @@ def _first_pass_ledger(db: Path, *, turns: int = 1) -> RunStore:
         store.update_state(record.run_id, expect_version=record.version,
                            state=st.COMPLETED, final_response=body,
                            terminal=True)
+    # COLD, like a preserved first pass. An OPEN connection checkpoints its
+    # WAL into the main database when it closes, which rewrites the file --
+    # and that is the hazard the regrade's copy exists for, so a fixture
+    # that left it open would be measuring the fixture.
+    store.close()
     return store
 
 
@@ -354,3 +359,57 @@ def test_the_queue_is_recorded_in_the_reconstruction(uat, tmp_path):
     uat.rejudge(db, out=out, first_pass=None, tenant_id=TENANT,
                 queue=["L01"])
     assert json.loads(out.read_text())["queue"] == ["L01"]
+
+
+# ---- the preserved ledger is never opened -----------------------------
+
+def test_a_regrade_reads_a_copy_and_proves_the_source_is_unchanged(uat,
+                                                                   tmp_path):
+    """First-pass evidence is identified by its SHA256. A regrade must not
+    be the thing that changes it.
+
+    `RunStore` runs SQLite in WAL mode. A ledger left with a non-empty
+    `-wal` beside it -- what an interrupted harness process leaves -- is
+    checkpointed into the main database when the next connection closes.
+    """
+    import hashlib
+
+    db = tmp_path / "live-first-pass.sqlite3"
+    _first_pass_ledger(db)
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+
+    out = tmp_path / "rejudge.json"
+    assert uat.rejudge(db, out=out, first_pass=None, tenant_id=TENANT,
+                       queue=["L01"]) == 0
+
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == before
+    body = json.loads(out.read_text())
+    assert body["source_ledger_sha256"] == before
+    assert body["source_ledger_opened"] is False
+    # And nothing was left beside it.
+    assert not (tmp_path / "live-first-pass.sqlite3-wal").exists()
+    assert not (tmp_path / "live-first-pass.sqlite3-shm").exists()
+
+
+def test_a_regrade_whose_source_moved_fails_and_publishes_nothing(
+        uat, tmp_path, monkeypatch):
+    """The mutation check for that guarantee.
+
+    Something that changes the source mid-read must not be able to publish
+    a reconstruction claiming it read an untouched first pass.
+    """
+    db = tmp_path / "live-first-pass.sqlite3"
+    _first_pass_ledger(db)
+    out = tmp_path / "rejudge.json"
+
+    real = uat._ledger_runs
+
+    def touch_then_read(store):
+        db.write_bytes(db.read_bytes() + b"\x00")
+        return real(store)
+
+    monkeypatch.setattr(uat, "_ledger_runs", touch_then_read)
+    assert uat.rejudge(db, out=out, first_pass=None, tenant_id=TENANT) == 1
+    assert not out.exists(), (
+        "a reconstruction was published for a ledger that changed underneath "
+        "it")

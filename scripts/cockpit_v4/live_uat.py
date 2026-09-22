@@ -1073,15 +1073,56 @@ def rejudge(ledger: Path, *, out: Path, first_pass: Path | None,
     the answers carry. Run ids and spend are the ledger's own and nothing
     here writes to it.
     """
+    import hashlib
+    import shutil
+    import tempfile
+
     from backend.cockpit_v4.run_store import RunStore
 
     queue = list(queue or ())
     if not ledger.exists():
         print(f"no such ledger: {ledger}")
         return 2
+
+    # THE PRESERVED LEDGER IS NEVER OPENED.
+    #
+    # `RunStore` runs SQLite in WAL mode (`run_store.py:388`). Measured on
+    # a settled ledger with no sidecars, a read-only open leaves the file
+    # byte-identical and writes no `-wal` or `-shm` -- so this is not a
+    # defect being worked around. What it removes is a dependency: a ledger
+    # left with a non-empty `-wal` beside it, which is exactly what a
+    # harness process that was interrupted leaves, is CHECKPOINTED into the
+    # main database when the next connection closes. The first-pass file's
+    # SHA256 is the evidence that the paid runs have not been touched, and
+    # a regrade must not be the thing that changes it.
+    #
+    # So the regrade reads a byte copy, and the digest is taken before and
+    # after and compared. Immutability here is a measurement, not an
+    # intention: a digest that moved fails the run and deletes the output.
+    # WHAT IS DIGESTED IS THE FILE THE OPERATOR HASHED.
+    #
+    # `-wal` and `-shm` are journal and shared-memory state, not evidence:
+    # `-shm` is a live memory map that any open connection rewrites, and
+    # digesting it would report a ledger as changed because somebody had it
+    # open. The main database file is the preserved artefact and is what
+    # this promises not to touch. Both sidecars are still COPIED, because
+    # committed rows can be sitting in the WAL and a copy of the main file
+    # alone would regrade a full first pass as empty.
+    before = hashlib.sha256(ledger.read_bytes()).hexdigest()
     restore = seal_the_provider()
+    workspace = Path(tempfile.mkdtemp(prefix="cockpit_v4_rejudge_"))
+    working = workspace / ledger.name
     try:
-        store = RunStore(ledger)
+        # THE SIDECARS COME TOO. A ledger whose writer did not checkpoint
+        # holds committed rows in `-wal`, and copying the main file alone
+        # would produce an empty regrade of a full first pass. The copy is
+        # the whole SQLite database, which is three files, not one.
+        shutil.copy2(ledger, working)
+        for suffix in ("-wal", "-shm"):
+            sidecar = ledger.with_name(ledger.name + suffix)
+            if sidecar.exists():
+                shutil.copy2(sidecar, working.with_name(working.name + suffix))
+        store = RunStore(working)
         rows = _ledger_runs(store)
         if not rows:
             print(f"{ledger} holds no runs")
@@ -1131,6 +1172,12 @@ def rejudge(ledger: Path, *, out: Path, first_pass: Path | None,
             "provider_calls": 0,
             "provider_doors_sealed": [f"{m}.{a}" for m, a in PROVIDER_DOORS],
             "source_ledger": str(ledger),
+            "source_ledger_sha256": before,
+            "source_ledger_opened": False,
+            "source_ledger_note": (
+                "read from a byte copy; the preserved file was never opened, "
+                "because RunStore runs SQLite in WAL mode and opening it "
+                "could rewrite it"),
             "source_first_pass_json": str(first_pass) if first_pass else "",
             # The order the operator states the paid runs executed in. Empty
             # means the mapping was done on question text alone, and any
@@ -1163,14 +1210,22 @@ def rejudge(ledger: Path, *, out: Path, first_pass: Path | None,
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(summary, indent=2, default=str) + "\n",
                        encoding="utf-8")
+        after = hashlib.sha256(ledger.read_bytes()).hexdigest()
+        if after != before:
+            print(f"REFUSED: {ledger} changed while being read\n"
+                  f"  before {before}\n  after  {after}")
+            out.unlink(missing_ok=True)
+            return 1
         print(f"rejudged {len(rows)} settled run(s) across {len(order)} "
               f"thread(s); ${committed:.6f} was already committed")
+        print(f"source ledger unchanged: sha256 {after}")
         print("NO PROVIDER CALL WAS MADE")
         print(f"written to {out}")
         return 0
     finally:
         for module, attribute, original in restore:
             setattr(module, attribute, original)
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 def main() -> int:
