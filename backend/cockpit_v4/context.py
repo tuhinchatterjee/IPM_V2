@@ -629,6 +629,89 @@ def product_blocks() -> list[dict[str, Any]]:
         PRODUCT_ANSWER, ensure_ascii=False)}]
 
 
+#: WHAT A SCENARIO SENTENCE MEANS, carried only when What-If is on.
+#:
+#: The same argument as `policy_blocks` and `product_blocks`: it is only true
+#: of a turn that can act on it, and the instruction file is sent on every
+#: action attempt and measured against a payload bound.
+#:
+#: What is here is the part the analyst cannot work out from the catalogue.
+#: "Increase PD by 20" is four different instructions -- relative, percentage
+#: points, basis points, or a replacement -- and they differ by a factor of
+#: ten between neighbours, so a reader who meant one and got another has no
+#: way to tell from the answer. The catalogue says what `pd_pit_12m` is;
+#: nothing in it says those four readings exist, or that choosing between them
+#: silently is the error.
+#:
+#: Deliberately NOT here: how to compute a stressed ECL. That is
+#: `scenario/delta.py`, it is deterministic, and it runs in SQL over the whole
+#: population. A block that taught arithmetic would be inviting the analyst to
+#: do the sums.
+SCENARIO_SEMANTICS: dict[str, Any] = {
+    "phase": "SCENARIO",
+    "when_this_applies": (
+        "The reader is asking what WOULD happen -- a stress, a downgrade, a "
+        "shock, a what-if -- rather than what did. \"What is our PD?\" is an "
+        "investigation; \"what happens if PD rises 20%?\" is a scenario."),
+    "a_quantity_is_never_a_bare_number": (
+        "\"Increase PD by 20%\" multiplies by 1.20. \"By 20 percentage "
+        "points\" adds 0.20. \"By 20 basis points\" adds 0.0020. \"Set PD to "
+        "20%\" replaces it. \"Double it\" multiplies by 2. Four of those five "
+        "are the words \"increase PD by 20\", and neighbours differ by a "
+        "factor of ten. Carry the reader's wording and the operation it "
+        "names; where the wording names none, ask."),
+    "points_and_notches_are_not_percentages": (
+        "\"Reduce the score by 50 points\" is not a 50% reduction. "
+        "\"Downgrade one notch\" follows the published order of the actual "
+        "scale, which is in the release manifest -- not a string increment "
+        "and not a lexical sort."),
+    "the_cohort_is_the_rows_not_the_display": (
+        "\"These customers\" means the rows the investigation resolved, not "
+        "the ten that were shown. The facilities that matched and every "
+        "facility belonging to those borrowers are different populations: "
+        "say which, and ask before widening."),
+    "two_rules_on_one_field_is_a_question": (
+        "\"All customers PD +10%, and construction PD +20%\" does not "
+        "resolve itself. Does construction get 20% instead, 20% on top of "
+        "the stressed value, or does the first rule cover the rest? Ask, "
+        "with the readings as options. \"More specific wins\" is an "
+        "assumption, not a rule this book carries."),
+    "preview_then_confirm": (
+        "A scenario is previewed before it runs: what changes, over which "
+        "rows, from what baseline, by which method, and what is left alone. "
+        "Publish that as a clarification and let the reader confirm it. "
+        "Reading a sensitivity or naming a method is not approval of a "
+        "calculation nobody has seen."),
+    "the_book_is_read_and_never_written": (
+        "Execution is a simulation. No source row, no reported ECL and no "
+        "accounting record changes, and the answer should say so."),
+}
+
+
+def scenario_blocks(*, domain_id: str) -> list[dict[str, Any]]:
+    """Scenario semantics, for a book where What-If is enabled.
+
+    Returns nothing when the flag is off, which is every book by default, so
+    with What-If disabled this is a no-op and the payload is byte-identical
+    to the accepted runtime's.
+
+    The import is local and guarded. `backend.cockpit_v4.scenario` is a
+    candidate package; a module-level import would make the accepted runtime
+    depend on its being present, and this block exists precisely so that it
+    does not.
+    """
+    if not domain_id:
+        return []
+    try:
+        from backend.cockpit_v4.scenario import flags as whatif_flags
+    except ImportError:  # pragma: no cover - the package is optional
+        return []
+    if not whatif_flags.enabled(domain_id):
+        return []
+    return [{"type": "text", "text": json.dumps(
+        SCENARIO_SEMANTICS, ensure_ascii=False)}]
+
+
 #: Four live answers came back as tables and nothing else, one of them to a
 #: reader who had asked for a line chart by name. The instruction file did
 #: not contain the word "chart", so nothing told the analyst that the form
@@ -758,6 +841,9 @@ def finalization_system(system_blocks: list[dict[str, Any]], *,
         PRESENTATION, ensure_ascii=False)})
     kept += policy_blocks(domain_id=domain_id, question=question,
                           undecided=undecided)
+    # And the scenario semantics, when this book has What-If enabled. Empty
+    # otherwise, which is every book by default.
+    kept += scenario_blocks(domain_id=domain_id)
     return kept
 
 
@@ -943,7 +1029,7 @@ def policy_receipt(*, domain_id: str, question: str) -> dict[str, Any]:
 __all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "POLICY_RULE",
            "POLICY_DOES_NOT_CLOSE_AN_OPEN_READING",
            "POLICY_SETTLES_THE_TERM",
-           "PRESENTATION", "PRODUCT_ANSWER",
+           "PRESENTATION", "PRODUCT_ANSWER", "SCENARIO_SEMANTICS",
            "Packet", "analyst_instruction", "build", "finalization_system",
            "policy_blocks", "policy_receipt", "policy_retrieval",
-           "product_blocks"]
+           "product_blocks", "scenario_blocks"]

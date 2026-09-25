@@ -52,6 +52,25 @@ All 40 data files are in `PROTECTED_FILES.sha256`. Worth carrying into
 `HANDOFF.md`: any environment that checks out this branch must publish or copy
 the lake before the suite will even collect.
 
+A second root is needed too. `data/cockpit_v4/` holds the V3-namespace release
+the suite reads when `COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4`. Without it the
+suite does not fail — **several hundred tests skip silently**, which is worse,
+because a green run with no data underneath it looks like a passing baseline.
+Its 24 files are hashed under their own heading.
+
+### The clean baseline (§A09)
+
+Captured in this worktree with both data roots present and no candidate code
+on any path:
+
+| Suite | Result | Wall |
+|---|---|---|
+| `tests/cockpit_v4` + `tests/frontend` | **3402 passed, 4 skipped, 0 failed** | 16m 00s |
+
+Identical to the accepted worktree at `245c50e`, so there are no pre-existing
+failures to reproduce and none to relabel later. The four skips are the
+round's own four.
+
 ---
 
 ## 2. There is no extension mechanism
@@ -303,7 +322,20 @@ the waterfall chart has rows to read.
 
 | File | Change | Reason | Phase |
 |---|---|---|---|
-| *(none yet)* | | | |
+| `backend/cockpit_v4/context.py` | `+ SCENARIO_SEMANTICS` dict, `+ scenario_blocks()`, one call site in `finalization_system()`, two `__all__` entries | The one additive entry §1.2 permits. Identical in shape to `policy_blocks()` (`:869`) and `product_blocks()` (`:620`) already in the file: a module function returning literal blocks, invoked by name. Carries what the catalogue cannot say — that "increase PD by 20" has four readings — on turns that can act on it. | P3 |
+
+**Why this one is safe, and how that is checked rather than asserted.**
+
+`scenario_blocks()` returns `[]` unless a book's What-If flag is on, and both
+are off by default. Its import of the candidate package is local and wrapped in
+`try/ImportError`, so the accepted runtime does not depend on the package
+existing. With the flags off the assembled payload is byte-identical to the
+baseline's, which `test_action_payload_snapshot.py` and
+`test_provider_payload.py` confirm — 68 tests, unchanged.
+
+No other protected file is edited. `--check` reports `1 changed, 0 removed,
+0 added`, and it will keep reporting it: the diff is explained here, never
+allowlisted away.
 
 `scripts/whatif/protected_hashes.py --check` is the authority. This table
 explains what it reports; it does not replace it.

@@ -1,6 +1,7 @@
 """The field dictionary must agree with the parquet, or it is a wish list.
 
-REAL DATA. Reads both published books. No model, no provider call.
+REAL DATABASE · NO MODEL. Reads both published books through DuckDB. No
+provider in this module, not even a scripted one.
 
 Section 3.2 wants a field dictionary; section 3.1 wants primary-key
 uniqueness, join cardinality and before/after checks. A dictionary written

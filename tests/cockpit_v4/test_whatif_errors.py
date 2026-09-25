@@ -192,13 +192,12 @@ def test_an_unknown_book_is_off_rather_than_an_error() -> None:
     assert fl.enabled("") is False
 
 
-def test_a04_with_both_off_the_accepted_runtime_does_not_import_this() -> None:
-    """The strongest form of "disabling both restores baseline": not a code
-    path that checks a flag and shrugs, but no code path at all.
+def _core_files_importing_scenario() -> dict[str, list[str]]:
+    """Every accepted-runtime module that names this package in an import.
 
-    Read as source text rather than by importing, so the test fails if a
-    future edit adds the import even inside a lazy function body that no
-    import graph would show until it ran.
+    Read as source text rather than by importing, so an import inside a lazy
+    function body -- which no import graph would show until it ran -- is
+    still found.
 
     Matched as an IMPORT, not as the word. `catalog_tool.py` and
     `product_knowledge.py` both use "scenario" in prose -- the first about
@@ -211,17 +210,61 @@ def test_a04_with_both_off_the_accepted_runtime_does_not_import_this() -> None:
     from backend.cockpit_v4 import scenario
 
     imports = re.compile(
-        r"^\s*(?:from\s+backend\.cockpit_v4(?:\.scenario)?\s+import\s+[^\n]*"
+        r"^(\s*)(?:from\s+backend\.cockpit_v4(?:\.scenario)?\s+import\s+[^\n]*"
         r"\bscenario\b|from\s+backend\.cockpit_v4\.scenario\b|"
         r"import\s+backend\.cockpit_v4\.scenario\b)",
         re.MULTILINE)
 
     core = pathlib.Path(scenario.__file__).parent.parent
-    offenders = [p.name for p in sorted(core.glob("*.py"))
-                 if imports.search(p.read_text())]
-    assert offenders == [], (
-        f"{offenders} import the scenario package. With both flags off "
-        f"nothing in the accepted runtime may reach it.")
+    found: dict[str, list[str]] = {}
+    for path in sorted(core.glob("*.py")):
+        lines = [m.group(0) for m in imports.finditer(path.read_text())]
+        if lines:
+            found[path.name] = lines
+    return found
+
+
+def test_a04_exactly_one_core_file_reaches_this_package() -> None:
+    """`context.py` is the single protected-core change this pass makes, and
+    the import it adds is the whole of its cost.
+
+    Any second core file appearing here is a second core change, which is
+    what section 1.2 asks to be recorded rather than accumulated quietly.
+    """
+    assert sorted(_core_files_importing_scenario()) == ["context.py"], (
+        "the candidate is allowed one import into the accepted runtime, in "
+        "context.scenario_blocks(). Anything else is a new core dependency.")
+
+
+def test_a04_that_one_import_is_inside_the_guard_not_at_module_scope() -> None:
+    """A module-level import would make the accepted runtime fail to start
+    without the candidate package present -- the flag would be off and the
+    runtime still broken, which is the opposite of what a flag is for.
+
+    Indentation is the test because it is the property that matters: an
+    import under `def scenario_blocks` only runs for a book that enabled
+    What-If.
+    """
+    import inspect
+
+    from backend.cockpit_v4 import context as ctx
+
+    for line in _core_files_importing_scenario()["context.py"]:
+        assert line.startswith((" ", "\t")), (
+            f"{line.strip()!r} is at module scope in context.py")
+    body = inspect.getsource(ctx.scenario_blocks)
+    assert "from backend.cockpit_v4.scenario import flags" in body
+
+
+def test_a04_with_both_flags_off_the_block_is_absent_entirely() -> None:
+    """Not a block that says "What-If is off": no block at all, so the
+    assembled payload is the accepted runtime's byte for byte."""
+    from backend.cockpit_v4 import context as ctx
+    from backend.cockpit_v4 import domains as dom
+
+    assert ctx.scenario_blocks(domain_id=dom.CORPORATE) == []
+    assert ctx.scenario_blocks(domain_id=dom.RETAIL) == []
+    assert ctx.scenario_blocks(domain_id="") == []
 
 
 def test_the_status_block_says_which_variables_to_set() -> None:

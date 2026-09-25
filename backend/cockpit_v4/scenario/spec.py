@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
@@ -397,8 +398,21 @@ class ScenarioSpec:
                 out.append((left, right))
         return tuple(out)
 
-    def require_no_conflicts(self) -> None:
-        pairs = self.conflicts()
+    def require_no_conflicts(
+            self, *,
+            acknowledged: Sequence[tuple[Shock, Shock]] = ()) -> None:
+        """Raise on the first overlapping pair the reader has not been shown.
+
+        `acknowledged` is the pairs already surfaced as a question -- the
+        preview shows overlaps with their counts and amounts and asks which
+        composition applies, and it could not do that if merely having an
+        overlap stopped it being built. An acknowledged pair is still
+        unresolved; it is just no longer silent, which is the whole of what
+        section 5.2 forbids.
+        """
+        seen = {_pair_key(left, right) for left, right in acknowledged}
+        pairs = tuple(p for p in self.conflicts()
+                      if _pair_key(*p) not in seen)
         if not pairs:
             return
         left, right = pairs[0]
@@ -412,6 +426,15 @@ class ScenarioSpec:
             f"cover?",
             field_path="shocks",
             field_id=left.field_id, pairs=len(pairs))
+
+
+def _pair_key(left: Shock, right: Shock) -> str:
+    """A stable name for one overlapping pair, by value rather than identity.
+
+    Canonical form, so a pair acknowledged before a round trip through JSON
+    is the same pair afterwards.
+    """
+    return json.dumps([left.canonical(), right.canonical()], sort_keys=True)
 
 
 def _may_overlap(left: dict[str, Any], right: dict[str, Any]) -> bool:
