@@ -77,6 +77,51 @@ DEFAULT_RELEASES: dict[str, str] = {
     RETAIL: "v4-saudi-retail-20m-v5",
 }
 
+
+def current_release(domain_id: str) -> str:
+    """The release new work opens for this book.
+
+    `DEFAULT_RELEASES` above, unless What-If is enabled for this book and its
+    labelled synthetic candidate release is published -- in which case the
+    candidate is opened instead, and every row it yields carries an `origin`
+    of SYNTHETIC_DEMO in the data as well as in the manifest.
+
+    Three properties, in the order they matter:
+
+    **Off by default.** Both flags default off, so this returns exactly
+    `DEFAULT_RELEASES[domain_id]` and the accepted application opens the
+    accepted book. Changing the default source silently is the one thing this
+    must not do.
+
+    **Visible when on.** The candidate has its OWN release id and its own
+    fingerprint -- not a rebuild under a frozen name. Everything downstream
+    already keys on both (`DomainScope.cache_key`, the thread's pinned
+    release, `artifacts.comparison_evidence`), so a source change invalidates
+    a cohort binding and a scenario confirmation rather than quietly serving
+    different numbers under the same heading.
+
+    **Falls back rather than failing.** A flag on with nothing published is an
+    operator halfway through setting the candidate up, not a reason to refuse
+    a book that is sitting right there. `flags.status()` is where the
+    discrepancy shows.
+    """
+    domain_id = parse(domain_id)
+    accepted = DEFAULT_RELEASES[domain_id]
+    try:
+        from backend.cockpit_v4.scenario import candidate_schema
+        from backend.cockpit_v4.scenario import flags as whatif_flags
+    except ImportError:  # pragma: no cover - the package is optional
+        return accepted
+    if not whatif_flags.enabled(domain_id):
+        return accepted
+    candidate = candidate_schema.release_id(domain_id)
+    if not candidate:
+        return accepted
+    from backend.cockpit_v4 import lake
+
+    return candidate if lake.exists(candidate) else accepted
+
+
 #: Which book a question belongs to when nothing has said. Corporate, because
 #: that is the book the demonstration opens on -- not because Retail is
 #: lesser, and not because either may be substituted for the other.
@@ -234,4 +279,4 @@ class DomainStatus:
 
 __all__ = ["CORPORATE", "DEFAULT_DOMAIN", "DEFAULT_RELEASES", "DOMAIN_IDS",
            "DomainScope", "DomainStatus", "LABELS", "RETAIL", "SHORT_LABELS",
-           "UnknownDomain", "parse"]
+           "UnknownDomain", "current_release", "parse"]

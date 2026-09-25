@@ -134,7 +134,11 @@ def scope_for(domain_id: str, *, tenant_id: str = lake.DEFAULT_TENANT,
     the routes refuse a caller that tries to name one.
     """
     domain_id = dom.parse(domain_id)
-    release_id = release_id or dom.DEFAULT_RELEASES[domain_id]
+    # `current_release` rather than `DEFAULT_RELEASES[...]`: the same accepted
+    # id with both What-If flags off, and the labelled synthetic candidate
+    # release when a book has it enabled and published. See that function for
+    # why the candidate carries its own id rather than reusing this one.
+    release_id = release_id or dom.current_release(domain_id)
     try:
         catalog = cat.build(domain_id=domain_id, release_id=release_id,
                             tenant_id=tenant_id)

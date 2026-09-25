@@ -833,8 +833,37 @@ RELATIONS: dict[str, tuple[Relation, ...]] = {
 }
 
 
+def candidate_relations(domain_id: str) -> tuple[Relation, ...]:
+    """Relations a What-If candidate release adds, or none.
+
+    Returns `()` unless that book's What-If flag is on, which is every book by
+    default -- so with What-If disabled this is a no-op and `relations()` is
+    the accepted tuple, object for object.
+
+    The import is local and guarded for the same reason
+    `context.scenario_blocks` does it: `backend.cockpit_v4.scenario` is a
+    candidate package, and a module-level import here would make the accepted
+    runtime fail to start without it.
+
+    The specs themselves live in that package, not here. Nothing in this file
+    changes: `RELATIONS` is the same eight relations with the same columns, and
+    `test_whatif_candidate_schema.py` asserts that by comparing every accepted
+    spec's `to_dict()` with the flag on and off.
+    """
+    try:
+        from backend.cockpit_v4.scenario import flags as whatif_flags
+    except ImportError:  # pragma: no cover - the package is optional
+        return ()
+    if not whatif_flags.enabled(domain_id):
+        return ()
+    from backend.cockpit_v4.scenario import candidate_schema
+
+    return candidate_schema.relations(domain_id)
+
+
 def relations(domain_id: str) -> tuple[Relation, ...]:
-    return RELATIONS[dom.parse(domain_id)]
+    domain_id = dom.parse(domain_id)
+    return RELATIONS[domain_id] + candidate_relations(domain_id)
 
 
 def relation_names(domain_id: str) -> tuple[str, ...]:
@@ -864,8 +893,12 @@ def domain_of_relation(name: str) -> str:
     than defaulting to one.
     """
     wanted = str(name or "").strip().lower()
-    for domain_id, specs in RELATIONS.items():
-        if any(spec.name == wanted for spec in specs):
+    for domain_id in RELATIONS:
+        # `relations()` rather than `RELATIONS[...]`, so a candidate relation
+        # is owned by its book rather than by nobody. Without this, a query
+        # naming one would be refused as belonging to no domain -- which reads
+        # as a missing table rather than as a book that is switched off.
+        if any(spec.name == wanted for spec in relations(domain_id)):
             return domain_id
     raise UnknownRelation(f"{name!r} is not a relation of any domain.")
 

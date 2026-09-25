@@ -333,9 +333,38 @@ existing. With the flags off the assembled payload is byte-identical to the
 baseline's, which `test_action_payload_snapshot.py` and
 `test_provider_payload.py` confirm — 68 tests, unchanged.
 
-No other protected file is edited. `--check` reports `1 changed, 0 removed,
-0 added`, and it will keep reporting it: the diff is explained here, never
-allowlisted away.
+### P5 added three more, all authorised and all the same shape
+
+| File | Change | Reason | Phase |
+|---|---|---|---|
+| `backend/cockpit_v4/schema.py` | `+ candidate_relations()`, `relations()` concatenates it, `domain_of_relation()` iterates through `relations()` instead of `RELATIONS` | `lake.publish:199` does `frame[list(spec.columns)]` and the catalogue reads relations from here, so a relation this file does not declare cannot be published or opened. The candidate's specs live in `scenario/candidate_schema.py`; nothing in `RELATIONS` changes. The second edit stops a candidate relation being owned by no domain, which would read as a missing table rather than a book switched off. | P5 |
+| `backend/cockpit_v4/domains.py` | `+ current_release()`, one `__all__` entry | `DEFAULT_RELEASES` is a module literal and `routes.py:264-278` returns 409 `RELEASE_NOT_SETTABLE` for a request naming a release, so nothing else can select the candidate book. Returns the accepted id with the flags off, and falls back to it when the candidate is not published. | P5 |
+| `backend/cockpit_v4/domain_resolver.py` | `scope_for` calls `dom.current_release(domain_id)` instead of indexing `DEFAULT_RELEASES` | The single read site for new work. `catalog.build`'s own fallback is left alone: every runtime path passes an already-resolved `release_id`, so changing it too would be a second edit for no behaviour. | P5 |
+
+Each is guarded the same way `scenario_blocks` is — a local `try/ImportError`
+import of the candidate package, returning the accepted value unless that
+book's flag is on — and each is checked rather than asserted, in
+`test_whatif_candidate_schema.py`:
+
+* `relations()` is the accepted four, object for object, with the flags off;
+* the accepted specs are byte-identical through `to_dict()` with the flag ON,
+  so no candidate relation widened one;
+* `current_release()` is exactly `DEFAULT_RELEASES[domain_id]` with the flags
+  off, and falls back to it when nothing is published;
+* one book enabled does not enable the other.
+
+### The 25 added data files
+
+`--check` now reports `4 changed, 0 removed, 25 added`. The additions are the
+two candidate release directories under `data/cockpit_v4_lake/`, which the
+protected glob covers by design — it reports a NEW file matching a protected
+pattern as drift, and that is the behaviour that would catch someone quietly
+publishing a book. Nothing accepted changed or was removed:
+`test_whatif_candidate_release.py` re-reads both accepted fingerprints from
+their own manifests and compares them with the values pinned at `245c50e`.
+
+**The allowlist is not broadened and the hashes are not regenerated.** Every
+line `--check` prints is explained in this table.
 
 `scripts/whatif/protected_hashes.py --check` is the authority. This table
 explains what it reports; it does not replace it.

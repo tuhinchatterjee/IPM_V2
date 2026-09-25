@@ -1,0 +1,38 @@
+{
+  "books": {
+    "v4-whatif-corporate-20q-s1": {
+      "card": "docs/whatif/SENSITIVITY_CARD_CORPORATE.md",
+      "cohort_exposures": 2897,
+      "disagreements": [],
+      "domain_id": "corporate",
+      "excluded_ever_defaulted": 99,
+      "excluded_not_in_every_period": 0,
+      "matches_published_release": true,
+      "readiness": {
+        "DIAGNOSTIC_ONLY": 11,
+        "SUPPORTED_ESTIMATE": 37
+      },
+      "release_fingerprint": "01fffad050c248f3d693d35cff248036836d5d1be29f57296cec9512d7f2402c",
+      "rows": 60,
+      "sensitivity_input_digest": "56f914cffd5b0b174bd82b953d1384aa60d854e3adc82addeec499256230a1ec"
+    },
+    "v4-whatif-retail-20m-s1": {
+      "card": "docs/whatif/SENSITIVITY_CARD_RETAIL.md",
+      "cohort_exposures": 6019,
+      "disagreements": [],
+      "domain_id": "retail",
+      "excluded_ever_defaulted": 247,
+      "excluded_not_in_every_period": 436,
+      "matches_published_release": true,
+      "readiness": {
+        "DIAGNOSTIC_ONLY": 11,
+        "SUPPORTED_ESTIMATE": 31
+      },
+      "release_fingerprint": "af8a85c3fc6bad5072fa474e4178de4dde81b4e20553902e8dd269665f390142",
+      "rows": 60,
+      "sensitivity_input_digest": "7e4fce428ba3486069484ae4c3be422a95a9414e52380cae9dd67cfd85205dfd"
+    }
+  },
+  "note": "Fitted on generated data against a generated macro panel. Not a bank-validated sensitivity and not observed economic history.",
+  "origin": "SYNTHETIC_DEMO"
+}

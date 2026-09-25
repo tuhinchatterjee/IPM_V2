@@ -1,0 +1,249 @@
+{
+  "accepted_unchanged": {
+    "v4-saudi-corporate-20q-v4": "e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f",
+    "v4-saudi-retail-20m-v5": "a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb"
+  },
+  "note": "Generated for a demonstration. Not bank output, and the macroeconomic paths are not observed economic history.",
+  "origin": "SYNTHETIC_DEMO",
+  "releases": {
+    "v4-whatif-corporate-20q-s1": {
+      "build_seconds": 37.2,
+      "domain_id": "corporate",
+      "entity_counts": {
+        "borrowers": 1200,
+        "economic_scenarios": 3,
+        "facilities": 2996,
+        "groups": 375,
+        "macro_factors_absent": 4,
+        "macro_factors_present": 16,
+        "product_types": 6,
+        "regions": 8,
+        "sectors": 12,
+        "sub_sectors": 26
+      },
+      "notes": {
+        "ecl_denominator": "ead_sar_mn",
+        "macro_is_generated": "The macroeconomic panel is generated, not observed. It is not economic history.",
+        "not_a_bank_engine": "ECL here is measured by reference_ecl.py, a calculator written for this demonstration. It is not a bank engine and its output is not an accounting figure.",
+        "origin": "SYNTHETIC_DEMO",
+        "rating_scale": [
+          "AA",
+          "A",
+          "BBB+",
+          "BBB",
+          "BBB-",
+          "BB+",
+          "BB",
+          "BB-",
+          "B+",
+          "B",
+          "CCC",
+          "D"
+        ],
+        "reference_calculator": "whatif-reference-ecl-1.0.0",
+        "scenario_weights": {
+          "baseline": 0.5,
+          "downside": 0.3,
+          "upside": 0.2
+        },
+        "sector_pd_betas": {
+          "Construction": 0.85,
+          "Education": 0.16,
+          "Healthcare": 0.18,
+          "Hospitality": 0.66,
+          "Manufacturing": 0.52,
+          "Petrochemicals": 0.58,
+          "Professional Services": 0.28,
+          "Real Estate": 0.78,
+          "Retail Trade": 0.4,
+          "Transport": 0.48,
+          "Utilities": 0.12,
+          "Wholesale Trade": 0.44
+        },
+        "sensitivity_cohort": {
+          "excluded_ever_defaulted": 99,
+          "excluded_not_in_every_period": 0,
+          "exposures": 2897,
+          "weight_period": "2021Q3"
+        },
+        "sensitivity_input_digest": "56f914cffd5b0b174bd82b953d1384aa60d854e3adc82addeec499256230a1ec",
+        "sensitivity_readiness": {
+          "DIAGNOSTIC_ONLY": 11,
+          "SUPPORTED_ESTIMATE": 37
+        },
+        "total_ecl_sar_mn": 63684.0056,
+        "true_cycle_coefficient": 0.62
+      },
+      "release_fingerprint": "01fffad050c248f3d693d35cff248036836d5d1be29f57296cec9512d7f2402c",
+      "reporting_periods": [
+        "2021Q3",
+        "2021Q4",
+        "2022Q1",
+        "2022Q2",
+        "2022Q3",
+        "2022Q4",
+        "2023Q1",
+        "2023Q2",
+        "2023Q3",
+        "2023Q4",
+        "2024Q1",
+        "2024Q2",
+        "2024Q3",
+        "2024Q4",
+        "2025Q1",
+        "2025Q2",
+        "2025Q3",
+        "2025Q4",
+        "2026Q1",
+        "2026Q2"
+      ],
+      "row_counts": {
+        "corp_borrower_quarter": 24000,
+        "corp_collateral_quarter": 59920,
+        "corp_covenant_quarter": 59920,
+        "corp_facility_quarter": 59920,
+        "whatif_corp_ifrs9": 59920,
+        "whatif_corp_macro_quarter": 960,
+        "whatif_corp_mev_registry": 20,
+        "whatif_corp_model_metric": 1,
+        "whatif_corp_rating_map": 12,
+        "whatif_corp_sensitivity": 60,
+        "whatif_corp_term_structure": 799836
+      },
+      "sensitivity_input_digest": "56f914cffd5b0b174bd82b953d1384aa60d854e3adc82addeec499256230a1ec",
+      "sensitivity_readiness": {
+        "DIAGNOSTIC_ONLY": 11,
+        "SUPPORTED_ESTIMATE": 37
+      },
+      "sensitivity_rows": 60
+    },
+    "v4-whatif-retail-20m-s1": {
+      "build_seconds": 46.3,
+      "domain_id": "retail",
+      "entity_counts": {
+        "accounts": 6702,
+        "customers": 4500,
+        "economic_scenarios": 3,
+        "employer_sectors": 10,
+        "employment_types": 4,
+        "macro_factors_absent": 6,
+        "macro_factors_present": 14,
+        "products": 5,
+        "regions": 8,
+        "sub_products": 12
+      },
+      "notes": {
+        "application_scorecard": "whatif-application-scorecard-2.0",
+        "behavioural_scorecard": "whatif-behaviour-scorecard-3.1",
+        "ecl_denominator": "ead_sar_mn",
+        "employer_sector_betas": {
+          "Construction": 0.88,
+          "Education": 0.14,
+          "Financial Services": 0.33,
+          "Healthcare": 0.16,
+          "Hospitality": 0.8,
+          "Manufacturing": 0.49,
+          "Oil and Gas": 0.44,
+          "Public Administration": 0.1,
+          "Retail Trade": 0.61,
+          "Transport and Logistics": 0.55
+        },
+        "employer_sectors": [
+          "Public Administration",
+          "Healthcare",
+          "Education",
+          "Construction",
+          "Retail Trade",
+          "Oil and Gas",
+          "Transport and Logistics",
+          "Financial Services",
+          "Hospitality",
+          "Manufacturing"
+        ],
+        "macro_is_generated": "The macroeconomic panel is generated, not observed. It is not economic history.",
+        "not_a_bank_engine": "ECL here is measured by reference_ecl.py, a calculator written for this demonstration. It is not a bank engine and its output is not an accounting figure.",
+        "origin": "SYNTHETIC_DEMO",
+        "product_betas": {
+          "Auto Finance": 0.58,
+          "Buy Now Pay Later": 1.05,
+          "Credit Card": 0.95,
+          "Mortgage": 0.42,
+          "Personal Finance": 0.78
+        },
+        "product_launched_in_window": {
+          "Buy Now Pay Later": "2026-03"
+        },
+        "reference_calculator": "whatif-reference-ecl-1.0.0",
+        "scenario_weights": {
+          "baseline": 0.5,
+          "downside": 0.3,
+          "upside": 0.2
+        },
+        "score_bands": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E"
+        ],
+        "scorecards_are_distinct": "The behavioural score is current and moves monthly; the application score is taken once at origination. They are on different scales and neither substitutes for the other.",
+        "sensitivity_cohort": {
+          "excluded_ever_defaulted": 247,
+          "excluded_not_in_every_period": 436,
+          "exposures": 6019,
+          "weight_period": "2025-01"
+        },
+        "sensitivity_input_digest": "7e4fce428ba3486069484ae4c3be422a95a9414e52380cae9dd67cfd85205dfd",
+        "sensitivity_readiness": {
+          "DIAGNOSTIC_ONLY": 11,
+          "SUPPORTED_ESTIMATE": 31
+        },
+        "total_ecl_sar_mn": 134.338378,
+        "true_cycle_coefficient": 0.7
+      },
+      "release_fingerprint": "af8a85c3fc6bad5072fa474e4178de4dde81b4e20553902e8dd269665f390142",
+      "reporting_periods": [
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05",
+        "2025-06",
+        "2025-07",
+        "2025-08",
+        "2025-09",
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08"
+      ],
+      "row_counts": {
+        "retail_account_month": 127936,
+        "retail_behaviour_month": 127936,
+        "retail_collateral_month": 51440,
+        "retail_customer_month": 86892,
+        "whatif_retail_ifrs9": 127936,
+        "whatif_retail_macro_month": 840,
+        "whatif_retail_mev_registry": 20,
+        "whatif_retail_model_metric": 1,
+        "whatif_retail_profile": 86892,
+        "whatif_retail_score_map": 60,
+        "whatif_retail_sensitivity": 60,
+        "whatif_retail_term_structure": 1040040
+      },
+      "sensitivity_input_digest": "7e4fce428ba3486069484ae4c3be422a95a9414e52380cae9dd67cfd85205dfd",
+      "sensitivity_readiness": {
+        "DIAGNOSTIC_ONLY": 11,
+        "SUPPORTED_ESTIMATE": 31
+      },
+      "sensitivity_rows": 60
+    }
+  }
+}
