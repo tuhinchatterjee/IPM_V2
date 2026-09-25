@@ -1,0 +1,45 @@
+{
+ "route": "fixture",
+ "role": "fixture",
+ "family": "FIXTURE",
+ "status": "READY_E2E",
+ "status_reason": "deterministic demonstration fixture; scripted tool calls through the REAL engine; not a model",
+ "allowed_modes": [
+  "E2E_BASELINE",
+  "OBSERVED_STAGE_EVIDENCE"
+ ],
+ "deployment_profiles": [
+  "fixture"
+ ],
+ "supported_controls": {
+  "tools": true,
+  "forced_tool_use": true,
+  "named_tool_forcing": true,
+  "tool_result_roundtrip": true,
+  "stop_reason_mapping": true,
+  "effort_control": false,
+  "token_counting": false
+ },
+ "price": {
+  "input_usd_per_mtok": 0.0,
+  "output_usd_per_mtok": 0.0,
+  "cache_write_usd_per_mtok": 0.0,
+  "cache_read_usd_per_mtok": 0.0,
+  "basis": "fixture: no inference",
+  "verified_at": "2026-09-25",
+  "source": "fixture"
+ },
+ "context_tokens": 200000,
+ "max_output_tokens": 16384,
+ "licence": "n/a (lab fixture)",
+ "provenance_status": "LAB_FIXTURE",
+ "profile_id": "fixture-no-tool",
+ "display_name": "Fixture: protocol failure",
+ "registry_id": "lab/fixture-no-tool",
+ "fixture_behaviour": "no_tool",
+ "description": "Returns prose with no tool call on every turn (adapter/protocol-style failure).",
+ "endpoint": {
+  "class": "in_process",
+  "model": "lab/fixture-no-tool"
+ }
+}

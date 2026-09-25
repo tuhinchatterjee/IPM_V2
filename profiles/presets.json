@@ -1,0 +1,85 @@
+{
+ "presets": [
+  {
+   "preset_id": "mac-baseline",
+   "name": "Mac baseline comparison",
+   "profiles": [
+    "opus-frozen",
+    "qwen3.5-9b",
+    "qwen3.5-4b"
+   ],
+   "comparator": "opus-frozen",
+   "execution_mode": "E2E_BASELINE",
+   "deployment": "mac_sequential",
+   "trial_count": 1,
+   "group_spend_cap_usd": 3.0,
+   "group_wall_clock_s": 1800,
+   "deep_diagnostics": false,
+   "note": "Add ready Granite/Ministral candidates and save as a new preset."
+  },
+  {
+   "preset_id": "extended-shortlist",
+   "name": "Extended shortlist",
+   "profiles": [
+    "opus-frozen",
+    "qwen3.5-9b",
+    "qwen3.5-4b",
+    "granite-4.2-8b",
+    "ministral-3-8b",
+    "fin-r1-7b",
+    "gpt-oss-20b",
+    "gemma-4-12b"
+   ],
+   "comparator": "opus-frozen",
+   "execution_mode": "E2E_BASELINE",
+   "deployment": "mac_sequential",
+   "trial_count": 1,
+   "group_spend_cap_usd": 5.0,
+   "group_wall_clock_s": 3600,
+   "deep_diagnostics": false
+  },
+  {
+   "preset_id": "remote-parallel",
+   "name": "Remote Parallel UAT",
+   "profiles": [
+    "opus-frozen",
+    "qwen3.5-9b",
+    "qwen3.5-4b",
+    "granite-4.2-8b",
+    "ministral-3-8b",
+    "qwen3.8-27b-remote"
+   ],
+   "comparator": "opus-frozen",
+   "execution_mode": "E2E_BASELINE",
+   "deployment": "remote_parallel",
+   "trial_count": 1,
+   "group_spend_cap_usd": 5.0,
+   "group_wall_clock_s": 1800,
+   "deep_diagnostics": false,
+   "requires_approval": "remote_inference",
+   "note": "Approval-gated. Compare never provisions GPUs or downloads weights."
+  },
+  {
+   "preset_id": "fixture-demo",
+   "name": "Fixture demonstration (no models)",
+   "profiles": [
+    "fixture-reference",
+    "fixture-wrong-scope",
+    "fixture-repair",
+    "fixture-invented-cause",
+    "fixture-clarify",
+    "fixture-no-tool",
+    "opus-frozen",
+    "qwen3.5-9b"
+   ],
+   "comparator": "fixture-reference",
+   "execution_mode": "E2E_BASELINE",
+   "deployment": "mac_sequential",
+   "trial_count": 1,
+   "group_spend_cap_usd": 0.0,
+   "group_wall_clock_s": 600,
+   "deep_diagnostics": false,
+   "note": "Scripted fixtures through the real engine. The comparator here is a FIXTURE, not Opus; Opus and Qwen stay visible with their blockers."
+  }
+ ]
+}

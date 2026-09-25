@@ -1,0 +1,66 @@
+{
+ "profile_id": "granite-4.2-8b",
+ "display_name": "Granite 4.2 8B",
+ "role": "candidate",
+ "family": "Granite",
+ "registry_id": "ibm-granite/granite-4.2-8b",
+ "publisher_model_card": "https://huggingface.co/ibm-granite/granite-4.2-8b",
+ "identity_source": "master prompt v2.1 [R3]; not re-verified in this session (no model-card fetch)",
+ "route": "openai_compat",
+ "status": "NOT_INSTALLED",
+ "status_reason": "Not installed; exact parser/template/runtime must be qualified before full-workflow UAT.",
+ "recovery": "Install a verified runtime, pull the exact tag, then run scripts/model_lab/probe.py --profile granite-4.2-8b (approval needed for the download).",
+ "parameters_total": "8B",
+ "endpoint": {
+  "class": "local_loopback",
+  "base_url_env": "LAB_OLLAMA_OPENAI_URL",
+  "base_url_default": "http://127.0.0.1:11434/v1",
+  "model": "granite4.2:8b",
+  "api_key_env": null
+ },
+ "context_tokens": null,
+ "max_output_tokens": 8192,
+ "limitations": [
+  "Model-specific serving/parser instructions must be followed [R3]."
+ ],
+ "allowed_modes": [
+  "E2E_BASELINE",
+  "OBSERVED_STAGE_EVIDENCE"
+ ],
+ "deployment_profiles": [
+  "mac_sequential",
+  "remote_parallel",
+  "same_model_hardware_diagnostic"
+ ],
+ "requires_probe": true,
+ "supported_controls": {
+  "tools": null,
+  "forced_tool_use": null,
+  "named_tool_forcing": null,
+  "tool_result_roundtrip": null,
+  "stop_reason_mapping": null,
+  "effort_control": false,
+  "token_counting": false
+ },
+ "price": {
+  "input_usd_per_mtok": 0.0,
+  "output_usd_per_mtok": 0.0,
+  "cache_write_usd_per_mtok": 0.0,
+  "cache_read_usd_per_mtok": 0.0,
+  "basis": "local marginal token charge only; hardware, power and cloud time are NOT included and are reported separately",
+  "verified_at": "2026-09-25",
+  "source": "lab local-inference policy"
+ },
+ "licence": "UNVERIFIED - read the model card before activation",
+ "provenance_status": "UNVERIFIED",
+ "base_revision": null,
+ "tokenizer_revision": null,
+ "artifact": {
+  "kind": null,
+  "digest": null,
+  "producer": null,
+  "official_build": null
+ },
+ "parameters_active": null,
+ "observed_probes": []
+}

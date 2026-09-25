@@ -1,0 +1,65 @@
+{
+ "profile_id": "fin-r1-7b",
+ "display_name": "Fin-R1 7B",
+ "role": "candidate",
+ "family": "Fin-R1",
+ "registry_id": "SUFE-AIFLM-Lab/Fin-R1",
+ "publisher_model_card": "https://huggingface.co/SUFE-AIFLM-Lab/Fin-R1",
+ "identity_source": "master prompt v2.1 [R5]; not re-verified in this session (no model-card fetch)",
+ "route": "openai_compat",
+ "status": "DISABLED",
+ "status_reason": "Backlog: finance benchmarks do not establish tool/repair compatibility.",
+ "recovery": "Install a verified runtime, pull the exact tag, then run scripts/model_lab/probe.py --profile fin-r1-7b (approval needed for the download).",
+ "parameters_total": "7B",
+ "endpoint": {
+  "class": "local_loopback",
+  "base_url_env": "LAB_OLLAMA_OPENAI_URL",
+  "base_url_default": "http://127.0.0.1:11434/v1",
+  "model": "fin-r1:7b",
+  "api_key_env": null
+ },
+ "context_tokens": null,
+ "max_output_tokens": 8192,
+ "limitations": [
+  "Diagnostic-only until mandatory controls pass."
+ ],
+ "allowed_modes": [
+  "CONTROLLED_CHECKPOINT_REPLAY"
+ ],
+ "deployment_profiles": [
+  "mac_sequential",
+  "remote_parallel",
+  "same_model_hardware_diagnostic"
+ ],
+ "requires_probe": true,
+ "supported_controls": {
+  "tools": null,
+  "forced_tool_use": null,
+  "named_tool_forcing": null,
+  "tool_result_roundtrip": null,
+  "stop_reason_mapping": null,
+  "effort_control": false,
+  "token_counting": false
+ },
+ "price": {
+  "input_usd_per_mtok": 0.0,
+  "output_usd_per_mtok": 0.0,
+  "cache_write_usd_per_mtok": 0.0,
+  "cache_read_usd_per_mtok": 0.0,
+  "basis": "local marginal token charge only; hardware, power and cloud time are NOT included and are reported separately",
+  "verified_at": "2026-09-25",
+  "source": "lab local-inference policy"
+ },
+ "licence": "UNVERIFIED - read the model card before activation",
+ "provenance_status": "UNVERIFIED",
+ "base_revision": null,
+ "tokenizer_revision": null,
+ "artifact": {
+  "kind": null,
+  "digest": null,
+  "producer": null,
+  "official_build": null
+ },
+ "parameters_active": null,
+ "observed_probes": []
+}
