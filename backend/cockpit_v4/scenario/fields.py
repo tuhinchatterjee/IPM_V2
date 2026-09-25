@@ -135,8 +135,16 @@ CORPORATE_FIELDS: tuple[Field, ...] = (
            mutable=True, affects=("ead_sar_mn", "utilisation_pct")),
     _money("undrawn_sar_mn", _CORP_FACILITY, "undrawn commitment",
            mutable=True, affects=("ead_sar_mn",)),
+    # The approved limit is real and movable, and it is NOT a Delta field in
+    # either book. Corporate publishes EAD as its own column and Retail sets
+    # ead = balance outside Credit Card, whose 0.45 conversion lives in the
+    # generator rather than in a column -- so cutting the limit moves no
+    # published ECL input and a Delta run on it would report a change of
+    # zero. Reporting zero to "what if we cut limits by 20%?" is a wrong
+    # answer wearing a right answer's clothes, so Delta refuses it by name.
     _money("limit_sar_mn", _CORP_FACILITY, "approved limit",
-           mutable=True, affects=("utilisation_pct",)),
+           mutable=True, affects=("utilisation_pct",),
+           methods=(sp.USER_DEFINED,)),
     Field("utilisation_pct", _CORP_FACILITY, PUBLISHED, un.PERCENT, "percent",
           "drawn as a share of limit", low=_D("0"), mutable=False),
 
@@ -203,7 +211,8 @@ RETAIL_FIELDS: tuple[Field, ...] = (
     _money("balance_sar_mn", _RETAIL_ACCOUNT, "outstanding balance",
            mutable=True, affects=("ead_sar_mn",)),
     _money("limit_sar_mn", _RETAIL_ACCOUNT, "approved limit",
-           mutable=True, affects=("utilisation_pct",)),
+           mutable=True, affects=("utilisation_pct",),
+           methods=(sp.USER_DEFINED,)),
 
     Field("stage", _RETAIL_ACCOUNT, PUBLISHED, un.INDEX, "IFRS 9 stage",
           "1, 2 or 3", low=_D("1"), high=_D("3"), mutable=True,

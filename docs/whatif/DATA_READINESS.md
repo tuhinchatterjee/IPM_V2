@@ -183,3 +183,15 @@ candidate's lake is a byte-for-byte copy of the accepted one, verified with
 - `semantics.py:47-80`, `context.py:6` and `catalog_tool.py:7` describe the
   legacy book, not these two. Reading them gives a materially wrong impression
   of what is available.
+- **Neither book has a zero-PD row.** Measured: `SELECT count(*) ... WHERE
+  pd_pit_12m = 0` returns 0 on both. Section 10.3's zero-to-positive case is
+  therefore unreachable from any real cohort, and a test that only used real
+  data would not exercise it. `test_whatif_sql.py` loads section 17.1's hand
+  fixture into DuckDB for that reason; see `P4_FINDINGS.md` §2.
+- **Every numeric column in both books is `DOUBLE`**, so the engine sums in
+  DOUBLE and a total over Corporate carries ~1e-6 SAR mn of floating-point
+  noise. `ledger.CURRENCY` declares 1e-4 as the tolerance for the summation
+  checks; the "an untouched row moved by exactly zero" check admits none.
+- `limit_sar_mn` moves no published ECL input in either book. It is mutable
+  and it is **not** a Delta field, and the comment at its definition in
+  `fields.py` says why.
