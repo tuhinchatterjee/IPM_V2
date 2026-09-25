@@ -186,15 +186,33 @@ def build(component: str, config: dict[str, Any], *, seed: int,
             n_estimators=rounds or ml.MAX_ROUNDS, random_state=seed,
             n_jobs=2, verbose=-1, objective="regression", **config)
     if component == ml.ADDITIVE:
+        # The boosters read pandas categoricals natively; a spline basis
+        # cannot subtract one string from another, so this component needs
+        # its own preprocessing. Selected by DTYPE rather than by column
+        # name, so the same pipeline fits either book without being told
+        # which columns are which.
+        from sklearn.compose import ColumnTransformer, make_column_selector
+        from sklearn.impute import SimpleImputer
         from sklearn.linear_model import Ridge
-        from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import SplineTransformer
+        from sklearn.pipeline import Pipeline, make_pipeline
+        from sklearn.preprocessing import OneHotEncoder, SplineTransformer
 
-        return make_pipeline(
+        numeric = make_pipeline(
+            SimpleImputer(strategy="median"),
             SplineTransformer(n_knots=config["n_knots"],
                               degree=config["degree"],
-                              include_bias=False),
-            Ridge(alpha=config["alpha"], random_state=seed))
+                              include_bias=False))
+        categorical = OneHotEncoder(handle_unknown="ignore",
+                                    sparse_output=False, min_frequency=25)
+        return Pipeline([
+            ("prepare", ColumnTransformer([
+                ("numeric", numeric,
+                 make_column_selector(dtype_exclude=["category", "object"])),
+                ("categorical", categorical,
+                 make_column_selector(dtype_include=["category", "object"])),
+            ], remainder="drop")),
+            ("model", Ridge(alpha=config["alpha"], random_state=seed)),
+        ])
     raise ValueError(
         f"{component!r} is not a component of this blend. They are "
         f"{', '.join(ml.COMPONENTS)}.")

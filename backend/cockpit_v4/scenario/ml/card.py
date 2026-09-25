@@ -149,14 +149,20 @@ def markdown(result: Any) -> str:
         "",
     ]
     better = result.metrics["test_wape"] < result.reference.get("wape", 1e9)
+    # A fit that landed on one component produced a single model, and every
+    # sentence about it has to say so. Calling it a blend because three were
+    # offered would describe the intention rather than the result.
+    noun = "single model" if blended.is_single_model else "blend"
     lines += [
-        ("The blend beats the naive product on the test split."
+        (f"The {noun} beats the naive product on the test split."
          if better else
-         "**The blend does not beat the naive product on the test split.** "
-         "That is reported rather than buried: the reference model exists "
-         "so that 'better than nothing' is never the standard."),
+         f"**The {noun} does not beat the naive product on the test "
+         f"split.** That is reported rather than buried: the reference "
+         f"model exists so that 'better than nothing' is never the "
+         f"standard."),
         "",
-        "## The blend",
+        ("## The weight fit, and what it produced"
+         if blended.is_single_model else "## The blend"),
         "",
         blended.headline,
         "",
@@ -179,7 +185,11 @@ def markdown(result: Any) -> str:
         f"rather than by an iterative optimiser, so the weights do not "
         f"depend on a library version.",
         "",
-        ("Blending improved on every single component."
+        (("The fit put every unit of weight on one component, so nothing "
+          "was blended. The comparison below is that component against the "
+          "two the optimiser set aside, on the same out-of-fold rows."
+          if blended.is_single_model else
+          "Blending improved on every single component.")
          if bl.beats_every_component(blended)
          else "**Blending did not improve on the best single component** on "
               "the out-of-fold rows. Reported as measured."),

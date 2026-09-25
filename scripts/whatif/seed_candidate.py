@@ -92,7 +92,21 @@ def main() -> int:
             return 2
         started = time.time()
         print(f"\nbuilding {release_id} ...")
-        build = BUILDERS[domain_id](release_id=release_id)
+        # Model metrics, if `train_emulator.py` has produced any. A book
+        # without them publishes the honest not-yet-trained row instead;
+        # neither state is a zero.
+        artifacts: dict[str, object] = {}
+        metric_file = (ROOT / "artifacts" / "whatif" / domain_id
+                       / "model_metric.json")
+        if metric_file.exists():
+            import pandas as pd
+
+            body = json.loads(metric_file.read_text(encoding="utf-8"))
+            artifacts[str(body["relation"])] = pd.DataFrame(body["rows"])
+            print(f"  {len(body['rows'])} model-metric rows from "
+                  f"{metric_file.relative_to(ROOT)}")
+        build = BUILDERS[domain_id](release_id=release_id,
+                                    artifacts=artifacts or None)
         # The fit reads the frames that are about to become parquet, in this
         # same process, so there is no window in which the published
         # sensitivity artifact could describe different numbers than the book

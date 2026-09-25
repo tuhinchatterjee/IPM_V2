@@ -1,0 +1,138 @@
+{
+  "categorical": [
+    "facility_class",
+    "product_type",
+    "rating_current",
+    "rating_migration",
+    "rating_outlook",
+    "region",
+    "relationship_tier",
+    "sector",
+    "sub_sector"
+  ],
+  "component_hashes": {
+    "additive_spline": "4854178d20e28d8132e6bacfbdcca60036923a9366486b23ba47b4f1191beadf",
+    "lightgbm": "5f4578333d6230b8c076fe1455d78d30bad92050c9fafd933d67866eaca7c6b2",
+    "xgboost": "d80c57b50de2b864e16b49e7caada09b2a0916a96b6cc919c5238a8a3abe0082"
+  },
+  "denominator": "ead_sar_mn",
+  "domain_id": "corporate",
+  "embargoed_periods": [
+    "2024Q2",
+    "2025Q2"
+  ],
+  "features": [
+    "rating_current",
+    "rating_notches_moved",
+    "rating_migration",
+    "rating_outlook",
+    "pd_ttc_12m",
+    "leverage_x",
+    "dscr_x",
+    "interest_cover_x",
+    "current_ratio_x",
+    "ebitda_margin_pct",
+    "return_on_assets_pct",
+    "cash_conversion_pct",
+    "qualitative_score",
+    "watchlist_flag",
+    "restructured_flag",
+    "quarters_on_watchlist",
+    "product_type",
+    "facility_class",
+    "sector",
+    "sub_sector",
+    "region",
+    "relationship_tier",
+    "limit_sar_mn",
+    "drawn_sar_mn",
+    "undrawn_sar_mn",
+    "utilisation_pct",
+    "ead_sar_mn",
+    "stage",
+    "sicr_flag",
+    "dpd_days",
+    "pd_pit_12m",
+    "pd_lifetime",
+    "lgd_pct",
+    "cure_flag",
+    "past_due_flag",
+    "quarters_in_stage",
+    "effective_interest_rate",
+    "remaining_maturity_months",
+    "lifetime_horizon_months",
+    "ccf_pit",
+    "ccf_eligible_flag",
+    "undrawn_eligible_sar_mn"
+  ],
+  "gates": {
+    "G1": {
+      "measured": 0.019654567164631064,
+      "passed": true,
+      "threshold": 0.1,
+      "what": "out-of-time currency WAPE"
+    },
+    "G2": {
+      "measured": 0.014742319662374739,
+      "passed": true,
+      "threshold": 0.02,
+      "what": "absolute aggregate bias"
+    },
+    "G3": {
+      "measured": 0.025335473867374433,
+      "passed": true,
+      "threshold": 0.05,
+      "what": "worst absolute per-period bias"
+    },
+    "G4": {
+      "measured": 0.050631,
+      "passed": true,
+      "threshold": 0.15,
+      "what": "worst material-group WAPE"
+    }
+  },
+  "headline": "SINGLE-MODEL RESULT. The weight fit put 1.000 on xgboost and left lightgbm, additive_spline below the 0.05 materiality floor. This is a xgboost model, not a blend, and is reported as one. Weights: xgboost 1.000, lightgbm 0.000, additive_spline 0.000.",
+  "libraries": {
+    "additive_spline": "1.6.1",
+    "lightgbm": "4.6.0",
+    "xgboost": "3.0.2"
+  },
+  "model_version": "whatif-ecl-emulator-1.0.0",
+  "origin": "SYNTHETIC_DEMO",
+  "release_id": "v4-whatif-corporate-20q-s1",
+  "seeds": {
+    "additive_spline": 20260930,
+    "lightgbm": 20260929,
+    "xgboost": 20260928
+  },
+  "target": "ecl_rate",
+  "test_periods": [
+    "2025Q3",
+    "2025Q4",
+    "2026Q1",
+    "2026Q2"
+  ],
+  "train_periods": [
+    "2021Q3",
+    "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
+    "2022Q4",
+    "2023Q1",
+    "2023Q2",
+    "2023Q3",
+    "2023Q4",
+    "2024Q1"
+  ],
+  "validate_periods": [
+    "2024Q3",
+    "2024Q4",
+    "2025Q1"
+  ],
+  "weights": {
+    "additive_spline": 0.0,
+    "lightgbm": 0.0,
+    "xgboost": 1.0
+  }
+}

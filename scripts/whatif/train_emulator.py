@@ -80,9 +80,15 @@ SOURCE: dict[str, str] = {
                i.ecl_rate, i.effective_interest_rate,
                i.remaining_maturity_months, i.lifetime_horizon_months
         FROM retail_account_month a
-        JOIN retail_behaviour_month h USING (account_id, reporting_month)
-        JOIN whatif_retail_profile p USING (customer_id, reporting_month)
-        JOIN whatif_retail_ifrs9 i USING (account_id, reporting_month)
+        JOIN retail_behaviour_month h
+          ON h.account_id = a.account_id
+         AND h.reporting_month = a.reporting_month
+        JOIN whatif_retail_profile p
+          ON p.customer_id = a.customer_id
+         AND p.reporting_month = a.reporting_month
+        JOIN whatif_retail_ifrs9 i
+          ON i.account_id = a.account_id
+         AND i.reporting_month = a.reporting_month
     """,
 }
 
@@ -231,6 +237,30 @@ def run(domain_id: str, *, out_dir: Path) -> tr.Result:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     cd.freeze(result, names, out_dir / domain_id)
+
+    # The model card as DATA, for `whatif_*_model_metric`. Written to disk
+    # rather than published here: publishing is `seed_candidate.py`'s job
+    # and it picks these up on its next run.
+    #
+    # The metric rows live INSIDE the release they describe, so that
+    # release's own fingerprint cannot be one of them -- the fingerprint is
+    # taken over bytes that include them. `trained_against_fingerprint` is
+    # the fingerprint the model was FITTED on, recorded as exactly that.
+    shape = {dom.CORPORATE: ("reporting_quarter", "whatif_corp_model_metric"),
+             dom.RETAIL: ("reporting_month", "whatif_retail_model_metric")}
+    period_column, relation = shape[domain_id]
+    stamp = {"tenant_id": lake.DEFAULT_TENANT,
+             "dataset_release_id": release_id, "domain_id": domain_id,
+             "reporting_currency": "SAR", "origin": cs.ORIGIN}
+    metrics = tr.metric_rows(result, stamp=stamp, period_column=period_column,
+                             period=assignment.test[-1])
+    (out_dir / domain_id / "model_metric.json").write_text(
+        json.dumps({"relation": relation, "period_column": period_column,
+                    "trained_against_fingerprint": lake.fingerprint(
+                        release_id),
+                    "rows": metrics}, indent=2, sort_keys=True, default=str),
+        encoding="utf-8")
+    print(f"  {len(metrics)} model-metric rows for {relation}")
     return result
 
 
