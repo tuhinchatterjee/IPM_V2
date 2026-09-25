@@ -256,12 +256,105 @@ BY_DOMAIN: dict[str, tuple[Field, ...]] = {
 }
 
 
+# ---- what the CANDIDATE release adds -----------------------------------
+#
+# The dictionary above describes the accepted books and is right about them.
+# The labelled synthetic candidate publishes things they do not have, and a
+# reader working against it who was told "does not exist" about a column
+# sitting in front of them would be told something false.
+#
+# So the entries below REPLACE their accepted counterparts, and only while
+# the candidate release is the one actually open. With the flags off, or
+# with the candidate unpublished, `fields_for` returns the accepted tuple
+# object for object and the accepted book's inventory is untouched.
+
+_CORP_IFRS9 = "whatif_corp_ifrs9"
+_RETAIL_IFRS9 = "whatif_retail_ifrs9"
+_RETAIL_PROFILE = "whatif_retail_profile"
+
+CANDIDATE_FIELDS: dict[str, tuple[Field, ...]] = {
+    dom.CORPORATE: (
+        Field("ccf_pit", _CORP_IFRS9, PUBLISHED, un.FRACTION, "fraction",
+              "point-in-time credit conversion factor, published rather than "
+              "recovered from ead",
+              low=_D("0"), high=_D("1"), mutable=True,
+              affects=("ead_sar_mn",),
+              missing_means="the eligible undrawn amount beside it is what "
+                            "it applies to; a facility with none has no CCF "
+                            "sensitivity rather than a CCF of zero"),
+        _money("ecl_modelled_sar_mn", _CORP_IFRS9,
+               "the ECL the reference calculator produced, before any "
+               "management overlay",
+               mutable=True, affects=("ecl_sar_mn",)),
+        _money("ecl_overlay_sar_mn", _CORP_IFRS9,
+               "management overlay, added to the modelled figure",
+               mutable=False, methods=(sp.USER_DEFINED,),
+               missing_means="zero where no overlay was applied, which is an "
+                             "observed zero rather than a missing value"),
+    ),
+    dom.RETAIL: (
+        Field("application_score", _RETAIL_PROFILE, PUBLISHED, un.INDEX,
+              "points",
+              "the score at origination, 200 weak to 800 strong. A DIFFERENT "
+              "score from behaviour_score: different range, different "
+              "scorecard version, different population, and fixed at "
+              "origination rather than refreshed monthly",
+              low=_D("200"), high=_D("800"), mutable=False, methods=(),
+              missing_means="a missing score is not a zero score"),
+        Field("employer_sector", _RETAIL_PROFILE, PUBLISHED, un.ORDINAL,
+              "category",
+              "where the customer works. NOT the product they hold: ten "
+              "employer sectors against five products, and neither column is "
+              "derivable from the other",
+              mutable=False, methods=()),
+        _money("ecl_modelled_sar_mn", _RETAIL_IFRS9,
+               "the ECL the reference calculator produced, before any "
+               "management overlay",
+               mutable=True, affects=("ecl_sar_mn",)),
+        _money("ecl_overlay_sar_mn", _RETAIL_IFRS9,
+               "management overlay, added to the modelled figure",
+               mutable=False, methods=(sp.USER_DEFINED,),
+               missing_means="zero where no overlay was applied, which is an "
+                             "observed zero rather than a missing value"),
+    ),
+}
+
+
+def candidate_in_use(domain_id: str) -> bool:
+    """Is the labelled synthetic candidate the release this book opens?
+
+    Both halves are required. The flag alone is not enough: a book with
+    What-If enabled and no candidate published still opens the accepted
+    release, and its inventory is the accepted one.
+    """
+    from backend.cockpit_v4.scenario import candidate_schema as cs
+    from backend.cockpit_v4.scenario import flags
+
+    if not flags.enabled(domain_id):
+        return False
+    return dom.current_release(domain_id) == cs.RELEASES.get(domain_id, "")
+
+
+def fields_for(domain_id: str) -> tuple[Field, ...]:
+    """This book's inventory, for the release it is actually reading.
+
+    The one place the dictionary is read from, so a caller cannot get the
+    accepted answer for a candidate book by reaching past it.
+    """
+    base = BY_DOMAIN.get(domain_id, ())
+    if not candidate_in_use(domain_id):
+        return base
+    extra = CANDIDATE_FIELDS.get(domain_id, ())
+    replaced = {f.field_id for f in extra}
+    return tuple(f for f in base if f.field_id not in replaced) + extra
+
+
 def lookup(domain_id: str, field_id: str) -> Field:
     """The field, or a refusal that says what this book has instead."""
-    for entry in BY_DOMAIN.get(domain_id, ()):
+    for entry in fields_for(domain_id):
         if entry.field_id == field_id:
             return entry
-    known = sorted(f.field_id for f in BY_DOMAIN.get(domain_id, ())
+    known = sorted(f.field_id for f in fields_for(domain_id)
                    if f.availability != ABSENT)
     raise_for(MAPPING_UNAVAILABLE,
               f"{field_id!r} is not a field of the {domain_id} book. It "
@@ -349,18 +442,19 @@ def absent(domain_id: str) -> tuple[Field, ...]:
     Section 3.2: the inventory is published with its gaps, and section 7.1's
     rule applies more widely -- "Never present missing factors as zero."
     """
-    return tuple(f for f in BY_DOMAIN.get(domain_id, ())
+    return tuple(f for f in fields_for(domain_id)
                  if f.availability == ABSENT)
 
 
 def derived(domain_id: str) -> tuple[Field, ...]:
     """Fields recovered from published ones, labelled as such everywhere."""
-    return tuple(f for f in BY_DOMAIN.get(domain_id, ())
+    return tuple(f for f in fields_for(domain_id)
                  if f.availability == DERIVED)
 
 
 __all__ = [
-    "ABSENT", "BY_DOMAIN", "CORPORATE_FIELDS", "DERIVED", "Field",
+    "ABSENT", "BY_DOMAIN", "CANDIDATE_FIELDS", "CORPORATE_FIELDS",
+    "DERIVED", "Field", "candidate_in_use", "fields_for",
     "NO_UNDRAWN", "PUBLISHED", "RETAIL_FIELDS", "STAGE_THREE_PD",
     "WRITTEN_OFF_FLOOR", "ZERO_BASELINE", "absent", "derived",
     "eligibility_note", "lookup", "mutable", "sql_ineligibility",

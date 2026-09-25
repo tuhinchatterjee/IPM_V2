@@ -224,36 +224,86 @@ def _core_files_importing_scenario() -> dict[str, list[str]]:
     return found
 
 
-def test_a04_exactly_one_core_file_reaches_this_package() -> None:
-    """`context.py` is the single protected-core change this pass makes, and
-    the import it adds is the whole of its cost.
+#: The protected-core files allowed to reach the candidate package, and the
+#: authorised extension each one carries. Section 1.2 asks for core changes
+#: to be RECORDED rather than accumulated quietly, so the list is written
+#: out here with its reasons and a file arriving that is not on it fails.
+#:
+#: `domain_resolver.py` is deliberately absent: it calls
+#: `domains.current_release()` and therefore needs no import of its own,
+#: which is one protected-core dependency fewer for the same behaviour.
+CORE_IMPORTERS: dict[str, str] = {
+    "context.py": (
+        "P3's scenario_blocks() and P5b's scenario_packet(): the semantics "
+        "block and the confirmed-scenario packet, both empty with the flags "
+        "off."),
+    "schema.py": (
+        "P5's candidate_relations(): lake.publish and the catalogue read "
+        "relations from here, so a relation this file does not declare "
+        "cannot be published or opened."),
+    "domains.py": (
+        "P5's current_release(): DEFAULT_RELEASES is a module literal and "
+        "nothing else can select the candidate book."),
+    "worker.py": (
+        "P5b's whatif_thread.remember(): the confirmed scenario is written "
+        "after a turn settles, through the server-only "
+        "set_thread_context."),
+}
 
-    Any second core file appearing here is a second core change, which is
+
+def test_a04_only_the_recorded_core_files_reach_this_package() -> None:
+    """Four protected files import the candidate package, each for a reason.
+
+    Any fifth appearing here is a new core dependency, which is exactly
     what section 1.2 asks to be recorded rather than accumulated quietly.
+    The list is written out in `CORE_IMPORTERS` with the extension each one
+    carries, so growing it is a deliberate edit to this file rather than a
+    side effect somebody notices later.
     """
-    assert sorted(_core_files_importing_scenario()) == ["context.py"], (
-        "the candidate is allowed one import into the accepted runtime, in "
-        "context.scenario_blocks(). Anything else is a new core dependency.")
+    found = sorted(_core_files_importing_scenario())
+    assert found == sorted(CORE_IMPORTERS), (
+        f"the accepted runtime reaches the candidate package from {found}. "
+        f"The recorded set is {sorted(CORE_IMPORTERS)}; anything else is a "
+        f"new protected-core dependency and belongs in "
+        f"docs/whatif/BASELINE_AND_EXTENSION_MAP.md first.")
 
 
-def test_a04_that_one_import_is_inside_the_guard_not_at_module_scope() -> None:
+def test_a04_every_one_of_those_imports_is_inside_a_guard() -> None:
     """A module-level import would make the accepted runtime fail to start
     without the candidate package present -- the flag would be off and the
     runtime still broken, which is the opposite of what a flag is for.
 
     Indentation is the test because it is the property that matters: an
-    import under `def scenario_blocks` only runs for a book that enabled
-    What-If.
+    import under a `def` only runs when that function is called, and every
+    one of these functions returns the accepted answer before reaching its
+    import when the flag is off.
+    """
+    found = _core_files_importing_scenario()
+    for name in CORE_IMPORTERS:
+        for line in found[name]:
+            assert line.startswith((" ", "\t")), (
+                f"{line.strip()!r} is at module scope in {name}")
+
+
+def test_a04_each_guarded_import_sits_behind_the_flag_check() -> None:
+    """The guard is not just indentation: the flag is read FIRST.
+
+    `inspect.getsource` on each entry point, so a refactor that moved the
+    import above the flag check -- making the accepted runtime depend on the
+    package being importable -- fails here rather than in front of a reader.
     """
     import inspect
 
     from backend.cockpit_v4 import context as ctx
+    from backend.cockpit_v4 import domains as dom_mod
+    from backend.cockpit_v4 import schema
 
-    for line in _core_files_importing_scenario()["context.py"]:
-        assert line.startswith((" ", "\t")), (
-            f"{line.strip()!r} is at module scope in context.py")
-    body = inspect.getsource(ctx.scenario_blocks)
-    assert "from backend.cockpit_v4.scenario import flags" in body
+    for function in (ctx.scenario_blocks, schema.candidate_relations,
+                     dom_mod.current_release):
+        body = inspect.getsource(function)
+        assert "import flags" in body, function.__name__
+        assert "try:" in body, function.__name__
+        assert "ImportError" in body, function.__name__
 
 
 def test_a04_with_both_flags_off_the_block_is_absent_entirely() -> None:

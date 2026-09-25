@@ -147,7 +147,12 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
           summary: dict[str, Any] | None = None,
           location: str = "", capability: Any = None,
           investigation: dict[str, Any] | None = None,
-          session: Any = None, analytical: bool = False) -> Packet:
+          session: Any = None, analytical: bool = False,
+          # The thread's standing context when it is a CONFIRMED SCENARIO
+          # rather than an attention card. Optional and defaulted, so every
+          # existing call site assembles exactly the packet it always did.
+          # See `scenario_packet`.
+          thread_context: dict[str, Any] | None = None) -> Packet:
     """Assemble the packet. Never trims the instruction to hit a target."""
     from backend.cockpit_v4 import semantics as sem
     from backend.cockpit_v4 import values as val
@@ -428,6 +433,11 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
                 + json.dumps({"metric": investigation.get("metric", ""),
                               "fields": case_fields},
                              ensure_ascii=False, default=str))
+    # A confirmed scenario this thread is standing on. Empty for every
+    # thread that is not carrying one, which is every thread with What-If
+    # off, and empty for an attention card.
+    scenario_parts = scenario_packet(thread_context, scope=scope)
+    parts.extend(scenario_parts)
     if history:
         parts.append(
             "RECENT COMPLETED TURNS IN THIS THREAD (exact records; these "
@@ -455,6 +465,12 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
                  "recent_turns": history,
                  "investigation": investigation or {},
                  "investigation_packet": analysis,
+                 # The action state machine reads the same scenario the
+                 # analyst was shown. Absent, not empty-and-present, when
+                 # there is none: a key that is always there would change
+                 # every payload snapshot for a feature that is off.
+                 **({"scenario_context": thread_context}
+                    if scenario_parts else {}),
                  "principal": {"id": principal.get("id", ""),
                                "tenant": principal.get("tenant", "")}})
 
@@ -710,6 +726,34 @@ def scenario_blocks(*, domain_id: str) -> list[dict[str, Any]]:
         return []
     return [{"type": "text", "text": json.dumps(
         SCENARIO_SEMANTICS, ensure_ascii=False)}]
+
+
+def scenario_packet(thread_context: dict[str, Any] | None, *,
+                    scope: Any = None) -> list[str]:
+    """A confirmed scenario this thread already holds, as resolved facts.
+
+    Returns nothing for a thread whose standing context is an attention card
+    -- which is every seeded thread today -- and nothing when the candidate
+    package is absent. The whole decision, including what a scenario looks
+    like and what a release change does to one, belongs to
+    `scenario/thread.py`: this is the branch, not the policy.
+
+    The release in scope is passed through because a scenario is a statement
+    about a specific book. Confirmed against one release and read against
+    another, it keeps its rules and loses its cohort binding and its
+    confirmation, with the reason in a sentence the analyst is shown.
+    """
+    if not thread_context:
+        return []
+    try:
+        from backend.cockpit_v4.scenario import thread as whatif_thread
+    except ImportError:  # pragma: no cover - the package is optional
+        return []
+    return whatif_thread.parts(
+        thread_context,
+        release_id=str(getattr(scope, "release_id", "") or ""),
+        release_fingerprint=str(
+            getattr(scope, "release_fingerprint", "") or ""))
 
 
 #: Four live answers came back as tables and nothing else, one of them to a
@@ -1032,4 +1076,4 @@ __all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "POLICY_RULE",
            "PRESENTATION", "PRODUCT_ANSWER", "SCENARIO_SEMANTICS",
            "Packet", "analyst_instruction", "build", "finalization_system",
            "policy_blocks", "policy_receipt", "policy_retrieval",
-           "product_blocks", "scenario_blocks"]
+           "product_blocks", "scenario_blocks", "scenario_packet"]

@@ -1,0 +1,54 @@
+# Dependencies for the What-If CANDIDATE only.
+#
+# NOT pyproject.toml and NOT requirements.txt. Both of those are protected
+# files at the accepted baseline, and the accepted Cockpit runs today with
+# none of the libraries below installed. Adding them there would change what
+# the accepted application depends on in order to build a candidate feature.
+#
+# These install into a SEPARATE environment, LAYERED on the accepted one:
+#
+#     python3 -m venv --system-site-packages .venv-whatif
+#     .venv-whatif/bin/pip install --ignore-installed -r requirements-whatif.txt
+#
+# `--system-site-packages` lets the candidate interpreter see the accepted
+# application's own dependencies -- duckdb, fastapi, python-dotenv and the
+# rest -- without any of them being reinstalled or upgraded. `--ignore-installed`
+# then puts the pinned versions below INSIDE the venv, where they shadow the
+# system copies for this interpreter only.
+#
+# The direction of visibility is the whole point. The candidate can see the
+# accepted environment; the accepted environment cannot see the candidate.
+# `test_whatif_ml.py` asserts that the accepted interpreter imports none of
+# the libraries below, and `train_emulator.py` exits with them named rather
+# than running if it is started with the wrong interpreter.
+#
+# Pinned rather than ranged. Section 14.2 asks for reproducible numeric
+# output, and a gradient-boosting library's minor version can change a split
+# rule; an unpinned install would make "the same model" mean something
+# different next month. Every pin is recorded again in the model card with
+# the exact version that produced the published metrics.
+
+# -- the two gradient-boosting components ---------------------------------
+xgboost==3.0.2
+lightgbm==4.6.0
+
+# -- the third, deliberately different, component -------------------------
+# A regularized additive model is not a third tree ensemble. Section 11.3
+# wants components that can disagree, and two boosters tuned on the same
+# data mostly do not; this one is linear in its basis and errs in different
+# places.
+scikit-learn==1.6.1
+scipy==1.15.2
+
+# -- explainability, on the FINAL prediction function ---------------------
+shap==0.47.1
+
+# -- the arrays underneath ------------------------------------------------
+# pandas and pyarrow are already present in the accepted environment; they
+# are listed so the candidate venv is self-contained rather than borrowing.
+numpy==2.2.4
+pandas==2.2.3
+pyarrow==19.0.1
+
+# -- response plots for the model card ------------------------------------
+matplotlib==3.10.1

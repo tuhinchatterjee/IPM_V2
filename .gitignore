@@ -84,3 +84,8 @@ data/cockpit_v4_lake/
 # Cockpit passes a DSN where a path was expected. Ignored so a test run cannot
 # commit one; it is not produced by any Cockpit code path.
 sqlite:/
+
+# The What-If candidate's isolated environment. Built from
+# requirements-whatif.txt by the candidate launcher; never the accepted
+# application's interpreter, and never committed.
+.venv-whatif/

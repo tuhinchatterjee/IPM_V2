@@ -208,6 +208,14 @@ class Worker:
 
         seeded = self.store.thread_context(record.thread_id,
                                            tenant_id=record.tenant_id)
+        # A thread's standing context is an attention card or a confirmed
+        # scenario, and the two are read completely differently: one is a
+        # finding the dashboard already showed, the other is an approval
+        # bound to a release. The whole row goes to `context.build`, which
+        # routes on its `kind`; `investigation` keeps meaning what it has
+        # always meant, so a book with What-If off is unaffected.
+        attention = seeded if (seeded or {}).get("kind") != "whatif_scenario" \
+            else None
         packet = context_mod.build(
             question=record.question, principal=principal, scope=scope,
             catalog=book.catalog, limits=limits, mode=record.mode,
@@ -217,7 +225,8 @@ class Worker:
                 record.thread_id, context_mod.DEFAULT_RECENT_TURNS),
             summary=self.store.get_summary(record.thread_id),
             capability=self.runtime.capability,
-            investigation=(seeded or {}).get("body") if seeded else None,
+            investigation=(attention or {}).get("body") if attention else None,
+            thread_context=seeded,
             session=session,
             # An analytical turn does not carry the product pack. See
             # `context.build`.
@@ -434,6 +443,23 @@ class Worker:
                 status=ev.STATUS_FAILED, error_id=outcome.error_id,
                 public_message=outcome.message
                 or f"The request stopped: {outcome.error_code}.")
+
+        # A scenario this run confirmed and executed becomes the thread's
+        # standing context, so a follow-up does not retype it. Read from an
+        # artifact the RUN published, never from a model response, and
+        # written through the server-only `set_thread_context`. Returns
+        # immediately for a book with What-If off, which is every book by
+        # default; like memory maintenance below, it runs after the answer
+        # is published and cannot reopen the run.
+        try:
+            from backend.cockpit_v4.scenario import thread as whatif_thread
+
+            whatif_thread.remember(self.store, record=record)
+        except ImportError:  # pragma: no cover - the package is optional
+            pass
+        except Exception:  # noqa: BLE001
+            logger.info("V4 could not store the scenario context for run %s",
+                        record.run_id)
 
         # Memory maintenance runs AFTER the answer is published, on its own
         # quota, and cannot reopen this run.

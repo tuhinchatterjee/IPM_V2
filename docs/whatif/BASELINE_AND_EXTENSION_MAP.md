@@ -353,12 +353,41 @@ book's flag is on — and each is checked rather than asserted, in
   off, and falls back to it when nothing is published;
 * one book enabled does not enable the other.
 
+### P5b added the third authorised extension: the execution packet
+
+| File | Change | Reason | Phase |
+|---|---|---|---|
+| `backend/cockpit_v4/context.py` | `+ scenario_packet()`, a `thread_context=None` keyword on `build()`, one call site appending its parts, one conditional `payload` key, one `__all__` entry | A confirmed scenario has to survive between the turn that approved it and the turn that asks a follow-up, and §19 requires execution through registered deterministic methods with a confirmation bound to what will run. `thread_context` is the only server-written standing context the Cockpit has (`run_store.py:560`, one caller at `routes.py:1342`), so nothing in a request or a model response can put a scenario there. | P5b |
+| `backend/cockpit_v4/worker.py` | seeded context routed by `kind` — an attention card still goes to `investigation`, the whole row goes to the new `thread_context` — plus a guarded `whatif_thread.remember()` after `_settle` publishes | The write half. It sits beside `memory.maybe_schedule`, on the same footing: after the answer is published, unable to reopen the run, and its failure cannot fail the turn. | P5b |
+
+**What decides, and where.** Both diffs are a branch and a call. What a
+scenario body looks like, what a release change does to one, and what the
+analyst is shown all live in `backend/cockpit_v4/scenario/thread.py`, so P8
+can build the execution path without touching a protected file again.
+
+**Inert with the flags off, three ways.** `scenario_packet` returns `[]` for
+a `thread_context` row of any other kind — which is every seeded thread
+today — and `[]` when the candidate package is absent. `remember()` returns
+`False` before reading anything when the book's flag is off. The
+`payload` key is added only when a scenario was actually rendered, so a
+payload snapshot for a book with What-If off is unchanged rather than
+gaining an empty key.
+
+**The rule it enforces.** A source or release change is visible and
+invalidates the previous confirmation and cohort binding:
+`thread.state_of` compares the stored release id first and the stored
+fingerprint second, and an invalidated scenario keeps the reader's own
+clauses, its name and its rules while losing exactly the cohort binding and
+the confirmation. `test_whatif_thread_context.py` asserts each half,
+including that the cohort is **not** rebound to the book in use.
+
 ### The 25 added data files
 
-`--check` now reports `4 changed, 0 removed, 25 added`. The additions are the
-two candidate release directories under `data/cockpit_v4_lake/`, which the
-protected glob covers by design — it reports a NEW file matching a protected
-pattern as drift, and that is the behaviour that would catch someone quietly
+`--check` now reports `5 changed, 0 removed, 25 added` — `context.py`, which
+P3 and P5b both touched, is one file and one line of that report. The
+additions are the two candidate release directories under
+`data/cockpit_v4_lake/`, which the protected glob covers by design — it
+reports a NEW file matching a protected pattern as drift, and that is the behaviour that would catch someone quietly
 publishing a book. Nothing accepted changed or was removed:
 `test_whatif_candidate_release.py` re-reads both accepted fingerprints from
 their own manifests and compares them with the values pinned at `245c50e`.

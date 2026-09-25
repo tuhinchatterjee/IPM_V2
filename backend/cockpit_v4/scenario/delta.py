@@ -262,7 +262,7 @@ def _delta_fields(domain_id: str) -> list[str]:
     and naming those in a refusal would send a reader to ask for something
     that will be refused again for a different reason.
     """
-    return sorted(f.field_id for f in fd.BY_DOMAIN.get(domain_id, ())
+    return sorted(f.field_id for f in fd.fields_for(domain_id)
                   if sp.DELTA in f.methods and f.mutable
                   and f.availability != fd.ABSENT)
 
