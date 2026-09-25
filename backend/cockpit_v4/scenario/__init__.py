@@ -33,6 +33,7 @@ Reading order
     errors.py   the fourteen domain failures, mapped onto codes that exist
     flags.py    per-book enablement, off by default
     spec.py     the scenario as an immutable, hashable object
+    fields.py   which columns may move, and the rows where they may not
 
 `ecl.py` is the sibling worth reading first for the house style: every number
 an aggregate of published columns, and the analyst never asked.
