@@ -187,4 +187,4 @@ Ten of the 86 PASS rows hold only for their fixture, browser or scheduler portio
 
 ## Frozen suite regression (lab copy)
 
-`scripts/model_lab/frozen_regression.py` runs `tests/cockpit_v4` unchanged. The P0 baseline was **3,315 passed, 33 skipped, 0 failed**. The final run is recorded in `LIVE_UAT_REPORT.md` §4.
+`scripts/model_lab/frozen_regression.py` runs `tests/cockpit_v4` unchanged. The P0 baseline was **3,315 passed, 33 skipped, 0 failed**. Final run after all lab code was added: **3,315 passed, 33 skipped, 0 failed**, identical to the baseline (`LIVE_UAT_REPORT.md`).

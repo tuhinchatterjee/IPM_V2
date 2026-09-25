@@ -59,3 +59,7 @@ ollama pull qwen3.5:9b && .venv/bin/python scripts/model_lab/probe.py --profile 
 Then open `/cockpit/lab`, choose **Mac baseline comparison** and ask the registered oracle question. The first real row of this report will be the result.
 
 Expect the frozen 30 s per-call and 180 s analytical deadlines to be the first constraint for a local 9B model (OG-01). The lab will report that as `RESOURCE_OR_CONTEXT`, not as a reasoning failure.
+
+## Frozen regression result (final)
+
+`scripts/model_lab/frozen_regression.py`, run on the lab copy after all lab code was added: **3,315 passed, 33 skipped, 0 failed** (1,329.66 s). This is identical to the P0 baseline. The evidence files the frozen tests rewrote were restored from Git, and a diff was kept under `artifacts/model_comparison/regression/`. The protected manifest check passed afterwards.
