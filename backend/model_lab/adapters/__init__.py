@@ -30,8 +30,7 @@ def build_provider(profile: Profile, *, env: dict[str, str] | None = None
         from backend.llm.anthropic_provider import AnthropicProvider
         return AnthropicProvider(api_key=key)
     if profile.route in ("openai_compat", "ollama_native"):
-        from backend.model_lab.adapters.openai_compat import (
-            OpenAICompatProvider)
+        from backend.model_lab.adapters.openai_compat import OpenAICompatProvider
         base = env.get(ep.get("base_url_env") or "") or ep.get(
             "base_url_default")
         if not base:

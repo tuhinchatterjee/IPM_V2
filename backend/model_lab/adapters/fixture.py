@@ -31,6 +31,21 @@ GROUP BY sector
 ORDER BY stage2_ead_sar_mn DESC
 """.strip()
 
+#: A different, equally valid strategy: CTE + join for the latest quarter,
+#: ordered by sector name. Must pass the same independent checks (Q02).
+ALTERNATE_SQL = """
+WITH latest AS (
+  SELECT MAX(reporting_quarter) AS q FROM corp_facility_quarter
+)
+SELECT f.sector,
+       SUM(f.ead_sar_mn) AS stage2_ead_sar_mn
+FROM corp_facility_quarter AS f
+JOIN latest ON f.reporting_quarter = latest.q
+WHERE f.stage = 2
+GROUP BY f.sector
+ORDER BY f.sector
+""".strip()
+
 #: Whole-book: every stage. Syntactically valid, plausible, wrong population.
 WHOLE_BOOK_SQL = STAGE2_SQL.replace("WHERE stage = 2\n  AND ", "WHERE ")
 
@@ -111,7 +126,8 @@ def _executed_artifact(messages) -> tuple[str, list[dict[str, Any]]] | None:
 def _finalize(artifact: str, rows: list[dict[str, Any]], *,
               narrative_extra: str = "", call_id: str) -> dict[str, Any]:
     col = "stage2_ead_sar_mn"
-    top = rows[0]["sector"] if rows else ""
+    top = (max(rows, key=lambda r: r.get(col) or 0)["sector"] if rows
+           else "")
     return {"id": call_id, "name": "finalize_response", "input": {
         "disposition": "answer",
         "narrative": (f"In the latest quarter, {top} carries the largest "
@@ -219,6 +235,8 @@ class FixtureProvider:
             sql = BROKEN_SQL
         elif b == "wrong_scope":
             sql = WHOLE_BOOK_SQL
+        elif b == "alternate_plan":
+            sql = ALTERNATE_SQL
         else:
             sql = STAGE2_SQL
         return FixtureResult(tool_calls=[_execute(

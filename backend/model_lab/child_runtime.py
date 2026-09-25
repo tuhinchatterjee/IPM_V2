@@ -90,10 +90,11 @@ def runtime_for(profile: Profile, provider: Any, *, domain: str,
 
 def snapshot_identity(domain: str) -> dict[str, Any]:
     """The data snapshot a comparison is pinned to (read-only)."""
+    import hashlib
+
     from backend.cockpit_v4 import analytical_runtime as arun
     from backend.cockpit_v4 import contracts
     from backend.cockpit_v4 import domain_resolver as resolver
-    import hashlib
 
     scope = resolver.scope_for(domain)
     book = arun.for_domain(domain)

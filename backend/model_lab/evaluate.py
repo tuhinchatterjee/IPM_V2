@@ -20,7 +20,8 @@ import json
 import re
 from typing import Any
 
-from backend.model_lab import EVALUATOR_VERSION, metrics as mx, oracle
+from backend.model_lab import EVALUATOR_VERSION, oracle
+from backend.model_lab import metrics as mx
 
 PASS, FAIL, PARTIAL = "PASS", "FAIL", "PARTIAL"
 NOT_OBSERVED, NOT_REACHED, UNKNOWN = "NOT_OBSERVED", "NOT_REACHED", "UNKNOWN"
@@ -762,7 +763,7 @@ def _metrics(child, turns, calls, app_spans, fixture, runs, profile
                    (t["started_monotonic"] or 0)) * 1000
                   for t in turns if t.get("finished_monotonic"))
     wait = 0.0
-    for a, b in zip(turns, turns[1:]):
+    for a, b in zip(turns, turns[1:], strict=False):
         if b["kind"] == "CLARIFICATION" and a.get("finished_monotonic"):
             wait += (b["started_monotonic"] - a["finished_monotonic"]) * 1000
     m["service_ms"] = mx.measured(service, "ms", "coordinator monotonic",

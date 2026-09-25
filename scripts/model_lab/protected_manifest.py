@@ -115,7 +115,7 @@ def worktree_blob_ids(paths: list[str]) -> dict[str, str]:
         ["git", "-C", str(ROOT), "hash-object", "--stdin-paths"],
         input="\n".join(present) + "\n", capture_output=True, text=True,
         check=True).stdout.split()
-    ids = dict(zip(present, out))
+    ids = dict(zip(present, out, strict=True))
     return {p: ids.get(p, "ABSENT") for p in paths}
 
 

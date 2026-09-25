@@ -33,8 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from backend.model_lab import (EVALUATOR_VERSION, FROZEN_COMMIT, LAB_VERSION,
-                               registry)
+from backend.model_lab import EVALUATOR_VERSION, FROZEN_COMMIT, LAB_VERSION, registry
 from backend.model_lab.store import LabStore
 
 # Group states
@@ -496,8 +495,7 @@ class Coordinator:
         from backend.cockpit_v4 import domain_resolver as resolver
         from backend.cockpit_v4.worker import Worker
         from backend.model_lab import resources
-        from backend.model_lab.adapters import AdapterUnavailable, \
-            build_provider
+        from backend.model_lab.adapters import AdapterUnavailable, build_provider
         from backend.model_lab.child_runtime import runtime_for
         from backend.model_lab.observe import observe
 

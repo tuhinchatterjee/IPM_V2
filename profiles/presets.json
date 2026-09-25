@@ -64,6 +64,7 @@
    "name": "Fixture demonstration (no models)",
    "profiles": [
     "fixture-reference",
+    "fixture-alternate-plan",
     "fixture-wrong-scope",
     "fixture-repair",
     "fixture-invented-cause",

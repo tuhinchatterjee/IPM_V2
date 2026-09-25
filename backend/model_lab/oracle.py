@@ -78,7 +78,7 @@ TASKS: tuple[Task, ...] = (
 def _frame(release_id: str, relation: str):
     import pandas as pd
     os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
-    from backend.cockpit_v4 import lake   # path resolution only, read-only
+    from backend.cockpit_v4 import lake  # path resolution only, read-only
 
     return pd.read_parquet(lake.relation_path(release_id, relation))
 

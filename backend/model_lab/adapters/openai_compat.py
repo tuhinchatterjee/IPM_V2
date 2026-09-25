@@ -25,15 +25,19 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import httpx
 
 from backend.cockpit_v4.provider import OutputTruncated, ProviderFailure
-from backend.cockpit_v4.states import (INVALID_MODEL_OUTPUT, PROVIDER_AUTH,
-                                       PROVIDER_RATE_LIMIT,
-                                       PROVIDER_REQUEST_INVALID,
-                                       PROVIDER_UNAVAILABLE)
+from backend.cockpit_v4.states import (
+    INVALID_MODEL_OUTPUT,
+    PROVIDER_AUTH,
+    PROVIDER_RATE_LIMIT,
+    PROVIDER_REQUEST_INVALID,
+    PROVIDER_UNAVAILABLE,
+)
 
 _FINISH = {"tool_calls": "tool_use", "function_call": "tool_use",
            "stop": "end_turn", "length": "max_tokens",
@@ -422,10 +426,10 @@ class OpenAICompatProvider:
                 return
             try:
                 yield json.loads(payload)
-            except ValueError:
+            except ValueError as exc:
                 raise ProviderFailure(PROVIDER_UNAVAILABLE,
                                       "malformed stream event",
-                                      retry_class="transport")
+                                      retry_class="transport") from exc
 
     @staticmethod
     def _raise_for(r: httpx.Response, stream: bool = False) -> None:
