@@ -1,0 +1,4623 @@
+{
+ "source": "backend.cockpit_v4.contracts.provider_tools (frozen, called as worker.Worker._drive calls it)",
+ "frozen_commit": "245c50e45786c6e0c866b281f9dd74da17d160b5",
+ "tool_names": [
+  "inspect_catalog",
+  "inspect_product_knowledge",
+  "execute_analysis",
+  "read_artifact",
+  "finalize_response"
+ ],
+ "batchable_read_tools": [
+  "inspect_catalog",
+  "inspect_product_knowledge",
+  "read_artifact"
+ ],
+ "parser_dispositions": [
+  "answer",
+  "partial_answer",
+  "referral",
+  "clarification",
+  "unsupported",
+  "safe_failure"
+ ],
+ "variants": {
+  "corporate": {
+   "release_id": "v4-saudi-corporate-20q-v4",
+   "answer_tools (full_tools)": {
+    "sha256": "bd3c58020fb5a095d082db9a45f98c792278ff0123d1ad59721a0297fb5fa0bb",
+    "names": [
+     "inspect_catalog",
+     "inspect_product_knowledge",
+     "execute_analysis",
+     "read_artifact",
+     "finalize_response"
+    ],
+    "tools": [
+     {
+      "name": "inspect_catalog",
+      "description": "Read exact catalog metadata for the authorized corporate_cockpit release: relation names and grains, field definitions, units, valid joins, coverage by reporting quarter and missingness. Returns what is there; an empty search is an empty search.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "relation_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "field_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "detail": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "discovery",
+           "fields",
+           "relationships",
+           "coverage",
+           "samples"
+          ]
+         },
+         "minItems": 1,
+         "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
+        },
+        "reporting_periods": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Reporting quarters to describe coverage for, e.g. 2026Q2. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "sample_rows": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "maximum": 10,
+         "description": "Masked sample rows, 0-10. A non-zero value IS the request for samples: it and 'samples' in detail mean the same thing, either alone is honoured, and neither is rejected for lacking the other. Absent and null mean none."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Optional. Omit it when you have nothing to say about it."
+        }
+       },
+       "required": [
+        "relation_ids"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "inspect_product_knowledge",
+      "description": "Read CreditProbe's own product knowledge: what the product is, what each of the seven functionalities does and owns, TAC, the four Early Warning intelligence layers, how modules relate, boundaries and worked examples -- each with the deck slide it came from. Facts only; the answer is yours to write.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The user's product question, in their own words. Used to select sections when you do not name topics."
+        },
+        "topics": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "positioning",
+           "audience",
+           "arc",
+           "modules",
+           "cockpit",
+           "early_warning",
+           "tac",
+           "layers",
+           "what_if",
+           "scorecard_validation",
+           "playbook",
+           "lenses",
+           "planner",
+           "supporting",
+           "relationships",
+           "boundaries",
+           "governance",
+           "examples"
+          ]
+         },
+         "minItems": 0,
+         "description": "Name the sections you want. Naming two module topics also returns how they relate."
+        },
+        "detail": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "enum": [
+          "standard",
+          "full",
+          null
+         ],
+         "description": "'full' adds worked examples, question-type tables and the fuller module detail."
+        }
+       },
+       "required": [
+        "topics"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "execute_analysis",
+      "description": "Submit your own exact SQL or Python. CreditProbe validates and executes it unchanged, or rejects it with the reason. It never edits, shortens or repairs your code, and never computes a substitute answer.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "objective": {
+         "type": "string"
+        },
+        "subquestions": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "minItems": 1
+        },
+        "scope": {
+         "type": "object",
+         "properties": {
+          "reporting_periods": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "borrower_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "facility_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "filters": {
+           "type": "object"
+          },
+          "currency_basis": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "reporting_periods",
+          "filters"
+         ],
+         "additionalProperties": false
+        },
+        "metadata_receipt_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "fields_required": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "expected_output_grain": {
+         "type": "string"
+        },
+        "expected_units": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        },
+        "steps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "step_id": {
+            "type": "string"
+           },
+           "language": {
+            "type": "string",
+            "enum": [
+             "sql",
+             "python"
+            ]
+           },
+           "code": {
+            "type": "string",
+            "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
+           },
+           "parameters": {
+            "type": [
+             "object",
+             "null"
+            ],
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "purpose": {
+            "type": "string"
+           },
+           "input_artifact_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "depends_on_step_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "step_id",
+           "language",
+           "code",
+           "parameters",
+           "purpose",
+           "input_artifact_ids",
+           "depends_on_step_ids"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 1,
+         "maxItems": 8
+        },
+        "repair_of_submission_id": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "objective",
+        "steps"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "read_artifact",
+      "description": "Read an authorized persisted result artifact or completed thread turn. Exact stored values only; this computes nothing new.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "artifact_id": {
+         "type": "string"
+        },
+        "artifact_kind": {
+         "type": "string",
+         "enum": [
+          "result",
+          "completed_turn"
+         ]
+        },
+        "columns": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "offset": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "limit": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 1,
+         "maximum": 100,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "artifact_id"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "finalize_response",
+      "description": "Deliver the user-facing response: answer, partial answer, referral, clarification or unsupported. This is the terminal action and costs no extra model call.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "disposition": {
+         "type": "string",
+         "enum": [
+          "answer",
+          "partial",
+          "referral",
+          "clarification",
+          "unsupported"
+         ]
+        },
+        "narrative": {
+         "type": "string",
+         "description": "Use typed claim placeholders for numeric portfolio findings."
+        },
+        "coverage": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "subquestion": {
+            "type": "string"
+           },
+           "status": {
+            "type": "string",
+            "enum": [
+             "answered",
+             "partial",
+             "referred",
+             "needs_clarification",
+             "unsupported"
+            ]
+           },
+           "evidence_refs": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "object",
+             "properties": {
+              "artifact_id": {
+               "type": "string"
+              },
+              "row_key": {
+               "type": "string"
+              },
+              "column_id": {
+               "type": "string"
+              },
+              "scope_ref": {
+               "type": "string"
+              }
+             },
+             "required": [
+              "artifact_id",
+              "row_key",
+              "column_id"
+             ],
+             "additionalProperties": false
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "subquestion",
+           "status",
+           "evidence_refs"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "numeric_claims": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "claim_id": {
+            "type": "string"
+           },
+           "decimal_value": {
+            "type": "string",
+            "description": "OPTIONAL, and normally OMITTED. CreditProbe computes this number from the evidence or the derivation you name, and formats it for the reader. Send one only to cross-check yourself; it is verified, and a value that does not reconcile refuses the answer."
+           },
+           "unit": {
+            "type": "string"
+           },
+           "evidence": {
+            "type": "object",
+            "properties": {
+             "artifact_id": {
+              "type": "string"
+             },
+             "row_key": {
+              "type": "string"
+             },
+             "column_id": {
+              "type": "string"
+             },
+             "scope_ref": {
+              "type": "string"
+             }
+            },
+            "required": [
+             "artifact_id",
+             "row_key",
+             "column_id"
+            ],
+            "additionalProperties": false
+           },
+           "display_precision": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 12,
+            "description": "OPTIONAL. Omit it: the unit decides. Money shows no decimal places, percentages and ratios show two, counts none."
+           },
+           "derivation": {
+            "type": "object",
+            "description": "How a calculated value was produced, over cells that exist. The server recomputes it and refuses the answer if the arithmetic does not hold, so this is evidence, not commentary. count: how many referenced cells hold a value; difference: sum(first) - sum(second); identity: the single referenced cell, unchanged; max: the largest of the referenced cells; min: the smallest of the referenced cells; percentage: 100 * sum(first) / sum(second); percentage_change: 100 * (sum(first) - sum(second)) / sum(second), where the first operand is the later period; rank: the 1-based position of the first operand's single cell within the second operand's cells, largest first; ratio: sum(first) / sum(second); share_of_total: sum(first) / sum(second), where the first operand's rows must be a subset of the second's; sum: the sum of the referenced cells; weighted_average: sum(value * weight) / sum(weight), over the same rows in the same order.",
+            "properties": {
+             "operation": {
+              "type": "string",
+              "enum": [
+               "count",
+               "difference",
+               "identity",
+               "max",
+               "min",
+               "percentage",
+               "percentage_change",
+               "rank",
+               "ratio",
+               "share_of_total",
+               "sum",
+               "weighted_average"
+              ],
+              "description": "One operation from this closed set."
+             },
+             "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+               "type": "object",
+               "description": "Cells in one column of one executed result artifact. Say WHICH cells exactly one way: `rows: \"all\"` for every row of the result, or `row_ids` naming them individually. Sending both, or neither, is refused.",
+               "properties": {
+                "artifact_id": {
+                 "type": "string",
+                 "description": "The artifact these rows are in."
+                },
+                "column_id": {
+                 "type": "string",
+                 "description": "One output column of that artifact."
+                },
+                "rows": {
+                 "type": "string",
+                 "enum": [
+                  "all"
+                 ],
+                 "description": "Every row of this result, in the order it was published. Use it for a figure that spans the whole result -- a total, or the denominator of a share -- instead of listing every row id. It is refused when the result was clipped at the preview cap, because a total over part of a result is not that result's total; name the rows you mean in that case. Omit this when sending 'row_ids'."
+                },
+                "row_ids": {
+                 "type": "array",
+                 "minItems": 1,
+                 "maxItems": 500,
+                 "items": {
+                  "type": "string"
+                 },
+                 "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...), for a figure over SOME of the rows. A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up. Omit this when sending 'rows'."
+                }
+               },
+               "required": [
+                "artifact_id",
+                "column_id"
+               ],
+               "additionalProperties": false
+              },
+              "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's. Each operand names its cells with 'rows: \"all\"' or with 'row_ids'."
+             }
+            },
+            "required": [
+             "operation",
+             "operands"
+            ],
+            "additionalProperties": false
+           }
+          },
+          "required": [
+           "claim_id",
+           "unit"
+          ],
+          "additionalProperties": false,
+          "description": "One number in the answer: WHERE it comes from, not what it is. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused. You do not need to send the number itself -- reference the claim from your narrative as {{claim.<id>}} and CreditProbe substitutes the validated, formatted figure."
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "evidence_refs": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "artifact_id": {
+            "type": "string"
+           },
+           "row_key": {
+            "type": "string"
+           },
+           "column_id": {
+            "type": "string"
+           },
+           "scope_ref": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "artifact_id",
+           "row_key",
+           "column_id"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "tables": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "title": {
+            "type": "string"
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "row_cursor": {
+            "type": "string"
+           },
+           "note": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "title",
+           "artifact_id",
+           "columns"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "charts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "kind": {
+            "type": "string",
+            "description": "How to draw it. x_column is the category or axis, y_columns the measures. bar/grouped_bar/pie/donut rank categories. line/step_line/area follow a sequence; stacked_bar and stacked_bar_100 show a mix over one; combo puts y_columns[0] as bars and y_columns[1] as a line on its own axis (a rate over volumes). waterfall bridges a total. scatter/bubble relate two measures; histogram shows a distribution; box shows quartiles; heatmap is a matrix -- x_column is the COLUMN axis, series_column the ROW axis, y_columns[0] the value in each cell.",
+            "enum": [
+             "area",
+             "bar",
+             "box",
+             "bubble",
+             "combo",
+             "donut",
+             "grouped_bar",
+             "heatmap",
+             "histogram",
+             "line",
+             "pie",
+             "scatter",
+             "stacked_bar",
+             "stacked_bar_100",
+             "step_line",
+             "waterfall"
+            ]
+           },
+           "title": {
+            "type": "string"
+           },
+           "why_this_chart": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "One short sentence: the reader's question THIS form answers, and why this form answers it better than the table beside it. Optional, and the point is not the sentence -- it is that a form you cannot justify in one line is usually a form the answer does not need. It is published with the chart and appears in the governance record, so a reader can see the reasoning rather than infer it."
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "x_column": {
+            "type": "string"
+           },
+           "y_columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "series_column": {
+            "type": "string",
+            "description": "The second categorical axis. Required for a heatmap, where it is the row axis; ignored by every other kind."
+           },
+           "unit": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "kind",
+           "title",
+           "artifact_id",
+           "x_column",
+           "y_columns",
+           "unit"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 8,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form. Pick the form from the SHAPE of the result: a ranked comparison is a bar, a series over time is a line, a from/to pair with a measure is a heatmap (the grid, whose diagonal is everything that did not move -- a rating or stage migration is this and is unreadable as a flat list), a contribution bridge is a waterfall, two measures against each other is a scatter, and the spread of a measure across a category is a box. CreditProbe computes every value, including a box's quartiles. SEVERAL SMALL CHARTS BEAT ONE CROWDED ONE: a trend per product is one chart per product, and they are published in the order you send them. NOT EVERY ANSWER NEEDS A CHART, and reaching for one because the capability exists is the commonest way a good answer is made to look padded. A single figure has no shape to draw: a chart of one bar is a decoration around a sentence, so send none. Two or three values a reader compares at a glance are already clearer in the table beside them. Chart the result when the FORM shows something the reader would otherwise have to work out from the rows -- a ranking, a movement over time, a concentration, a migration, a spread -- and say which of those it is in `why_this_chart`. A chart you cannot justify in one line is usually a chart the answer does not need. If the reader named a form -- \"give me a line chart\" -- use that form."
+        },
+        "limitations": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "suggested_questions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "question": {
+            "type": "string"
+           },
+           "required_fields": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "required_periods": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "kind": {
+            "type": "string",
+            "enum": [
+             "product_help",
+             "theory",
+             "data_analysis"
+            ]
+           }
+          },
+          "required": [
+           "question",
+           "required_fields",
+           "required_periods",
+           "kind"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 3,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "clarification_question": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "clarification_options": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "referral_owner": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "referral_reason": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "understood_request": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "What you took the question to mean, in one sentence."
+        },
+        "response_language": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The language you answered in, as a BCP-47 tag."
+        },
+        "blocking_ambiguities": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+        },
+        "resolved_assumptions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"period not specified: using the latest populated quarter 2026Q2 against 2026Q1\"."
+        },
+        "canonical_mappings": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms this book already defines, and what they map to. For example \"EAD by sector for the latest quarter\"."
+        },
+        "excluded_parts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Parts of the question this answer does not cover."
+        },
+        "public_rationale": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Why you answered it this way, for the reader."
+        }
+       },
+       "required": [
+        "disposition",
+        "narrative"
+       ],
+       "additionalProperties": false
+      }
+     }
+    ]
+   },
+   "action_tools (non-analytical first turn)": {
+    "sha256": "bd3c58020fb5a095d082db9a45f98c792278ff0123d1ad59721a0297fb5fa0bb",
+    "names": [
+     "inspect_catalog",
+     "inspect_product_knowledge",
+     "execute_analysis",
+     "read_artifact",
+     "finalize_response"
+    ],
+    "tools": [
+     {
+      "name": "inspect_catalog",
+      "description": "Read exact catalog metadata for the authorized corporate_cockpit release: relation names and grains, field definitions, units, valid joins, coverage by reporting quarter and missingness. Returns what is there; an empty search is an empty search.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "relation_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "field_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "detail": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "discovery",
+           "fields",
+           "relationships",
+           "coverage",
+           "samples"
+          ]
+         },
+         "minItems": 1,
+         "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
+        },
+        "reporting_periods": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Reporting quarters to describe coverage for, e.g. 2026Q2. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "sample_rows": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "maximum": 10,
+         "description": "Masked sample rows, 0-10. A non-zero value IS the request for samples: it and 'samples' in detail mean the same thing, either alone is honoured, and neither is rejected for lacking the other. Absent and null mean none."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Optional. Omit it when you have nothing to say about it."
+        }
+       },
+       "required": [
+        "relation_ids"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "inspect_product_knowledge",
+      "description": "Read CreditProbe's own product knowledge: what the product is, what each of the seven functionalities does and owns, TAC, the four Early Warning intelligence layers, how modules relate, boundaries and worked examples -- each with the deck slide it came from. Facts only; the answer is yours to write.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The user's product question, in their own words. Used to select sections when you do not name topics."
+        },
+        "topics": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "positioning",
+           "audience",
+           "arc",
+           "modules",
+           "cockpit",
+           "early_warning",
+           "tac",
+           "layers",
+           "what_if",
+           "scorecard_validation",
+           "playbook",
+           "lenses",
+           "planner",
+           "supporting",
+           "relationships",
+           "boundaries",
+           "governance",
+           "examples"
+          ]
+         },
+         "minItems": 0,
+         "description": "Name the sections you want. Naming two module topics also returns how they relate."
+        },
+        "detail": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "enum": [
+          "standard",
+          "full",
+          null
+         ],
+         "description": "'full' adds worked examples, question-type tables and the fuller module detail."
+        }
+       },
+       "required": [
+        "topics"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "execute_analysis",
+      "description": "Submit your own exact SQL or Python. CreditProbe validates and executes it unchanged, or rejects it with the reason. It never edits, shortens or repairs your code, and never computes a substitute answer.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "objective": {
+         "type": "string"
+        },
+        "subquestions": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "minItems": 1
+        },
+        "scope": {
+         "type": "object",
+         "properties": {
+          "reporting_periods": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "borrower_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "facility_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "filters": {
+           "type": "object"
+          },
+          "currency_basis": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "reporting_periods",
+          "filters"
+         ],
+         "additionalProperties": false
+        },
+        "metadata_receipt_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "fields_required": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "expected_output_grain": {
+         "type": "string"
+        },
+        "expected_units": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        },
+        "steps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "step_id": {
+            "type": "string"
+           },
+           "language": {
+            "type": "string",
+            "enum": [
+             "sql",
+             "python"
+            ]
+           },
+           "code": {
+            "type": "string",
+            "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
+           },
+           "parameters": {
+            "type": [
+             "object",
+             "null"
+            ],
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "purpose": {
+            "type": "string"
+           },
+           "input_artifact_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "depends_on_step_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "step_id",
+           "language",
+           "code",
+           "parameters",
+           "purpose",
+           "input_artifact_ids",
+           "depends_on_step_ids"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 1,
+         "maxItems": 8
+        },
+        "repair_of_submission_id": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "objective",
+        "steps"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "read_artifact",
+      "description": "Read an authorized persisted result artifact or completed thread turn. Exact stored values only; this computes nothing new.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "artifact_id": {
+         "type": "string"
+        },
+        "artifact_kind": {
+         "type": "string",
+         "enum": [
+          "result",
+          "completed_turn"
+         ]
+        },
+        "columns": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "offset": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "limit": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 1,
+         "maximum": 100,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "artifact_id"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "finalize_response",
+      "description": "Deliver the user-facing response: answer, partial answer, referral, clarification or unsupported. This is the terminal action and costs no extra model call.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "disposition": {
+         "type": "string",
+         "enum": [
+          "answer",
+          "partial",
+          "referral",
+          "clarification",
+          "unsupported"
+         ]
+        },
+        "narrative": {
+         "type": "string",
+         "description": "Use typed claim placeholders for numeric portfolio findings."
+        },
+        "coverage": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "subquestion": {
+            "type": "string"
+           },
+           "status": {
+            "type": "string",
+            "enum": [
+             "answered",
+             "partial",
+             "referred",
+             "needs_clarification",
+             "unsupported"
+            ]
+           },
+           "evidence_refs": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "object",
+             "properties": {
+              "artifact_id": {
+               "type": "string"
+              },
+              "row_key": {
+               "type": "string"
+              },
+              "column_id": {
+               "type": "string"
+              },
+              "scope_ref": {
+               "type": "string"
+              }
+             },
+             "required": [
+              "artifact_id",
+              "row_key",
+              "column_id"
+             ],
+             "additionalProperties": false
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "subquestion",
+           "status",
+           "evidence_refs"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "numeric_claims": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "claim_id": {
+            "type": "string"
+           },
+           "decimal_value": {
+            "type": "string",
+            "description": "OPTIONAL, and normally OMITTED. CreditProbe computes this number from the evidence or the derivation you name, and formats it for the reader. Send one only to cross-check yourself; it is verified, and a value that does not reconcile refuses the answer."
+           },
+           "unit": {
+            "type": "string"
+           },
+           "evidence": {
+            "type": "object",
+            "properties": {
+             "artifact_id": {
+              "type": "string"
+             },
+             "row_key": {
+              "type": "string"
+             },
+             "column_id": {
+              "type": "string"
+             },
+             "scope_ref": {
+              "type": "string"
+             }
+            },
+            "required": [
+             "artifact_id",
+             "row_key",
+             "column_id"
+            ],
+            "additionalProperties": false
+           },
+           "display_precision": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 12,
+            "description": "OPTIONAL. Omit it: the unit decides. Money shows no decimal places, percentages and ratios show two, counts none."
+           },
+           "derivation": {
+            "type": "object",
+            "description": "How a calculated value was produced, over cells that exist. The server recomputes it and refuses the answer if the arithmetic does not hold, so this is evidence, not commentary. count: how many referenced cells hold a value; difference: sum(first) - sum(second); identity: the single referenced cell, unchanged; max: the largest of the referenced cells; min: the smallest of the referenced cells; percentage: 100 * sum(first) / sum(second); percentage_change: 100 * (sum(first) - sum(second)) / sum(second), where the first operand is the later period; rank: the 1-based position of the first operand's single cell within the second operand's cells, largest first; ratio: sum(first) / sum(second); share_of_total: sum(first) / sum(second), where the first operand's rows must be a subset of the second's; sum: the sum of the referenced cells; weighted_average: sum(value * weight) / sum(weight), over the same rows in the same order.",
+            "properties": {
+             "operation": {
+              "type": "string",
+              "enum": [
+               "count",
+               "difference",
+               "identity",
+               "max",
+               "min",
+               "percentage",
+               "percentage_change",
+               "rank",
+               "ratio",
+               "share_of_total",
+               "sum",
+               "weighted_average"
+              ],
+              "description": "One operation from this closed set."
+             },
+             "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+               "type": "object",
+               "description": "Cells in one column of one executed result artifact. Say WHICH cells exactly one way: `rows: \"all\"` for every row of the result, or `row_ids` naming them individually. Sending both, or neither, is refused.",
+               "properties": {
+                "artifact_id": {
+                 "type": "string",
+                 "description": "The artifact these rows are in."
+                },
+                "column_id": {
+                 "type": "string",
+                 "description": "One output column of that artifact."
+                },
+                "rows": {
+                 "type": "string",
+                 "enum": [
+                  "all"
+                 ],
+                 "description": "Every row of this result, in the order it was published. Use it for a figure that spans the whole result -- a total, or the denominator of a share -- instead of listing every row id. It is refused when the result was clipped at the preview cap, because a total over part of a result is not that result's total; name the rows you mean in that case. Omit this when sending 'row_ids'."
+                },
+                "row_ids": {
+                 "type": "array",
+                 "minItems": 1,
+                 "maxItems": 500,
+                 "items": {
+                  "type": "string"
+                 },
+                 "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...), for a figure over SOME of the rows. A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up. Omit this when sending 'rows'."
+                }
+               },
+               "required": [
+                "artifact_id",
+                "column_id"
+               ],
+               "additionalProperties": false
+              },
+              "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's. Each operand names its cells with 'rows: \"all\"' or with 'row_ids'."
+             }
+            },
+            "required": [
+             "operation",
+             "operands"
+            ],
+            "additionalProperties": false
+           }
+          },
+          "required": [
+           "claim_id",
+           "unit"
+          ],
+          "additionalProperties": false,
+          "description": "One number in the answer: WHERE it comes from, not what it is. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused. You do not need to send the number itself -- reference the claim from your narrative as {{claim.<id>}} and CreditProbe substitutes the validated, formatted figure."
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "evidence_refs": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "artifact_id": {
+            "type": "string"
+           },
+           "row_key": {
+            "type": "string"
+           },
+           "column_id": {
+            "type": "string"
+           },
+           "scope_ref": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "artifact_id",
+           "row_key",
+           "column_id"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "tables": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "title": {
+            "type": "string"
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "row_cursor": {
+            "type": "string"
+           },
+           "note": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "title",
+           "artifact_id",
+           "columns"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "charts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "kind": {
+            "type": "string",
+            "description": "How to draw it. x_column is the category or axis, y_columns the measures. bar/grouped_bar/pie/donut rank categories. line/step_line/area follow a sequence; stacked_bar and stacked_bar_100 show a mix over one; combo puts y_columns[0] as bars and y_columns[1] as a line on its own axis (a rate over volumes). waterfall bridges a total. scatter/bubble relate two measures; histogram shows a distribution; box shows quartiles; heatmap is a matrix -- x_column is the COLUMN axis, series_column the ROW axis, y_columns[0] the value in each cell.",
+            "enum": [
+             "area",
+             "bar",
+             "box",
+             "bubble",
+             "combo",
+             "donut",
+             "grouped_bar",
+             "heatmap",
+             "histogram",
+             "line",
+             "pie",
+             "scatter",
+             "stacked_bar",
+             "stacked_bar_100",
+             "step_line",
+             "waterfall"
+            ]
+           },
+           "title": {
+            "type": "string"
+           },
+           "why_this_chart": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "One short sentence: the reader's question THIS form answers, and why this form answers it better than the table beside it. Optional, and the point is not the sentence -- it is that a form you cannot justify in one line is usually a form the answer does not need. It is published with the chart and appears in the governance record, so a reader can see the reasoning rather than infer it."
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "x_column": {
+            "type": "string"
+           },
+           "y_columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "series_column": {
+            "type": "string",
+            "description": "The second categorical axis. Required for a heatmap, where it is the row axis; ignored by every other kind."
+           },
+           "unit": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "kind",
+           "title",
+           "artifact_id",
+           "x_column",
+           "y_columns",
+           "unit"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 8,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form. Pick the form from the SHAPE of the result: a ranked comparison is a bar, a series over time is a line, a from/to pair with a measure is a heatmap (the grid, whose diagonal is everything that did not move -- a rating or stage migration is this and is unreadable as a flat list), a contribution bridge is a waterfall, two measures against each other is a scatter, and the spread of a measure across a category is a box. CreditProbe computes every value, including a box's quartiles. SEVERAL SMALL CHARTS BEAT ONE CROWDED ONE: a trend per product is one chart per product, and they are published in the order you send them. NOT EVERY ANSWER NEEDS A CHART, and reaching for one because the capability exists is the commonest way a good answer is made to look padded. A single figure has no shape to draw: a chart of one bar is a decoration around a sentence, so send none. Two or three values a reader compares at a glance are already clearer in the table beside them. Chart the result when the FORM shows something the reader would otherwise have to work out from the rows -- a ranking, a movement over time, a concentration, a migration, a spread -- and say which of those it is in `why_this_chart`. A chart you cannot justify in one line is usually a chart the answer does not need. If the reader named a form -- \"give me a line chart\" -- use that form."
+        },
+        "limitations": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "suggested_questions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "question": {
+            "type": "string"
+           },
+           "required_fields": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "required_periods": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "kind": {
+            "type": "string",
+            "enum": [
+             "product_help",
+             "theory",
+             "data_analysis"
+            ]
+           }
+          },
+          "required": [
+           "question",
+           "required_fields",
+           "required_periods",
+           "kind"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 3,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "clarification_question": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "clarification_options": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "referral_owner": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "referral_reason": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "understood_request": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "What you took the question to mean, in one sentence."
+        },
+        "response_language": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The language you answered in, as a BCP-47 tag."
+        },
+        "blocking_ambiguities": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+        },
+        "resolved_assumptions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"period not specified: using the latest populated quarter 2026Q2 against 2026Q1\"."
+        },
+        "canonical_mappings": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms this book already defines, and what they map to. For example \"EAD by sector for the latest quarter\"."
+        },
+        "excluded_parts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Parts of the question this answer does not cover."
+        },
+        "public_rationale": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Why you answered it this way, for the reader."
+        }
+       },
+       "required": [
+        "disposition",
+        "narrative"
+       ],
+       "additionalProperties": false
+      }
+     }
+    ]
+   },
+   "action_tools (analytical_action)": {
+    "sha256": "1e8ca95b4328708b95b0db5a5380cba06e4c07fd51f842456a230dce339e648e",
+    "names": [
+     "inspect_catalog",
+     "inspect_product_knowledge",
+     "execute_analysis",
+     "read_artifact",
+     "finalize_response"
+    ],
+    "tools": [
+     {
+      "name": "inspect_catalog",
+      "description": "Read exact catalog metadata for the authorized corporate_cockpit release: relation names and grains, field definitions, units, valid joins, coverage by reporting quarter and missingness. Returns what is there; an empty search is an empty search.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "relation_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "field_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "detail": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "discovery",
+           "fields",
+           "relationships",
+           "coverage",
+           "samples"
+          ]
+         },
+         "minItems": 1,
+         "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
+        },
+        "reporting_periods": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Reporting quarters to describe coverage for, e.g. 2026Q2. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "sample_rows": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "maximum": 10,
+         "description": "Masked sample rows, 0-10. A non-zero value IS the request for samples: it and 'samples' in detail mean the same thing, either alone is honoured, and neither is rejected for lacking the other. Absent and null mean none."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Optional. Omit it when you have nothing to say about it."
+        }
+       },
+       "required": [
+        "relation_ids"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "inspect_product_knowledge",
+      "description": "Read CreditProbe's own product knowledge: what the product is, what each of the seven functionalities does and owns, TAC, the four Early Warning intelligence layers, how modules relate, boundaries and worked examples -- each with the deck slide it came from. Facts only; the answer is yours to write.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The user's product question, in their own words. Used to select sections when you do not name topics."
+        },
+        "topics": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "positioning",
+           "audience",
+           "arc",
+           "modules",
+           "cockpit",
+           "early_warning",
+           "tac",
+           "layers",
+           "what_if",
+           "scorecard_validation",
+           "playbook",
+           "lenses",
+           "planner",
+           "supporting",
+           "relationships",
+           "boundaries",
+           "governance",
+           "examples"
+          ]
+         },
+         "minItems": 0,
+         "description": "Name the sections you want. Naming two module topics also returns how they relate."
+        },
+        "detail": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "enum": [
+          "standard",
+          "full",
+          null
+         ],
+         "description": "'full' adds worked examples, question-type tables and the fuller module detail."
+        }
+       },
+       "required": [
+        "topics"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "execute_analysis",
+      "description": "Submit your own exact SQL or Python. CreditProbe validates and executes it unchanged, or rejects it with the reason. It never edits, shortens or repairs your code, and never computes a substitute answer.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "objective": {
+         "type": "string"
+        },
+        "subquestions": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "minItems": 1
+        },
+        "scope": {
+         "type": "object",
+         "properties": {
+          "reporting_periods": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "borrower_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "facility_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "filters": {
+           "type": "object"
+          },
+          "currency_basis": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "reporting_periods",
+          "filters"
+         ],
+         "additionalProperties": false
+        },
+        "metadata_receipt_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "fields_required": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "expected_output_grain": {
+         "type": "string"
+        },
+        "expected_units": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        },
+        "steps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "step_id": {
+            "type": "string"
+           },
+           "language": {
+            "type": "string",
+            "enum": [
+             "sql",
+             "python"
+            ]
+           },
+           "code": {
+            "type": "string",
+            "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
+           },
+           "parameters": {
+            "type": [
+             "object",
+             "null"
+            ],
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "purpose": {
+            "type": "string"
+           },
+           "input_artifact_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "depends_on_step_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "step_id",
+           "language",
+           "code",
+           "parameters",
+           "purpose",
+           "input_artifact_ids",
+           "depends_on_step_ids"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 1,
+         "maxItems": 8
+        },
+        "repair_of_submission_id": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "objective",
+        "steps"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "read_artifact",
+      "description": "Read an authorized persisted result artifact or completed thread turn. Exact stored values only; this computes nothing new.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "artifact_id": {
+         "type": "string"
+        },
+        "artifact_kind": {
+         "type": "string",
+         "enum": [
+          "result",
+          "completed_turn"
+         ]
+        },
+        "columns": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "offset": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "limit": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 1,
+         "maximum": 100,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "artifact_id"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "finalize_response",
+      "description": "Deliver the user-facing response: answer, partial answer, referral, clarification or unsupported. This is the terminal action and costs no extra model call. On this turn nothing has been executed yet, so this tool can only STOP the run: ask the user a question, refer it, or say it cannot be supported. To answer with numbers, run the analysis first -- the full answer contract is offered on the turn after a result exists.",
+      "input_schema": {
+       "type": "object",
+       "required": [
+        "disposition",
+        "narrative"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "disposition": {
+         "type": "string",
+         "enum": [
+          "referral",
+          "clarification",
+          "unsupported"
+         ]
+        },
+        "narrative": {
+         "type": "string",
+         "description": "Use typed claim placeholders for numeric portfolio findings."
+        },
+        "limitations": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "clarification_question": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "clarification_options": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "referral_owner": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "referral_reason": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "understood_request": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "What you took the question to mean, in one sentence."
+        },
+        "response_language": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The language you answered in, as a BCP-47 tag."
+        },
+        "blocking_ambiguities": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+        },
+        "resolved_assumptions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"period not specified: using the latest populated quarter 2026Q2 against 2026Q1\"."
+        },
+        "canonical_mappings": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms this book already defines, and what they map to. For example \"EAD by sector for the latest quarter\"."
+        },
+        "excluded_parts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Parts of the question this answer does not cover."
+        },
+        "public_rationale": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Why you answered it this way, for the reader."
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "retail": {
+   "release_id": "v4-saudi-retail-20m-v5",
+   "answer_tools (full_tools)": {
+    "sha256": "77b046265c9a0397265f96c65d5d7413502781f2b55963d8974ecb096def8a43",
+    "names": [
+     "inspect_catalog",
+     "inspect_product_knowledge",
+     "execute_analysis",
+     "read_artifact",
+     "finalize_response"
+    ],
+    "tools": [
+     {
+      "name": "inspect_catalog",
+      "description": "Read exact catalog metadata for the authorized corporate_cockpit release: relation names and grains, field definitions, units, valid joins, coverage by reporting month and missingness. Returns what is there; an empty search is an empty search.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "relation_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "field_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "detail": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "discovery",
+           "fields",
+           "relationships",
+           "coverage",
+           "samples"
+          ]
+         },
+         "minItems": 1,
+         "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
+        },
+        "reporting_periods": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Reporting months to describe coverage for, e.g. 2026-08. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "sample_rows": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "maximum": 10,
+         "description": "Masked sample rows, 0-10. A non-zero value IS the request for samples: it and 'samples' in detail mean the same thing, either alone is honoured, and neither is rejected for lacking the other. Absent and null mean none."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Optional. Omit it when you have nothing to say about it."
+        }
+       },
+       "required": [
+        "relation_ids"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "inspect_product_knowledge",
+      "description": "Read CreditProbe's own product knowledge: what the product is, what each of the seven functionalities does and owns, TAC, the four Early Warning intelligence layers, how modules relate, boundaries and worked examples -- each with the deck slide it came from. Facts only; the answer is yours to write.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The user's product question, in their own words. Used to select sections when you do not name topics."
+        },
+        "topics": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "positioning",
+           "audience",
+           "arc",
+           "modules",
+           "cockpit",
+           "early_warning",
+           "tac",
+           "layers",
+           "what_if",
+           "scorecard_validation",
+           "playbook",
+           "lenses",
+           "planner",
+           "supporting",
+           "relationships",
+           "boundaries",
+           "governance",
+           "examples"
+          ]
+         },
+         "minItems": 0,
+         "description": "Name the sections you want. Naming two module topics also returns how they relate."
+        },
+        "detail": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "enum": [
+          "standard",
+          "full",
+          null
+         ],
+         "description": "'full' adds worked examples, question-type tables and the fuller module detail."
+        }
+       },
+       "required": [
+        "topics"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "execute_analysis",
+      "description": "Submit your own exact SQL or Python. CreditProbe validates and executes it unchanged, or rejects it with the reason. It never edits, shortens or repairs your code, and never computes a substitute answer.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "objective": {
+         "type": "string"
+        },
+        "subquestions": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "minItems": 1
+        },
+        "scope": {
+         "type": "object",
+         "properties": {
+          "reporting_periods": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "borrower_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "facility_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "filters": {
+           "type": "object"
+          },
+          "currency_basis": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "reporting_periods",
+          "filters"
+         ],
+         "additionalProperties": false
+        },
+        "metadata_receipt_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "fields_required": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "expected_output_grain": {
+         "type": "string"
+        },
+        "expected_units": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        },
+        "steps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "step_id": {
+            "type": "string"
+           },
+           "language": {
+            "type": "string",
+            "enum": [
+             "sql",
+             "python"
+            ]
+           },
+           "code": {
+            "type": "string",
+            "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
+           },
+           "parameters": {
+            "type": [
+             "object",
+             "null"
+            ],
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "purpose": {
+            "type": "string"
+           },
+           "input_artifact_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "depends_on_step_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "step_id",
+           "language",
+           "code",
+           "parameters",
+           "purpose",
+           "input_artifact_ids",
+           "depends_on_step_ids"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 1,
+         "maxItems": 8
+        },
+        "repair_of_submission_id": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "objective",
+        "steps"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "read_artifact",
+      "description": "Read an authorized persisted result artifact or completed thread turn. Exact stored values only; this computes nothing new.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "artifact_id": {
+         "type": "string"
+        },
+        "artifact_kind": {
+         "type": "string",
+         "enum": [
+          "result",
+          "completed_turn"
+         ]
+        },
+        "columns": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "offset": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "limit": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 1,
+         "maximum": 100,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "artifact_id"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "finalize_response",
+      "description": "Deliver the user-facing response: answer, partial answer, referral, clarification or unsupported. This is the terminal action and costs no extra model call.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "disposition": {
+         "type": "string",
+         "enum": [
+          "answer",
+          "partial",
+          "referral",
+          "clarification",
+          "unsupported"
+         ]
+        },
+        "narrative": {
+         "type": "string",
+         "description": "Use typed claim placeholders for numeric portfolio findings."
+        },
+        "coverage": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "subquestion": {
+            "type": "string"
+           },
+           "status": {
+            "type": "string",
+            "enum": [
+             "answered",
+             "partial",
+             "referred",
+             "needs_clarification",
+             "unsupported"
+            ]
+           },
+           "evidence_refs": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "object",
+             "properties": {
+              "artifact_id": {
+               "type": "string"
+              },
+              "row_key": {
+               "type": "string"
+              },
+              "column_id": {
+               "type": "string"
+              },
+              "scope_ref": {
+               "type": "string"
+              }
+             },
+             "required": [
+              "artifact_id",
+              "row_key",
+              "column_id"
+             ],
+             "additionalProperties": false
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "subquestion",
+           "status",
+           "evidence_refs"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "numeric_claims": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "claim_id": {
+            "type": "string"
+           },
+           "decimal_value": {
+            "type": "string",
+            "description": "OPTIONAL, and normally OMITTED. CreditProbe computes this number from the evidence or the derivation you name, and formats it for the reader. Send one only to cross-check yourself; it is verified, and a value that does not reconcile refuses the answer."
+           },
+           "unit": {
+            "type": "string"
+           },
+           "evidence": {
+            "type": "object",
+            "properties": {
+             "artifact_id": {
+              "type": "string"
+             },
+             "row_key": {
+              "type": "string"
+             },
+             "column_id": {
+              "type": "string"
+             },
+             "scope_ref": {
+              "type": "string"
+             }
+            },
+            "required": [
+             "artifact_id",
+             "row_key",
+             "column_id"
+            ],
+            "additionalProperties": false
+           },
+           "display_precision": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 12,
+            "description": "OPTIONAL. Omit it: the unit decides. Money shows no decimal places, percentages and ratios show two, counts none."
+           },
+           "derivation": {
+            "type": "object",
+            "description": "How a calculated value was produced, over cells that exist. The server recomputes it and refuses the answer if the arithmetic does not hold, so this is evidence, not commentary. count: how many referenced cells hold a value; difference: sum(first) - sum(second); identity: the single referenced cell, unchanged; max: the largest of the referenced cells; min: the smallest of the referenced cells; percentage: 100 * sum(first) / sum(second); percentage_change: 100 * (sum(first) - sum(second)) / sum(second), where the first operand is the later period; rank: the 1-based position of the first operand's single cell within the second operand's cells, largest first; ratio: sum(first) / sum(second); share_of_total: sum(first) / sum(second), where the first operand's rows must be a subset of the second's; sum: the sum of the referenced cells; weighted_average: sum(value * weight) / sum(weight), over the same rows in the same order.",
+            "properties": {
+             "operation": {
+              "type": "string",
+              "enum": [
+               "count",
+               "difference",
+               "identity",
+               "max",
+               "min",
+               "percentage",
+               "percentage_change",
+               "rank",
+               "ratio",
+               "share_of_total",
+               "sum",
+               "weighted_average"
+              ],
+              "description": "One operation from this closed set."
+             },
+             "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+               "type": "object",
+               "description": "Cells in one column of one executed result artifact. Say WHICH cells exactly one way: `rows: \"all\"` for every row of the result, or `row_ids` naming them individually. Sending both, or neither, is refused.",
+               "properties": {
+                "artifact_id": {
+                 "type": "string",
+                 "description": "The artifact these rows are in."
+                },
+                "column_id": {
+                 "type": "string",
+                 "description": "One output column of that artifact."
+                },
+                "rows": {
+                 "type": "string",
+                 "enum": [
+                  "all"
+                 ],
+                 "description": "Every row of this result, in the order it was published. Use it for a figure that spans the whole result -- a total, or the denominator of a share -- instead of listing every row id. It is refused when the result was clipped at the preview cap, because a total over part of a result is not that result's total; name the rows you mean in that case. Omit this when sending 'row_ids'."
+                },
+                "row_ids": {
+                 "type": "array",
+                 "minItems": 1,
+                 "maxItems": 500,
+                 "items": {
+                  "type": "string"
+                 },
+                 "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...), for a figure over SOME of the rows. A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up. Omit this when sending 'rows'."
+                }
+               },
+               "required": [
+                "artifact_id",
+                "column_id"
+               ],
+               "additionalProperties": false
+              },
+              "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's. Each operand names its cells with 'rows: \"all\"' or with 'row_ids'."
+             }
+            },
+            "required": [
+             "operation",
+             "operands"
+            ],
+            "additionalProperties": false
+           }
+          },
+          "required": [
+           "claim_id",
+           "unit"
+          ],
+          "additionalProperties": false,
+          "description": "One number in the answer: WHERE it comes from, not what it is. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused. You do not need to send the number itself -- reference the claim from your narrative as {{claim.<id>}} and CreditProbe substitutes the validated, formatted figure."
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "evidence_refs": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "artifact_id": {
+            "type": "string"
+           },
+           "row_key": {
+            "type": "string"
+           },
+           "column_id": {
+            "type": "string"
+           },
+           "scope_ref": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "artifact_id",
+           "row_key",
+           "column_id"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "tables": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "title": {
+            "type": "string"
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "row_cursor": {
+            "type": "string"
+           },
+           "note": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "title",
+           "artifact_id",
+           "columns"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "charts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "kind": {
+            "type": "string",
+            "description": "How to draw it. x_column is the category or axis, y_columns the measures. bar/grouped_bar/pie/donut rank categories. line/step_line/area follow a sequence; stacked_bar and stacked_bar_100 show a mix over one; combo puts y_columns[0] as bars and y_columns[1] as a line on its own axis (a rate over volumes). waterfall bridges a total. scatter/bubble relate two measures; histogram shows a distribution; box shows quartiles; heatmap is a matrix -- x_column is the COLUMN axis, series_column the ROW axis, y_columns[0] the value in each cell.",
+            "enum": [
+             "area",
+             "bar",
+             "box",
+             "bubble",
+             "combo",
+             "donut",
+             "grouped_bar",
+             "heatmap",
+             "histogram",
+             "line",
+             "pie",
+             "scatter",
+             "stacked_bar",
+             "stacked_bar_100",
+             "step_line",
+             "waterfall"
+            ]
+           },
+           "title": {
+            "type": "string"
+           },
+           "why_this_chart": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "One short sentence: the reader's question THIS form answers, and why this form answers it better than the table beside it. Optional, and the point is not the sentence -- it is that a form you cannot justify in one line is usually a form the answer does not need. It is published with the chart and appears in the governance record, so a reader can see the reasoning rather than infer it."
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "x_column": {
+            "type": "string"
+           },
+           "y_columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "series_column": {
+            "type": "string",
+            "description": "The second categorical axis. Required for a heatmap, where it is the row axis; ignored by every other kind."
+           },
+           "unit": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "kind",
+           "title",
+           "artifact_id",
+           "x_column",
+           "y_columns",
+           "unit"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 8,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form. Pick the form from the SHAPE of the result: a ranked comparison is a bar, a series over time is a line, a from/to pair with a measure is a heatmap (the grid, whose diagonal is everything that did not move -- a rating or stage migration is this and is unreadable as a flat list), a contribution bridge is a waterfall, two measures against each other is a scatter, and the spread of a measure across a category is a box. CreditProbe computes every value, including a box's quartiles. SEVERAL SMALL CHARTS BEAT ONE CROWDED ONE: a trend per product is one chart per product, and they are published in the order you send them. NOT EVERY ANSWER NEEDS A CHART, and reaching for one because the capability exists is the commonest way a good answer is made to look padded. A single figure has no shape to draw: a chart of one bar is a decoration around a sentence, so send none. Two or three values a reader compares at a glance are already clearer in the table beside them. Chart the result when the FORM shows something the reader would otherwise have to work out from the rows -- a ranking, a movement over time, a concentration, a migration, a spread -- and say which of those it is in `why_this_chart`. A chart you cannot justify in one line is usually a chart the answer does not need. If the reader named a form -- \"give me a line chart\" -- use that form."
+        },
+        "limitations": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "suggested_questions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "question": {
+            "type": "string"
+           },
+           "required_fields": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "required_periods": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "kind": {
+            "type": "string",
+            "enum": [
+             "product_help",
+             "theory",
+             "data_analysis"
+            ]
+           }
+          },
+          "required": [
+           "question",
+           "required_fields",
+           "required_periods",
+           "kind"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 3,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "clarification_question": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "clarification_options": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "referral_owner": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "referral_reason": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "understood_request": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "What you took the question to mean, in one sentence."
+        },
+        "response_language": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The language you answered in, as a BCP-47 tag."
+        },
+        "blocking_ambiguities": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+        },
+        "resolved_assumptions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"period not specified: using the latest populated month 2026-08 against 2026-07\"."
+        },
+        "canonical_mappings": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms this book already defines, and what they map to. For example \"EAD by product for the latest month\"."
+        },
+        "excluded_parts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Parts of the question this answer does not cover."
+        },
+        "public_rationale": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Why you answered it this way, for the reader."
+        }
+       },
+       "required": [
+        "disposition",
+        "narrative"
+       ],
+       "additionalProperties": false
+      }
+     }
+    ]
+   },
+   "action_tools (non-analytical first turn)": {
+    "sha256": "77b046265c9a0397265f96c65d5d7413502781f2b55963d8974ecb096def8a43",
+    "names": [
+     "inspect_catalog",
+     "inspect_product_knowledge",
+     "execute_analysis",
+     "read_artifact",
+     "finalize_response"
+    ],
+    "tools": [
+     {
+      "name": "inspect_catalog",
+      "description": "Read exact catalog metadata for the authorized corporate_cockpit release: relation names and grains, field definitions, units, valid joins, coverage by reporting month and missingness. Returns what is there; an empty search is an empty search.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "relation_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "field_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "detail": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "discovery",
+           "fields",
+           "relationships",
+           "coverage",
+           "samples"
+          ]
+         },
+         "minItems": 1,
+         "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
+        },
+        "reporting_periods": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Reporting months to describe coverage for, e.g. 2026-08. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "sample_rows": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "maximum": 10,
+         "description": "Masked sample rows, 0-10. A non-zero value IS the request for samples: it and 'samples' in detail mean the same thing, either alone is honoured, and neither is rejected for lacking the other. Absent and null mean none."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Optional. Omit it when you have nothing to say about it."
+        }
+       },
+       "required": [
+        "relation_ids"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "inspect_product_knowledge",
+      "description": "Read CreditProbe's own product knowledge: what the product is, what each of the seven functionalities does and owns, TAC, the four Early Warning intelligence layers, how modules relate, boundaries and worked examples -- each with the deck slide it came from. Facts only; the answer is yours to write.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The user's product question, in their own words. Used to select sections when you do not name topics."
+        },
+        "topics": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "positioning",
+           "audience",
+           "arc",
+           "modules",
+           "cockpit",
+           "early_warning",
+           "tac",
+           "layers",
+           "what_if",
+           "scorecard_validation",
+           "playbook",
+           "lenses",
+           "planner",
+           "supporting",
+           "relationships",
+           "boundaries",
+           "governance",
+           "examples"
+          ]
+         },
+         "minItems": 0,
+         "description": "Name the sections you want. Naming two module topics also returns how they relate."
+        },
+        "detail": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "enum": [
+          "standard",
+          "full",
+          null
+         ],
+         "description": "'full' adds worked examples, question-type tables and the fuller module detail."
+        }
+       },
+       "required": [
+        "topics"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "execute_analysis",
+      "description": "Submit your own exact SQL or Python. CreditProbe validates and executes it unchanged, or rejects it with the reason. It never edits, shortens or repairs your code, and never computes a substitute answer.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "objective": {
+         "type": "string"
+        },
+        "subquestions": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "minItems": 1
+        },
+        "scope": {
+         "type": "object",
+         "properties": {
+          "reporting_periods": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "borrower_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "facility_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "filters": {
+           "type": "object"
+          },
+          "currency_basis": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "reporting_periods",
+          "filters"
+         ],
+         "additionalProperties": false
+        },
+        "metadata_receipt_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "fields_required": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "expected_output_grain": {
+         "type": "string"
+        },
+        "expected_units": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        },
+        "steps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "step_id": {
+            "type": "string"
+           },
+           "language": {
+            "type": "string",
+            "enum": [
+             "sql",
+             "python"
+            ]
+           },
+           "code": {
+            "type": "string",
+            "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
+           },
+           "parameters": {
+            "type": [
+             "object",
+             "null"
+            ],
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "purpose": {
+            "type": "string"
+           },
+           "input_artifact_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "depends_on_step_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "step_id",
+           "language",
+           "code",
+           "parameters",
+           "purpose",
+           "input_artifact_ids",
+           "depends_on_step_ids"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 1,
+         "maxItems": 8
+        },
+        "repair_of_submission_id": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "objective",
+        "steps"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "read_artifact",
+      "description": "Read an authorized persisted result artifact or completed thread turn. Exact stored values only; this computes nothing new.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "artifact_id": {
+         "type": "string"
+        },
+        "artifact_kind": {
+         "type": "string",
+         "enum": [
+          "result",
+          "completed_turn"
+         ]
+        },
+        "columns": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "offset": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "limit": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 1,
+         "maximum": 100,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "artifact_id"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "finalize_response",
+      "description": "Deliver the user-facing response: answer, partial answer, referral, clarification or unsupported. This is the terminal action and costs no extra model call.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "disposition": {
+         "type": "string",
+         "enum": [
+          "answer",
+          "partial",
+          "referral",
+          "clarification",
+          "unsupported"
+         ]
+        },
+        "narrative": {
+         "type": "string",
+         "description": "Use typed claim placeholders for numeric portfolio findings."
+        },
+        "coverage": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "subquestion": {
+            "type": "string"
+           },
+           "status": {
+            "type": "string",
+            "enum": [
+             "answered",
+             "partial",
+             "referred",
+             "needs_clarification",
+             "unsupported"
+            ]
+           },
+           "evidence_refs": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "object",
+             "properties": {
+              "artifact_id": {
+               "type": "string"
+              },
+              "row_key": {
+               "type": "string"
+              },
+              "column_id": {
+               "type": "string"
+              },
+              "scope_ref": {
+               "type": "string"
+              }
+             },
+             "required": [
+              "artifact_id",
+              "row_key",
+              "column_id"
+             ],
+             "additionalProperties": false
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "subquestion",
+           "status",
+           "evidence_refs"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "numeric_claims": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "claim_id": {
+            "type": "string"
+           },
+           "decimal_value": {
+            "type": "string",
+            "description": "OPTIONAL, and normally OMITTED. CreditProbe computes this number from the evidence or the derivation you name, and formats it for the reader. Send one only to cross-check yourself; it is verified, and a value that does not reconcile refuses the answer."
+           },
+           "unit": {
+            "type": "string"
+           },
+           "evidence": {
+            "type": "object",
+            "properties": {
+             "artifact_id": {
+              "type": "string"
+             },
+             "row_key": {
+              "type": "string"
+             },
+             "column_id": {
+              "type": "string"
+             },
+             "scope_ref": {
+              "type": "string"
+             }
+            },
+            "required": [
+             "artifact_id",
+             "row_key",
+             "column_id"
+            ],
+            "additionalProperties": false
+           },
+           "display_precision": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 12,
+            "description": "OPTIONAL. Omit it: the unit decides. Money shows no decimal places, percentages and ratios show two, counts none."
+           },
+           "derivation": {
+            "type": "object",
+            "description": "How a calculated value was produced, over cells that exist. The server recomputes it and refuses the answer if the arithmetic does not hold, so this is evidence, not commentary. count: how many referenced cells hold a value; difference: sum(first) - sum(second); identity: the single referenced cell, unchanged; max: the largest of the referenced cells; min: the smallest of the referenced cells; percentage: 100 * sum(first) / sum(second); percentage_change: 100 * (sum(first) - sum(second)) / sum(second), where the first operand is the later period; rank: the 1-based position of the first operand's single cell within the second operand's cells, largest first; ratio: sum(first) / sum(second); share_of_total: sum(first) / sum(second), where the first operand's rows must be a subset of the second's; sum: the sum of the referenced cells; weighted_average: sum(value * weight) / sum(weight), over the same rows in the same order.",
+            "properties": {
+             "operation": {
+              "type": "string",
+              "enum": [
+               "count",
+               "difference",
+               "identity",
+               "max",
+               "min",
+               "percentage",
+               "percentage_change",
+               "rank",
+               "ratio",
+               "share_of_total",
+               "sum",
+               "weighted_average"
+              ],
+              "description": "One operation from this closed set."
+             },
+             "operands": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+               "type": "object",
+               "description": "Cells in one column of one executed result artifact. Say WHICH cells exactly one way: `rows: \"all\"` for every row of the result, or `row_ids` naming them individually. Sending both, or neither, is refused.",
+               "properties": {
+                "artifact_id": {
+                 "type": "string",
+                 "description": "The artifact these rows are in."
+                },
+                "column_id": {
+                 "type": "string",
+                 "description": "One output column of that artifact."
+                },
+                "rows": {
+                 "type": "string",
+                 "enum": [
+                  "all"
+                 ],
+                 "description": "Every row of this result, in the order it was published. Use it for a figure that spans the whole result -- a total, or the denominator of a share -- instead of listing every row id. It is refused when the result was clipped at the preview cap, because a total over part of a result is not that result's total; name the rows you mean in that case. Omit this when sending 'row_ids'."
+                },
+                "row_ids": {
+                 "type": "array",
+                 "minItems": 1,
+                 "maxItems": 500,
+                 "items": {
+                  "type": "string"
+                 },
+                 "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...), for a figure over SOME of the rows. A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up. Omit this when sending 'rows'."
+                }
+               },
+               "required": [
+                "artifact_id",
+                "column_id"
+               ],
+               "additionalProperties": false
+              },
+              "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's. Each operand names its cells with 'rows: \"all\"' or with 'row_ids'."
+             }
+            },
+            "required": [
+             "operation",
+             "operands"
+            ],
+            "additionalProperties": false
+           }
+          },
+          "required": [
+           "claim_id",
+           "unit"
+          ],
+          "additionalProperties": false,
+          "description": "One number in the answer: WHERE it comes from, not what it is. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused. You do not need to send the number itself -- reference the claim from your narrative as {{claim.<id>}} and CreditProbe substitutes the validated, formatted figure."
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "evidence_refs": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "artifact_id": {
+            "type": "string"
+           },
+           "row_key": {
+            "type": "string"
+           },
+           "column_id": {
+            "type": "string"
+           },
+           "scope_ref": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "artifact_id",
+           "row_key",
+           "column_id"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "tables": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "title": {
+            "type": "string"
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "row_cursor": {
+            "type": "string"
+           },
+           "note": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "title",
+           "artifact_id",
+           "columns"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "charts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "kind": {
+            "type": "string",
+            "description": "How to draw it. x_column is the category or axis, y_columns the measures. bar/grouped_bar/pie/donut rank categories. line/step_line/area follow a sequence; stacked_bar and stacked_bar_100 show a mix over one; combo puts y_columns[0] as bars and y_columns[1] as a line on its own axis (a rate over volumes). waterfall bridges a total. scatter/bubble relate two measures; histogram shows a distribution; box shows quartiles; heatmap is a matrix -- x_column is the COLUMN axis, series_column the ROW axis, y_columns[0] the value in each cell.",
+            "enum": [
+             "area",
+             "bar",
+             "box",
+             "bubble",
+             "combo",
+             "donut",
+             "grouped_bar",
+             "heatmap",
+             "histogram",
+             "line",
+             "pie",
+             "scatter",
+             "stacked_bar",
+             "stacked_bar_100",
+             "step_line",
+             "waterfall"
+            ]
+           },
+           "title": {
+            "type": "string"
+           },
+           "why_this_chart": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "One short sentence: the reader's question THIS form answers, and why this form answers it better than the table beside it. Optional, and the point is not the sentence -- it is that a form you cannot justify in one line is usually a form the answer does not need. It is published with the chart and appears in the governance record, so a reader can see the reasoning rather than infer it."
+           },
+           "artifact_id": {
+            "type": "string"
+           },
+           "x_column": {
+            "type": "string"
+           },
+           "y_columns": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 1
+           },
+           "series_column": {
+            "type": "string",
+            "description": "The second categorical axis. Required for a heatmap, where it is the row axis; ignored by every other kind."
+           },
+           "unit": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "kind",
+           "title",
+           "artifact_id",
+           "x_column",
+           "y_columns",
+           "unit"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 8,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form. Pick the form from the SHAPE of the result: a ranked comparison is a bar, a series over time is a line, a from/to pair with a measure is a heatmap (the grid, whose diagonal is everything that did not move -- a rating or stage migration is this and is unreadable as a flat list), a contribution bridge is a waterfall, two measures against each other is a scatter, and the spread of a measure across a category is a box. CreditProbe computes every value, including a box's quartiles. SEVERAL SMALL CHARTS BEAT ONE CROWDED ONE: a trend per product is one chart per product, and they are published in the order you send them. NOT EVERY ANSWER NEEDS A CHART, and reaching for one because the capability exists is the commonest way a good answer is made to look padded. A single figure has no shape to draw: a chart of one bar is a decoration around a sentence, so send none. Two or three values a reader compares at a glance are already clearer in the table beside them. Chart the result when the FORM shows something the reader would otherwise have to work out from the rows -- a ranking, a movement over time, a concentration, a migration, a spread -- and say which of those it is in `why_this_chart`. A chart you cannot justify in one line is usually a chart the answer does not need. If the reader named a form -- \"give me a line chart\" -- use that form."
+        },
+        "limitations": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "suggested_questions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "object",
+          "properties": {
+           "question": {
+            "type": "string"
+           },
+           "required_fields": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "required_periods": {
+            "type": "array",
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0
+           },
+           "kind": {
+            "type": "string",
+            "enum": [
+             "product_help",
+             "theory",
+             "data_analysis"
+            ]
+           }
+          },
+          "required": [
+           "question",
+           "required_fields",
+           "required_periods",
+           "kind"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 0,
+         "maxItems": 3,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "clarification_question": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "clarification_options": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "referral_owner": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "referral_reason": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "understood_request": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "What you took the question to mean, in one sentence."
+        },
+        "response_language": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The language you answered in, as a BCP-47 tag."
+        },
+        "blocking_ambiguities": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+        },
+        "resolved_assumptions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"period not specified: using the latest populated month 2026-08 against 2026-07\"."
+        },
+        "canonical_mappings": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms this book already defines, and what they map to. For example \"EAD by product for the latest month\"."
+        },
+        "excluded_parts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Parts of the question this answer does not cover."
+        },
+        "public_rationale": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Why you answered it this way, for the reader."
+        }
+       },
+       "required": [
+        "disposition",
+        "narrative"
+       ],
+       "additionalProperties": false
+      }
+     }
+    ]
+   },
+   "action_tools (analytical_action)": {
+    "sha256": "faf059e0f566c85aa944aedd942c2f1d877315bced466766dfa8a4b355c296c8",
+    "names": [
+     "inspect_catalog",
+     "inspect_product_knowledge",
+     "execute_analysis",
+     "read_artifact",
+     "finalize_response"
+    ],
+    "tools": [
+     {
+      "name": "inspect_catalog",
+      "description": "Read exact catalog metadata for the authorized corporate_cockpit release: relation names and grains, field definitions, units, valid joins, coverage by reporting month and missingness. Returns what is there; an empty search is an empty search.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "relation_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "field_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "detail": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "discovery",
+           "fields",
+           "relationships",
+           "coverage",
+           "samples"
+          ]
+         },
+         "minItems": 1,
+         "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
+        },
+        "reporting_periods": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Reporting months to describe coverage for, e.g. 2026-08. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "sample_rows": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "maximum": 10,
+         "description": "Masked sample rows, 0-10. A non-zero value IS the request for samples: it and 'samples' in detail mean the same thing, either alone is honoured, and neither is rejected for lacking the other. Absent and null mean none."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Optional. Omit it when you have nothing to say about it."
+        }
+       },
+       "required": [
+        "relation_ids"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "inspect_product_knowledge",
+      "description": "Read CreditProbe's own product knowledge: what the product is, what each of the seven functionalities does and owns, TAC, the four Early Warning intelligence layers, how modules relate, boundaries and worked examples -- each with the deck slide it came from. Facts only; the answer is yours to write.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "query": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The user's product question, in their own words. Used to select sections when you do not name topics."
+        },
+        "topics": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string",
+          "enum": [
+           "positioning",
+           "audience",
+           "arc",
+           "modules",
+           "cockpit",
+           "early_warning",
+           "tac",
+           "layers",
+           "what_if",
+           "scorecard_validation",
+           "playbook",
+           "lenses",
+           "planner",
+           "supporting",
+           "relationships",
+           "boundaries",
+           "governance",
+           "examples"
+          ]
+         },
+         "minItems": 0,
+         "description": "Name the sections you want. Naming two module topics also returns how they relate."
+        },
+        "detail": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "enum": [
+          "standard",
+          "full",
+          null
+         ],
+         "description": "'full' adds worked examples, question-type tables and the fuller module detail."
+        }
+       },
+       "required": [
+        "topics"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "execute_analysis",
+      "description": "Submit your own exact SQL or Python. CreditProbe validates and executes it unchanged, or rejects it with the reason. It never edits, shortens or repairs your code, and never computes a substitute answer.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "objective": {
+         "type": "string"
+        },
+        "subquestions": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "minItems": 1
+        },
+        "scope": {
+         "type": "object",
+         "properties": {
+          "reporting_periods": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "borrower_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "facility_ids": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 0
+          },
+          "filters": {
+           "type": "object"
+          },
+          "currency_basis": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "reporting_periods",
+          "filters"
+         ],
+         "additionalProperties": false
+        },
+        "metadata_receipt_ids": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "fields_required": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "expected_output_grain": {
+         "type": "string"
+        },
+        "expected_units": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "string"
+         }
+        },
+        "steps": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "step_id": {
+            "type": "string"
+           },
+           "language": {
+            "type": "string",
+            "enum": [
+             "sql",
+             "python"
+            ]
+           },
+           "code": {
+            "type": "string",
+            "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
+           },
+           "parameters": {
+            "type": [
+             "object",
+             "null"
+            ],
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "purpose": {
+            "type": "string"
+           },
+           "input_artifact_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           },
+           "depends_on_step_ids": {
+            "type": [
+             "array",
+             "null"
+            ],
+            "items": {
+             "type": "string"
+            },
+            "minItems": 0,
+            "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+           }
+          },
+          "required": [
+           "step_id",
+           "language",
+           "code",
+           "parameters",
+           "purpose",
+           "input_artifact_ids",
+           "depends_on_step_ids"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 1,
+         "maxItems": 8
+        },
+        "repair_of_submission_id": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "objective",
+        "steps"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "read_artifact",
+      "description": "Read an authorized persisted result artifact or completed thread turn. Exact stored values only; this computes nothing new.",
+      "input_schema": {
+       "type": "object",
+       "properties": {
+        "artifact_id": {
+         "type": "string"
+        },
+        "artifact_kind": {
+         "type": "string",
+         "enum": [
+          "result",
+          "completed_turn"
+         ]
+        },
+        "columns": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "offset": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "limit": {
+         "type": [
+          "integer",
+          "null"
+         ],
+         "minimum": 1,
+         "maximum": 100,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "cursor": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "required": [
+        "artifact_id"
+       ],
+       "additionalProperties": false
+      }
+     },
+     {
+      "name": "finalize_response",
+      "description": "Deliver the user-facing response: answer, partial answer, referral, clarification or unsupported. This is the terminal action and costs no extra model call. On this turn nothing has been executed yet, so this tool can only STOP the run: ask the user a question, refer it, or say it cannot be supported. To answer with numbers, run the analysis first -- the full answer contract is offered on the turn after a result exists.",
+      "input_schema": {
+       "type": "object",
+       "required": [
+        "disposition",
+        "narrative"
+       ],
+       "additionalProperties": false,
+       "properties": {
+        "disposition": {
+         "type": "string",
+         "enum": [
+          "referral",
+          "clarification",
+          "unsupported"
+         ]
+        },
+        "narrative": {
+         "type": "string",
+         "description": "Use typed claim placeholders for numeric portfolio findings."
+        },
+        "limitations": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "clarification_question": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "clarification_options": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "minItems": 0,
+         "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "referral_owner": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "referral_reason": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "understood_request": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "What you took the question to mean, in one sentence."
+        },
+        "response_language": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "The language you answered in, as a BCP-47 tag."
+        },
+        "blocking_ambiguities": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+        },
+        "resolved_assumptions": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"period not specified: using the latest populated month 2026-08 against 2026-07\"."
+        },
+        "canonical_mappings": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Terms this book already defines, and what they map to. For example \"EAD by product for the latest month\"."
+        },
+        "excluded_parts": {
+         "type": [
+          "array",
+          "null"
+         ],
+         "items": {
+          "type": "string"
+         },
+         "description": "Parts of the question this answer does not cover."
+        },
+        "public_rationale": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "Why you answered it this way, for the reader."
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ "schema_file_disposition_enum": [
+  "answer",
+  "partial",
+  "referral",
+  "clarification",
+  "unsupported"
+ ]
+}
