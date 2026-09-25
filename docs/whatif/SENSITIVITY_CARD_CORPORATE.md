@@ -86,4 +86,4 @@ A row whose readiness is not `SUPPORTED_ESTIMATE` is **refused** for automatic t
 
 ## Staleness
 
-Each row stores `source_release_id` and a `source_fingerprint` of `56f914cffd5b0b17…`. That fingerprint is a SHA-256 over the exact period-level series the fit consumed, not the release's own fingerprint (`01fffad050c248f3…`): an artifact stored inside the release it describes cannot carry a fingerprint taken over bytes that include it. A fit whose stored digest does not match the one recomputed from the release in use is `STALE` and is refused.
+Each row stores `source_release_id` and a `source_fingerprint` of `56f914cffd5b0b17…`. That fingerprint is a SHA-256 over the exact period-level series the fit consumed, not the release's own fingerprint (`891a9872dbcde8dc…`): an artifact stored inside the release it describes cannot carry a fingerprint taken over bytes that include it. A fit whose stored digest does not match the one recomputed from the release in use is `STALE` and is refused.

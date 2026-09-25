@@ -12,7 +12,7 @@
         "DIAGNOSTIC_ONLY": 11,
         "SUPPORTED_ESTIMATE": 37
       },
-      "release_fingerprint": "01fffad050c248f3d693d35cff248036836d5d1be29f57296cec9512d7f2402c",
+      "release_fingerprint": "891a9872dbcde8dc324e90f616f4b44ce550c49549a236fd804097d8f631dfc2",
       "rows": 60,
       "sensitivity_input_digest": "56f914cffd5b0b174bd82b953d1384aa60d854e3adc82addeec499256230a1ec"
     },
@@ -28,7 +28,7 @@
         "DIAGNOSTIC_ONLY": 11,
         "SUPPORTED_ESTIMATE": 31
       },
-      "release_fingerprint": "af8a85c3fc6bad5072fa474e4178de4dde81b4e20553902e8dd269665f390142",
+      "release_fingerprint": "0550a2e6c3390cffcde52679e6896ec48159ce71e06c0885beb617ffcdf4da41",
       "rows": 60,
       "sensitivity_input_digest": "7e4fce428ba3486069484ae4c3be422a95a9414e52380cae9dd67cfd85205dfd"
     }

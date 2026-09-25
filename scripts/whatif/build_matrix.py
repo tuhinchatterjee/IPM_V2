@@ -1,0 +1,787 @@
+#!/usr/bin/env python3
+"""Build the requirement matrix, and refuse to name a test that does not exist.
+
+    python3 scripts/whatif/build_matrix.py
+
+Writes `docs/whatif/REQUIREMENT_TEST_MATRIX.md` and
+`docs/whatif/ACCEPTANCE_CASES.json`, one row per acceptance ID.
+
+**A pytest count is not a completion claim.** 800-odd passing tests say
+nothing about whether requirement S14 is met; only a named test against a
+named requirement does. So the mapping below is by ID, every entry names the
+tests that prove it, and **this script exits non-zero if any named test is
+not found in the suite**. A row that claims coverage it does not have is the
+one failure mode a matrix has, and it is the one thing checked here.
+
+Statuses, and what each one means:
+
+* **COVERED** — implemented and proved by the named tests.
+* **PARTIAL** — implemented, proved in part, with the gap stated. A gate
+  that FAILED is PARTIAL, not COVERED: the mechanism works and the outcome
+  did not meet its threshold.
+* **BLOCKED** — not run, with the reason and the exact command that would
+  run it. Never "passed".
+* **NOT BUILT** — deliberately not implemented, with the incompatibility
+  recorded.
+
+The requirement text in each row is **this implementation's reading** of the
+acceptance ID. `CreditProbe_Advanced_Cockpit_WhatIf_Master_Prompt_v1.docx`
+remains the authority; where the two differ, the specification wins and this
+file is wrong.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+TESTS = ROOT / "tests" / "cockpit_v4"
+
+COVERED = "COVERED"
+PARTIAL = "PARTIAL"
+BLOCKED = "BLOCKED"
+NOT_BUILT = "NOT BUILT"
+
+#: (id, requirement as implemented, status, [test names], note)
+Row = tuple[str, str, str, list[str], str]
+
+ISOLATION: list[Row] = [
+    ("A01", "The accepted Corporate release is byte-identical after every "
+            "candidate build.", COVERED,
+     ["test_the_accepted_releases_are_byte_identical"],
+     "Fingerprint re-read from the manifest and compared with the value "
+     "pinned at 245c50e."),
+    ("A02", "The accepted Retail release is byte-identical after every "
+            "candidate build.", COVERED,
+     ["test_the_accepted_releases_are_byte_identical"], ""),
+    ("A03", "The candidate is a different release with a different "
+            "fingerprint, never a rewrite of an accepted one.", COVERED,
+     ["test_the_candidate_is_a_different_release_with_a_different_fingerprint"],
+     ""),
+    ("A04", "Only recorded protected-core files reach the candidate "
+            "package, each behind a flag check inside a guard.", COVERED,
+     ["test_a04_only_the_recorded_core_files_reach_this_package",
+      "test_a04_every_one_of_those_imports_is_inside_a_guard",
+      "test_a04_each_guarded_import_sits_behind_the_flag_check",
+      "test_a04_with_both_flags_off_the_block_is_absent_entirely"],
+     "Four files, listed with the reason for each in CORE_IMPORTERS."),
+    ("A05", "With the flags off the accepted runtime is unchanged: same "
+            "relations, same default release, same payload.", COVERED,
+     ["test_the_runtime_opens_the_accepted_book_with_the_flags_off"],
+     "Plus the full V4 regression with the flags off: 4018 passed, 4 "
+     "skipped."),
+    ("A06", "Enabling one book does not enable the other.", COVERED,
+     ["test_one_book_enabled_does_not_enable_the_other"], ""),
+    ("A07", "The candidate manifest declares itself synthetic.", COVERED,
+     ["test_the_candidate_manifest_says_it_is_synthetic"], ""),
+    ("A08", "Every candidate row carries origin SYNTHETIC_DEMO.", COVERED,
+     ["test_the_published_rows_are_all_labelled_synthetic"], ""),
+    ("A09", "Two builds of one release id are byte-identical.", PARTIAL,
+     ["test_the_generator_is_deterministic_across_processes"],
+     "The generator's determinism is proved, including across processes "
+     "(`stable()` is SHA-256, not `hash()`, which Python randomises per "
+     "run). A full two-build parquet diff is NOT in the suite because it "
+     "takes 90 seconds; run "
+     "`python3 scripts/whatif/seed_candidate.py --domain all --overwrite` "
+     "twice and compare the printed fingerprints."),
+    ("A10", "The protected-file hash check reports every difference and the "
+            "allowlist is not broadened.", COVERED, [],
+     "scripts/whatif/protected_hashes.py --check reports 5 changed, 0 "
+     "removed, 25 added; every line is explained in "
+     "BASELINE_AND_EXTENSION_MAP.md. No hash regenerated."),
+    ("A11", "The candidate's ML dependencies are isolated from the accepted "
+            "environment.", COVERED,
+     ["test_the_accepted_environment_carries_none_of_the_ml_libraries",
+      "test_the_requirements_file_is_not_the_accepted_one",
+      "test_every_pinned_library_is_pinned_exactly"],
+     "The candidate sees the accepted environment; not the reverse."),
+    ("A12", "Nothing a chat turn reaches imports the training or fitting "
+            "code.", COVERED,
+     ["test_nothing_a_chat_turn_reaches_imports_the_estimator",
+      "test_nothing_a_chat_turn_reaches_imports_the_training_half",
+      "test_the_read_half_does_not_import_the_fitting_half"],
+     "Asserted by walking every module under backend/cockpit_v4."),
+]
+
+COHORT: list[Row] = [
+    ("C01", "A cohort is frozen by membership hash, not by a predicate "
+            "re-evaluated later.", COVERED,
+     ["test_the_hash_is_over_the_set_not_the_order",
+      "test_the_hash_cannot_be_collided_by_concatenation",
+      "test_counts_and_totals_are_not_part_of_the_identity"], ""),
+    ("C02", "'These customers' distinguishes the rows that matched from "
+            "every row belonging to those owners.", COVERED,
+     ["test_c03_a_row_selection_does_not_widen_to_its_owners",
+      "test_the_described_grain_says_which_it_is",
+      "test_d02_widening_does_not_multiply_exposure"], ""),
+    ("C03", "A widened cohort is a different cohort and says so.", COVERED,
+     ["test_the_widening_question_shows_what_it_would_cost",
+      "test_widening_an_owner_cohort_is_a_no_op"], ""),
+    ("C04", "A cohort re-resolved after the book moved is refused.",
+     COVERED, ["test_a_cohort_frozen_in_the_other_book_is_refused",
+      "test_a_moved_membership_is_caught_before_anything_is_calculated"], ""),
+    ("C05", "An empty cohort is refused, never answered with zero.",
+     COVERED, ["test_c05_an_empty_selection_does_not_widen",
+      "test_d02_an_empty_cohort_is_refused_not_answered_with_zero"], ""),
+    ("C06", "Two rules on one field over overlapping rows is a question, "
+            "not a resolution.", COVERED,
+     ["test_two_rules_on_one_field_over_the_whole_cohort_conflict",
+      "test_c05_compiling_an_unresolved_overlap_raises_the_question",
+      "test_c07_the_question_offers_exactly_the_three_compositions"],
+     ""),
+    ("C07", "An acknowledged overlap can be previewed with the resolution "
+            "the reader chose.", COVERED,
+     ["test_c05_an_overlap_the_reader_is_being_shown_does_not_block_the_graph",
+      "test_acknowledging_one_overlap_does_not_excuse_another",
+      "test_a_declared_composition_is_recorded_as_declared"], ""),
+    ("C08", "A preview states what changes, over which rows, from what "
+            "baseline, by which method, and what is left alone.", COVERED,
+     ["test_every_required_section_is_present",
+      "test_it_shows_each_input_with_its_operation_and_unit",
+      "test_it_says_what_is_left_alone",
+      "test_it_says_the_book_is_not_written"], ""),
+    ("C09", "Reading a sensitivity is not approval of a calculation.",
+     COVERED, ["test_c14_a_preview_is_not_itself_a_confirmation",
+      "test_c14_the_preview_calculates_no_ecl",
+      "test_anything_that_is_not_a_yes_leaves_it_unconfirmed"], ""),
+    ("C10", "A confirmation is bound to a hash of everything that could "
+            "change the answer.", COVERED,
+     ["test_the_digest_is_stable_across_identical_specs"], ""),
+    ("C11", "A source refresh invalidates a confirmation.", COVERED,
+     ["test_the_five_named_invalidations"], ""),
+    ("C12", "A cohort edit invalidates a confirmation.", COVERED,
+     ["test_anything_that_changes_the_answer_changes_the_hash"], ""),
+    ("C13", "A method change invalidates a confirmation.", COVERED,
+     ["test_an_unknown_method_is_refused",
+      "test_the_five_named_invalidations"], ""),
+    ("C14", "A warning the reader did not see invalidates a confirmation.",
+     COVERED, ["test_the_five_named_invalidations",
+      "test_the_warnings_shown_before_approval_travel_with_it"], ""),
+    ("C15", "A revised scenario is a new version and is not confirmed.",
+     COVERED, ["test_d10_a_revised_scenario_loses_its_confirmation"], ""),
+    ("C16", "Rule order is part of the digest, because order changes the "
+            "answer.", COVERED,
+     ["test_shock_order_does_not_change_the_hash_but_ordering_is_in_it",
+      "test_e09_the_order_is_canonical_not_whatever_the_set_iterated_as"],
+     ""),
+    ("C17", "A confirmed scenario survives into the next turn without "
+            "being retyped, and is server-written.", COVERED,
+     ["test_a_confirmed_scenario_survives_the_round_trip",
+      "test_remember_stores_the_scenario_the_run_published"], ""),
+    ("C18", "A release change invalidates the confirmation AND drops the "
+            "cohort binding, visibly.", COVERED,
+     ["test_a_different_release_id_invalidates_and_says_so",
+      "test_an_invalidated_scenario_loses_its_cohort_binding",
+      "test_the_same_id_republished_is_caught_by_the_fingerprint"], ""),
+]
+
+EXECUTION: list[Row] = [
+    ("D01", "One confirmed scenario, one reporting period, one frozen "
+            "cohort, one baseline.", COVERED,
+     ["test_d06_every_method_starts_from_the_same_baseline"], ""),
+    ("D02", "The full cohort is used, never the displayed rows and never "
+            "the top contributors.", COVERED,
+     ["test_d02_every_cohort_row_is_in_the_total_including_the_untouched"],
+     ""),
+    ("D03", "An unaffected row's change is exactly zero.", COVERED,
+     ["test_an_unaffected_row_moves_by_exactly_zero",
+      "test_an_untouched_row_that_moved_is_refused",
+      "test_the_untouched_check_admits_no_tolerance_at_all"], ""),
+    ("D04", "An ineligible row keeps its baseline and is reason-coded.",
+     COVERED, ["test_an_ineligible_row_keeps_its_baseline_and_carries_the_reason",
+      "test_an_unsupported_row_keeps_its_baseline_too",
+      "test_an_ineligible_row_stays_in_the_baseline_total"], ""),
+    ("D05", "Full book equals affected plus unaffected.", COVERED,
+     ["test_r03_affected_plus_unaffected_is_the_book",
+      "test_r03_nothing_moves_outside_a_frozen_cohort"], ""),
+    ("D06", "Every method starts from the same baseline, read once.",
+     COVERED, ["test_d06_every_method_starts_from_the_same_baseline"], ""),
+    ("D07", "Methods are shown side by side and never composed.", COVERED,
+     ["test_d07_the_comparison_shows_the_methods_and_composes_nothing",
+      "test_d07_the_disagreement_is_explained_rather_than_averaged",
+      "test_the_ml_estimate_is_never_multiplied_by_the_delta_factor"], ""),
+    ("D08", "Different method coverage is disclosed and compared "
+            "like-for-like.", COVERED,
+     ["test_d08_different_coverage_is_disclosed_and_compared_like_for_like",
+      "test_d08_the_like_for_like_rows_say_what_they_are"], ""),
+    ("D09", "An unavailable method shows reason and status, never a zero "
+            "and never a substitution.", COVERED,
+     ["test_d09_a_missing_emulator_carries_a_reason_and_no_number",
+      "test_d09_an_unavailable_method_is_never_given_another_methods_answer"],
+     ""),
+    ("D10", "An unconfirmed or wrong-book scenario does not execute.",
+     COVERED,
+     ["test_d10_an_unconfirmed_scenario_does_not_execute",
+      "test_d10_a_scenario_confirmed_against_another_book_is_refused"], ""),
+    ("D11", "Missing user assumptions are resolved before execution.",
+     COVERED,
+     ["test_d11_a_missing_assumption_is_reported_before_the_run",
+      "test_d11_a_scenario_with_no_assumption_does_not_invent_one"], ""),
+    ("D12", "The book is read and never written; execution is a "
+            "simulation.", COVERED,
+     ["test_it_says_the_book_is_not_written"], ""),
+]
+
+SENSITIVITY: list[Row] = [
+    ("S01", "The twenty-factor registry reports actual support and every "
+            "missing entry.", COVERED,
+     ["test_s01_all_twenty_candidates_appear_with_a_support_status",
+      "test_every_candidate_factor_has_a_row_for_every_parameter"], ""),
+    ("S02", "Native units and shock conventions survive into the "
+            "artifact.", COVERED,
+     ["test_s02_the_published_unit_sentence_follows_the_shock_convention"],
+     ""),
+    ("S03", "Effective sample is distinct periods, never repeated facility "
+            "rows.", COVERED,
+     ["test_s03_repeated_facility_rows_do_not_buy_a_longer_history",
+      "test_no_published_row_claims_more_periods_than_the_calendar_has"],
+     ""),
+    ("S04", "Lag is chosen on training-only forward validation.", COVERED,
+     ["test_s04_the_lag_is_chosen_on_forward_validation_not_on_fit_quality"],
+     ""),
+    ("S05", "The published derivative matches a finite difference of the "
+            "fitted function.", COVERED,
+     ["test_s05_the_published_derivative_matches_a_finite_difference",
+      "test_a_derivative_that_forgot_the_logistic_term_is_caught"],
+     "Checked on every published row at build time as well."),
+    ("S06", "'Reduce unemployment by 10%' from 6.0% is 5.4%, a -0.6 point "
+            "move.", COVERED,
+     ["test_s06_reduce_unemployment_by_ten_percent_is_six_to_five_point_four",
+      "test_s06_and_s07_compose_from_the_readers_own_words"], ""),
+    ("S07", "At +0.20 PD points per unemployment point, 3.00% becomes "
+            "2.88%.", COVERED,
+     ["test_s07_a_two_tenths_slope_takes_three_percent_to_two_point_eight_eight"],
+     ""),
+    ("S08", "Several factors aggregate as the declared linear sum, "
+            "labelled as marginal.", COVERED,
+     ["test_s08_several_factors_aggregate_as_the_declared_linear_sum"], ""),
+    ("S09", "The nonlinear translation at zero shock returns the observed "
+            "baseline.", COVERED,
+     ["test_s09_the_nonlinear_translation_at_zero_shock_is_the_baseline"],
+     ""),
+    ("S10", "A factor that is not supportably estimable is refused for "
+            "automatic translation; an explicit assumption is accepted.",
+     COVERED,
+     ["test_s10_an_unsupported_factor_is_refused_for_automatic_translation",
+      "test_s10_the_readers_own_assumption_is_a_different_route_entirely",
+      "test_a_diagnostic_row_is_refused_for_automatic_translation"], ""),
+    ("S11", "An absent factor is UNAVAILABLE, never a sensitivity of "
+            "zero.", COVERED,
+     ["test_s11_an_absent_factor_has_a_reason_and_no_series",
+      "test_absent_factors_are_unavailable_and_never_a_zero_slope"], ""),
+    ("S12", "A notch move steps the published scale.", COVERED,
+     ["test_s12_one_notch_steps_the_published_order",
+      "test_s12_a_notch_is_never_a_string_increment",
+      "test_s12_a_notch_is_never_a_lexical_sort",
+      "test_s12_a_notch_is_never_a_pd_multiplier",
+      "test_s12_a_move_past_the_end_says_how_far_it_actually_went",
+      "test_s12_an_unrated_grade_is_refused_with_the_scale_named",
+      "test_s12_the_default_grade_has_no_notch_to_move"], ""),
+    ("S13", "Behavioural and application scorecards are kept separate.",
+     COVERED,
+     ["test_s13_the_two_cards_are_separate_objects_with_separate_ranges",
+      "test_s13_one_score_means_two_different_things_on_the_two_cards",
+      "test_s13_a_missing_card_is_refused_not_substituted",
+      "test_s13_fifty_points_is_fifty_points_not_fifty_per_cent",
+      "test_s13_the_direction_is_read_from_the_card_not_assumed"], ""),
+    ("S14", "Stages are frozen by default; an explicit move needs the "
+            "declared horizon contract; no lifetime by multiplication.",
+     COVERED,
+     ["test_s14_stages_are_frozen_by_default_and_a_move_is_refused",
+      "test_s14_an_explicit_move_with_the_contract_uses_the_published_figures",
+      "test_s14_a_move_without_the_contract_reports_unsupported_not_zero",
+      "test_s14_a_lifetime_figure_is_never_the_annual_one_times_the_years",
+      "test_the_banned_shortcut_overstates_the_real_book_by_three_quarters"],
+     "The shortcut overstates the published Corporate book by 74.8%."),
+    ("S15", "Sector discovery returns real categories with counts and "
+            "totals; Unknown is retained; a product is not a sector.",
+     COVERED,
+     ["test_s15_discovery_returns_actual_categories_with_counts_and_totals",
+      "test_s15_a_blank_category_becomes_unknown_rather_than_vanishing",
+      "test_s15_the_parts_add_up_to_the_book_only_with_unknown_in",
+      "test_s15_synonyms_resolve_to_the_books_own_identifier",
+      "test_s15_a_word_the_book_does_not_have_is_refused_not_approximated",
+      "test_s15_a_retail_product_is_not_an_employer_sector",
+      "test_the_retail_book_keeps_product_and_employer_sector_apart"], ""),
+    ("S16", "An artifact fitted against different bytes is STALE and "
+            "refused.", COVERED,
+     ["test_s16_an_artifact_fitted_against_other_bytes_is_refused",
+      "test_s16_the_matching_fingerprint_is_not_refused",
+      "test_the_stored_digest_matches_the_release_it_was_fitted_against"],
+     "Compared on a digest of the fit's own inputs; see P5_FINDINGS.md §8."),
+]
+
+MODEL: list[Row] = [
+    ("M01", "The target is the declared ECL rate on the declared "
+            "denominator, not exposure share.", COVERED,
+     ["test_m01_the_target_is_the_declared_rate_on_the_declared_denominator",
+      "test_m01_a_different_target_is_refused_by_name"], ""),
+    ("M02", "No target-derived column reaches the feature matrix, and the "
+            "check raises rather than filtering.", COVERED,
+     ["test_m02_no_declared_feature_is_derived_from_the_target",
+      "test_m02_the_leakage_check_raises_rather_than_filtering",
+      "test_m02_a_new_ecl_column_is_caught_by_the_rule_not_by_a_list"], ""),
+    ("M03", "The split is chronological by distinct period and leaks "
+            "nothing.", COVERED,
+     ["test_m03_the_split_is_chronological_and_leaks_nothing",
+      "test_m03_every_period_lands_in_exactly_one_place",
+      "test_m03_the_leakage_check_can_actually_fail"], ""),
+    ("M04", "The embargo is derived from label availability, reported, and "
+            "no fold touches a test period.", COVERED,
+     ["test_m04_the_embargo_is_derived_and_its_reasoning_travels_with_it",
+      "test_m04_the_embargoed_periods_are_reported_not_absorbed",
+      "test_m04_no_fold_touches_a_test_or_an_embargoed_period"], ""),
+    ("M05", "The split assignment is persisted per row.", COVERED,
+     ["test_m05_the_split_assignment_is_persisted_per_row"], ""),
+    ("M06", "Blend weights are genuinely fitted, non-negative, summing to "
+            "one, on out-of-fold predictions.", COVERED,
+     ["test_m06_weights_are_non_negative_and_sum_to_exactly_one",
+      "test_m06_the_weights_are_fitted_not_hardcoded",
+      "test_m06_the_solution_is_the_optimum_not_a_nearby_point"], ""),
+    ("M07", "A 1/0/0 outcome is reported as a single-model result.",
+     COVERED,
+     ["test_m07_a_one_zero_zero_outcome_is_called_a_single_model_result",
+      "test_m07_a_real_blend_says_it_is_one_and_names_the_immaterial"],
+     "Both books landed on a single model and both cards say so."),
+    ("M08", "Three components per book, one deliberately not a tree "
+            "ensemble.", COVERED, [],
+     "XGBoost, LightGBM and a regularized additive/spline model; all three "
+     "trained, all three scored, results in MODEL_CARD_*.md."),
+    ("M09", "The search budget is declared in advance and recorded per "
+            "trial.", COVERED, [],
+     "12 configs per family, 3 folds, 600 rounds, patience 50, fixed seeds; "
+     "every trial and its score is in the model card."),
+    ("M10", "Scenario inference uses section 11.4 anchoring.", COVERED,
+     ["test_the_anchoring_uses_the_models_difference_not_its_level",
+      "test_all_six_numbers_the_specification_asks_for_are_shown"], ""),
+    ("M11", "A zero shock yields exactly zero ML change.", COVERED,
+     ["test_a_zero_shock_moves_the_answer_by_exactly_zero"], ""),
+    ("M12", "The ML estimate is never multiplied by the Delta factor and "
+            "no macro effect is applied twice.", COVERED,
+     ["test_the_ml_estimate_is_never_multiplied_by_the_delta_factor",
+      "test_a_macro_move_records_which_route_it_took"], ""),
+    ("M13", "Acceptance targets are predeclared and committed before the "
+            "test split is read.", COVERED,
+     ["test_the_gates_in_code_are_the_gates_in_the_committed_document",
+      "test_the_document_was_written_before_any_model_was_fitted"], ""),
+    ("M14", "A failed gate is reported failed.", COVERED,
+     ["test_a_failed_gate_is_reported_failed",
+      "test_the_bias_gate_uses_the_absolute_value",
+      "test_a_model_that_missed_a_gate_carries_the_gate_with_its_number"],
+     "Exercised for real: Retail G4 FAILED at 38.02% against 15% and is "
+     "published as FAILED."),
+    ("M15", "Out-of-time WAPE, aggregate bias and per-period bias meet "
+            "their thresholds.", COVERED, [],
+     "Corporate 1.97 / 1.47 / 2.53%; Retail 2.33 / 0.87 / 1.33%. All "
+     "within G1-G3."),
+    ("M16", "Material-group WAPE meets its threshold.", PARTIAL, [],
+     "Corporate PASSED at 5.06%. **Retail FAILED at 38.02%** on "
+     "score_band A, 652 test rows carrying a near-zero ECL. The threshold "
+     "is not moved and the group is not excluded; see P7_FINDINGS.md §2."),
+    ("M17", "The model card carries provenance, splits, settings, weights, "
+            "metrics, subgroups, libraries and artifact hashes.", COVERED,
+     [], "MODEL_CARD_CORPORATE.md and MODEL_CARD_RETAIL.md."),
+    ("M18", "Bank-engine validation is marked explicitly unavailable.",
+     COVERED, [],
+     "Stated in both model cards, in ML_ACCEPTANCE_TARGETS.md §7 and in "
+     "P7_FINDINGS.md. There is no bank engine here to compare against."),
+]
+
+RESULTS: list[Row] = [
+    ("R01", "The hierarchy carries cohort and book, counts, EAD, the "
+            "modelled/overlay split and the coverage-rate change in "
+            "percentage points.", COVERED,
+     ["test_r01_the_hierarchy_carries_the_cohort_and_the_book",
+      "test_r01_the_modelled_and_overlay_split_is_kept",
+      "test_r01_a_coverage_rate_change_is_in_percentage_points"], ""),
+    ("R02", "A zero baseline has no percentage: 'not defined', never "
+            "infinity.", COVERED,
+     ["test_r02_a_zero_baseline_has_no_percentage_rather_than_infinity",
+      "test_a_zero_baseline_has_no_percentage_rather_than_infinity"], ""),
+    ("R03", "Affected plus unaffected is the book, checked.", COVERED,
+     ["test_r03_affected_plus_unaffected_is_the_book",
+      "test_r03_a_book_that_does_not_reconcile_is_refused",
+      "test_r03_nothing_moves_outside_a_frozen_cohort"], ""),
+    ("R04", "The two attribution views are labelled separately and never "
+            "added.", COVERED,
+     ["test_r04_the_two_views_are_labelled_separately",
+      "test_r04_adding_the_two_views_together_is_refused_by_name"], ""),
+    ("R05", "The attribution method is chosen by group count and stated; "
+            "sequential publishes its order; sampling publishes its budget "
+            "and error.", COVERED,
+     ["test_r05_the_method_is_chosen_by_group_count_and_stated",
+      "test_r05_a_sequential_bridge_publishes_its_order",
+      "test_r05_sequential_and_shapley_disagree_and_neither_is_relabelled",
+      "test_r05_an_exact_shapley_past_the_limit_is_refused_not_attempted",
+      "test_r05_the_sampled_method_reports_its_budget_and_its_error",
+      "test_r05_sampling_is_deterministic",
+      "test_r05_a_contribution_that_did_not_converge_says_so"], ""),
+    ("R06", "The residual is its own row and is never spread across "
+            "drivers.", COVERED,
+     ["test_r06_the_residual_is_its_own_row_and_is_not_spread",
+      "test_no_residual_row_appears_when_the_bars_explain_everything"], ""),
+    ("R07", "Charts use kinds this engine has; the absent tornado is "
+            "documented, not claimed.", COVERED,
+     ["test_r07_the_bridge_is_a_waterfall_with_both_totals",
+      "test_r07_the_method_comparison_keeps_an_unavailable_method_visible",
+      "test_r07_the_sensitivity_grid_is_a_heatmap_carrying_readiness",
+      "test_r07_there_is_no_tornado_and_it_is_not_faked",
+      "test_r07_the_signed_table_keeps_both_the_order_and_the_direction"],
+     ""),
+    ("R08", "A bar chart's bars sum to the headline, 'Other' included.",
+     COVERED,
+     ["test_r08_the_contributor_bars_sum_to_the_cohorts_change",
+      "test_r08_a_chart_that_drops_rows_is_caught"], ""),
+    ("R09", "Every published number resolves to a ledger fact and "
+            "reconciles.", COVERED,
+     ["test_the_delta_ledger_reconciles_to_the_outcome"], ""),
+    ("R10", "Method disagreement is explained, never averaged.", COVERED,
+     ["test_d07_the_disagreement_is_explained_rather_than_averaged"], ""),
+    ("R11", "Save and reopen keep the source, model, scenario and run "
+            "versions.", PARTIAL,
+     ["test_a_confirmed_scenario_survives_the_round_trip",
+      "test_the_release_change_is_visible_in_both_directions"],
+     "The scenario body carries every version and the release change is "
+     "visible. Reopening through the existing saved_analyses route is NOT "
+     "exercised end to end; the browser journeys that would do it are "
+     "BLOCKED below."),
+    ("R12", "Compare is a library function over two frozen ledgers.",
+     BLOCKED, [],
+     "Not built. The ledger, the run and the summary all reconcile "
+     "individually; a two-run comparison is not implemented and is not "
+     "claimed."),
+    ("R13", "Exports reconcile to the chat numbers and block formula "
+            "injection.", BLOCKED, [],
+     "Not exercised. The existing CSV/Markdown/SVG/ZIP routes are "
+     "unchanged and untested against a scenario result in this pass."),
+    ("R14", "The section 14.3 workbook is produced offline and reconciled.",
+     NOT_BUILT, [],
+     "There is no XLSX route in cockpit-v4 and one was not added; the "
+     "incompatibility is recorded in PROTECTED_CORE_INCOMPATIBILITY.md. "
+     "The offline workbook script is not built."),
+]
+
+ORACLES: list[Row] = [
+    ("O01", "A relative move is not a percentage-point move.", COVERED,
+     ["test_o01_a_full_book_proportional_pd_stress",
+      "test_o06_twenty_basis_points_is_not_twenty_percent_is_not_set_to_twenty"], ""),
+    ("O02", "A basis-point move is a hundredth of a point.", COVERED,
+     ["test_o02_a_cohort_of_one_leaves_the_rest_of_the_book_alone"], ""),
+    ("O03", "Proportional Delta is exact on a book whose ECL is the closed "
+            "form.", COVERED,
+     ["test_o03_two_parameters_compose_multiplicatively_not_additively",
+      "test_the_fixture_reconciles_to_its_own_published_ecl"], ""),
+    ("O04", "Sequential and Shapley attribution differ and neither is "
+            "relabelled.", COVERED,
+     ["test_r05_sequential_and_shapley_disagree_and_neither_is_relabelled"],
+     ""),
+    ("O05", "A capped value reports the unclipped figure, the clipped one "
+            "and the affected count.", COVERED,
+     ["test_o05_a_ccf_move_has_two_answers_and_they_differ",
+      "test_o05_multiplying_by_both_the_ccf_and_the_ead_effect_is_caught"], ""),
+    ("O06", "Largest-remainder allocation sums to the target exactly.",
+     COVERED, ["test_o06_the_wrong_readings_the_specification_names_are_not_produced"], ""),
+    ("O07", "An elasticity needs a driver move to act on.", COVERED,
+     ["test_o07_the_unemployment_mapping_arithmetic",
+      "test_o07_no_macro_factor_exists_to_attach_a_slope_to"], ""),
+    ("O08", "A zero baseline has no ratio and none is invented.", COVERED,
+     ["test_o08_a_held_overlay_is_added_back_not_scaled",
+      "test_o08_neither_published_book_splits_modelled_from_overlay"], ""),
+    ("O09", "A target rate uses the declared denominator.", COVERED,
+     ["test_o09_ml_anchoring_is_additive_against_the_observed_baseline",
+      "test_o09_a_zero_shock_anchors_back_to_the_observed_figure",
+      "test_o09_method_two_reports_not_ready_rather_than_a_number"], ""),
+    ("O10", "A float quantity is refused rather than converted.", COVERED,
+     ["test_o10_an_extra_thousand_splits_444_44_and_555_56",
+      "test_o10_the_allocation_reconciles_for_every_target_in_a_range"], ""),
+    ("O11", "Zero to zero is a neutral factor of one.", COVERED,
+     ["test_o11_zero_to_positive_is_unsupported_not_divided",
+      "test_o11_an_epsilon_denominator_would_have_produced_a_number",
+      "test_o11_a_row_that_cannot_be_scaled_stays_in_the_total"], ""),
+    ("O12", "The generator's totals do not depend on the interpreter.",
+     COVERED, ["test_a_float_is_refused_rather_than_converted",
+      "test_a_payload_carries_numbers_as_strings"], ""),
+]
+
+JOURNEYS: list[Row] = [
+    (f"J{n:02d}", description, BLOCKED, [], reason)
+    for n, description, reason in [
+        (1, "Ask a scenario question and receive a preview before anything "
+            "runs.", ""),
+        (2, "Confirm the preview and receive a result.", ""),
+        (3, "Ask a methodology question and receive the stored sensitivity "
+            "without a refit.", ""),
+        (4, "Run Delta and the emulator on one confirmed scenario.", ""),
+        (5, "Supply an assumption and see it labelled as one.", ""),
+        (6, "Reopen a saved scenario in a later turn.", ""),
+        (7, "Change the book and see the confirmation invalidated.", ""),
+        (8, "Ask for a chart the engine cannot draw and be told so.", ""),
+        (9, "Export a result and reconcile it against the chat.", ""),
+        (10, "Hit a missing model and see MODEL_NOT_READY.", ""),
+        (11, "Hit an unseen category and get a refusal with the real "
+             "values.", ""),
+        (12, "Hit an invalid probability and see the cap reported.", ""),
+        (13, "Cancel a run mid-flight.", ""),
+        (14, "Press Run twice and see one run.", ""),
+    ]
+]
+
+
+def journey_reason() -> str:
+    return (
+        "NOT RUN, and not for want of tooling. `npm --prefix frontend "
+        "install` succeeded (340 packages) and the ACCEPTED browser suite "
+        "runs green against real Chromium in this container, so the "
+        "harness works. What is missing is the path itself: a governed "
+        "Python step runs under `-I -S` from a temp directory with no "
+        "PYTHONPATH, so it can import the standard library and nothing "
+        "else -- `import pandas` and `from backend.cockpit_v4.scenario "
+        "import run` both fail with ModuleNotFoundError, measured. The "
+        "scenario engine therefore cannot be reached from a chat turn "
+        "without a protected-core change that this brief does not "
+        "authorise. The exact change and the approval needed are in "
+        "PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this "
+        "family has been executed against the What-If candidate and none "
+        "is reported as passed.")
+
+
+ERRORS: list[Row] = [
+    ("E01", "Fourteen domain failure categories exist, each mapped onto a "
+            "code the runtime already has.", COVERED,
+     ["test_all_fourteen_specified_categories_exist",
+      "test_every_category_maps_onto_a_code_the_runtime_already_has"], ""),
+    ("E02", "No domain code was added to the protected core's error "
+            "tuple.", COVERED,
+     ["test_no_domain_code_was_added_to_the_core_tuple"],
+     "states.ERROR_CODES is a protected constant; growing it would be a "
+     "protected-core change made to avoid writing a mapping."),
+    ("E03", "Every category says what to do next.", COVERED,
+     ["test_every_category_says_what_to_do_next"], ""),
+    ("E04", "An ambiguous unit and a rule conflict are QUESTIONS, not "
+            "rejections.", COVERED,
+     ["test_exactly_the_two_reader_questions_are_asks",
+      "test_a_question_refuses_to_become_a_rejection",
+      "test_a_defect_refuses_to_become_a_question"], ""),
+    ("E05", "A question carries its readings as choices the reader can "
+            "pick.", COVERED,
+     ["test_a_question_carries_the_readings_as_clickable_options"], ""),
+    ("E06", "A rejection travels as the existing contract, with the domain "
+            "name preserved.", COVERED,
+     ["test_a_rejection_is_the_existing_contract",
+      "test_the_domain_name_is_not_swallowed_by_the_mapping"], ""),
+    ("E07", "Cross-book access is a scope violation, not a data gap.",
+     COVERED,
+     ["test_cross_book_access_is_a_scope_violation_not_a_data_gap"], ""),
+    ("E08", "An unknown category cannot be raised.", COVERED,
+     ["test_an_unknown_category_cannot_be_raised"], ""),
+    ("E09", "An unqualified quantity is refused with the readings named, "
+            "never resolved by a house default.", COVERED,
+     ["test_o06_twenty_basis_points_is_not_twenty_percent_is_not_set_to_twenty",
+      "test_o06_the_wrong_readings_the_specification_names_are_not_produced"],
+     ""),
+    ("E10", "A field the book does not carry is refused by name, with what "
+            "the book has.", COVERED,
+     ["test_a_field_the_book_does_not_carry_is_refused_by_name",
+      "test_the_refusal_names_what_delta_does_handle",
+      "test_a_refusal_names_only_fields_a_scenario_could_actually_ask_for"],
+     ""),
+    ("E11", "A field a scenario may not move is refused rather than "
+            "answered with zero.", COVERED,
+     ["test_a_field_a_scenario_may_not_move_is_refused",
+      "test_the_approved_limit_is_refused_rather_than_answered_with_zero"],
+     ""),
+    ("E12", "An unseen category is refused with the book's real values, "
+            "never matched by approximation.", COVERED,
+     ["test_s15_a_word_the_book_does_not_have_is_refused_not_approximated",
+      "test_a_corporate_dimension_is_not_a_retail_one"], ""),
+    ("E13", "A value outside a published support range is refused, not "
+            "extrapolated silently.", COVERED,
+     ["test_s13_a_score_outside_the_cards_range_is_refused",
+      "test_a_shock_outside_the_fitted_range_carries_an_extrapolation_warning"],
+     ""),
+    ("E14", "A parameter driven outside its valid range is surfaced with "
+            "the unclipped value, not clamped silently.", COVERED,
+     ["test_a_linear_translation_that_goes_negative_says_so",
+      "test_an_assumption_that_would_make_ecl_negative_is_refused"], ""),
+    ("E15", "A missing model is MODEL_NOT_READY with a reason, never a "
+            "zero.", COVERED,
+     ["test_a_missing_model_is_model_not_ready_and_not_a_zero",
+      "test_o09_method_two_reports_not_ready_rather_than_a_number",
+      "test_d09_a_missing_emulator_carries_a_reason_and_no_number"], ""),
+    ("E16", "A model trained against another release is refused.", COVERED,
+     ["test_a_model_trained_against_another_release_is_refused"], ""),
+    ("E17", "A stale confirmation is refused with both hashes shown.",
+     COVERED,
+     ["test_an_unconfirmed_scenario_will_not_run",
+      "test_the_stale_message_carries_both_hashes"], ""),
+    ("E18", "A reconciliation failure is a defect in the run, surfaced "
+            "rather than absorbed.", COVERED,
+     ["test_reconciliation_failure_is_a_defect_in_the_run",
+      "test_a_bridge_that_does_not_sum_to_the_headline_is_refused",
+      "test_r08_a_chart_that_drops_rows_is_caught"], ""),
+    ("E19", "Both books are off by default and each has its own flag.",
+     COVERED,
+     ["test_both_books_are_off_by_default", "test_each_book_has_its_own_flag",
+      "test_an_unknown_book_is_off_rather_than_an_error",
+      "test_the_truthy_set_matches_the_runtimes_own"], ""),
+    ("E20", "Timeout, cancellation and repeated-Run behaviour under a "
+            "scenario turn.", BLOCKED, [],
+     "NOT RUN against a scenario. The accepted runtime's budget, deadline "
+     "and idempotency machinery is unchanged and covered by the accepted "
+     "suite, but no What-If turn has been driven through a timeout, a "
+     "cancellation or a double Run. The browser journeys that would do it "
+     "are J13 and J14."),
+]
+
+FAMILIES: list[tuple[str, str, list[Row]]] = [
+    ("A", "Isolation and inertness", ISOLATION),
+    ("C", "Cohort, rules, preview and confirmation", COHORT),
+    ("D", "Execution", EXECUTION),
+    ("E", "Errors, refusals and flags", ERRORS),
+    ("S", "Sensitivities and mappings", SENSITIVITY),
+    ("M", "The emulators", MODEL),
+    ("R", "Results, attribution, charts and exports", RESULTS),
+    ("O", "Numeric oracles", ORACLES),
+    ("J", "Browser journeys", JOURNEYS),
+]
+
+
+def known_tests() -> set[str]:
+    names: set[str] = set()
+    for path in sorted(TESTS.glob("test_whatif_*.py")):
+        names |= set(re.findall(r"^def (test_\w+)", path.read_text(),
+                                re.MULTILINE))
+    return names
+
+
+def main() -> int:
+    available = known_tests()
+    missing: list[str] = []
+    counts: dict[str, int] = {}
+    cases: list[dict[str, object]] = []
+
+    for _letter, _title, rows in FAMILIES:
+        for case_id, requirement, status, tests, note in rows:
+            counts[status] = counts.get(status, 0) + 1
+            for name in tests:
+                if name not in available:
+                    missing.append(f"{case_id} names {name}, which is not in "
+                                   f"the suite")
+            cases.append({
+                "id": case_id, "requirement": requirement,
+                "status": status, "tests": tests,
+                "note": note or (journey_reason()
+                                 if case_id.startswith("J") else ""),
+            })
+
+    if missing:
+        print("This matrix names tests that do not exist:")
+        for line in missing:
+            print(f"  - {line}")
+        print("\nA row that claims coverage it does not have is the one "
+              "failure mode a matrix has. Fix the row or write the test.")
+        return 1
+
+    total = len(cases)
+    lines = [
+        "# Requirement test matrix — What-If candidate",
+        "",
+        "One row per acceptance ID. **A pytest count is not a completion "
+        "claim**: 800 passing tests say nothing about whether S14 is met, "
+        "only a named test against a named requirement does. "
+        "`scripts/whatif/build_matrix.py` regenerates this file and **exits "
+        "non-zero if any named test is not in the suite**.",
+        "",
+        "The requirement text is this implementation's reading of each ID. "
+        "`CreditProbe_Advanced_Cockpit_WhatIf_Master_Prompt_v1.docx` is the "
+        "authority; where the two differ, the specification wins and this "
+        "file is wrong.",
+        "",
+        "| Status | Meaning | Count |",
+        "|---|---|---|",
+        f"| `{COVERED}` | implemented and proved by the named tests | "
+        f"{counts.get(COVERED, 0)} |",
+        f"| `{PARTIAL}` | implemented, proved in part, gap stated | "
+        f"{counts.get(PARTIAL, 0)} |",
+        f"| `{BLOCKED}` | not run, with the reason and the command | "
+        f"{counts.get(BLOCKED, 0)} |",
+        f"| `{NOT_BUILT}` | deliberately not implemented, recorded | "
+        f"{counts.get(NOT_BUILT, 0)} |",
+        f"| | **total** | **{total}** |",
+        "",
+        f"**{counts.get(COVERED, 0)} of {total} acceptance IDs are "
+        f"COVERED.** The rest are named below with what is missing. Nothing "
+        f"here is marked satisfied by a document.",
+        "",
+    ]
+
+    for letter, title, rows in FAMILIES:
+        covered = sum(1 for r in rows if r[2] == COVERED)
+        lines += [
+            f"## {letter} — {title}",
+            "",
+            f"{covered} of {len(rows)} COVERED.",
+            "",
+            "| ID | Requirement, as implemented | Status | Proof |",
+            "|---|---|---|---|",
+        ]
+        for case_id, requirement, status, tests, note in rows:
+            proof = ""
+            if tests:
+                proof = "<br>".join(f"`{t}`" for t in tests)
+            if note:
+                proof = (proof + "<br>" + note) if proof else note
+            if not proof and status == BLOCKED:
+                proof = journey_reason().replace("\n", "<br>")
+            mark = status if status == COVERED else f"**{status}**"
+            lines.append(f"| {case_id} | {requirement} | {mark} | {proof} |")
+        lines.append("")
+
+    lines += [
+        "## What is not covered, in one place",
+        "",
+    ]
+    for _letter, _title, rows in FAMILIES:
+        for case_id, requirement, status, _tests, note in rows:
+            if status == COVERED:
+                continue
+            reason = note or journey_reason()
+            lines.append(f"* **{case_id} — {status}.** {requirement} "
+                         f"{reason}")
+    lines += [
+        "",
+        "## What a passing row does not mean",
+        "",
+        "Every test in this matrix runs against **generated books**. A "
+        "COVERED row means the behaviour the requirement describes is "
+        "implemented and proved on that data. It does not mean the figures "
+        "are a bank's, that any model agrees with a bank's ECL engine, or "
+        "that any sensitivity is validated. Those claims are made nowhere "
+        "in this deliverable and are marked explicitly unavailable in "
+        "`MODEL_CARD_*.md` and `SENSITIVITY_CARD_*.md`.",
+        "",
+    ]
+
+    matrix = ROOT / "docs" / "whatif" / "REQUIREMENT_TEST_MATRIX.md"
+    matrix.write_text("\n".join(lines), encoding="utf-8")
+    cases_path = ROOT / "docs" / "whatif" / "ACCEPTANCE_CASES.json"
+    cases_path.write_text(json.dumps({
+        "total": total, "counts": counts,
+        "note": ("One entry per acceptance ID. Generated by "
+                 "scripts/whatif/build_matrix.py, which refuses to name a "
+                 "test that is not in the suite."),
+        "cases": cases}, indent=2, sort_keys=True), encoding="utf-8")
+
+    print(f"{total} acceptance IDs: " + ", ".join(
+        f"{count} {status}" for status, count in sorted(counts.items())))
+    print(f"every named test exists ({len(available)} test functions in the "
+          f"What-If suite)")
+    print(f"written: {matrix.relative_to(ROOT)}, "
+          f"{cases_path.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

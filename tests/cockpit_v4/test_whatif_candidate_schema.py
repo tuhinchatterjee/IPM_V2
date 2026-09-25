@@ -215,3 +215,54 @@ def test_the_scenario_weights_are_an_expectation() -> None:
     assert sum(w for _i, _n, w in cs.SCENARIOS) == pytest.approx(1.0)
     assert {i for i, _n, _w in cs.SCENARIOS} == {"baseline", "downside",
                                                  "upside"}
+
+
+# ---- determinism -------------------------------------------------------
+
+def test_the_generator_is_deterministic_across_processes() -> None:
+    """A09, in part. Two builds of one release must agree.
+
+    `generate.stable` is SHA-256 based rather than `hash()`, which Python
+    randomises per process, so a value derived from it is the same in every
+    interpreter. This asserts the property on the primitive and on the two
+    generated structures that every downstream number is built from.
+
+    It does NOT rebuild both releases and diff the parquet: that is 90
+    seconds and belongs in
+    `python3 scripts/whatif/seed_candidate.py --domain all --overwrite`,
+    which prints the fingerprint for comparison. The matrix records A09 as
+    PARTIAL for exactly that reason.
+    """
+    import random
+    import subprocess
+    import sys
+
+    from backend.cockpit_v4 import domains as dom
+    from backend.cockpit_v4.scenario import generate as gen
+    from backend.cockpit_v4.scenario.generate import corporate
+    from backend.cockpit_v4.scenario.generate import macro as mv
+
+    quarters = corporate.quarter_range()
+    first = mv.panel(dom.CORPORATE, quarters)
+    second = mv.panel(dom.CORPORATE, quarters)
+    assert first == second
+    assert len(first) > 900
+
+    borrowers = corporate.obligors(random.Random(corporate.CORPORATE_SEED))
+    again = corporate.obligors(random.Random(corporate.CORPORATE_SEED))
+    assert borrowers == again
+
+    facilities = corporate.facilities_of(
+        borrowers, random.Random(corporate.CORPORATE_SEED))
+    assert facilities == corporate.facilities_of(
+        again, random.Random(corporate.CORPORATE_SEED))
+
+    # And across PROCESSES, which is the half `hash()` would fail: a fresh
+    # interpreter has a different hash seed.
+    probe = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, '.');"
+         "from backend.cockpit_v4.scenario import generate as g;"
+         "print(g.stable('MEV03|2026Q2', 100000))"],
+        capture_output=True, text=True, check=True)
+    assert int(probe.stdout.strip()) == gen.stable("MEV03|2026Q2", 100000)

@@ -1,0 +1,136 @@
+{
+  "categorical": [
+    "customer_segment",
+    "delinquency_bucket",
+    "employer_sector",
+    "employer_sector_group",
+    "employment_type",
+    "origination_channel",
+    "product",
+    "region",
+    "score_band",
+    "sub_product"
+  ],
+  "component_hashes": {
+    "additive_spline": "9bd7b2f119a0513bdce190e7d6ad5a02dd9b1976091d1b6481654c0ffd4532cd",
+    "lightgbm": "5cd49a5773acc5aed730e9aa3735ac91a3d0eacda484d140476b1b19745b15ce",
+    "xgboost": "12e24f8ea5e81c81daa3a153c51f263cc364b7d4bda07e7aeb044a9ee87ff4a2"
+  },
+  "denominator": "ead_sar_mn",
+  "domain_id": "retail",
+  "embargoed_periods": [
+    "2025-12",
+    "2026-04"
+  ],
+  "features": [
+    "product",
+    "sub_product",
+    "secured_flag",
+    "origination_channel",
+    "vintage_year",
+    "months_on_book",
+    "customer_segment",
+    "employment_type",
+    "region",
+    "limit_sar_mn",
+    "balance_sar_mn",
+    "ead_sar_mn",
+    "utilisation_pct",
+    "stage",
+    "sicr_flag",
+    "dpd_days",
+    "delinquency_bucket",
+    "pd_pit_12m",
+    "pd_lifetime",
+    "lgd_pct",
+    "cure_flag",
+    "behaviour_score",
+    "score_band",
+    "utilisation_change_pp",
+    "payment_ratio_pct",
+    "missed_payments_12m",
+    "delinquency_streak_months",
+    "balance_growth_pct",
+    "cash_advance_ratio_pct",
+    "overlimit_flag",
+    "inflow_change_pct",
+    "bureau_inquiries_6m",
+    "repayment_behaviour_score",
+    "effective_interest_rate",
+    "remaining_maturity_months",
+    "lifetime_horizon_months",
+    "employer_sector",
+    "employer_sector_group",
+    "application_score"
+  ],
+  "gates": {
+    "G1": {
+      "measured": 0.023306639811818863,
+      "passed": true,
+      "threshold": 0.1,
+      "what": "out-of-time currency WAPE"
+    },
+    "G2": {
+      "measured": 0.008675913446630297,
+      "passed": true,
+      "threshold": 0.02,
+      "what": "absolute aggregate bias"
+    },
+    "G3": {
+      "measured": 0.013321374090867333,
+      "passed": true,
+      "threshold": 0.05,
+      "what": "worst absolute per-period bias"
+    },
+    "G4": {
+      "measured": 0.380206,
+      "passed": false,
+      "threshold": 0.15,
+      "what": "worst material-group WAPE"
+    }
+  },
+  "headline": "SINGLE-MODEL RESULT. The weight fit put 1.000 on lightgbm and left xgboost, additive_spline below the 0.05 materiality floor. This is a lightgbm model, not a blend, and is reported as one. Weights: xgboost 0.000, lightgbm 1.000, additive_spline 0.000.",
+  "libraries": {
+    "additive_spline": "1.6.1",
+    "lightgbm": "4.6.0",
+    "xgboost": "3.0.2"
+  },
+  "model_version": "whatif-ecl-emulator-1.0.0",
+  "origin": "SYNTHETIC_DEMO",
+  "release_id": "v4-whatif-retail-20m-s1",
+  "seeds": {
+    "additive_spline": 20260930,
+    "lightgbm": 20260929,
+    "xgboost": 20260928
+  },
+  "target": "ecl_rate",
+  "test_periods": [
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+  ],
+  "train_periods": [
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11"
+  ],
+  "validate_periods": [
+    "2026-01",
+    "2026-02",
+    "2026-03"
+  ],
+  "weights": {
+    "additive_spline": 0.0,
+    "lightgbm": 1.0,
+    "xgboost": 0.0
+  }
+}

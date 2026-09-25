@@ -1,0 +1,1319 @@
+{
+  "cases": [
+    {
+      "id": "A01",
+      "note": "Fingerprint re-read from the manifest and compared with the value pinned at 245c50e.",
+      "requirement": "The accepted Corporate release is byte-identical after every candidate build.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_accepted_releases_are_byte_identical"
+      ]
+    },
+    {
+      "id": "A02",
+      "note": "",
+      "requirement": "The accepted Retail release is byte-identical after every candidate build.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_accepted_releases_are_byte_identical"
+      ]
+    },
+    {
+      "id": "A03",
+      "note": "",
+      "requirement": "The candidate is a different release with a different fingerprint, never a rewrite of an accepted one.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_candidate_is_a_different_release_with_a_different_fingerprint"
+      ]
+    },
+    {
+      "id": "A04",
+      "note": "Four files, listed with the reason for each in CORE_IMPORTERS.",
+      "requirement": "Only recorded protected-core files reach the candidate package, each behind a flag check inside a guard.",
+      "status": "COVERED",
+      "tests": [
+        "test_a04_only_the_recorded_core_files_reach_this_package",
+        "test_a04_every_one_of_those_imports_is_inside_a_guard",
+        "test_a04_each_guarded_import_sits_behind_the_flag_check",
+        "test_a04_with_both_flags_off_the_block_is_absent_entirely"
+      ]
+    },
+    {
+      "id": "A05",
+      "note": "Plus the full V4 regression with the flags off: 4018 passed, 4 skipped.",
+      "requirement": "With the flags off the accepted runtime is unchanged: same relations, same default release, same payload.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_runtime_opens_the_accepted_book_with_the_flags_off"
+      ]
+    },
+    {
+      "id": "A06",
+      "note": "",
+      "requirement": "Enabling one book does not enable the other.",
+      "status": "COVERED",
+      "tests": [
+        "test_one_book_enabled_does_not_enable_the_other"
+      ]
+    },
+    {
+      "id": "A07",
+      "note": "",
+      "requirement": "The candidate manifest declares itself synthetic.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_candidate_manifest_says_it_is_synthetic"
+      ]
+    },
+    {
+      "id": "A08",
+      "note": "",
+      "requirement": "Every candidate row carries origin SYNTHETIC_DEMO.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_published_rows_are_all_labelled_synthetic"
+      ]
+    },
+    {
+      "id": "A09",
+      "note": "The generator's determinism is proved, including across processes (`stable()` is SHA-256, not `hash()`, which Python randomises per run). A full two-build parquet diff is NOT in the suite because it takes 90 seconds; run `python3 scripts/whatif/seed_candidate.py --domain all --overwrite` twice and compare the printed fingerprints.",
+      "requirement": "Two builds of one release id are byte-identical.",
+      "status": "PARTIAL",
+      "tests": [
+        "test_the_generator_is_deterministic_across_processes"
+      ]
+    },
+    {
+      "id": "A10",
+      "note": "scripts/whatif/protected_hashes.py --check reports 5 changed, 0 removed, 25 added; every line is explained in BASELINE_AND_EXTENSION_MAP.md. No hash regenerated.",
+      "requirement": "The protected-file hash check reports every difference and the allowlist is not broadened.",
+      "status": "COVERED",
+      "tests": []
+    },
+    {
+      "id": "A11",
+      "note": "The candidate sees the accepted environment; not the reverse.",
+      "requirement": "The candidate's ML dependencies are isolated from the accepted environment.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "test_the_requirements_file_is_not_the_accepted_one",
+        "test_every_pinned_library_is_pinned_exactly"
+      ]
+    },
+    {
+      "id": "A12",
+      "note": "Asserted by walking every module under backend/cockpit_v4.",
+      "requirement": "Nothing a chat turn reaches imports the training or fitting code.",
+      "status": "COVERED",
+      "tests": [
+        "test_nothing_a_chat_turn_reaches_imports_the_estimator",
+        "test_nothing_a_chat_turn_reaches_imports_the_training_half",
+        "test_the_read_half_does_not_import_the_fitting_half"
+      ]
+    },
+    {
+      "id": "C01",
+      "note": "",
+      "requirement": "A cohort is frozen by membership hash, not by a predicate re-evaluated later.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_hash_is_over_the_set_not_the_order",
+        "test_the_hash_cannot_be_collided_by_concatenation",
+        "test_counts_and_totals_are_not_part_of_the_identity"
+      ]
+    },
+    {
+      "id": "C02",
+      "note": "",
+      "requirement": "'These customers' distinguishes the rows that matched from every row belonging to those owners.",
+      "status": "COVERED",
+      "tests": [
+        "test_c03_a_row_selection_does_not_widen_to_its_owners",
+        "test_the_described_grain_says_which_it_is",
+        "test_d02_widening_does_not_multiply_exposure"
+      ]
+    },
+    {
+      "id": "C03",
+      "note": "",
+      "requirement": "A widened cohort is a different cohort and says so.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_widening_question_shows_what_it_would_cost",
+        "test_widening_an_owner_cohort_is_a_no_op"
+      ]
+    },
+    {
+      "id": "C04",
+      "note": "",
+      "requirement": "A cohort re-resolved after the book moved is refused.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_cohort_frozen_in_the_other_book_is_refused",
+        "test_a_moved_membership_is_caught_before_anything_is_calculated"
+      ]
+    },
+    {
+      "id": "C05",
+      "note": "",
+      "requirement": "An empty cohort is refused, never answered with zero.",
+      "status": "COVERED",
+      "tests": [
+        "test_c05_an_empty_selection_does_not_widen",
+        "test_d02_an_empty_cohort_is_refused_not_answered_with_zero"
+      ]
+    },
+    {
+      "id": "C06",
+      "note": "",
+      "requirement": "Two rules on one field over overlapping rows is a question, not a resolution.",
+      "status": "COVERED",
+      "tests": [
+        "test_two_rules_on_one_field_over_the_whole_cohort_conflict",
+        "test_c05_compiling_an_unresolved_overlap_raises_the_question",
+        "test_c07_the_question_offers_exactly_the_three_compositions"
+      ]
+    },
+    {
+      "id": "C07",
+      "note": "",
+      "requirement": "An acknowledged overlap can be previewed with the resolution the reader chose.",
+      "status": "COVERED",
+      "tests": [
+        "test_c05_an_overlap_the_reader_is_being_shown_does_not_block_the_graph",
+        "test_acknowledging_one_overlap_does_not_excuse_another",
+        "test_a_declared_composition_is_recorded_as_declared"
+      ]
+    },
+    {
+      "id": "C08",
+      "note": "",
+      "requirement": "A preview states what changes, over which rows, from what baseline, by which method, and what is left alone.",
+      "status": "COVERED",
+      "tests": [
+        "test_every_required_section_is_present",
+        "test_it_shows_each_input_with_its_operation_and_unit",
+        "test_it_says_what_is_left_alone",
+        "test_it_says_the_book_is_not_written"
+      ]
+    },
+    {
+      "id": "C09",
+      "note": "",
+      "requirement": "Reading a sensitivity is not approval of a calculation.",
+      "status": "COVERED",
+      "tests": [
+        "test_c14_a_preview_is_not_itself_a_confirmation",
+        "test_c14_the_preview_calculates_no_ecl",
+        "test_anything_that_is_not_a_yes_leaves_it_unconfirmed"
+      ]
+    },
+    {
+      "id": "C10",
+      "note": "",
+      "requirement": "A confirmation is bound to a hash of everything that could change the answer.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_digest_is_stable_across_identical_specs"
+      ]
+    },
+    {
+      "id": "C11",
+      "note": "",
+      "requirement": "A source refresh invalidates a confirmation.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_five_named_invalidations"
+      ]
+    },
+    {
+      "id": "C12",
+      "note": "",
+      "requirement": "A cohort edit invalidates a confirmation.",
+      "status": "COVERED",
+      "tests": [
+        "test_anything_that_changes_the_answer_changes_the_hash"
+      ]
+    },
+    {
+      "id": "C13",
+      "note": "",
+      "requirement": "A method change invalidates a confirmation.",
+      "status": "COVERED",
+      "tests": [
+        "test_an_unknown_method_is_refused",
+        "test_the_five_named_invalidations"
+      ]
+    },
+    {
+      "id": "C14",
+      "note": "",
+      "requirement": "A warning the reader did not see invalidates a confirmation.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_five_named_invalidations",
+        "test_the_warnings_shown_before_approval_travel_with_it"
+      ]
+    },
+    {
+      "id": "C15",
+      "note": "",
+      "requirement": "A revised scenario is a new version and is not confirmed.",
+      "status": "COVERED",
+      "tests": [
+        "test_d10_a_revised_scenario_loses_its_confirmation"
+      ]
+    },
+    {
+      "id": "C16",
+      "note": "",
+      "requirement": "Rule order is part of the digest, because order changes the answer.",
+      "status": "COVERED",
+      "tests": [
+        "test_shock_order_does_not_change_the_hash_but_ordering_is_in_it",
+        "test_e09_the_order_is_canonical_not_whatever_the_set_iterated_as"
+      ]
+    },
+    {
+      "id": "C17",
+      "note": "",
+      "requirement": "A confirmed scenario survives into the next turn without being retyped, and is server-written.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_confirmed_scenario_survives_the_round_trip",
+        "test_remember_stores_the_scenario_the_run_published"
+      ]
+    },
+    {
+      "id": "C18",
+      "note": "",
+      "requirement": "A release change invalidates the confirmation AND drops the cohort binding, visibly.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_different_release_id_invalidates_and_says_so",
+        "test_an_invalidated_scenario_loses_its_cohort_binding",
+        "test_the_same_id_republished_is_caught_by_the_fingerprint"
+      ]
+    },
+    {
+      "id": "D01",
+      "note": "",
+      "requirement": "One confirmed scenario, one reporting period, one frozen cohort, one baseline.",
+      "status": "COVERED",
+      "tests": [
+        "test_d06_every_method_starts_from_the_same_baseline"
+      ]
+    },
+    {
+      "id": "D02",
+      "note": "",
+      "requirement": "The full cohort is used, never the displayed rows and never the top contributors.",
+      "status": "COVERED",
+      "tests": [
+        "test_d02_every_cohort_row_is_in_the_total_including_the_untouched"
+      ]
+    },
+    {
+      "id": "D03",
+      "note": "",
+      "requirement": "An unaffected row's change is exactly zero.",
+      "status": "COVERED",
+      "tests": [
+        "test_an_unaffected_row_moves_by_exactly_zero",
+        "test_an_untouched_row_that_moved_is_refused",
+        "test_the_untouched_check_admits_no_tolerance_at_all"
+      ]
+    },
+    {
+      "id": "D04",
+      "note": "",
+      "requirement": "An ineligible row keeps its baseline and is reason-coded.",
+      "status": "COVERED",
+      "tests": [
+        "test_an_ineligible_row_keeps_its_baseline_and_carries_the_reason",
+        "test_an_unsupported_row_keeps_its_baseline_too",
+        "test_an_ineligible_row_stays_in_the_baseline_total"
+      ]
+    },
+    {
+      "id": "D05",
+      "note": "",
+      "requirement": "Full book equals affected plus unaffected.",
+      "status": "COVERED",
+      "tests": [
+        "test_r03_affected_plus_unaffected_is_the_book",
+        "test_r03_nothing_moves_outside_a_frozen_cohort"
+      ]
+    },
+    {
+      "id": "D06",
+      "note": "",
+      "requirement": "Every method starts from the same baseline, read once.",
+      "status": "COVERED",
+      "tests": [
+        "test_d06_every_method_starts_from_the_same_baseline"
+      ]
+    },
+    {
+      "id": "D07",
+      "note": "",
+      "requirement": "Methods are shown side by side and never composed.",
+      "status": "COVERED",
+      "tests": [
+        "test_d07_the_comparison_shows_the_methods_and_composes_nothing",
+        "test_d07_the_disagreement_is_explained_rather_than_averaged",
+        "test_the_ml_estimate_is_never_multiplied_by_the_delta_factor"
+      ]
+    },
+    {
+      "id": "D08",
+      "note": "",
+      "requirement": "Different method coverage is disclosed and compared like-for-like.",
+      "status": "COVERED",
+      "tests": [
+        "test_d08_different_coverage_is_disclosed_and_compared_like_for_like",
+        "test_d08_the_like_for_like_rows_say_what_they_are"
+      ]
+    },
+    {
+      "id": "D09",
+      "note": "",
+      "requirement": "An unavailable method shows reason and status, never a zero and never a substitution.",
+      "status": "COVERED",
+      "tests": [
+        "test_d09_a_missing_emulator_carries_a_reason_and_no_number",
+        "test_d09_an_unavailable_method_is_never_given_another_methods_answer"
+      ]
+    },
+    {
+      "id": "D10",
+      "note": "",
+      "requirement": "An unconfirmed or wrong-book scenario does not execute.",
+      "status": "COVERED",
+      "tests": [
+        "test_d10_an_unconfirmed_scenario_does_not_execute",
+        "test_d10_a_scenario_confirmed_against_another_book_is_refused"
+      ]
+    },
+    {
+      "id": "D11",
+      "note": "",
+      "requirement": "Missing user assumptions are resolved before execution.",
+      "status": "COVERED",
+      "tests": [
+        "test_d11_a_missing_assumption_is_reported_before_the_run",
+        "test_d11_a_scenario_with_no_assumption_does_not_invent_one"
+      ]
+    },
+    {
+      "id": "D12",
+      "note": "",
+      "requirement": "The book is read and never written; execution is a simulation.",
+      "status": "COVERED",
+      "tests": [
+        "test_it_says_the_book_is_not_written"
+      ]
+    },
+    {
+      "id": "E01",
+      "note": "",
+      "requirement": "Fourteen domain failure categories exist, each mapped onto a code the runtime already has.",
+      "status": "COVERED",
+      "tests": [
+        "test_all_fourteen_specified_categories_exist",
+        "test_every_category_maps_onto_a_code_the_runtime_already_has"
+      ]
+    },
+    {
+      "id": "E02",
+      "note": "states.ERROR_CODES is a protected constant; growing it would be a protected-core change made to avoid writing a mapping.",
+      "requirement": "No domain code was added to the protected core's error tuple.",
+      "status": "COVERED",
+      "tests": [
+        "test_no_domain_code_was_added_to_the_core_tuple"
+      ]
+    },
+    {
+      "id": "E03",
+      "note": "",
+      "requirement": "Every category says what to do next.",
+      "status": "COVERED",
+      "tests": [
+        "test_every_category_says_what_to_do_next"
+      ]
+    },
+    {
+      "id": "E04",
+      "note": "",
+      "requirement": "An ambiguous unit and a rule conflict are QUESTIONS, not rejections.",
+      "status": "COVERED",
+      "tests": [
+        "test_exactly_the_two_reader_questions_are_asks",
+        "test_a_question_refuses_to_become_a_rejection",
+        "test_a_defect_refuses_to_become_a_question"
+      ]
+    },
+    {
+      "id": "E05",
+      "note": "",
+      "requirement": "A question carries its readings as choices the reader can pick.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_question_carries_the_readings_as_clickable_options"
+      ]
+    },
+    {
+      "id": "E06",
+      "note": "",
+      "requirement": "A rejection travels as the existing contract, with the domain name preserved.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_rejection_is_the_existing_contract",
+        "test_the_domain_name_is_not_swallowed_by_the_mapping"
+      ]
+    },
+    {
+      "id": "E07",
+      "note": "",
+      "requirement": "Cross-book access is a scope violation, not a data gap.",
+      "status": "COVERED",
+      "tests": [
+        "test_cross_book_access_is_a_scope_violation_not_a_data_gap"
+      ]
+    },
+    {
+      "id": "E08",
+      "note": "",
+      "requirement": "An unknown category cannot be raised.",
+      "status": "COVERED",
+      "tests": [
+        "test_an_unknown_category_cannot_be_raised"
+      ]
+    },
+    {
+      "id": "E09",
+      "note": "",
+      "requirement": "An unqualified quantity is refused with the readings named, never resolved by a house default.",
+      "status": "COVERED",
+      "tests": [
+        "test_o06_twenty_basis_points_is_not_twenty_percent_is_not_set_to_twenty",
+        "test_o06_the_wrong_readings_the_specification_names_are_not_produced"
+      ]
+    },
+    {
+      "id": "E10",
+      "note": "",
+      "requirement": "A field the book does not carry is refused by name, with what the book has.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_field_the_book_does_not_carry_is_refused_by_name",
+        "test_the_refusal_names_what_delta_does_handle",
+        "test_a_refusal_names_only_fields_a_scenario_could_actually_ask_for"
+      ]
+    },
+    {
+      "id": "E11",
+      "note": "",
+      "requirement": "A field a scenario may not move is refused rather than answered with zero.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_field_a_scenario_may_not_move_is_refused",
+        "test_the_approved_limit_is_refused_rather_than_answered_with_zero"
+      ]
+    },
+    {
+      "id": "E12",
+      "note": "",
+      "requirement": "An unseen category is refused with the book's real values, never matched by approximation.",
+      "status": "COVERED",
+      "tests": [
+        "test_s15_a_word_the_book_does_not_have_is_refused_not_approximated",
+        "test_a_corporate_dimension_is_not_a_retail_one"
+      ]
+    },
+    {
+      "id": "E13",
+      "note": "",
+      "requirement": "A value outside a published support range is refused, not extrapolated silently.",
+      "status": "COVERED",
+      "tests": [
+        "test_s13_a_score_outside_the_cards_range_is_refused",
+        "test_a_shock_outside_the_fitted_range_carries_an_extrapolation_warning"
+      ]
+    },
+    {
+      "id": "E14",
+      "note": "",
+      "requirement": "A parameter driven outside its valid range is surfaced with the unclipped value, not clamped silently.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_linear_translation_that_goes_negative_says_so",
+        "test_an_assumption_that_would_make_ecl_negative_is_refused"
+      ]
+    },
+    {
+      "id": "E15",
+      "note": "",
+      "requirement": "A missing model is MODEL_NOT_READY with a reason, never a zero.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_missing_model_is_model_not_ready_and_not_a_zero",
+        "test_o09_method_two_reports_not_ready_rather_than_a_number",
+        "test_d09_a_missing_emulator_carries_a_reason_and_no_number"
+      ]
+    },
+    {
+      "id": "E16",
+      "note": "",
+      "requirement": "A model trained against another release is refused.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_model_trained_against_another_release_is_refused"
+      ]
+    },
+    {
+      "id": "E17",
+      "note": "",
+      "requirement": "A stale confirmation is refused with both hashes shown.",
+      "status": "COVERED",
+      "tests": [
+        "test_an_unconfirmed_scenario_will_not_run",
+        "test_the_stale_message_carries_both_hashes"
+      ]
+    },
+    {
+      "id": "E18",
+      "note": "",
+      "requirement": "A reconciliation failure is a defect in the run, surfaced rather than absorbed.",
+      "status": "COVERED",
+      "tests": [
+        "test_reconciliation_failure_is_a_defect_in_the_run",
+        "test_a_bridge_that_does_not_sum_to_the_headline_is_refused",
+        "test_r08_a_chart_that_drops_rows_is_caught"
+      ]
+    },
+    {
+      "id": "E19",
+      "note": "",
+      "requirement": "Both books are off by default and each has its own flag.",
+      "status": "COVERED",
+      "tests": [
+        "test_both_books_are_off_by_default",
+        "test_each_book_has_its_own_flag",
+        "test_an_unknown_book_is_off_rather_than_an_error",
+        "test_the_truthy_set_matches_the_runtimes_own"
+      ]
+    },
+    {
+      "id": "E20",
+      "note": "NOT RUN against a scenario. The accepted runtime's budget, deadline and idempotency machinery is unchanged and covered by the accepted suite, but no What-If turn has been driven through a timeout, a cancellation or a double Run. The browser journeys that would do it are J13 and J14.",
+      "requirement": "Timeout, cancellation and repeated-Run behaviour under a scenario turn.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "S01",
+      "note": "",
+      "requirement": "The twenty-factor registry reports actual support and every missing entry.",
+      "status": "COVERED",
+      "tests": [
+        "test_s01_all_twenty_candidates_appear_with_a_support_status",
+        "test_every_candidate_factor_has_a_row_for_every_parameter"
+      ]
+    },
+    {
+      "id": "S02",
+      "note": "",
+      "requirement": "Native units and shock conventions survive into the artifact.",
+      "status": "COVERED",
+      "tests": [
+        "test_s02_the_published_unit_sentence_follows_the_shock_convention"
+      ]
+    },
+    {
+      "id": "S03",
+      "note": "",
+      "requirement": "Effective sample is distinct periods, never repeated facility rows.",
+      "status": "COVERED",
+      "tests": [
+        "test_s03_repeated_facility_rows_do_not_buy_a_longer_history",
+        "test_no_published_row_claims_more_periods_than_the_calendar_has"
+      ]
+    },
+    {
+      "id": "S04",
+      "note": "",
+      "requirement": "Lag is chosen on training-only forward validation.",
+      "status": "COVERED",
+      "tests": [
+        "test_s04_the_lag_is_chosen_on_forward_validation_not_on_fit_quality"
+      ]
+    },
+    {
+      "id": "S05",
+      "note": "Checked on every published row at build time as well.",
+      "requirement": "The published derivative matches a finite difference of the fitted function.",
+      "status": "COVERED",
+      "tests": [
+        "test_s05_the_published_derivative_matches_a_finite_difference",
+        "test_a_derivative_that_forgot_the_logistic_term_is_caught"
+      ]
+    },
+    {
+      "id": "S06",
+      "note": "",
+      "requirement": "'Reduce unemployment by 10%' from 6.0% is 5.4%, a -0.6 point move.",
+      "status": "COVERED",
+      "tests": [
+        "test_s06_reduce_unemployment_by_ten_percent_is_six_to_five_point_four",
+        "test_s06_and_s07_compose_from_the_readers_own_words"
+      ]
+    },
+    {
+      "id": "S07",
+      "note": "",
+      "requirement": "At +0.20 PD points per unemployment point, 3.00% becomes 2.88%.",
+      "status": "COVERED",
+      "tests": [
+        "test_s07_a_two_tenths_slope_takes_three_percent_to_two_point_eight_eight"
+      ]
+    },
+    {
+      "id": "S08",
+      "note": "",
+      "requirement": "Several factors aggregate as the declared linear sum, labelled as marginal.",
+      "status": "COVERED",
+      "tests": [
+        "test_s08_several_factors_aggregate_as_the_declared_linear_sum"
+      ]
+    },
+    {
+      "id": "S09",
+      "note": "",
+      "requirement": "The nonlinear translation at zero shock returns the observed baseline.",
+      "status": "COVERED",
+      "tests": [
+        "test_s09_the_nonlinear_translation_at_zero_shock_is_the_baseline"
+      ]
+    },
+    {
+      "id": "S10",
+      "note": "",
+      "requirement": "A factor that is not supportably estimable is refused for automatic translation; an explicit assumption is accepted.",
+      "status": "COVERED",
+      "tests": [
+        "test_s10_an_unsupported_factor_is_refused_for_automatic_translation",
+        "test_s10_the_readers_own_assumption_is_a_different_route_entirely",
+        "test_a_diagnostic_row_is_refused_for_automatic_translation"
+      ]
+    },
+    {
+      "id": "S11",
+      "note": "",
+      "requirement": "An absent factor is UNAVAILABLE, never a sensitivity of zero.",
+      "status": "COVERED",
+      "tests": [
+        "test_s11_an_absent_factor_has_a_reason_and_no_series",
+        "test_absent_factors_are_unavailable_and_never_a_zero_slope"
+      ]
+    },
+    {
+      "id": "S12",
+      "note": "",
+      "requirement": "A notch move steps the published scale.",
+      "status": "COVERED",
+      "tests": [
+        "test_s12_one_notch_steps_the_published_order",
+        "test_s12_a_notch_is_never_a_string_increment",
+        "test_s12_a_notch_is_never_a_lexical_sort",
+        "test_s12_a_notch_is_never_a_pd_multiplier",
+        "test_s12_a_move_past_the_end_says_how_far_it_actually_went",
+        "test_s12_an_unrated_grade_is_refused_with_the_scale_named",
+        "test_s12_the_default_grade_has_no_notch_to_move"
+      ]
+    },
+    {
+      "id": "S13",
+      "note": "",
+      "requirement": "Behavioural and application scorecards are kept separate.",
+      "status": "COVERED",
+      "tests": [
+        "test_s13_the_two_cards_are_separate_objects_with_separate_ranges",
+        "test_s13_one_score_means_two_different_things_on_the_two_cards",
+        "test_s13_a_missing_card_is_refused_not_substituted",
+        "test_s13_fifty_points_is_fifty_points_not_fifty_per_cent",
+        "test_s13_the_direction_is_read_from_the_card_not_assumed"
+      ]
+    },
+    {
+      "id": "S14",
+      "note": "The shortcut overstates the published Corporate book by 74.8%.",
+      "requirement": "Stages are frozen by default; an explicit move needs the declared horizon contract; no lifetime by multiplication.",
+      "status": "COVERED",
+      "tests": [
+        "test_s14_stages_are_frozen_by_default_and_a_move_is_refused",
+        "test_s14_an_explicit_move_with_the_contract_uses_the_published_figures",
+        "test_s14_a_move_without_the_contract_reports_unsupported_not_zero",
+        "test_s14_a_lifetime_figure_is_never_the_annual_one_times_the_years",
+        "test_the_banned_shortcut_overstates_the_real_book_by_three_quarters"
+      ]
+    },
+    {
+      "id": "S15",
+      "note": "",
+      "requirement": "Sector discovery returns real categories with counts and totals; Unknown is retained; a product is not a sector.",
+      "status": "COVERED",
+      "tests": [
+        "test_s15_discovery_returns_actual_categories_with_counts_and_totals",
+        "test_s15_a_blank_category_becomes_unknown_rather_than_vanishing",
+        "test_s15_the_parts_add_up_to_the_book_only_with_unknown_in",
+        "test_s15_synonyms_resolve_to_the_books_own_identifier",
+        "test_s15_a_word_the_book_does_not_have_is_refused_not_approximated",
+        "test_s15_a_retail_product_is_not_an_employer_sector",
+        "test_the_retail_book_keeps_product_and_employer_sector_apart"
+      ]
+    },
+    {
+      "id": "S16",
+      "note": "Compared on a digest of the fit's own inputs; see P5_FINDINGS.md \u00a78.",
+      "requirement": "An artifact fitted against different bytes is STALE and refused.",
+      "status": "COVERED",
+      "tests": [
+        "test_s16_an_artifact_fitted_against_other_bytes_is_refused",
+        "test_s16_the_matching_fingerprint_is_not_refused",
+        "test_the_stored_digest_matches_the_release_it_was_fitted_against"
+      ]
+    },
+    {
+      "id": "M01",
+      "note": "",
+      "requirement": "The target is the declared ECL rate on the declared denominator, not exposure share.",
+      "status": "COVERED",
+      "tests": [
+        "test_m01_the_target_is_the_declared_rate_on_the_declared_denominator",
+        "test_m01_a_different_target_is_refused_by_name"
+      ]
+    },
+    {
+      "id": "M02",
+      "note": "",
+      "requirement": "No target-derived column reaches the feature matrix, and the check raises rather than filtering.",
+      "status": "COVERED",
+      "tests": [
+        "test_m02_no_declared_feature_is_derived_from_the_target",
+        "test_m02_the_leakage_check_raises_rather_than_filtering",
+        "test_m02_a_new_ecl_column_is_caught_by_the_rule_not_by_a_list"
+      ]
+    },
+    {
+      "id": "M03",
+      "note": "",
+      "requirement": "The split is chronological by distinct period and leaks nothing.",
+      "status": "COVERED",
+      "tests": [
+        "test_m03_the_split_is_chronological_and_leaks_nothing",
+        "test_m03_every_period_lands_in_exactly_one_place",
+        "test_m03_the_leakage_check_can_actually_fail"
+      ]
+    },
+    {
+      "id": "M04",
+      "note": "",
+      "requirement": "The embargo is derived from label availability, reported, and no fold touches a test period.",
+      "status": "COVERED",
+      "tests": [
+        "test_m04_the_embargo_is_derived_and_its_reasoning_travels_with_it",
+        "test_m04_the_embargoed_periods_are_reported_not_absorbed",
+        "test_m04_no_fold_touches_a_test_or_an_embargoed_period"
+      ]
+    },
+    {
+      "id": "M05",
+      "note": "",
+      "requirement": "The split assignment is persisted per row.",
+      "status": "COVERED",
+      "tests": [
+        "test_m05_the_split_assignment_is_persisted_per_row"
+      ]
+    },
+    {
+      "id": "M06",
+      "note": "",
+      "requirement": "Blend weights are genuinely fitted, non-negative, summing to one, on out-of-fold predictions.",
+      "status": "COVERED",
+      "tests": [
+        "test_m06_weights_are_non_negative_and_sum_to_exactly_one",
+        "test_m06_the_weights_are_fitted_not_hardcoded",
+        "test_m06_the_solution_is_the_optimum_not_a_nearby_point"
+      ]
+    },
+    {
+      "id": "M07",
+      "note": "Both books landed on a single model and both cards say so.",
+      "requirement": "A 1/0/0 outcome is reported as a single-model result.",
+      "status": "COVERED",
+      "tests": [
+        "test_m07_a_one_zero_zero_outcome_is_called_a_single_model_result",
+        "test_m07_a_real_blend_says_it_is_one_and_names_the_immaterial"
+      ]
+    },
+    {
+      "id": "M08",
+      "note": "XGBoost, LightGBM and a regularized additive/spline model; all three trained, all three scored, results in MODEL_CARD_*.md.",
+      "requirement": "Three components per book, one deliberately not a tree ensemble.",
+      "status": "COVERED",
+      "tests": []
+    },
+    {
+      "id": "M09",
+      "note": "12 configs per family, 3 folds, 600 rounds, patience 50, fixed seeds; every trial and its score is in the model card.",
+      "requirement": "The search budget is declared in advance and recorded per trial.",
+      "status": "COVERED",
+      "tests": []
+    },
+    {
+      "id": "M10",
+      "note": "",
+      "requirement": "Scenario inference uses section 11.4 anchoring.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_anchoring_uses_the_models_difference_not_its_level",
+        "test_all_six_numbers_the_specification_asks_for_are_shown"
+      ]
+    },
+    {
+      "id": "M11",
+      "note": "",
+      "requirement": "A zero shock yields exactly zero ML change.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_zero_shock_moves_the_answer_by_exactly_zero"
+      ]
+    },
+    {
+      "id": "M12",
+      "note": "",
+      "requirement": "The ML estimate is never multiplied by the Delta factor and no macro effect is applied twice.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_ml_estimate_is_never_multiplied_by_the_delta_factor",
+        "test_a_macro_move_records_which_route_it_took"
+      ]
+    },
+    {
+      "id": "M13",
+      "note": "",
+      "requirement": "Acceptance targets are predeclared and committed before the test split is read.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_gates_in_code_are_the_gates_in_the_committed_document",
+        "test_the_document_was_written_before_any_model_was_fitted"
+      ]
+    },
+    {
+      "id": "M14",
+      "note": "Exercised for real: Retail G4 FAILED at 38.02% against 15% and is published as FAILED.",
+      "requirement": "A failed gate is reported failed.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_failed_gate_is_reported_failed",
+        "test_the_bias_gate_uses_the_absolute_value",
+        "test_a_model_that_missed_a_gate_carries_the_gate_with_its_number"
+      ]
+    },
+    {
+      "id": "M15",
+      "note": "Corporate 1.97 / 1.47 / 2.53%; Retail 2.33 / 0.87 / 1.33%. All within G1-G3.",
+      "requirement": "Out-of-time WAPE, aggregate bias and per-period bias meet their thresholds.",
+      "status": "COVERED",
+      "tests": []
+    },
+    {
+      "id": "M16",
+      "note": "Corporate PASSED at 5.06%. **Retail FAILED at 38.02%** on score_band A, 652 test rows carrying a near-zero ECL. The threshold is not moved and the group is not excluded; see P7_FINDINGS.md \u00a72.",
+      "requirement": "Material-group WAPE meets its threshold.",
+      "status": "PARTIAL",
+      "tests": []
+    },
+    {
+      "id": "M17",
+      "note": "MODEL_CARD_CORPORATE.md and MODEL_CARD_RETAIL.md.",
+      "requirement": "The model card carries provenance, splits, settings, weights, metrics, subgroups, libraries and artifact hashes.",
+      "status": "COVERED",
+      "tests": []
+    },
+    {
+      "id": "M18",
+      "note": "Stated in both model cards, in ML_ACCEPTANCE_TARGETS.md \u00a77 and in P7_FINDINGS.md. There is no bank engine here to compare against.",
+      "requirement": "Bank-engine validation is marked explicitly unavailable.",
+      "status": "COVERED",
+      "tests": []
+    },
+    {
+      "id": "R01",
+      "note": "",
+      "requirement": "The hierarchy carries cohort and book, counts, EAD, the modelled/overlay split and the coverage-rate change in percentage points.",
+      "status": "COVERED",
+      "tests": [
+        "test_r01_the_hierarchy_carries_the_cohort_and_the_book",
+        "test_r01_the_modelled_and_overlay_split_is_kept",
+        "test_r01_a_coverage_rate_change_is_in_percentage_points"
+      ]
+    },
+    {
+      "id": "R02",
+      "note": "",
+      "requirement": "A zero baseline has no percentage: 'not defined', never infinity.",
+      "status": "COVERED",
+      "tests": [
+        "test_r02_a_zero_baseline_has_no_percentage_rather_than_infinity",
+        "test_a_zero_baseline_has_no_percentage_rather_than_infinity"
+      ]
+    },
+    {
+      "id": "R03",
+      "note": "",
+      "requirement": "Affected plus unaffected is the book, checked.",
+      "status": "COVERED",
+      "tests": [
+        "test_r03_affected_plus_unaffected_is_the_book",
+        "test_r03_a_book_that_does_not_reconcile_is_refused",
+        "test_r03_nothing_moves_outside_a_frozen_cohort"
+      ]
+    },
+    {
+      "id": "R04",
+      "note": "",
+      "requirement": "The two attribution views are labelled separately and never added.",
+      "status": "COVERED",
+      "tests": [
+        "test_r04_the_two_views_are_labelled_separately",
+        "test_r04_adding_the_two_views_together_is_refused_by_name"
+      ]
+    },
+    {
+      "id": "R05",
+      "note": "",
+      "requirement": "The attribution method is chosen by group count and stated; sequential publishes its order; sampling publishes its budget and error.",
+      "status": "COVERED",
+      "tests": [
+        "test_r05_the_method_is_chosen_by_group_count_and_stated",
+        "test_r05_a_sequential_bridge_publishes_its_order",
+        "test_r05_sequential_and_shapley_disagree_and_neither_is_relabelled",
+        "test_r05_an_exact_shapley_past_the_limit_is_refused_not_attempted",
+        "test_r05_the_sampled_method_reports_its_budget_and_its_error",
+        "test_r05_sampling_is_deterministic",
+        "test_r05_a_contribution_that_did_not_converge_says_so"
+      ]
+    },
+    {
+      "id": "R06",
+      "note": "",
+      "requirement": "The residual is its own row and is never spread across drivers.",
+      "status": "COVERED",
+      "tests": [
+        "test_r06_the_residual_is_its_own_row_and_is_not_spread",
+        "test_no_residual_row_appears_when_the_bars_explain_everything"
+      ]
+    },
+    {
+      "id": "R07",
+      "note": "",
+      "requirement": "Charts use kinds this engine has; the absent tornado is documented, not claimed.",
+      "status": "COVERED",
+      "tests": [
+        "test_r07_the_bridge_is_a_waterfall_with_both_totals",
+        "test_r07_the_method_comparison_keeps_an_unavailable_method_visible",
+        "test_r07_the_sensitivity_grid_is_a_heatmap_carrying_readiness",
+        "test_r07_there_is_no_tornado_and_it_is_not_faked",
+        "test_r07_the_signed_table_keeps_both_the_order_and_the_direction"
+      ]
+    },
+    {
+      "id": "R08",
+      "note": "",
+      "requirement": "A bar chart's bars sum to the headline, 'Other' included.",
+      "status": "COVERED",
+      "tests": [
+        "test_r08_the_contributor_bars_sum_to_the_cohorts_change",
+        "test_r08_a_chart_that_drops_rows_is_caught"
+      ]
+    },
+    {
+      "id": "R09",
+      "note": "",
+      "requirement": "Every published number resolves to a ledger fact and reconciles.",
+      "status": "COVERED",
+      "tests": [
+        "test_the_delta_ledger_reconciles_to_the_outcome"
+      ]
+    },
+    {
+      "id": "R10",
+      "note": "",
+      "requirement": "Method disagreement is explained, never averaged.",
+      "status": "COVERED",
+      "tests": [
+        "test_d07_the_disagreement_is_explained_rather_than_averaged"
+      ]
+    },
+    {
+      "id": "R11",
+      "note": "The scenario body carries every version and the release change is visible. Reopening through the existing saved_analyses route is NOT exercised end to end; the browser journeys that would do it are BLOCKED below.",
+      "requirement": "Save and reopen keep the source, model, scenario and run versions.",
+      "status": "PARTIAL",
+      "tests": [
+        "test_a_confirmed_scenario_survives_the_round_trip",
+        "test_the_release_change_is_visible_in_both_directions"
+      ]
+    },
+    {
+      "id": "R12",
+      "note": "Not built. The ledger, the run and the summary all reconcile individually; a two-run comparison is not implemented and is not claimed.",
+      "requirement": "Compare is a library function over two frozen ledgers.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "R13",
+      "note": "Not exercised. The existing CSV/Markdown/SVG/ZIP routes are unchanged and untested against a scenario result in this pass.",
+      "requirement": "Exports reconcile to the chat numbers and block formula injection.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "R14",
+      "note": "There is no XLSX route in cockpit-v4 and one was not added; the incompatibility is recorded in PROTECTED_CORE_INCOMPATIBILITY.md. The offline workbook script is not built.",
+      "requirement": "The section 14.3 workbook is produced offline and reconciled.",
+      "status": "NOT BUILT",
+      "tests": []
+    },
+    {
+      "id": "O01",
+      "note": "",
+      "requirement": "A relative move is not a percentage-point move.",
+      "status": "COVERED",
+      "tests": [
+        "test_o01_a_full_book_proportional_pd_stress",
+        "test_o06_twenty_basis_points_is_not_twenty_percent_is_not_set_to_twenty"
+      ]
+    },
+    {
+      "id": "O02",
+      "note": "",
+      "requirement": "A basis-point move is a hundredth of a point.",
+      "status": "COVERED",
+      "tests": [
+        "test_o02_a_cohort_of_one_leaves_the_rest_of_the_book_alone"
+      ]
+    },
+    {
+      "id": "O03",
+      "note": "",
+      "requirement": "Proportional Delta is exact on a book whose ECL is the closed form.",
+      "status": "COVERED",
+      "tests": [
+        "test_o03_two_parameters_compose_multiplicatively_not_additively",
+        "test_the_fixture_reconciles_to_its_own_published_ecl"
+      ]
+    },
+    {
+      "id": "O04",
+      "note": "",
+      "requirement": "Sequential and Shapley attribution differ and neither is relabelled.",
+      "status": "COVERED",
+      "tests": [
+        "test_r05_sequential_and_shapley_disagree_and_neither_is_relabelled"
+      ]
+    },
+    {
+      "id": "O05",
+      "note": "",
+      "requirement": "A capped value reports the unclipped figure, the clipped one and the affected count.",
+      "status": "COVERED",
+      "tests": [
+        "test_o05_a_ccf_move_has_two_answers_and_they_differ",
+        "test_o05_multiplying_by_both_the_ccf_and_the_ead_effect_is_caught"
+      ]
+    },
+    {
+      "id": "O06",
+      "note": "",
+      "requirement": "Largest-remainder allocation sums to the target exactly.",
+      "status": "COVERED",
+      "tests": [
+        "test_o06_the_wrong_readings_the_specification_names_are_not_produced"
+      ]
+    },
+    {
+      "id": "O07",
+      "note": "",
+      "requirement": "An elasticity needs a driver move to act on.",
+      "status": "COVERED",
+      "tests": [
+        "test_o07_the_unemployment_mapping_arithmetic",
+        "test_o07_no_macro_factor_exists_to_attach_a_slope_to"
+      ]
+    },
+    {
+      "id": "O08",
+      "note": "",
+      "requirement": "A zero baseline has no ratio and none is invented.",
+      "status": "COVERED",
+      "tests": [
+        "test_o08_a_held_overlay_is_added_back_not_scaled",
+        "test_o08_neither_published_book_splits_modelled_from_overlay"
+      ]
+    },
+    {
+      "id": "O09",
+      "note": "",
+      "requirement": "A target rate uses the declared denominator.",
+      "status": "COVERED",
+      "tests": [
+        "test_o09_ml_anchoring_is_additive_against_the_observed_baseline",
+        "test_o09_a_zero_shock_anchors_back_to_the_observed_figure",
+        "test_o09_method_two_reports_not_ready_rather_than_a_number"
+      ]
+    },
+    {
+      "id": "O10",
+      "note": "",
+      "requirement": "A float quantity is refused rather than converted.",
+      "status": "COVERED",
+      "tests": [
+        "test_o10_an_extra_thousand_splits_444_44_and_555_56",
+        "test_o10_the_allocation_reconciles_for_every_target_in_a_range"
+      ]
+    },
+    {
+      "id": "O11",
+      "note": "",
+      "requirement": "Zero to zero is a neutral factor of one.",
+      "status": "COVERED",
+      "tests": [
+        "test_o11_zero_to_positive_is_unsupported_not_divided",
+        "test_o11_an_epsilon_denominator_would_have_produced_a_number",
+        "test_o11_a_row_that_cannot_be_scaled_stays_in_the_total"
+      ]
+    },
+    {
+      "id": "O12",
+      "note": "",
+      "requirement": "The generator's totals do not depend on the interpreter.",
+      "status": "COVERED",
+      "tests": [
+        "test_a_float_is_refused_rather_than_converted",
+        "test_a_payload_carries_numbers_as_strings"
+      ]
+    },
+    {
+      "id": "J01",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Ask a scenario question and receive a preview before anything runs.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J02",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Confirm the preview and receive a result.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J03",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Ask a methodology question and receive the stored sensitivity without a refit.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J04",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Run Delta and the emulator on one confirmed scenario.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J05",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Supply an assumption and see it labelled as one.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J06",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Reopen a saved scenario in a later turn.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J07",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Change the book and see the confirmation invalidated.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J08",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Ask for a chart the engine cannot draw and be told so.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J09",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Export a result and reconcile it against the chat.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J10",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Hit a missing model and see MODEL_NOT_READY.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J11",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Hit an unseen category and get a refusal with the real values.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J12",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Hit an invalid probability and see the cap reported.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J13",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Cancel a run mid-flight.",
+      "status": "BLOCKED",
+      "tests": []
+    },
+    {
+      "id": "J14",
+      "note": "NOT RUN, and not for want of tooling. `npm --prefix frontend install` succeeded (340 packages) and the ACCEPTED browser suite runs green against real Chromium in this container, so the harness works. What is missing is the path itself: a governed Python step runs under `-I -S` from a temp directory with no PYTHONPATH, so it can import the standard library and nothing else -- `import pandas` and `from backend.cockpit_v4.scenario import run` both fail with ModuleNotFoundError, measured. The scenario engine therefore cannot be reached from a chat turn without a protected-core change that this brief does not authorise. The exact change and the approval needed are in PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this family has been executed against the What-If candidate and none is reported as passed.",
+      "requirement": "Press Run twice and see one run.",
+      "status": "BLOCKED",
+      "tests": []
+    }
+  ],
+  "counts": {
+    "BLOCKED": 17,
+    "COVERED": 115,
+    "NOT BUILT": 1,
+    "PARTIAL": 3
+  },
+  "note": "One entry per acceptance ID. Generated by scripts/whatif/build_matrix.py, which refuses to name a test that is not in the suite.",
+  "total": 136
+}

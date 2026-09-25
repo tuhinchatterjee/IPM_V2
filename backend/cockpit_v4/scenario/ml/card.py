@@ -278,15 +278,30 @@ def markdown(result: Any) -> str:
         f"the gate rather than from the report — a reader should see where "
         f"the model is untested.",
         "",
-        "| Dimension | Value | Test rows | WAPE | Bias | Gated |",
-        "|---|---|---|---|---|---|",
+        "`Share of test ECL` is DIAGNOSTIC and gates nothing. WAPE divides "
+        "by the group's own total, so a group carrying almost no ECL can "
+        "post a large relative error on a trivial absolute one. That is "
+        "worth seeing and it is not a reason to move a threshold: the gate "
+        "is written in relative terms, applied in relative terms, and a "
+        "failure above is reported as a failure.",
+        "",
+        "| Dimension | Value | Test rows | ECL (SAR mn) | Share of test ECL "
+        "| WAPE | Bias | Gated |",
+        "|---|---|---|---|---|---|---|---|",
     ]
+    worst = max((g["wape"] for g in result.subgroups if g["material"]),
+                default=0.0)
     for group in sorted(result.subgroups,
                         key=lambda g: (g["group_dimension"],
                                        -g["observations"])):
+        flag = (" **<- G4**"
+                if group["material"] and group["wape"] >= worst > 0 else "")
         lines.append(
             f"| {group['group_dimension']} | {group['group_value']} | "
-            f"{group['observations']:,} | {group['wape']:.4f} | "
+            f"{group['observations']:,} | "
+            f"{group.get('ecl_sar_mn', 0.0):,.2f} | "
+            f"{group.get('share_of_test_ecl', 0.0) * 100:.2f}% | "
+            f"{group['wape']:.4f}{flag} | "
             f"{group['bias']:+.4f} | "
             f"{'yes' if group['material'] else 'no'} |")
 

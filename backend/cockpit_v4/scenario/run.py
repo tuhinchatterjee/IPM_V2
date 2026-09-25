@@ -95,6 +95,12 @@ class Outcome:
     covered: tuple[str, ...]
     reason: str = ""
     facts: dict[str, Any] = field(default_factory=dict)
+    #: Things true of this number that a reader has to be told. A method
+    #: that ran and whose model missed a predeclared acceptance gate is the
+    #: case this exists for: the figure is real and it is not as reliable as
+    #: the other methods', and saying nothing would leave three numbers
+    #: looking equally solid.
+    limitations: tuple[str, ...] = ()
 
     @property
     def change(self) -> Decimal | None:
@@ -113,9 +119,12 @@ class Outcome:
         share = (change / self.baseline * 100) if self.baseline else None
         movement = (f"{share:+.2f}%" if share is not None
                     else "not defined from a zero baseline")
-        return (f"{LABELS[self.method]}: {self.baseline:,.4f} to "
+        line = (f"{LABELS[self.method]}: {self.baseline:,.4f} to "
                 f"{self.scenario:,.4f}, a change of {change:+,.4f} "
                 f"({movement}) over {len(self.covered):,} rows.")
+        for limitation in self.limitations:
+            line += f" {limitation}"
+        return line
 
 
 @dataclass(frozen=True)
@@ -203,6 +212,7 @@ class Run:
                        if self.outcomes[method].change is not None else None),
             "rows_covered": len(self.outcomes[method].covered),
             "reason": self.outcomes[method].reason,
+            "limitations": list(self.outcomes[method].limitations),
         } for method in ORDER if method in self.outcomes]
 
         out: dict[str, Any] = {
@@ -359,12 +369,17 @@ def run_user_defined(spec: sp.ScenarioSpec,
 
 def run_ml(spec: sp.ScenarioSpec, *, anchored: Any = None,
            baseline: Decimal, covered: Sequence[str] = (),
-           unavailable_reason: str = "") -> Outcome:
+           unavailable_reason: str = "", loaded: Any = None) -> Outcome:
     """Method 2, from an already-anchored estimate or from a refusal.
 
     The anchoring itself is `ml/infer.py`'s -- this only turns its result
     into an outcome, so that the one place §11.4's arithmetic lives is the
     one place it can be got wrong.
+
+    A model that RAN but missed a predeclared acceptance gate produces a
+    number AND a limitation naming the gate. Section 11.5: a failed gate is
+    reported failed, and a reader shown three figures with nothing to
+    distinguish them would reasonably take all three as equally reliable.
     """
     if anchored is None:
         return Outcome(
@@ -374,17 +389,26 @@ def run_ml(spec: sp.ScenarioSpec, *, anchored: Any = None,
                 "No emulator is available for this book. Method 2 is "
                 "unavailable; it is not a change of zero, and the other "
                 "methods' figures are not substituted for it."))
+
+    limitations: list[str] = []
+    if loaded is not None and not loaded.passed_every_gate:
+        failures = "; ".join(loaded.failures())
+        limitations.append(
+            f"This emulator MISSED a predeclared acceptance gate "
+            f"({failures}). The figure is what the model predicts; the gate "
+            f"it failed is published in its model card and was not relaxed "
+            f"to accommodate it.")
     return Outcome(
         method=sp.ML, status=AVAILABLE, baseline=baseline,
         scenario=Decimal(str(anchored.anchored_total)),
         covered=tuple(sorted(covered)), reason="",
-        facts=anchored.as_facts())
+        facts=anchored.as_facts(), limitations=tuple(limitations))
 
 
 def execute(spec: sp.ScenarioSpec, rows: Sequence[Mapping[str, Any]], *,
             key: str, ecl_column: str, plan: dl.Plan,
             anchored: Any = None, ml_unavailable: str = "",
-            book_baseline: Decimal = Decimal(0),
+            loaded: Any = None, book_baseline: Decimal = Decimal(0),
             labels: Mapping[str, str] | None = None) -> Run:
     """Run every method the scenario asked for, over one frozen cohort.
 
@@ -420,7 +444,7 @@ def execute(spec: sp.ScenarioSpec, rows: Sequence[Mapping[str, Any]], *,
         outcomes[sp.ML] = run_ml(
             spec, anchored=anchored, baseline=baseline_total,
             covered=cohort_keys if anchored is not None else (),
-            unavailable_reason=ml_unavailable)
+            unavailable_reason=ml_unavailable, loaded=loaded)
 
     if sp.USER_DEFINED in spec.methods:
         outcomes[sp.USER_DEFINED] = run_user_defined(

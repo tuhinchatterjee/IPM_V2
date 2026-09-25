@@ -399,3 +399,70 @@ def test_the_cohort_reference_is_carried_not_recomputed() -> None:
                      ecl_column="ecl_sar_mn", plan=plan_for(spec))
     assert got.membership_hash == "b" * 64
     assert got.ledgers[sp.DELTA].membership_hash == "b" * 64
+
+
+# ==========================================================================
+# A model that ran and missed a gate is not shown as if it had passed
+# ==========================================================================
+
+class _Loaded:
+    """A stand-in for `infer.Loaded`, carrying gate outcomes."""
+
+    def __init__(self, gates: dict) -> None:
+        self.gates = gates
+
+    @property
+    def passed_every_gate(self) -> bool:
+        return all(g["passed"] for g in self.gates.values())
+
+    def failures(self) -> list[str]:
+        return [f"{name}: {g['what']} measured {g['measured']:.4f} against "
+                f"{g['threshold']:.4f}"
+                for name, g in sorted(self.gates.items())
+                if not g["passed"]]
+
+
+def test_a_model_that_missed_a_gate_carries_the_gate_with_its_number():
+    """Section 11.5. Three figures with nothing to distinguish them read as
+    three equally reliable figures."""
+    spec = spec_for(methods=(sp.DELTA, sp.ML))
+    book = rows()
+    baseline = sum(r["ecl_sar_mn"] for r in book)
+    missed = _Loaded({
+        "G1": {"what": "out-of-time currency WAPE", "threshold": 0.10,
+               "measured": 0.02, "passed": True},
+        "G4": {"what": "worst material-group WAPE", "threshold": 0.15,
+               "measured": 0.3802, "passed": False}})
+    got = rn.execute(spec, book, key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec),
+                     anchored=_Anchored(float(baseline) * 1.05),
+                     loaded=missed)
+    outcome = got.outcomes[sp.ML]
+    # It ran, so it has a number.
+    assert outcome.status == rn.AVAILABLE
+    assert outcome.scenario is not None
+    # And the number arrives with the gate it missed.
+    assert outcome.limitations
+    assert "MISSED a predeclared acceptance gate" in outcome.limitations[0]
+    assert "worst material-group WAPE" in outcome.limitations[0]
+    assert "0.3802" in outcome.limitations[0]
+    assert "was not relaxed to accommodate it" in outcome.limitations[0]
+    assert "MISSED a predeclared acceptance gate" in outcome.describe()
+    row = [r for r in got.compare()["own_population"]
+           if r["method"] == sp.ML][0]
+    assert row["limitations"]
+
+
+def test_a_model_that_passed_every_gate_carries_no_limitation() -> None:
+    spec = spec_for(methods=(sp.DELTA, sp.ML))
+    book = rows()
+    baseline = sum(r["ecl_sar_mn"] for r in book)
+    clean = _Loaded({
+        "G1": {"what": "out-of-time currency WAPE", "threshold": 0.10,
+               "measured": 0.02, "passed": True}})
+    got = rn.execute(spec, book, key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec),
+                     anchored=_Anchored(float(baseline) * 1.05),
+                     loaded=clean)
+    assert got.outcomes[sp.ML].limitations == ()
+    assert "MISSED" not in got.outcomes[sp.ML].describe()

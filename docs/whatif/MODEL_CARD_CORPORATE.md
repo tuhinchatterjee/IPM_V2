@@ -24,9 +24,9 @@ Thresholds come from `docs/whatif/ML_ACCEPTANCE_TARGETS.md`, which was committed
 | Blend | 0.0197 | -0.0147 |
 | `naive_ead_pd_lgd` (ead × pd × lgd) | 0.0912 | -0.0863 |
 
-The blend beats the naive product on the test split.
+The single model beats the naive product on the test split.
 
-## The blend
+## The weight fit, and what it produced
 
 SINGLE-MODEL RESULT. The weight fit put 1.000 on xgboost and left lightgbm, additive_spline below the 0.05 materiality floor. This is a xgboost model, not a blend, and is reported as one. Weights: xgboost 1.000, lightgbm 0.000, additive_spline 0.000.
 
@@ -38,7 +38,7 @@ SINGLE-MODEL RESULT. The weight fit put 1.000 on xgboost and left lightgbm, addi
 
 Weights are the exact non-negative, sum-to-one solution over the simplex, fitted on 26,964 **out-of-fold** predictions — predictions each component made for periods it had not trained on. Solved by enumerating the faces of the simplex rather than by an iterative optimiser, so the weights do not depend on a library version.
 
-Blending improved on every single component.
+The fit put every unit of weight on one component, so nothing was blended. The comparison below is that component against the two the optimiser set aside, on the same out-of-fold rows.
 
 ## The split
 
@@ -175,40 +175,42 @@ Train: `2021Q3`–`2024Q1` · Validate: `2024Q3`–`2025Q1` · Test: `2025Q3`–
 
 A group is gated at 100 test observations. Smaller groups stay in this table with their counts and are excluded from the gate rather than from the report — a reader should see where the model is untested.
 
-| Dimension | Value | Test rows | WAPE | Bias | Gated |
-|---|---|---|---|---|---|
-| facility_class | Funded | 8,084 | 0.0194 | -0.0143 | yes |
-| facility_class | Contingent | 3,900 | 0.0201 | -0.0155 | yes |
-| rating_current | B+ | 1,875 | 0.0172 | -0.0136 | yes |
-| rating_current | BB+ | 1,822 | 0.0219 | -0.0189 | yes |
-| rating_current | BBB | 1,791 | 0.0243 | -0.0086 | yes |
-| rating_current | BBB- | 1,763 | 0.0210 | -0.0169 | yes |
-| rating_current | BB- | 1,740 | 0.0211 | -0.0180 | yes |
-| rating_current | BB | 1,645 | 0.0214 | -0.0183 | yes |
-| rating_current | BBB+ | 677 | 0.0506 | +0.0156 | yes |
-| rating_current | B | 671 | 0.0169 | -0.0116 | yes |
-| region | Riyadh | 1,744 | 0.0191 | -0.0148 | yes |
-| region | Hail | 1,568 | 0.0207 | -0.0154 | yes |
-| region | Asir | 1,556 | 0.0202 | -0.0162 | yes |
-| region | Tabuk | 1,532 | 0.0178 | -0.0119 | yes |
-| region | Makkah | 1,524 | 0.0198 | -0.0155 | yes |
-| region | Qassim | 1,456 | 0.0181 | -0.0123 | yes |
-| region | Madinah | 1,344 | 0.0199 | -0.0147 | yes |
-| region | Eastern Province | 1,260 | 0.0220 | -0.0174 | yes |
-| sector | Real Estate | 1,024 | 0.0322 | -0.0286 | yes |
-| sector | Manufacturing | 1,016 | 0.0220 | -0.0196 | yes |
-| sector | Transport | 1,012 | 0.0211 | -0.0177 | yes |
-| sector | Retail Trade | 1,008 | 0.0163 | -0.0132 | yes |
-| sector | Wholesale Trade | 1,008 | 0.0174 | -0.0142 | yes |
-| sector | Hospitality | 1,004 | 0.0282 | -0.0247 | yes |
-| sector | Utilities | 996 | 0.0100 | +0.0007 | yes |
-| sector | Construction | 992 | 0.0363 | -0.0343 | yes |
-| sector | Education | 988 | 0.0101 | -0.0026 | yes |
-| sector | Healthcare | 984 | 0.0127 | -0.0054 | yes |
-| sector | Professional Services | 980 | 0.0122 | -0.0062 | yes |
-| sector | Petrochemicals | 972 | 0.0246 | -0.0210 | yes |
-| stage | 1 | 11,947 | 0.0196 | -0.0149 | yes |
-| stage | 2 | 37 | 0.0219 | -0.0092 | no |
+`Share of test ECL` is DIAGNOSTIC and gates nothing. WAPE divides by the group's own total, so a group carrying almost no ECL can post a large relative error on a trivial absolute one. That is worth seeing and it is not a reason to move a threshold: the gate is written in relative terms, applied in relative terms, and a failure above is reported as a failure.
+
+| Dimension | Value | Test rows | ECL (SAR mn) | Share of test ECL | WAPE | Bias | Gated |
+|---|---|---|---|---|---|---|---|
+| facility_class | Funded | 8,084 | 4,555.28 | 64.23% | 0.0194 | -0.0143 | yes |
+| facility_class | Contingent | 3,900 | 2,536.47 | 35.77% | 0.0201 | -0.0155 | yes |
+| rating_current | B+ | 1,875 | 2,217.54 | 31.27% | 0.0172 | -0.0136 | yes |
+| rating_current | BB+ | 1,822 | 582.73 | 8.22% | 0.0219 | -0.0189 | yes |
+| rating_current | BBB | 1,791 | 259.59 | 3.66% | 0.0243 | -0.0086 | yes |
+| rating_current | BBB- | 1,763 | 388.46 | 5.48% | 0.0210 | -0.0169 | yes |
+| rating_current | BB- | 1,740 | 1,398.56 | 19.72% | 0.0211 | -0.0180 | yes |
+| rating_current | BB | 1,645 | 842.42 | 11.88% | 0.0214 | -0.0183 | yes |
+| rating_current | BBB+ | 677 | 80.33 | 1.13% | 0.0506 **<- G4** | +0.0156 | yes |
+| rating_current | B | 671 | 1,322.12 | 18.64% | 0.0169 | -0.0116 | yes |
+| region | Riyadh | 1,744 | 1,078.67 | 15.21% | 0.0191 | -0.0148 | yes |
+| region | Hail | 1,568 | 946.94 | 13.35% | 0.0207 | -0.0154 | yes |
+| region | Asir | 1,556 | 915.46 | 12.91% | 0.0202 | -0.0162 | yes |
+| region | Tabuk | 1,532 | 916.96 | 12.93% | 0.0178 | -0.0119 | yes |
+| region | Makkah | 1,524 | 976.16 | 13.76% | 0.0198 | -0.0155 | yes |
+| region | Qassim | 1,456 | 801.40 | 11.30% | 0.0181 | -0.0123 | yes |
+| region | Madinah | 1,344 | 765.98 | 10.80% | 0.0199 | -0.0147 | yes |
+| region | Eastern Province | 1,260 | 690.18 | 9.73% | 0.0220 | -0.0174 | yes |
+| sector | Real Estate | 1,024 | 549.63 | 7.75% | 0.0322 | -0.0286 | yes |
+| sector | Manufacturing | 1,016 | 548.84 | 7.74% | 0.0220 | -0.0196 | yes |
+| sector | Transport | 1,012 | 553.11 | 7.80% | 0.0211 | -0.0177 | yes |
+| sector | Retail Trade | 1,008 | 633.97 | 8.94% | 0.0163 | -0.0132 | yes |
+| sector | Wholesale Trade | 1,008 | 614.32 | 8.66% | 0.0174 | -0.0142 | yes |
+| sector | Hospitality | 1,004 | 532.01 | 7.50% | 0.0282 | -0.0247 | yes |
+| sector | Utilities | 996 | 806.00 | 11.37% | 0.0100 | +0.0007 | yes |
+| sector | Construction | 992 | 576.29 | 8.13% | 0.0363 | -0.0343 | yes |
+| sector | Education | 988 | 663.34 | 9.35% | 0.0101 | -0.0026 | yes |
+| sector | Healthcare | 984 | 483.41 | 6.82% | 0.0127 | -0.0054 | yes |
+| sector | Professional Services | 980 | 625.73 | 8.82% | 0.0122 | -0.0062 | yes |
+| sector | Petrochemicals | 972 | 505.10 | 7.12% | 0.0246 | -0.0210 | yes |
+| stage | 1 | 11,947 | 6,842.74 | 96.49% | 0.0196 | -0.0149 | yes |
+| stage | 2 | 37 | 249.00 | 3.51% | 0.0219 | -0.0092 | no |
 
 ## Provenance
 

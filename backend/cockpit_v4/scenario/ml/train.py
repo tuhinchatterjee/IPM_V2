@@ -209,12 +209,22 @@ def subgroup_table(frame: Any, actual: Sequence[float],
     observations. The smaller ones stay in the table with their counts, so a
     reader sees them and sees why they are not being gated -- excluding them
     from the table as well would hide where the model is untested.
+
+    **`share_of_test_ecl` is diagnostic and gates nothing.** WAPE divides by
+    the group's own `sum|actual|`, so a group that carries almost no ECL can
+    post a large relative error on a trivial absolute one. That is worth
+    knowing and it is NOT a reason to exclude the group or to move the
+    threshold: the gate is written in relative terms, it is applied in
+    relative terms, and a failure is reported as a failure. This column
+    exists so a reader can see the consequence, not so the verdict can be
+    softened.
     """
     import numpy as np
 
     out: list[dict[str, Any]] = []
     actual = np.asarray(actual, dtype=float)
     predicted = np.asarray(predicted, dtype=float)
+    book = float(np.abs(actual).sum())
     for dimension in GROUPS[dom.parse(domain_id)]:
         if dimension not in frame.columns:
             continue
@@ -230,6 +240,10 @@ def subgroup_table(frame: Any, actual: Sequence[float],
                 "wape": round(wape(actual[mask], predicted[mask]), 6),
                 "bias": round(bias(actual[mask], predicted[mask]), 6),
                 "material": count >= MATERIAL_GROUP,
+                "ecl_sar_mn": round(float(np.abs(actual[mask]).sum()), 6),
+                "share_of_test_ecl": round(
+                    float(np.abs(actual[mask]).sum()) / book, 6)
+                if book else 0.0,
             })
     return out
 
@@ -308,11 +322,20 @@ def metric_rows(result: Result, *, stamp: dict[str, Any],
             "beating it.")
 
     for group in result.subgroups:
+        share = float(group.get("share_of_test_ecl", 0.0)) * 100
         add("blend", sp.TEST, group["group_dimension"], group["group_value"],
             "wape", group["wape"], group["observations"],
             "GATED" if group["material"] else "TOO_SMALL_TO_GATE",
-            f"{group['observations']} test observations; the gate needs "
-            f"{MATERIAL_GROUP}.")
+            f"{group['observations']} test observations, carrying "
+            f"{share:.2f}% of the test period's ECL; the gate needs "
+            f"{MATERIAL_GROUP} observations. The share is diagnostic and "
+            f"gates nothing.")
+        add("blend", sp.TEST, group["group_dimension"], group["group_value"],
+            "share_of_test_ecl", share / 100, group["observations"],
+            "DIAGNOSTIC",
+            "The group's share of the test period's ECL. Published so a "
+            "reader can see what a relative error is relative TO; it does "
+            "not move any threshold.")
 
     for name, count in sorted(result.counts.items()):
         add("blend", "counts", "overall", name, name, count, count,

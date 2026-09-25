@@ -7,7 +7,7 @@
   "origin": "SYNTHETIC_DEMO",
   "releases": {
     "v4-whatif-corporate-20q-s1": {
-      "build_seconds": 37.2,
+      "build_seconds": 35.9,
       "domain_id": "corporate",
       "entity_counts": {
         "borrowers": 1200,
@@ -74,7 +74,7 @@
         "total_ecl_sar_mn": 63684.0056,
         "true_cycle_coefficient": 0.62
       },
-      "release_fingerprint": "01fffad050c248f3d693d35cff248036836d5d1be29f57296cec9512d7f2402c",
+      "release_fingerprint": "891a9872dbcde8dc324e90f616f4b44ce550c49549a236fd804097d8f631dfc2",
       "reporting_periods": [
         "2021Q3",
         "2021Q4",
@@ -105,7 +105,7 @@
         "whatif_corp_ifrs9": 59920,
         "whatif_corp_macro_quarter": 960,
         "whatif_corp_mev_registry": 20,
-        "whatif_corp_model_metric": 1,
+        "whatif_corp_model_metric": 86,
         "whatif_corp_rating_map": 12,
         "whatif_corp_sensitivity": 60,
         "whatif_corp_term_structure": 799836
@@ -118,7 +118,7 @@
       "sensitivity_rows": 60
     },
     "v4-whatif-retail-20m-s1": {
-      "build_seconds": 46.3,
+      "build_seconds": 47.5,
       "domain_id": "retail",
       "entity_counts": {
         "accounts": 6702,
@@ -201,7 +201,7 @@
         "total_ecl_sar_mn": 134.338378,
         "true_cycle_coefficient": 0.7
       },
-      "release_fingerprint": "af8a85c3fc6bad5072fa474e4178de4dde81b4e20553902e8dd269665f390142",
+      "release_fingerprint": "0550a2e6c3390cffcde52679e6896ec48159ce71e06c0885beb617ffcdf4da41",
       "reporting_periods": [
         "2025-01",
         "2025-02",
@@ -232,7 +232,7 @@
         "whatif_retail_ifrs9": 127936,
         "whatif_retail_macro_month": 840,
         "whatif_retail_mev_registry": 20,
-        "whatif_retail_model_metric": 1,
+        "whatif_retail_model_metric": 80,
         "whatif_retail_profile": 86892,
         "whatif_retail_score_map": 60,
         "whatif_retail_sensitivity": 60,

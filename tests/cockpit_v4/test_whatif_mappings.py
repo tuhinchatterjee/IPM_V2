@@ -31,8 +31,7 @@ from backend.cockpit_v4.scenario import candidate_schema as cs
 from backend.cockpit_v4.scenario import errors as err
 from backend.cockpit_v4.scenario import mappings as m
 from backend.cockpit_v4.scenario import units
-from backend.cockpit_v4.scenario.mappings import ratings, scores, sectors
-from backend.cockpit_v4.scenario.mappings import stages
+from backend.cockpit_v4.scenario.mappings import ratings, scores, sectors, stages
 
 D = Decimal
 

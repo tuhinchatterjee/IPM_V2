@@ -73,9 +73,9 @@ taken in a fixed order or a pure function of `(entity, period)` through
 | Exposures | 2,996 facilities | 6,702 accounts |
 | Exposure-periods | 59,920 | 127,936 |
 | Term-structure rows | 799,836 | 1,040,040 |
-| Total rows | 1,064,569 | 1,650,053 |
+| Total rows | 1,064,654 | 1,650,132 |
 | Macro factors present | 16 of 20 | 14 of 20 |
-| Fingerprint | `01fffad050c248f3…` | `af8a85c3fc6bad50…` |
+| Fingerprint | `891a9872dbcde8dc…` | `0550a2e6c3390cff…` |
 
 Smaller than the accepted books on purpose. The candidate exists to carry a
 macro panel, a term structure and a trainable target — not to restate the
@@ -191,9 +191,29 @@ period-level series the fit consumed, republished in the manifest notes as
 artifact stored inside the release it describes cannot carry a fingerprint
 taken over bytes that include it.
 
-## What is still pending in these releases
+## The model card as data
 
-`whatif_*_model_metric` carries a single honest placeholder row until P7 fills
-it: `validated = NOT_APPLICABLE` with a sentence saying no emulator was
-trained, so Method 2 reports `MODEL_NOT_READY`. A zero in that row is the
-absence of a model, not a measured error of zero.
+`whatif_*_model_metric` carries the emulator's card in rows: 86 for
+Corporate and 80 for Retail. Every predeclared gate with its measured value
+and a `PASSED`/`FAILED` verdict, every component weight with its materiality
+verdict, the declared reference model, every subgroup's WAPE with its share
+of the test period's ECL, and the row and period counts behind all of it.
+
+**Retail's G4 row reads `FAILED` and carries 0.3802.** A gate that was
+missed is published with the number that missed it.
+
+`docs/whatif/MODEL_CARD_CORPORATE.md` and `MODEL_CARD_RETAIL.md` are the
+prose version; `P7_FINDINGS.md` records what the training found.
+
+## Why the fingerprints moved after training
+
+A model-metric table lives **inside** the release it describes, so the
+release has to be published twice: once with the data the models train on,
+and once more with the metrics the training produced.
+`artifacts/whatif/<book>/model_metric.json` carries
+`trained_against_fingerprint`, which is the fingerprint of the release the
+models were actually **fitted** on — the one before the metrics were added.
+
+The sensitivity artifact is unaffected: its `source_fingerprint` is a digest
+of the period-level series the fit consumed, not of the whole release, so
+republishing with new metric rows does not make it stale.
