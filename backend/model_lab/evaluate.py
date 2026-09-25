@@ -311,6 +311,8 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
                                 r.get("body", {}).get("message", "")[:120]
                                 for r in g["results"] if r.get("is_error")],
             "protocol_flag": g.get("protocol_flag", ""),
+            "provider_error": (s.get("error") or "")[:300],
+            "provider_error_code": s.get("error_code") or "",
         })
     out["calls"] = calls
     out["app_lane"] = app_lane
@@ -907,6 +909,27 @@ def _failures(ev: dict[str, Any], task) -> list[dict[str, Any]]:
             "detail": "raw provider output (observer) had no tool_use "
                       "block: model-generated invalidity, not adapter "
                       "corruption"})
+    resource = [c for c in ev["calls"] if re.search(
+        r"out.of.memory|\boom\b|memory|context length|context window|"
+        r"too many tokens|disk", c.get("provider_error") or "", re.I)]
+    if resource:
+        cards.append(base | {
+            "primary_category": "RESOURCE_OR_CONTEXT",
+            "supporting_categories": [],
+            "symptom": resource[0]["provider_error"],
+            "failed_requirement": "the unchanged task must fit the "
+                                  "profile's memory/context (O04)",
+            "likely_owner": "deployment profile / host",
+            "origin_confidence": "ORIGIN_LIKELY",
+            "affected_stages": [], "inherited_effects": [
+                "the investigation stopped; partial evidence kept"],
+            "earliest_event": resource[0]["call_id"], "severity": "MAJOR",
+            "next_diagnostic": "same model on approved larger hardware, or "
+                               "a smaller pinned quantisation as a NEW "
+                               "profile; never trim the task",
+            "intervention_category": "profile/runtime",
+            "approval_needed": "hardware or new-profile approval",
+            "model_failure": False, "detail": ""})
     if err and err.startswith(("DEADLINE", "EXPIRED")) or \
             ev.get("frozen_state") == "EXPIRED":
         cards.append(base | {

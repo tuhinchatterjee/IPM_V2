@@ -165,7 +165,7 @@ def test_M02_M09_unknowns_stay_unknown(demo):
     _, _, ev = demo
     k = child(ev, "fixture-reference")
     for name in ("first_protocol_event_ms", "reasoning_tokens",
-                 "infrastructure_cost_usd"):
+                 "infrastructure_cost_usd", "load_ms"):     # M03 too
         m = k["metrics"][name]
         assert m["value"] is None and m["status"] == "UNAVAILABLE"
         assert m["missing_reason"]
@@ -214,3 +214,54 @@ def test_Q16_no_training_export_exists_without_approval():
     import backend.model_lab as lab
     names = [p.name for p in Path(lab.__file__).parent.rglob("*.py")]
     assert not any("train" in n for n in names)
+
+
+def test_Q15_split_contamination_is_flagged(tmp_path):
+    svc = make_service(tmp_path)
+    run(svc, ["fixture-reference"], evaluation_split="tuning")
+    run(svc, ["fixture-reference"], evaluation_split="holdout")
+    tr = svc.training_readiness()
+    p = next(x for x in tr["profiles"]
+             if x["profile_id"] == "fixture-reference")
+    assert p["contaminated_holdout_tasks"] == [
+        "corp-stage2-ead-by-sector-latest"]
+    assert p["distinct_tasks"] == 1        # repeats are not distinct tasks
+
+
+def test_M16_evaluation_and_export_do_not_change_e2e_metrics(demo):
+    svc, cid, ev = demo
+    before = {k["child_run_id"]: k["metrics"].get("service_ms")
+              for k in ev["children"]}
+    svc.export(cid)
+    body = svc.evaluate(cid)
+    after = {k["child_run_id"]: k["metrics"].get("service_ms")
+             for k in body["children"]}
+    assert before == after
+
+
+def test_O04_a_resource_failure_stops_only_that_child(tmp_path):
+    from backend.model_lab.adapters import build_provider
+
+    class OOM:
+        def __init__(self, inner):
+            self.inner, self.n = inner, 0
+
+        def converse(self, **kw):
+            self.n += 1
+            if self.n == 2:
+                raise MemoryError("simulated out-of-memory in the runtime")
+            return self.inner.converse(**kw)
+
+    def factory(p):
+        inner = build_provider(p)
+        return OOM(inner) if p.profile_id == "fixture-repair" else inner
+    svc = make_service(tmp_path, provider_factory=factory)
+    cid, ev = run(svc, ["fixture-repair", "fixture-reference"])
+    bad, good = child(ev, "fixture-repair"), child(ev, "fixture-reference")
+    assert bad["execution_state"] == "FAILED"
+    assert bad["calls"], "partial evidence was kept"
+    assert good["execution_state"] == "COMPLETED"
+    assert any(f["primary_category"] == "RESOURCE_OR_CONTEXT" and
+               f["model_failure"] is False for f in bad["failures"])
+    assert svc.coord.store.latest_export(cid, svc.cfg.tenant_id)["state"] \
+        == "READY"

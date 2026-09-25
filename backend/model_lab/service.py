@@ -127,15 +127,18 @@ class LabService:
             task_key = (body.get("task") or {}).get("task_id") or \
                 "q:" + hashlib.sha256(spec["question_text"].lower().encode()
                                       ).hexdigest()[:12]
+            split = spec.get("evaluation_split") or "diagnostic"
             for k in body["children"]:
                 p = per.setdefault(k["profile_id"], {
                     "profile_id": k["profile_id"], "fixture": k["fixture"],
                     "tasks": set(), "runs": 0, "by_category": {},
-                    "integration_failures": 0, "resource_failures": 0})
+                    "integration_failures": 0, "resource_failures": 0,
+                    "splits": {}})
                 if not k.get("turns"):
                     continue
                 p["runs"] += 1
                 p["tasks"].add(task_key)
+                p["splits"].setdefault(task_key, set()).add(split)
                 for f in k.get("failures") or []:
                     cat = f["primary_category"]
                     p["by_category"].setdefault(cat, set()).add(task_key)
@@ -167,9 +170,16 @@ class LabService:
                           else "TARGETED_TRAINING_CANDIDATE")
             else:
                 status = "PROMPT_DIAGNOSTIC_CANDIDATE"
+            # Split hygiene (Q15): a task used for tuning a profile is not
+            # untouched evidence for that profile's holdout.
+            contaminated = sorted(t for t, sp in p["splits"].items()
+                                  if "tuning" in sp and "holdout" in sp)
             out.append({
                 "profile_id": p["profile_id"], "fixture": p["fixture"],
                 "distinct_tasks": distinct, "runs": p["runs"],
+                "split_ledger": {t: sorted(sp) for t, sp in
+                                 p["splits"].items()},
+                "contaminated_holdout_tasks": contaminated,
                 "recurring_categories_by_distinct_task": recurring,
                 "status": status, "tentative": distinct <
                 g["min_distinct_tasks"],

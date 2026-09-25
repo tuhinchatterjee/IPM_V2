@@ -116,7 +116,21 @@ This is frozen seeder behaviour (its default `--refresh-evidence`), not lab code
 2. The three files were restored from Git with `git checkout -- docs/cockpit_v4/evidence/`, which undid this task's own write.
 3. The protected manifest then passed.
 
-Future lab reseeds must pass `--no-evidence`; the lab launcher does. No other frozen path was written.
+Future lab reseeds must pass `--no-evidence`.
+
+**A second instance of the same pattern.** The unchanged frozen test suite (`pytest tests/cockpit_v4`), run for the P0 baseline, rewrote five further tracked evidence files:
+
+- `dual_domain_performance.json`
+- `math_query_engine.json`
+- `overnight_analytical_benchmark.json`
+- `performance.json`
+- `saudi_release_fingerprint.json`
+
+They were handled the same way. The diff was preserved at `artifacts/model_comparison/incidents/frozen_tests_evidence_write.diff` and the files were restored from Git.
+
+`scripts/model_lab/frozen_regression.py` now performs that preserve-and-restore step automatically after every frozen-suite run. No other frozen path was written; the protected manifest check passes.
+
+**Baseline result:** 3,315 passed, 33 skipped, 0 failed.
 
 ## 8. Host preflight (this session)
 
