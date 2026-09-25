@@ -24,7 +24,7 @@ The requirement text is this implementation's reading of each ID. `CreditProbe_A
 | A02 | The accepted Retail release is byte-identical after every candidate build. | COVERED | `test_the_accepted_releases_are_byte_identical` |
 | A03 | The candidate is a different release with a different fingerprint, never a rewrite of an accepted one. | COVERED | `test_the_candidate_is_a_different_release_with_a_different_fingerprint` |
 | A04 | Only recorded protected-core files reach the candidate package, each behind a flag check inside a guard. | COVERED | `test_a04_only_the_recorded_core_files_reach_this_package`<br>`test_a04_every_one_of_those_imports_is_inside_a_guard`<br>`test_a04_each_guarded_import_sits_behind_the_flag_check`<br>`test_a04_with_both_flags_off_the_block_is_absent_entirely`<br>Four files, listed with the reason for each in CORE_IMPORTERS. |
-| A05 | With the flags off the accepted runtime is unchanged: same relations, same default release, same payload. | COVERED | `test_the_runtime_opens_the_accepted_book_with_the_flags_off`<br>Plus the full V4 regression with the flags off: 4018 passed, 4 skipped. |
+| A05 | With the flags off the accepted runtime is unchanged: same relations, same default release, same payload. | COVERED | `test_the_runtime_opens_the_accepted_book_with_the_flags_off`<br>Plus the full V4 regression with the flags off: 4189 passed, 4 skipped. |
 | A06 | Enabling one book does not enable the other. | COVERED | `test_one_book_enabled_does_not_enable_the_other` |
 | A07 | The candidate manifest declares itself synthetic. | COVERED | `test_the_candidate_manifest_says_it_is_synthetic` |
 | A08 | Every candidate row carries origin SYNTHETIC_DEMO. | COVERED | `test_the_published_rows_are_all_labelled_synthetic` |

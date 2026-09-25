@@ -70,7 +70,7 @@ ISOLATION: list[Row] = [
     ("A05", "With the flags off the accepted runtime is unchanged: same "
             "relations, same default release, same payload.", COVERED,
      ["test_the_runtime_opens_the_accepted_book_with_the_flags_off"],
-     "Plus the full V4 regression with the flags off: 4018 passed, 4 "
+     "Plus the full V4 regression with the flags off: 4189 passed, 4 "
      "skipped."),
     ("A06", "Enabling one book does not enable the other.", COVERED,
      ["test_one_book_enabled_does_not_enable_the_other"], ""),

@@ -102,7 +102,7 @@ None of the accepted runtime's bounds were touched:
 | Suite | Count | Time |
 |---|---|---|
 | What-If (`test_whatif_*.py`) | **785 passed** | 132s |
-| Full V4 backend + frontend, flags OFF | **4018 passed, 4 skipped** | 1491s (24m 51s) |
+| Full V4 backend + frontend, flags OFF | **4189 passed, 4 skipped** | 1439s (23m 59s) |
 | Accepted browser journeys, real Chromium | **76/76 passed** | ~6 min |
 
 The full regression is the expensive one and it is the one that matters: it

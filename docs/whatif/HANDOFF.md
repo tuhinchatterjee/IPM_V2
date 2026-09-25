@@ -49,7 +49,7 @@ Unchanged. This is the claim that matters most and it is checked three ways:
 |---|---|
 | `v4-saudi-corporate-20q-v4` fingerprint | `e37236d0f6d4e494…` — **unchanged** |
 | `v4-saudi-retail-20m-v5` fingerprint | `a1e797dcc73236b7…` — **unchanged** |
-| Full V4 regression, flags OFF | **4018 passed, 4 skipped** |
+| Full V4 regression, flags OFF | **4189 passed, 4 skipped** |
 | Accepted browser journeys, real Chromium | **76/76 passed** |
 | `protected_hashes.py --check` | 5 changed, **0 removed**, 25 added — every line explained |
 
@@ -204,7 +204,7 @@ them with this one.
 ```bash
 cd /home/user/whatif_wt
 COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python -m pytest -o addopts="" -q \
-    tests/cockpit_v4 tests/frontend        # 4018 passed, 4 skipped
+    tests/cockpit_v4 tests/frontend        # 4189 passed, 4 skipped
 python -m pytest -o addopts="" -q tests/cockpit_agentic
 /root/.local/bin/ruff check backend/cockpit_v4 tests/cockpit_v4 scripts/whatif
 python3 scripts/whatif/protected_hashes.py --check
