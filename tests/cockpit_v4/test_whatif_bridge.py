@@ -222,6 +222,45 @@ def test_an_ordinary_sql_step_still_dispatches_as_sql(monkeypatch) -> None:
     assert service._is_scenario(_step(language="python")) is False
 
 
+def test_the_domains_route_never_pairs_one_id_with_another_fingerprint(
+        monkeypatch) -> None:
+    """A row that names one release and fingerprints another is the defect
+    `current_release` exists to prevent, arriving through the API instead.
+
+    `availability` builds each row from a release id AND a scope. It read the
+    id from `DEFAULT_RELEASES` and the scope from `scope_for`, which opens
+    `current_release` -- so with a flag on it published the ACCEPTED release
+    id beside the CANDIDATE's fingerprint, periods and row counts. Any
+    consumer of `/domains` would have seen the accepted book's name over
+    different numbers, which is exactly "a rebuild under a frozen name".
+    """
+    for flag in FLAGS.values():
+        monkeypatch.delenv(flag, raising=False)
+    off = {row["domain_id"]: row
+           for row in resolver.availability().to_dict()["domains"]}
+    assert off[dom.CORPORATE]["release_id"] == \
+        dom.DEFAULT_RELEASES[dom.CORPORATE]
+
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    on = {row["domain_id"]: row
+          for row in resolver.availability().to_dict()["domains"]}
+    from backend.cockpit_v4 import lake as lake_mod
+
+    for domain_id, row in on.items():
+        named = row["release_id"]
+        manifest = lake_mod.read_manifest(named)
+        expected = str(manifest.get("fingerprint")
+                       or manifest.get("release_fingerprint") or "")
+        assert row.get("release_fingerprint") == expected, (
+            f"{domain_id} is published as {named} with fingerprint "
+            f"{row.get('release_fingerprint')!r}, and that release's own "
+            f"manifest says {expected!r}.")
+    # And the book that was NOT enabled did not move.
+    assert on[dom.RETAIL]["release_id"] == off[dom.RETAIL]["release_id"]
+    assert on[dom.RETAIL]["release_fingerprint"] == \
+        off[dom.RETAIL]["release_fingerprint"]
+
+
 # ---- 2. only the typed operation, and nothing named ---------------------
 
 @pytest.mark.parametrize("operation", [

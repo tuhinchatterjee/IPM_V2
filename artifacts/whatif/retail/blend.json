@@ -12,7 +12,7 @@
     "sub_product"
   ],
   "component_hashes": {
-    "additive_spline": "9bd7b2f119a0513bdce190e7d6ad5a02dd9b1976091d1b6481654c0ffd4532cd",
+    "additive_log": "7996d8a967e4c1c17c42f43114bdefb31d2b63449011def6ce90329131154c5e",
     "lightgbm": "5cd49a5773acc5aed730e9aa3735ac91a3d0eacda484d140476b1b19745b15ce",
     "xgboost": "12e24f8ea5e81c81daa3a153c51f263cc364b7d4bda07e7aeb044a9ee87ff4a2"
   },
@@ -65,41 +65,41 @@
   ],
   "gates": {
     "G1": {
-      "measured": 0.023306639811818863,
+      "measured": 0.044308850007230706,
       "passed": true,
       "threshold": 0.1,
       "what": "out-of-time currency WAPE"
     },
     "G2": {
-      "measured": 0.008675913446630297,
+      "measured": 0.012680051874550591,
       "passed": true,
       "threshold": 0.02,
       "what": "absolute aggregate bias"
     },
     "G3": {
-      "measured": 0.013321374090867333,
+      "measured": 0.034968757500536615,
       "passed": true,
       "threshold": 0.05,
       "what": "worst absolute per-period bias"
     },
     "G4": {
-      "measured": 0.380206,
+      "measured": 0.343562,
       "passed": false,
       "threshold": 0.15,
       "what": "worst material-group WAPE"
     }
   },
-  "headline": "SINGLE-MODEL RESULT. The weight fit put 1.000 on lightgbm and left xgboost, additive_spline below the 0.05 materiality floor. This is a lightgbm model, not a blend, and is reported as one. Weights: xgboost 0.000, lightgbm 1.000, additive_spline 0.000.",
+  "headline": "BLEND of 2 material components, fitted on out-of-fold predictions. Weights: xgboost 0.000, lightgbm 0.342, additive_log 0.658. Below the 0.05 materiality floor and reported as immaterial: xgboost.",
   "libraries": {
-    "additive_spline": "1.6.1",
+    "additive_log": "1.6.1",
     "lightgbm": "4.6.0",
     "xgboost": "3.0.2"
   },
-  "model_version": "whatif-ecl-emulator-1.0.0",
+  "model_version": "whatif-ecl-emulator-2.0.0",
   "origin": "SYNTHETIC_DEMO",
   "release_id": "v4-whatif-retail-20m-s1",
   "seeds": {
-    "additive_spline": 20260930,
+    "additive_log": 20260930,
     "lightgbm": 20260929,
     "xgboost": 20260928
   },
@@ -129,8 +129,8 @@
     "2026-03"
   ],
   "weights": {
-    "additive_spline": 0.0,
-    "lightgbm": 1.0,
+    "additive_log": 0.658462,
+    "lightgbm": 0.341538,
     "xgboost": 0.0
   }
 }

@@ -2,11 +2,11 @@
   "books": {
     "v4-whatif-corporate-20q-s1": {
       "blend": {
-        "additive_spline": 0.0,
+        "additive_log": 0.233198,
         "lightgbm": 0.0,
-        "xgboost": 1.0
+        "xgboost": 0.766802
       },
-      "blend_headline": "SINGLE-MODEL RESULT. The weight fit put 1.000 on xgboost and left lightgbm, additive_spline below the 0.05 materiality floor. This is a xgboost model, not a blend, and is reported as one. Weights: xgboost 1.000, lightgbm 0.000, additive_spline 0.000.",
+      "blend_headline": "BLEND of 2 material components, fitted on out-of-fold predictions. Weights: xgboost 0.767, lightgbm 0.000, additive_log 0.233. Below the 0.05 materiality floor and reported as immaterial: lightgbm.",
       "counts": {
         "development_rows": 41944,
         "embargoed_periods": 2,
@@ -23,51 +23,51 @@
       "failures": [],
       "gates": {
         "G1": {
-          "measured": 0.019654567164631064,
+          "measured": 0.018937612537889566,
           "passed": true,
           "threshold": 0.1,
           "what": "out-of-time currency WAPE"
         },
         "G2": {
-          "measured": 0.014742319662374739,
+          "measured": 0.011256898996060253,
           "passed": true,
           "threshold": 0.02,
           "what": "absolute aggregate bias"
         },
         "G3": {
-          "measured": 0.025335473867374433,
+          "measured": 0.023411598243319426,
           "passed": true,
           "threshold": 0.05,
           "what": "worst absolute per-period bias"
         },
         "G4": {
-          "measured": 0.050631,
+          "measured": 0.053693,
           "passed": true,
           "threshold": 0.15,
           "what": "worst material-group WAPE"
         }
       },
       "metrics": {
-        "test_bias": -0.01474232,
-        "test_wape": 0.01965457,
-        "worst_material_group_wape": 0.050631,
-        "worst_period_bias": 0.02533547
+        "test_bias": -0.0112569,
+        "test_wape": 0.01893761,
+        "worst_material_group_wape": 0.053693,
+        "worst_period_bias": 0.0234116
       },
       "passed": true,
       "reference_model": {
         "bias": -0.08634137,
         "wape": 0.0911688
       },
-      "release_fingerprint": "01fffad050c248f3d693d35cff248036836d5d1be29f57296cec9512d7f2402c",
-      "seconds": 217.0
+      "release_fingerprint": "3b101bd41465fbe15f89d0d9563026e0f7f2e8081e9e778a90eebe553e01fce5",
+      "seconds": 144.4
     },
     "v4-whatif-retail-20m-s1": {
       "blend": {
-        "additive_spline": 0.0,
-        "lightgbm": 1.0,
+        "additive_log": 0.658462,
+        "lightgbm": 0.341538,
         "xgboost": 0.0
       },
-      "blend_headline": "SINGLE-MODEL RESULT. The weight fit put 1.000 on lightgbm and left xgboost, additive_spline below the 0.05 materiality floor. This is a lightgbm model, not a blend, and is reported as one. Weights: xgboost 0.000, lightgbm 1.000, additive_spline 0.000.",
+      "blend_headline": "BLEND of 2 material components, fitted on out-of-fold predictions. Weights: xgboost 0.000, lightgbm 0.342, additive_log 0.658. Below the 0.05 materiality floor and reported as immaterial: xgboost.",
       "counts": {
         "development_rows": 88160,
         "embargoed_periods": 2,
@@ -82,55 +82,55 @@
       },
       "domain_id": "retail",
       "failures": [
-        "G4: worst material-group WAPE measured 0.3802 against a 0.1500 threshold"
+        "G4: worst material-group WAPE measured 0.3436 against a 0.1500 threshold"
       ],
       "gates": {
         "G1": {
-          "measured": 0.023306639811818863,
+          "measured": 0.044308850007230706,
           "passed": true,
           "threshold": 0.1,
           "what": "out-of-time currency WAPE"
         },
         "G2": {
-          "measured": 0.008675913446630297,
+          "measured": 0.012680051874550591,
           "passed": true,
           "threshold": 0.02,
           "what": "absolute aggregate bias"
         },
         "G3": {
-          "measured": 0.013321374090867333,
+          "measured": 0.034968757500536615,
           "passed": true,
           "threshold": 0.05,
           "what": "worst absolute per-period bias"
         },
         "G4": {
-          "measured": 0.380206,
+          "measured": 0.343562,
           "passed": false,
           "threshold": 0.15,
           "what": "worst material-group WAPE"
         }
       },
       "metrics": {
-        "test_bias": -0.00867591,
-        "test_wape": 0.02330664,
-        "worst_material_group_wape": 0.380206,
-        "worst_period_bias": 0.01332137
+        "test_bias": -0.01268005,
+        "test_wape": 0.04430885,
+        "worst_material_group_wape": 0.343562,
+        "worst_period_bias": 0.03496876
       },
       "passed": false,
       "reference_model": {
         "bias": -0.02723526,
         "wape": 0.05184098
       },
-      "release_fingerprint": "af8a85c3fc6bad5072fa474e4178de4dde81b4e20553902e8dd269665f390142",
-      "seconds": 446.0
+      "release_fingerprint": "98b494ae2721bd535f406eb6873c0b689c82da36152719e6c8e79c5da7ed92d3",
+      "seconds": 255.6
     }
   },
   "libraries": {
-    "additive_spline": "1.6.1",
+    "additive_log": "1.6.1",
     "lightgbm": "4.6.0",
     "xgboost": "3.0.2"
   },
-  "model_version": "whatif-ecl-emulator-1.0.0",
+  "model_version": "whatif-ecl-emulator-2.0.0",
   "note": "Trained on generated books against a target produced by reference_ecl.py. Not bank-engine validation, and no agreement with any bank's ECL engine is established.",
   "origin": "SYNTHETIC_DEMO"
 }

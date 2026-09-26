@@ -96,6 +96,81 @@ def _gate_table(result: Any) -> list[str]:
     return lines
 
 
+def _back_transform(fitted: Any) -> list[str]:
+    """The log component's back-transform, published rather than assumed.
+
+    `exp(mean(log y))` is the geometric mean and is biased LOW, by a factor
+    that grows with the residual variance. Predicting in logs and
+    exponentiating would understate every ECL consistently -- which looks
+    like a well-behaved model with a small negative bias, and is the reason
+    this needs saying out loud rather than being left in the code.
+
+    Duan's smearing estimator is the correction. It is computed on the
+    development residuals only, and it is clipped: a factor outside the
+    declared bounds means the residuals are not log-normal enough for the
+    correction to be one, and a clipped factor is reported as clipped rather
+    than applied quietly.
+    """
+    told = getattr(getattr(fitted, "model", None), "diagnostics", None)
+    if not callable(told):
+        return []
+    found = told()
+    smearing = found.get("smearing")
+    raw = found.get("smearing_raw")
+    if smearing is None:
+        return []
+    out = [
+        f"Fitted in logs and back-transformed with Duan's smearing estimator, "
+        f"**{smearing:.6f}**, computed on the development residuals only. "
+        f"Without it, `exp` of a mean log is a geometric mean and every ECL "
+        f"would be understated by about "
+        f"{max(0.0, (1 - float(smearing)) * 100):.2f}%.",
+        "",
+        f"`log(x + {found.get('epsilon')})` on the numeric features whose "
+        f"fitted support is non-negative, decided per column at fit time and "
+        f"remembered, so a scenario that drives a value negative cannot move "
+        f"that column onto a scale the coefficients were not fitted on.",
+        "",
+    ]
+    if found.get("smearing_clipped"):
+        out.insert(1, "")
+        out.insert(2, (
+            f"**The raw smearing factor was {raw:.6f} and was CLIPPED to the "
+            f"declared bounds.** A factor outside them says the residuals are "
+            f"not log-normal enough for this correction to be a correction, "
+            f"and scaling every prediction by it anyway would assert a "
+            f"distribution this data does not have."))
+    return out
+
+
+#: The predeclared contract each model version was measured against.
+#:
+#: Named per version rather than hardcoded. The card used to cite
+#: `ML_ACCEPTANCE_TARGETS.md` whatever it was reporting, which was right for
+#: version 1 and became wrong for version 2 -- and a card citing the wrong
+#: contract is a card a reader cannot check, which is the only thing a card
+#: is for. A version with no entry here says so rather than guessing.
+CONTRACTS: dict[str, str] = {
+    "1": "ML_ACCEPTANCE_TARGETS.md",
+    "2": "ML_ACCEPTANCE_TARGETS_V2.md",
+}
+
+
+def contract_of(model_version: str) -> str:
+    """Which predeclared targets document this version was measured against."""
+    major = str(model_version or "").rsplit("-", 1)[-1].split(".")[0]
+    return CONTRACTS.get(major, "")
+
+
+def _contract_phrase(model_version: str) -> str:
+    named = contract_of(model_version)
+    if named:
+        return f"`{named}`"
+    return ("the predeclared targets for this model version, which this "
+            "build does not have on record -- report that rather than "
+            "citing a document that describes a different version")
+
+
 def markdown(result: Any) -> str:
     """`MODEL_CARD_*.md`, with everything section 11.7 asks for."""
     book = result.domain_id.title()
@@ -123,7 +198,8 @@ def markdown(result: Any) -> str:
         lines += [
             f"**{len(result.failures())} predeclared gate(s) FAILED.** They "
             f"are reported here as measured, the thresholds in "
-            f"`ML_ACCEPTANCE_TARGETS.md` are unchanged, and Method 2 reports "
+            f"{_contract_phrase(getattr(result, 'model_version', ''))} "
+            f"are unchanged, and Method 2 reports "
             f"its limitation to the reader rather than returning a number "
             f"that looks like the other methods'.",
             "",
@@ -133,7 +209,8 @@ def markdown(result: Any) -> str:
     lines += _gate_table(result)
     lines += [
         "",
-        "Thresholds come from `docs/whatif/ML_ACCEPTANCE_TARGETS.md`, which "
+        f"Thresholds come from docs/whatif/"
+        f"{_contract_phrase(getattr(result, 'model_version', ''))}, which "
         "was committed **before** this model was fitted and before the test "
         "split was read.",
         "",
@@ -261,6 +338,10 @@ def markdown(result: Any) -> str:
             f"point, against a {ml.MAX_ROUNDS}-round cap with patience "
             f"{ml.EARLY_STOPPING_PATIENCE}. Seed {fitted.seed}.",
             "",
+        ]
+        lines += _back_transform(fitted)
+        lines += [
+            "",
             "| Configuration | Mean fold WAPE |",
             "|---|---|",
         ]
@@ -342,4 +423,4 @@ def markdown(result: Any) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["digest", "freeze", "markdown"]
+__all__ = ["CONTRACTS", "contract_of", "digest", "freeze", "markdown"]

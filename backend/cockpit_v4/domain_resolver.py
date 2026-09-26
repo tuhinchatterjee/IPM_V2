@@ -211,7 +211,18 @@ class Availability:
 def availability(*, tenant_id: str = lake.DEFAULT_TENANT) -> Availability:
     statuses: list[dom.DomainStatus] = []
     for domain_id in dom.DOMAIN_IDS:
-        release_id = dom.DEFAULT_RELEASES[domain_id]
+        # `current_release`, NOT `DEFAULT_RELEASES`, and for the reason that
+        # function exists. `scope_for` below opens `current_release`, and this
+        # row carries both the id AND that scope -- so reading the id from a
+        # different source published the ACCEPTED release id beside the
+        # CANDIDATE's fingerprint, periods and row counts. That is a rebuild
+        # under a frozen name as far as any consumer of `/domains` can tell,
+        # which is the one thing `current_release`'s own docstring promises
+        # not to do.
+        #
+        # With both flags off this is `DEFAULT_RELEASES[domain_id]`, object
+        # for object, so the accepted response does not move.
+        release_id = dom.current_release(domain_id)
         try:
             scope = scope_for(domain_id, tenant_id=tenant_id)
         except DomainUnavailable as exc:

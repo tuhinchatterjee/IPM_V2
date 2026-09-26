@@ -407,6 +407,188 @@ def _from_fraction(value: object) -> Decimal:
         return Decimal(value.numerator) / Decimal(value.denominator)
 
 
+#: What a comparison refuses to compare, and why each one matters.
+#:
+#: Two ledgers are comparable when they are two answers to ONE question about
+#: ONE population. Anything else produces a difference that looks like a
+#: scenario effect and is not:
+#:
+#:   a different BOOK      -- two portfolios, so the difference is the books
+#:   a different PERIOD    -- the portfolio itself moved between them
+#:   a different COHORT    -- different rows, so the difference is the rows
+#:
+#: The membership hash is the strictest of the three and the one that would
+#: be tempting to relax: two runs over "construction" a quarter apart have
+#: different hashes, and comparing them is comparing a population change with
+#: a scenario change added. Refused, with the hashes named, rather than
+#: reported with a caveat nobody reads.
+COMPARABLE: tuple[str, ...] = ("domain_id", "period", "membership_hash")
+
+
+@dataclass(frozen=True)
+class Difference:
+    """Two frozen ledgers, and what actually differs between them.
+
+    Named `Difference` rather than `Comparison` because that is what it is: it
+    does not re-run anything, it does not re-resolve a cohort, and it cannot
+    produce a number that neither ledger contains. Both sides are already
+    reconciled -- `build()` checks a ledger before returning it -- so the
+    arithmetic here is subtraction and the work is saying which subtractions
+    are meaningful.
+    """
+
+    left_name: str
+    right_name: str
+    left: Ledger
+    right: Ledger
+
+    @property
+    def baseline_gap(self) -> Decimal:
+        """Should be zero: one cohort at one period has one baseline.
+
+        Published rather than asserted, because a non-zero value is a real
+        finding -- the two runs read different data for the same rows -- and
+        an assertion would turn it into a crash instead of a report.
+        """
+        return self.right.baseline - self.left.baseline
+
+    @property
+    def scenario_gap(self) -> Decimal:
+        return self.right.scenario - self.left.scenario
+
+    @property
+    def change_gap(self) -> Decimal:
+        return self.right.change - self.left.change
+
+    def relative_gap(self) -> Decimal | str:
+        """The scenario difference against the shared baseline.
+
+        Against the LEFT ledger's baseline, named as such. Against either
+        change would give a percentage of a difference, which reads like a
+        proportion of the portfolio and is not one.
+        """
+        if self.left.baseline == 0:
+            return "not defined (the shared baseline is zero)"
+        return self.scenario_gap / self.left.baseline * 100
+
+    def moved(self) -> tuple[tuple[str, Decimal, Decimal], tuple, ...] | list:
+        """Per entity: the two scenario values and their difference.
+
+        Only entities BOTH ledgers carry. A key in one and not the other is
+        reported separately by `only_in_one`, because an entity that appears
+        on one side is not an entity whose value changed -- it is a cohort
+        mismatch that the hash check should already have refused.
+        """
+        left = {ln.key: ln for ln in self.left.lines}
+        right = {ln.key: ln for ln in self.right.lines}
+        shared = sorted(set(left) & set(right))
+        return [(key, left[key].scenario, right[key].scenario)
+                for key in shared
+                if left[key].scenario != right[key].scenario]
+
+    def only_in_one(self) -> dict[str, list[str]]:
+        left = {ln.key for ln in self.left.lines}
+        right = {ln.key for ln in self.right.lines}
+        return {self.left_name: sorted(left - right),
+                self.right_name: sorted(right - left)}
+
+    def dispositions(self) -> list[dict[str, Any]]:
+        """Rows whose DISPOSITION differs, which is the interesting kind.
+
+        A row scaled by one run and reported ineligible by the other is a
+        disagreement about what could be calculated, not about how much. It is
+        easy to miss in a total -- an ineligible row keeps its baseline, so
+        both sides may show a small difference -- and it is the thing a reader
+        comparing two methods most needs to see.
+        """
+        left = {ln.key: ln for ln in self.left.lines}
+        right = {ln.key: ln for ln in self.right.lines}
+        out: list[dict[str, Any]] = []
+        for key in sorted(set(left) & set(right)):
+            if left[key].disposition == right[key].disposition:
+                continue
+            out.append({"key": key,
+                        self.left_name: left[key].disposition,
+                        self.right_name: right[key].disposition,
+                        "reason_left": left[key].reason,
+                        "reason_right": right[key].reason})
+        return out
+
+    def rows(self) -> list[dict[str, Any]]:
+        """The difference as artifact rows. Strings, like everything else."""
+        out = [
+            {"item": "Shared baseline", "left": str(self.left.baseline),
+             "right": str(self.right.baseline),
+             "difference": str(self.baseline_gap),
+             "note": ("one cohort at one period has one baseline, so this "
+                      "should be exactly zero")},
+            {"item": "Scenario", "left": str(self.left.scenario),
+             "right": str(self.right.scenario),
+             "difference": str(self.scenario_gap),
+             "note": ""},
+            {"item": "Change", "left": str(self.left.change),
+             "right": str(self.right.change),
+             "difference": str(self.change_gap),
+             "note": f"{self.relative_gap()}% of the shared baseline"
+                     if isinstance(self.relative_gap(), Decimal)
+                     else str(self.relative_gap())},
+        ]
+        for key, left_value, right_value in self.moved():
+            out.append({"item": key, "left": str(left_value),
+                        "right": str(right_value),
+                        "difference": str(right_value - left_value),
+                        "note": "per-entity scenario value"})
+        for row in self.dispositions():
+            out.append({"item": row["key"], "left": row[self.left_name],
+                        "right": row[self.right_name], "difference": "",
+                        "note": "the two runs disagree about what could be "
+                                "calculated for this row, not about how much"})
+        missing = self.only_in_one()
+        for side, keys in missing.items():
+            if keys:
+                out.append({"item": f"Only in {side}", "left": "", "right": "",
+                            "difference": str(len(keys)),
+                            "note": f"{', '.join(keys[:10])}"})
+        return out
+
+    def describe(self) -> str:
+        if self.scenario_gap == 0:
+            return (f"{self.left_name} and {self.right_name} produced the "
+                    f"same scenario total, {self.left.scenario}, over the "
+                    f"same {len(self.left.lines)} rows.")
+        return (f"{self.right_name} puts the scenario total "
+                f"{self.scenario_gap:+} SAR million against {self.left_name} "
+                f"-- {self.left.scenario} becoming {self.right.scenario} on "
+                f"a shared baseline of {self.left.baseline}.")
+
+
+def compare(left: Ledger, right: Ledger, *, left_name: str = "first",
+            right_name: str = "second") -> Difference:
+    """The difference between two frozen ledgers, or a refusal to take one.
+
+    Comparability is checked before anything is subtracted, on every field in
+    `COMPARABLE`. A comparison across books, periods or cohorts would produce
+    a number that looks like a scenario effect and is a population effect, and
+    there is no caveat that makes such a figure safe to publish.
+    """
+    for attribute in COMPARABLE:
+        here = getattr(left, attribute)
+        there = getattr(right, attribute)
+        if here != there:
+            raise_for(RECONCILIATION_FAILED,
+                      f"{left_name} and {right_name} do not share their "
+                      f"{attribute}: {here!r} against {there!r}. Two ledgers "
+                      f"are comparable when they are two answers to one "
+                      f"question about one population; subtracting these "
+                      f"would report a difference in the population as a "
+                      f"difference in the scenario.",
+                      field_path=f"ledger.{attribute}",
+                      left=str(here), right=str(there))
+    return Difference(left_name=left_name, right_name=right_name,
+                      left=left, right=right)
+
+
 __all__ = ["CURRENCY", "Contribution", "Coverage", "EXACT", "Ledger",
-           "Line", "MUST_NOT_MOVE", "SEQUENTIAL", "SHAPLEY", "attribute",
-           "build", "shapley"]
+           "Difference", "COMPARABLE", "Line",
+           "MUST_NOT_MOVE", "SEQUENTIAL", "SHAPLEY", "attribute",
+           "build", "compare", "shapley"]

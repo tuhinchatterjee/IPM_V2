@@ -15,7 +15,7 @@ Every predeclared gate passed.
 | G3 | worst absolute per-period bias | 0.050 | 0.0234 | PASSED |
 | G4 | worst material-group WAPE | 0.150 | 0.0537 | PASSED |
 
-Thresholds come from `docs/whatif/ML_ACCEPTANCE_TARGETS.md`, which was committed **before** this model was fitted and before the test split was read.
+Thresholds come from docs/whatif/`ML_ACCEPTANCE_TARGETS_V2.md`, which was committed **before** this model was fitted and before the test split was read.
 
 ## The declared reference model
 
@@ -98,6 +98,7 @@ Train: `2021Q3`–`2024Q1` · Validate: `2024Q3`–`2025Q1` · Test: `2025Q3`–
 
 12 configurations tried against a 12-per-family budget; 3 expanding-window folds; 584 boosting rounds at the early-stopping point, against a 600-round cap with patience 50. Seed 20260928.
 
+
 | Configuration | Mean fold WAPE |
 |---|---|
 | `{"colsample_bytree": 0.8, "learning_rate": 0.05, "max_depth": 7, "min_child_weight": 5, "reg_lambda": 1.0, "subsample": 0.8}` | 0.03039 |
@@ -129,6 +130,7 @@ Train: `2021Q3`–`2024Q1` · Validate: `2024Q3`–`2025Q1` · Test: `2025Q3`–
 
 12 configurations tried against a 12-per-family budget; 3 expanding-window folds; 599 boosting rounds at the early-stopping point, against a 600-round cap with patience 50. Seed 20260929.
 
+
 | Configuration | Mean fold WAPE |
 |---|---|
 | `{"bagging_fraction": 0.8, "bagging_freq": 1, "feature_fraction": 0.8, "lambda_l2": 1.0, "learning_rate": 0.05, "min_data_in_leaf": 20, "num_leaves": 63}` | 0.04281 |
@@ -155,6 +157,11 @@ Train: `2021Q3`–`2024Q1` · Validate: `2024Q3`–`2025Q1` · Test: `2025Q3`–
 ```
 
 12 configurations tried against a 12-per-family budget; 3 expanding-window folds; n/a boosting rounds at the early-stopping point, against a 600-round cap with patience 50. Seed 20260930.
+
+Fitted in logs and back-transformed with Duan's smearing estimator, **1.003213**, computed on the development residuals only. Without it, `exp` of a mean log is a geometric mean and every ECL would be understated by about 0.00%.
+
+`log(x + 1e-09)` on the numeric features whose fitted support is non-negative, decided per column at fit time and remembered, so a scenario that drives a value negative cannot move that column onto a scale the coefficients were not fitted on.
+
 
 | Configuration | Mean fold WAPE |
 |---|---|
