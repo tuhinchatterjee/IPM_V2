@@ -78,17 +78,19 @@ ISOLATION: list[Row] = [
      ["test_the_candidate_manifest_says_it_is_synthetic"], ""),
     ("A08", "Every candidate row carries origin SYNTHETIC_DEMO.", COVERED,
      ["test_the_published_rows_are_all_labelled_synthetic"], ""),
-    ("A09", "Two builds of one release id are byte-identical.", PARTIAL,
+    ("A09", "Two builds of one release id are byte-identical.", COVERED,
      ["test_the_generator_is_deterministic_across_processes"],
-     "The generator's determinism is proved, including across processes "
-     "(`stable()` is SHA-256, not `hash()`, which Python randomises per "
-     "run). A full two-build parquet diff is NOT in the suite because it "
-     "takes 90 seconds; run "
-     "`python3 scripts/whatif/seed_candidate.py --domain all --overwrite` "
-     "twice and compare the printed fingerprints."),
+     "`seed_candidate.py --domain all --overwrite` was run twice and both "
+     "builds produced the same fingerprints -- Corporate "
+     "`3b101bd41465fbe1`, Retail `98b494ae2721bd53`. Both ACCEPTED books "
+     "were re-read from their own manifests afterwards and are unchanged. "
+     "The in-suite test proves the generator is deterministic across "
+     "processes (`stable()` is SHA-256, not `hash()`, which Python "
+     "randomises per run); the two-build diff is measured out of band "
+     "because it takes 90 seconds a build."),
     ("A10", "The protected-file hash check reports every difference and the "
             "allowlist is not broadened.", COVERED, [],
-     "scripts/whatif/protected_hashes.py --check reports 5 changed, 0 "
+     "scripts/whatif/protected_hashes.py --check reports 8 changed, 0 "
      "removed, 25 added; every line is explained in "
      "BASELINE_AND_EXTENSION_MAP.md. No hash regenerated."),
     ("A11", "The candidate's ML dependencies are isolated from the accepted "
@@ -375,11 +377,18 @@ MODEL: list[Row] = [
     ("M15", "Out-of-time WAPE, aggregate bias and per-period bias meet "
             "their thresholds.", COVERED, [],
      "Corporate 1.97 / 1.47 / 2.53%; Retail 2.33 / 0.87 / 1.33%. All "
-     "within G1-G3."),
+     "within G1-G3. Model version 2: Corporate 1.89 / 1.13 / 2.34%; "
+     "Retail 4.43 / 1.27 / 3.50%. All within G1-G3."),
     ("M16", "Material-group WAPE meets its threshold.", PARTIAL, [],
-     "Corporate PASSED at 5.06%. **Retail FAILED at 38.02%** on "
-     "score_band A, 652 test rows carrying a near-zero ECL. The threshold "
-     "is not moved and the group is not excluded; see P7_FINDINGS.md §2."),
+     "Model version 2. **Corporate PASSED at 5.37%.** **Retail FAILED at "
+     "34.36% against 15%.** The threshold was predeclared in "
+     "ML_ACCEPTANCE_TARGETS_V2.md before the model was fitted and before "
+     "the test split was read; it is not moved, the group is not excluded, "
+     "materiality is not redefined and nothing was tuned against the "
+     "untouched split. Retail Method 2 is therefore UNAVAILABLE in the "
+     "product: the conversational answer names the gate, the method keeps "
+     "its row with EMPTY cells rather than a zero, and no other model "
+     "stands in. Delta and User-defined work normally."),
     ("M17", "The model card carries provenance, splits, settings, weights, "
             "metrics, subgroups, libraries and artifact hashes.", COVERED,
      [], "MODEL_CARD_CORPORATE.md and MODEL_CARD_RETAIL.md."),
@@ -440,27 +449,56 @@ RESULTS: list[Row] = [
     ("R10", "Method disagreement is explained, never averaged.", COVERED,
      ["test_d07_the_disagreement_is_explained_rather_than_averaged"], ""),
     ("R11", "Save and reopen keep the source, model, scenario and run "
-            "versions.", PARTIAL,
+            "versions.", COVERED,
      ["test_a_confirmed_scenario_survives_the_round_trip",
       "test_the_release_change_is_visible_in_both_directions"],
-     "The scenario body carries every version and the release change is "
-     "visible. Reopening through the existing saved_analyses route is NOT "
-     "exercised end to end; the browser journeys that would do it are "
-     "BLOCKED below."),
+     "Exercised end to end by J06 on both books: the same approval in the "
+     "same thread reproduces the same figures exactly, and the repeat is "
+     "published as a RE-RUN naming the run that produced them first "
+     "rather than as a second independent answer."),
     ("R12", "Compare is a library function over two frozen ledgers.",
-     BLOCKED, [],
-     "Not built. The ledger, the run and the summary all reconcile "
-     "individually; a two-run comparison is not implemented and is not "
-     "claimed."),
+     COVERED,
+     ["test_two_runs_over_one_cohort_are_comparable",
+      "test_a_row_only_one_side_carries_is_reported_separately",
+      "test_a_disposition_disagreement_is_surfaced",
+      "test_incomparable_ledgers_are_refused_not_caveated",
+      "test_a_comparison_cannot_invent_a_number"],
+     "`ledger.compare()` reports the rows only one side carries and a "
+     "disposition disagreement, and REFUSES rather than caveats when the "
+     "two ledgers are not comparable at all -- different book, period, "
+     "release or cohort. It cannot invent a number for a row one side "
+     "does not have."),
     ("R13", "Exports reconcile to the chat numbers and block formula "
-            "injection.", BLOCKED, [],
-     "Not exercised. The existing CSV/Markdown/SVG/ZIP routes are "
-     "unchanged and untested against a scenario result in this pass."),
+            "injection.", COVERED,
+     ["test_a_formula_in_a_value_is_stored_as_text",
+      "test_the_workbook_reconciles_before_it_is_written"],
+     "J09 on both books runs a scenario to a stored result through the "
+     "product, fetches `/runs/<id>/export?format=csv` and compares the "
+     "exported digits against the figure the chat displayed. Formula "
+     "injection is blocked in the workbook builder: a cell whose text "
+     "begins `=`, `+`, `-`, `@`, tab or carriage return is stored as text. "
+     "The Markdown, SVG and ZIP routes are unchanged and were NOT "
+     "re-driven against scenario content."),
     ("R14", "The section 14.3 workbook is produced offline and reconciled.",
-     NOT_BUILT, [],
-     "There is no XLSX route in cockpit-v4 and one was not added; the "
-     "incompatibility is recorded in PROTECTED_CORE_INCOMPATIBILITY.md. "
-     "The offline workbook script is not built."),
+     COVERED,
+     ["test_the_workbook_reconciles_before_it_is_written",
+      "test_a_broken_book_identity_fails_the_build",
+      "test_a_method_whose_change_does_not_add_up_fails_the_build",
+      "test_an_unavailable_method_is_not_reconciled_against_zero",
+      "test_a_formula_in_a_value_is_stored_as_text",
+      "test_the_workbook_says_what_it_is_measured_on",
+      "test_the_ml_sheet_says_it_is_not_a_decomposition",
+      "test_the_workbook_round_trips_a_real_result"],
+     "`scripts/whatif/build_workbook.py`, offline. Five reconciliations "
+     "must close before a byte is written -- the cohort's change against "
+     "baseline and scenario, each method's own change, the book identity, "
+     "the attribution bridge against the headline, and an unavailable "
+     "method against NOTHING rather than against zero -- and they close "
+     "exactly on a real two-rule Corporate result. A cell whose text "
+     "begins `=`, `+`, `-`, `@`, tab or carriage return is stored as text. "
+     "The IN-CHAT XLSX route is NOT added: that would be a protected-core "
+     "change this authorisation does not cover, and the omission is "
+     "recorded in KNOWN_LIMITATIONS.md section 5."),
 ]
 
 ORACLES: list[Row] = [
@@ -506,7 +544,7 @@ ORACLES: list[Row] = [
 ]
 
 JOURNEYS: list[Row] = [
-    (f"J{n:02d}", description, BLOCKED, [], reason)
+    (f"J{n:02d}", description, COVERED, [], reason)
     for n, description, reason in [
         (1, "Ask a scenario question and receive a preview before anything "
             "runs.", ""),
@@ -531,20 +569,24 @@ JOURNEYS: list[Row] = [
 
 def journey_reason() -> str:
     return (
-        "NOT RUN, and not for want of tooling. `npm --prefix frontend "
-        "install` succeeded (340 packages) and the ACCEPTED browser suite "
-        "runs green against real Chromium in this container, so the "
-        "harness works. What is missing is the path itself: a governed "
-        "Python step runs under `-I -S` from a temp directory with no "
-        "PYTHONPATH, so it can import the standard library and nothing "
-        "else -- `import pandas` and `from backend.cockpit_v4.scenario "
-        "import run` both fail with ModuleNotFoundError, measured. The "
-        "scenario engine therefore cannot be reached from a chat turn "
-        "without a protected-core change that this brief does not "
-        "authorise. The exact change and the approval needed are in "
-        "PROTECTED_CORE_INCOMPATIBILITY.md section 7. No journey in this "
-        "family has been executed against the What-If candidate and none "
-        "is reported as passed.")
+        "RAN, through real Chromium against the real UI, the real V4 API, "
+        "the real durable store, the real worker and event stream, the real "
+        "DuckDB session over the published CANDIDATE release, and the real "
+        "scenario engine reached through the real execute_analysis tool. "
+        "14 of 14 on each book, 28 of 28 in total. Evidence per journey in "
+        "docs/whatif/evidence/journeys-{corporate,retail}.json and the "
+        "screenshots beside them: the prompts as typed, screenshots, the "
+        "thread id with the book and release it is pinned to, cohort id and "
+        "membership hash, scenario id and version, confirmation digest, run "
+        "ids, source release and fingerprint, engine and model versions, "
+        "tool trace, what was displayed, the reconciliation checked, and "
+        "the export. Where an id is absent the record says why. "
+        "MODEL MOCK: no provider credential is authorised in this "
+        "container, so the analyst's tool calls are scripted. Everything "
+        "else on the path is the product's own. A journey driven by a LIVE "
+        "model is a separate, unrun claim -- see V01. "
+        "Reproduce with `python3 scripts/whatif/browser_evidence.py "
+        "--domain all`.")
 
 
 ERRORS: list[Row] = [
@@ -627,12 +669,40 @@ ERRORS: list[Row] = [
       "test_an_unknown_book_is_off_rather_than_an_error",
       "test_the_truthy_set_matches_the_runtimes_own"], ""),
     ("E20", "Timeout, cancellation and repeated-Run behaviour under a "
-            "scenario turn.", BLOCKED, [],
-     "NOT RUN against a scenario. The accepted runtime's budget, deadline "
-     "and idempotency machinery is unchanged and covered by the accepted "
-     "suite, but no What-If turn has been driven through a timeout, a "
-     "cancellation or a double Run. The browser journeys that would do it "
-     "are J13 and J14."),
+            "scenario turn.", COVERED, [],
+     "Driven through the product on both books. J12 asks for a "
+     "probability outside its own range and the bound is REPORTED rather "
+     "than clipped; J13 cancels a run mid-flight and it stops between "
+     "actions with no partial scenario result published as an answer; J14 "
+     "presses Run twice and gets ONE result, published as a re-run of the "
+     "first rather than as a second opinion two readers could average. "
+     "MODEL MOCK: the analyst is scripted."),
+]
+
+#: The claims that are NOT made. A family of its own, so an unrun claim is a
+#: ROW a reader can find rather than a sentence in a document somewhere.
+UNRUN: list[Row] = [
+    ("V01", "A journey driven by a LIVE model, not a scripted analyst.",
+     BLOCKED, [],
+     "NOT RUN. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, "
+     "`AZURE_OPENAI_API_KEY` and `COCKPIT_LLM_API_KEY` are all unset in "
+     "this container -- verified, not assumed -- so no journey here "
+     "exercises a real model and none is reported as having done so. Every "
+     "J row is labelled MODEL MOCK. What IS exercised on the real path: the "
+     "UI, the API, the durable store, the worker, the event stream, the "
+     "DuckDB session over the candidate release, the governed execution "
+     "path and the scenario engine. What is scripted: the analyst's tool "
+     "calls. To run it, set a credential and re-run "
+     "`scripts/whatif/browser_evidence.py` against a provider-backed "
+     "server."),
+    ("V02", "The Mac launcher installed and run on the Mac.", BLOCKED, [],
+     "NOT RUN. "
+     "`scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` "
+     "exists with its installation steps in its own header. "
+     "`/Users/tuhinchatterjee/Desktop/CreditProbe_Launchers` is not "
+     "reachable from this Linux container, so the file has NOT been copied "
+     "there, NOT been made executable there, and NOT been run. The "
+     "accepted launchers are untouched and no port they use is taken."),
 ]
 
 FAMILIES: list[tuple[str, str, list[Row]]] = [
@@ -645,6 +715,7 @@ FAMILIES: list[tuple[str, str, list[Row]]] = [
     ("R", "Results, attribution, charts and exports", RESULTS),
     ("O", "Numeric oracles", ORACLES),
     ("J", "Browser journeys", JOURNEYS),
+    ("V", "Claims deliberately not made", UNRUN),
 ]
 
 

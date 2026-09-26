@@ -381,10 +381,29 @@ clauses, its name and its rules while losing exactly the cohort binding and
 the confirmation. `test_whatif_thread_context.py` asserts each half,
 including that the cohort is **not** rebound to the book in use.
 
+### B1 added the fourth authorised extension: the dispatch itself
+
+Authorised as `PROTECTED_CORE_INCOMPATIBILITY.md` §7 **Option A only**, with
+`contracts.py` raised and approved as a second file before any edit, and
+`routes.py` raised, reproduced and approved as a third.
+
+| File | Change | Reason | Phase |
+|---|---|---|---|
+| `backend/cockpit_v4/contracts.py` | `+ BASE_STEP_LANGUAGES`, `+ WHATIF_STEP_LANGUAGE`, `+ _step_languages()`, `+ _whatif_language()`, and `parse_steps` reading the allowed set | `parse_steps:523-529` hardcoded `("sql", "python")` and refused a scenario step **before** `execute_tool.py` was reached; `provider_tools:1364-1381` inlines `shared_defs.schema.json`'s `Step.language` enum into the provider payload. Both JSON schema files stay byte-identical to `245c50e` — the extra value is appended to the provider's in-memory copy, under the flag. | B1 |
+| `backend/cockpit_v4/execute_tool.py` | `+ CHECK_SCENARIO` and its `PHASE_OF_CHECK` row, two dispatch arms, `+ _is_scenario`, `+ _bridge`, `+ _domain_id`, `+ _validate_whatif`, `+ _run_whatif`, `+ _scenario_failure`, `+ _scenario_rejection` | The authorised dispatch. Both arms are required: `validate_batch`'s `else` swallowed everything non-SQL into `_validate_python`, and `_run_step`'s fallthrough is **SQL**, so an unhandled scenario step would have been run as a query. All substance is in the unprotected `scenario/bridge.py`, which `protected_hashes.py:78` excludes by construction. | B1 |
+| `backend/cockpit_v4/routes.py` | one line: `current = dom_mod.current_release(pinned) if pinned else ""` | STOPPED AND REPORTED BEFORE THE EDIT. `routes.py:220` compared a thread pinned to a candidate release against the ACCEPTED default, so every follow-up turn in such a thread returned 409 `RELEASE_SUPERSEDED` — reproduced over HTTP before the change and after. Without it the candidate product has no second turn and no journey past the first question. | B1 |
+| `backend/cockpit_v4/domain_resolver.py` | `availability()` reads `current_release` as `scope_for` already did | A defect in this work's own P5b edit: the route published the ACCEPTED release id beside the CANDIDATE fingerprint, which is a pairing no release has. A test asserts an id is never printed with another release's fingerprint. | B1 |
+
+**The dispatcher condition is mutation-tested.** Flipping `_is_scenario` to
+always-true, always-false, flag-ignoring or language-only each makes a named
+test fail.
+
 ### The 25 added data files
 
-`--check` now reports `5 changed, 0 removed, 25 added` — `context.py`, which
-P3 and P5b both touched, is one file and one line of that report. The
+`--check` reports `8 changed, 0 removed, 25 added`. The eight are `context.py`
+(P3 and P5b both touched it — one file, one line of the report), `schema.py`,
+`domains.py`, `domain_resolver.py` and `worker.py` from P5b, and `contracts.py`,
+`execute_tool.py` and `routes.py` from B1. The
 additions are the two candidate release directories under
 `data/cockpit_v4_lake/`, which the protected glob covers by design — it
 reports a NEW file matching a protected pattern as drift, and that is the behaviour that would catch someone quietly

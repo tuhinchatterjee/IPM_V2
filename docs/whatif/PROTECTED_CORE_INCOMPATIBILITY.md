@@ -253,37 +253,83 @@ It is **not** enough to run a scenario. `cohort.freeze`, `rules.compile_rules`,
 the sandbox cannot import, and re-implementing them as inline analysis code
 would be the ungoverned parallel execution path this whole design forbids.
 
-## 7.3 The exact change that would close it, and the approval needed
+## 7.3 The change that closed it, as authorised
 
-**Not authorised by the current brief, and not made.** Either of two shapes
-would work and both are protected-core changes:
+**Option A, authorised explicitly and made.** One guarded dispatch, so the
+existing governed execution path hands a strictly typed What-If operation to the
+existing deterministic `scenario/run.py`. An integration adapter, not a new
+analytical architecture.
 
-| Option | Files | Size | What it costs |
+**Option B — a sixth tool — was not built.** P1 established with file:line
+evidence that no sixth tool is needed for anything except this, and the branch
+below shows it is not needed for this either.
+
+### The three protected files, and what each carries
+
+| File | Δ | What the diff does | Authorised as |
 |---|---|---|---|
-| **A — a scenario branch in the tool executor** | `execute_tool.py` | one branch on a step `kind` of `whatif_scenario`, dispatching to `scenario/run.py` server-side | The step stays inside the existing budget, validator and artifact machinery. `execute_tool.py` is protected and this is a real edit to it. |
-| **B — a sixth tool** | `contracts.py`, `execute_tool.py`, `action_state.py`, `prompts/analyst.md` | a registered `run_scenario` tool with its own schema | Larger, and P1 established with file:line evidence that no sixth tool is needed for anything **except** this. The evidence stands: everything else is data or an existing chart kind. |
+| `contracts.py` | +84 | `BASE_STEP_LANGUAGES`, `WHATIF_STEP_LANGUAGE`, `_step_languages()`, `_whatif_language()`, and the `parse_steps` condition reading the allowed set rather than a hardcoded pair. | The dispatch's precondition. `parse_steps` refused the language before `execute_tool.py` was reached, and `provider_tools` inlines `shared_defs.schema.json`'s `Step.language` enum into the provider payload. |
+| `execute_tool.py` | +143 | `CHECK_SCENARIO` and its `PHASE_OF_CHECK` row, two dispatch arms, `_is_scenario`, `_bridge`, `_domain_id`, `_validate_whatif`, `_run_whatif`, `_scenario_failure`, `_scenario_rejection`. | The authorised dispatch itself. |
+| `routes.py` | 1 line | `current = dom_mod.current_release(pinned) if pinned else ""` in place of `DEFAULT_RELEASES.get(pinned or "", "")`. | Stopped and reported before the edit. A thread pinned to a candidate release was compared against the ACCEPTED default, so **every follow-up turn in such a thread returned 409 RELEASE_SUPERSEDED** — reproduced over HTTP. Without it the product has no second turn on a candidate book and no journey past the first question. |
 
-Option A is the smaller change and the one this implementation would
-propose. It needs the same explicit authorisation the three landed
-extensions received.
+**Both dispatch arms are required and neither is optional.**
+`validate_batch`'s `else` swallowed everything non-SQL into `_validate_python`
+(→ `PYTHON_UNAVAILABLE`), and `_run_step`'s fallthrough is **SQL**, so an
+unhandled scenario step would have been executed as a query.
 
-**What is NOT proposed:** relaxing the sandbox. Putting the repository on a
-Python step's path would let model-authored code import the whole backend,
-which is a far larger change to the security posture than anything this
-feature needs, and `pyrunner.self_test()` exists precisely to keep that jail
-honest.
+**The JSON schema files are not edited.** `contracts/shared_defs.schema.json`
+and `contracts/execute_analysis.schema.json` are byte-identical to
+`245c50e45786c6e0c866b281f9dd74da17d160b5`, asserted by a named test. The extra
+enum value is appended to the provider's **in-memory copy** under the flag, so
+with the flags off the provider payload is byte-identical and the payload
+snapshots do not move.
 
-## 7.4 What was stopped, and what was not
+### What the branch recognises, and what it refuses
 
-Stopped: the end-to-end execution wiring, and the browser journeys that
-depend on it (J01 to J14, and E20's timeout/cancel/double-Run behaviour
-under a scenario turn). They are marked **BLOCKED — NOT RUN** in
-`REQUIREMENT_TEST_MATRIX.md`, with this section as the reason. None of them
-is reported as passing.
+`_is_scenario(step)` is `step.language == "whatif_scenario"` **and** the book's
+own flag being on — both halves, checked per book, so a Corporate-only
+deployment cannot execute a Retail scenario step. Anything else, including a
+step that merely names the language while the flag is off, falls through to the
+arms that were always there.
 
-Not stopped, and delivered: everything that does not depend on it. The two
-candidate releases, the sensitivity artifacts and their cards, the mappings,
-both emulators and their model cards, the run, attribution and results
-libraries with their oracles, the requirement matrix, the isolation
-evidence, and the candidate launcher. 115 of 136 acceptance IDs are COVERED
-by named tests.
+`parameters` must match exactly one of two closed shapes,
+`preview_scenario` or `execute_scenario`; every unknown key is refused **by
+name** rather than ignored, because a misspelled key that is silently dropped is
+a rule that silently did not happen. Every field id comes from the candidate
+field dictionary, every operator from a closed set of seven, every cohort column
+from the catalogue. The confirmation is re-verified from the canonical form
+rather than trusted from a stored digest, and the cohort is re-resolved with its
+membership hash compared. **No module name, callable, path or Python expression
+is accepted from the model or the user.** `code` carries a human-readable
+restatement for the trace and is never parsed or executed.
+
+### What was not relaxed
+
+`-I` and `-S` stay. No `PYTHONPATH` is set for model-authored Python, no backend
+directory is added to `sys.path`, no arbitrary backend import is possible from a
+generated Python step, no generic Python escape hatch exists, no second
+executor was created, and the SQL, source and release authorisation are
+unchanged. `pyrunner.self_test()` is re-run unchanged by
+`test_whatif_bridge.py`, which also asserts directly that
+`from backend.cockpit_v4.scenario import run` still fails with
+`ModuleNotFoundError` inside a governed Python step.
+
+### The dispatcher condition is mutation-tested
+
+A harness flips `_is_scenario` to always-true, always-false, flag-ignoring and
+language-only (flag dropped), and asserts that a **named** test fails in each
+case. A condition no test can break is a condition no test is checking.
+
+## 7.4 What the dispatch unblocked, and what remains unrun
+
+**Unblocked and delivered:** J01–J14 on both books through real Chromium
+(28 of 28), E20's timeout/cancel/double-Run behaviour under a scenario turn
+(J12–J14), R11's save-and-reopen (J06), R13's export reconciliation (J09), and
+the three-method comparison over one confirmed contract.
+
+**Still unrun, and not claimed:** a journey driven by a **live provider**. No
+credential is authorised in this container, so every journey runs with a
+scripted analyst against the real UI, API, store, worker, event stream, DuckDB
+session and scenario engine. Those journeys are reported as PASS (MODEL MOCK)
+with that limitation named, and the live-provider journey is a separate row
+marked BLOCKED — NOT RUN.

@@ -1,5 +1,11 @@
 """P9b -- the ML prediction explanation, and the line it must not cross.
 
+EVIDENCE LABEL: **NO MODEL.** No provider is involved, not even a scripted one.
+These tests call pure functions and read the published explanation documents and
+blend manifests off disk, so a passing result here establishes what the guard
+refuses and what the documents say -- and nothing whatever about a model's
+behaviour in a conversation.
+
 Section 13.2 names two quantities that share the word "contribution":
 
 * **Scenario-impact attribution** -- why ECL moved from baseline to scenario.

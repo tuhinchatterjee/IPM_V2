@@ -17,29 +17,47 @@ Implements P0–P11 of
 
 ## 1. Read this first
 
-**The scenario engine is built and cannot be driven from a chat turn.**
+**The scenario engine is reachable from a typed question, through one
+authorised dispatch.** A reader asks in the Advanced Cockpit, the governed
+execution path hands a typed `whatif_scenario` step to `scenario/bridge.py`,
+the bridge calls the existing deterministic engine, and the result comes back
+through the ordinary response path into the ordinary thread. Fourteen journeys
+on each book prove it end to end against real Chromium.
 
-785 tests pass over cohort freezing, rule compilation, previews,
-confirmation hashes, Delta, user assumptions, sensitivities, mappings, two
-emulators, the three-method run, the ledger, attribution and the charts.
-Every piece is governed and reconciled.
+**The sandbox is untouched.** A governed Python step still runs under `-I -S`
+from a temporary directory with no `PYTHONPATH`, so it still imports the
+standard library and nothing else: `import pandas` and
+`from backend.cockpit_v4.scenario import run` both still fail with
+`ModuleNotFoundError` inside it. The scenario path is not a Python escape
+hatch — the operation is a closed typed shape, every field id comes from the
+candidate field dictionary, every operator from a closed set, and no module
+name, callable, path or Python expression is accepted from the model or the
+user. The step's `code` is a restatement in words that is never parsed.
 
-None of it is reachable from a typed question, because a governed Python
-step runs under `-I -S` from a temp directory with no `PYTHONPATH` and can
-therefore import the standard library and nothing else. `import pandas` and
-`from backend.cockpit_v4.scenario import run` both fail with
-`ModuleNotFoundError` — measured, not inferred.
+**Three protected files carry it**, each with its own authorisation and each
+listed with its diff purpose in `BASELINE_AND_EXTENSION_MAP.md`:
+`contracts.py` (the language must parse before the dispatch can be reached),
+`execute_tool.py` (the dispatch), and one line of `routes.py` (without which
+every follow-up turn in a candidate-pinned thread returned 409
+`RELEASE_SUPERSEDED`, reproduced over HTTP). A fourth, `domain_resolver.py`,
+corrects a defect in this work's own earlier edit.
 
-Closing it needs a protected-core change the current brief does not
-authorise. `PROTECTED_CORE_INCOMPATIBILITY.md` §7 has the evidence, the two
-options and the approval needed; **Option A**, one branch in
-`execute_tool.py`, is the smaller change and the one this implementation
-would propose.
+**Both flags off restores the accepted behaviour, not merely approximates
+it.** With neither book enabled nothing in the scenario package is imported by
+the accepted runtime: the step language is not even accepted, the refusal is
+the accepted sentence, the provider payload is byte-identical, the default
+release is the accepted one, and the accepted browser suite is unchanged.
 
-**What works today without that change:** anything published as a relation.
-Sensitivities, rating maps, score bands, the MEV registry and the model
-cards are all ordinary `SELECT`s against the candidate release. That is why
-they were published as data.
+**One thing is not ready and says so.** The Retail emulator misses G4 — worst
+material-group WAPE 34.36% against a predeclared 15% — so Method 2 is
+unavailable on the Retail book: the answer names the gate, the method keeps its
+row with empty cells rather than a zero, and no other model stands in. Delta
+and User-defined work normally. Corporate passes all four gates and its
+estimate is published beside Delta's.
+
+**One thing was never run.** No provider credential is authorised here, so
+every journey uses a scripted analyst and is labelled MODEL MOCK. A
+live-provider journey is row V01 of the matrix, marked BLOCKED — NOT RUN.
 
 ## 2. What the accepted application still is
 
@@ -49,9 +67,9 @@ Unchanged. This is the claim that matters most and it is checked three ways:
 |---|---|
 | `v4-saudi-corporate-20q-v4` fingerprint | `e37236d0f6d4e494…` — **unchanged** |
 | `v4-saudi-retail-20m-v5` fingerprint | `a1e797dcc73236b7…` — **unchanged** |
-| Full V4 regression, flags OFF | **4189 passed, 4 skipped** |
+| Full V4 + frontend regression, flags OFF | **4301 passed, 4 skipped, 0 failed** |
 | Accepted browser journeys, real Chromium | **76/76 passed** |
-| `protected_hashes.py --check` | 5 changed, **0 removed**, 25 added — every line explained |
+| `protected_hashes.py --check` | 8 changed, **0 removed**, 25 added — every line explained |
 
 **The protected core is NOT byte-identical.** Five files differ, each an
 authorised flag-gated extension, each recorded with its exact diff in
@@ -204,19 +222,29 @@ them with this one.
 ```bash
 cd /home/user/whatif_wt
 COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python -m pytest -o addopts="" -q \
-    tests/cockpit_v4 tests/frontend        # 4189 passed, 4 skipped
+    tests/cockpit_v4 tests/frontend        # 4301 passed, 4 skipped
 python -m pytest -o addopts="" -q tests/cockpit_agentic
 /root/.local/bin/ruff check backend/cockpit_v4 tests/cockpit_v4 scripts/whatif
 python3 scripts/whatif/protected_hashes.py --check
 python3 scripts/whatif/build_matrix.py
 python3 scripts/whatif/build_sensitivities.py     # cards vs published release
-python3 scripts/cockpit_v4/browser_evidence.py    # 76/76
+python3 scripts/cockpit_v4/browser_evidence.py    # 76/76, the ACCEPTED suite
+python3 scripts/whatif/browser_evidence.py --domain all   # J01-J14, 28/28
+.venv-whatif/bin/python scripts/whatif/build_explanations.py --domain all
+.venv-whatif/bin/python scripts/whatif/verify_artifacts.py --domain all
 ```
+
+The last one refits both emulators from scratch into a temporary directory and
+compares every component hash, blend weight, gate verdict and measured value,
+seed, library version and period split against what is published. It takes
+about eight minutes and touches nothing published. A difference is reported, not
+regenerated away.
 
 ## 11. Documents
 
 | | |
 |---|---|
+| `FINAL_STATUS.md` | **the deliverable table**: requirement, status, evidence, commit, known limitation |
 | `BASELINE_AND_EXTENSION_MAP.md` | every protected-file difference, with its diff and reason |
 | `PROTECTED_CORE_INCOMPATIBILITY.md` | what could not be built without a core change; **§7 is the execution boundary** |
 | `DATA_READINESS.md` | what each book has and does not have |

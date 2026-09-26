@@ -10,56 +10,68 @@ discovered later is one that cost somebody a day.
 
 ---
 
-## 1. The scenario engine cannot be driven from a chat turn
+## 1. The chat-to-engine path exists, through one authorised dispatch
 
-**The largest limitation, and the one that stopped work.**
+A typed question in the Advanced Cockpit reaches `scenario/run.py` and its
+result comes back through the ordinary response path into the ordinary thread.
+The route is a guarded branch in `execute_tool.py` that recognises one step
+language, `whatif_scenario`, for a book whose flag is on, and hands its typed
+`parameters` to `scenario/bridge.py`. The adapter is unprotected code; the
+protected-core addition is the dispatch and nothing else.
 
-The engine is built, governed and tested: cohort freezing, rule
-compilation, previews, confirmation hashes, Delta, user assumptions,
-sensitivities, mappings, both emulators, the three-method run, the ledger,
-attribution and the charts. 785 tests pass over it.
-
-None of it is reachable from a typed question. A governed Python step runs
-under `-I -S` from a temporary directory with no `PYTHONPATH`, so it can
-import the standard library and nothing else — `import pandas` and
+**The sandbox is untouched.** A governed Python step still runs under `-I -S`
+from a temporary directory with no `PYTHONPATH`, so it still imports the
+standard library and nothing else: `import pandas` and
 `from backend.cockpit_v4.scenario import run` both fail with
-`ModuleNotFoundError`, measured directly against `pyrunner._spawn`. Closing
-this needs a protected-core change that the current brief does not
-authorise.
+`ModuleNotFoundError` inside it, asserted against `pyrunner._spawn` in
+`test_whatif_bridge.py`. The scenario path is not a Python escape hatch — no
+module name, callable, path or Python expression is accepted from the model or
+the user, the step's `code` is a human-readable restatement that is never
+parsed, and `parameters` must match one of two closed shapes with every unknown
+key refused by name.
 
-`PROTECTED_CORE_INCOMPATIBILITY.md` §7 has the evidence, the two options and
-the approval needed. **Option A** — one branch in `execute_tool.py`
-dispatching a `whatif_scenario` step to `scenario/run.py` — is the smaller
-change and the one this implementation would propose.
+**What the flags off restore.** Both flags off and nothing in the scenario
+package is imported by the accepted runtime: the step language is not even
+accepted, the refusal is the accepted sentence, the provider payload is
+byte-identical, and the accepted browser suite is unchanged.
 
-**What still works today:** anything published as a **relation**. A
-methodology question, a sensitivity, a rating map, a score band, a model
-card metric and the MEV registry are all ordinary `SELECT`s against the
-candidate release, and that is deliberate — it is why P5, P6 and P7 publish
-their artifacts as data rather than as objects.
+**Three protected files carry the change**, each with its own authorisation,
+and every one of them is listed with its diff purpose in
+`BASELINE_AND_EXTENSION_MAP.md`.
 
-## 2. The Retail emulator missed a predeclared gate
+## 2. The Retail emulator is not ready, and its number is not published
 
-G4, worst material-group WAPE: **38.02% against a 15% threshold**, on
-`score_band = A` — 652 test observations carrying **0.15% of the test
-period's ECL**.
+Model version 2, Retail: G1 4.43%, G2 1.27%, G3 3.50% — and **G4, worst
+material-group WAPE, 34.36% against a 15% threshold**. The threshold was
+predeclared in `ML_ACCEPTANCE_TARGETS_V2.md`, committed before the model was
+fitted and before the test split was read. It has not been moved, the group has
+not been excluded, materiality has not been redefined, and nothing was tuned
+against the untouched split.
 
-The threshold has not been moved, the group has not been excluded and the
-model has not been retuned. Method 2 on the Retail book returns its number
-**with the failed gate named beside it**. `P7_FINDINGS.md` §2 records what
-would be legitimate to do about it in a future model version and what would
-not.
+**Method 2 is therefore unavailable on the Retail book.** The conversational
+answer says the emulator is not ready and names the gate; the method keeps its
+row in the comparison with its cells **empty rather than zero**, and no other
+model stands in for it. The result appears in model-development evidence only,
+marked FAILED VALIDATION. Delta and User-defined work normally on Retail.
 
-Corporate passed all four gates.
+Corporate model version 2 passes all four gates — G1 1.89%, G2 1.13%,
+G3 2.34%, G4 5.37% — and its estimate is published beside Delta's.
 
-## 3. Neither emulator is a blend
+## 3. Both emulators are genuine blends, on a declared change of methodology
 
-Three components were offered per book and the weight fit put everything on
-one: XGBoost on Corporate, LightGBM on Retail. Both model cards say
-"SINGLE-MODEL RESULT" in those words. The additive component scored 32%
-(Corporate) and 182% (Retail) fold WAPE against 3–10% for the boosters — an
-additive spline basis cannot represent a product of variables, which is what
-this target is.
+Corporate: XGBoost 0.767 / additive-in-logs 0.233. Retail: additive-in-logs
+0.658 / LightGBM 0.342. Both reproduced exactly across two builds.
+
+The weight fit is an exact solve over all seven faces of the simplex
+(`blend.py:171-221`), so the earlier single-component outcome was the true
+global optimum on out-of-fold least squares rather than a search defect. What
+changed is one declared component, with its reason taken from development
+evidence alone: the additive-in-LEVELS spline was replaced by a regularized
+additive model in log space, because the target is multiplicative
+(`ecl ≈ ead × pd × lgd`) and an additive-in-levels basis provably cannot
+represent a product. Component diversity is the mechanism by which a blend
+becomes possible; "blend" was not the objective and no weight was manufactured
+to reach the word.
 
 ## 4. There is no tornado chart
 
@@ -69,39 +81,57 @@ so −400 and +400 draw the same rectangle on the same side
 signed driver ranking through it would show every driver pointing one way.
 
 `results.tornado_substitute()` returns a waterfall whose caption says the
-requested form is unavailable and why, plus a signed table that keeps both
-the ordering and the direction. It is not called a tornado.
+requested form is unavailable and why, plus a signed table that keeps both the
+ordering and the direction. It is not called a tornado.
 
-## 5. There is no XLSX export, and no offline workbook was built
+## 5. The XLSX workbook is offline, and there is no in-chat XLSX route
 
-cockpit-v4 exports Markdown, CSV, SVG and a governance ZIP
-(`routes.py:767, 853, 938, 983`). `openpyxl` is used only by the legacy
-`backend/exports/`, which keys on integer run ids. §14.3's workbook is
-**not built** — neither the route (a protected-core change) nor the offline
-script.
+`scripts/whatif/build_workbook.py` builds §14.3's workbook from a stored
+scenario result and refuses to write one that does not reconcile: the cohort's
+change against baseline and scenario, each method's own change, the book
+identity, the attribution bridge against the headline, and an unavailable
+method against **nothing** rather than against zero. A cell whose text begins
+`=`, `+`, `-`, `@`, tab or carriage return is stored as text, so a value cannot
+become a formula in a reader's spreadsheet.
 
-## 6. Export reconciliation is not exercised
+The in-chat route is **not added**: cockpit-v4 exports Markdown, CSV, SVG and a
+governance ZIP, and an XLSX route would be a protected-core change this
+authorisation does not cover.
 
-The existing CSV/Markdown/SVG/ZIP routes are unchanged and have **not** been
-driven against a scenario result, because §1 means there is no scenario
-result to drive them against. Formula-injection blocking is likewise not
-re-tested for scenario content.
+## 6. Export reconciliation is exercised, on the CSV route
 
-## 7. Two frozen ledgers cannot be compared
+J09 runs a scenario to a stored result through the product, fetches
+`/runs/<id>/export?format=csv`, and compares the exported digits against the
+figure the chat displayed. The workbook builder's five reconciliations close
+exactly on a real two-rule Corporate result. Formula-injection blocking is
+tested on the workbook; the existing Markdown, SVG and ZIP routes are unchanged
+and were not re-driven against scenario content.
 
-A compare-two-runs function is **not built**. Each ledger, run and summary
-reconciles individually; a difference between two of them is not
-implemented and is not claimed.
+## 7. Two frozen ledgers can be compared
 
-## 8. No browser journey was run against the candidate
+`ledger.compare()` reports, for two frozen ledgers over one cohort: the rows
+only one side carries, a disposition disagreement, and a refusal rather than a
+caveat when the two are not comparable at all — different book, period, release
+or cohort. It cannot invent a number for a row that one side does not have.
 
-J01–J14 are **BLOCKED — NOT RUN**, for the reason in §1 rather than for want
-of tooling: `npm --prefix frontend install` succeeded and the **accepted**
-browser suite runs **76/76 green** against real Chromium in this container.
-The harness works; the path does not exist.
+## 8. J01–J14 ran against the candidate, with a scripted analyst
 
-E20 (timeout, cancellation, repeated Run under a scenario turn) is blocked
-for the same reason.
+Fourteen journeys on each book, through real Chromium against the real UI, the
+real V4 API, the real durable store, the real worker and event stream, the real
+DuckDB session over the published candidate release, and the real scenario
+engine reached through the real `execute_analysis` tool. **28 of 28 pass.**
+Evidence per journey in `evidence/journeys-{corporate,retail}.json`: the prompts
+as typed, screenshots, the thread id with the book and release it is pinned to,
+cohort id and membership hash, scenario id and version, confirmation digest, run
+ids, source release and fingerprint, engine and model versions, tool trace, what
+was displayed, the reconciliation checked, and the export. Where an id is
+absent the record says why.
+
+The analyst is scripted — see §9. A journey driven by a live model is a
+separate, unrun claim.
+
+E20 (timeout, cancellation, repeated Run under a scenario turn) is covered by
+J12, J13 and J14.
 
 ## 9. No live provider call was made
 
@@ -167,3 +197,72 @@ standard library — or be declared capped with the full population count.
 baselines. It does **not** store the membership itself. Reopening a scenario
 against the same release reuses the id; reopening it against a different one
 drops the binding entirely and does not rebind.
+
+## 16. Three findings in the accepted UI that this work surfaced and did not fix
+
+Each was found by driving J01–J14 through the real product. Each is in a
+protected file this authorisation does not cover, so each is recorded here
+rather than changed. None is caused by the scenario path; the scenario path is
+what made them visible.
+
+**16.1 A riyal amount cannot show a small movement.**
+`display.PERMITTED[MONETARY_AMOUNT]` is `(0,)` — a money figure is written to
+whole units and the precision is CreditProbe's outright. The Retail book's
+monthly cohort carries about **SAR 1.69 million** of ECL, so a genuine 20% PD
+rise produces "baseline ECL of SAR 2 million becomes SAR 2 million, a change of
+SAR 0 million". Every digit there is the display policy doing its job, and
+together they say the opposite of what happened. The same number appears as
+`1.69` in the table beside it, because a table column with no declared unit is
+formatted as unitless at two decimals — so one answer shows one figure two
+ways.
+
+*What this work does instead of changing the policy:* the percentage change is
+quoted beside the absolute one (a percentage class carries two decimals and
+states the movement exactly), and when the riyal figure rounds to nothing the
+answer says so in words and points at the unrounded rows. Nothing is rounded
+before it is computed.
+
+**16.2 A run still working reads as a run that stopped.**
+The thread view renders the assistant's turn as soon as the run view says
+`terminal`, and the run poller latches `terminal` from the first status it reads
+— which, moments after the POST, is `ACCEPTED` with no response attached. The
+page then reads **"Stopped: ACCEPTED / This request stopped / No answer was
+produced"** for as long as the run takes, and corrects itself only when the
+settled status arrives. A reader watching a slow scenario run is told it failed.
+
+*Reproduction:* any turn in `journeys-corporate.json`; the harness had to learn
+that an unexplained stop is indistinguishable from a run in progress, and counts
+a stop as an ending only once it has named an error code.
+
+**16.3 A published table the server did not render crashes the thread page.**
+`finalization.render_tables` builds a published table from the stored artifact
+and passes an unrecognised one through untouched. `ResultTable` then reads
+`row.display[column]` on rows that have no `display` map, throws
+`Cannot read properties of undefined`, and the error boundary replaces the whole
+page — including the composer, so the conversation cannot be continued. The
+failure mode is a white "This page could not be loaded" for what is a single
+malformed table.
+
+*Reproduction:* have an analyst declare a table with inline `rows` and no
+`artifact_id`. Two guards would close it — a server-side refusal to publish a
+table it did not render, and a UI that draws a cell it cannot find as empty —
+and both are in protected files.
+
+## 17. The offline explanation document is documentation, not a per-run answer
+
+`artifacts/whatif/<book>/explanation.json` carries gain-based importance and
+partial-dependence curves computed **once, on the development window**, because
+evaluating the blend over a grid for every feature is far too much work for a
+chat turn. Every row it produces says, in the status a reader sees, that it
+describes the fitted function on the development window and not the cohort in
+view. The held-back periods are checked against the published model's own split
+and the build refuses if the two disagree.
+
+Per-run SHAP and per-component contribution ARE computed on the cohort, from the
+frozen artifacts — a TreeExplainer pass is a forward walk of trees that already
+exist and is not a refit.
+
+None of it is a decomposition of the scenario's ECL movement.
+`explain.never_a_decomposition` refuses any explanation row carrying a scenario
+currency column, and a test fails if a feature name is ever also published as an
+attribution driver.

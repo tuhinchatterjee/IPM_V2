@@ -115,3 +115,64 @@ booster sits comfortably under 4 GB; nothing in this build needed a limit
 raised. The seed scripts hold one book's frames in memory at a time — about
 1.6 million rows for Retail — which is why they run per book rather than
 both at once.
+
+---
+
+## The scenario turn, measured through the product
+
+Thirteen of the fourteen journeys on each book take **under six seconds** end to
+end, and that figure includes the browser navigating, the page rendering, the
+turn settling and the assertions running — not just the engine. Measured in this
+container against the candidate releases, with a scripted analyst (so no
+provider latency is in these numbers, which is stated rather than hidden).
+
+| Journey | Corporate | Retail | What it does |
+|---|---|---|---|
+| J01 preview | 3.3s | 4.1s | investigation, then a preview over a frozen cohort |
+| J02 confirm and run | 4.4s | 4.3s | the same, then approval and a full Delta run |
+| J03 methodology | 2.1s | 2.1s | a `SELECT` over a published sensitivity, no engine |
+| J04 every method | 3.8s | 4.0s | Delta + emulator + assumption on one contract |
+| J05 assumption | 3.8s | 3.4s | a reader's own figure, labelled as theirs |
+| J06 reopen | 5.6s | 5.7s | two approvals, reproducing the same figures |
+| J07 cross-book | 3.3s | 3.4s | the other book refused with 409 |
+| J08 chart refusal | 4.3s | 4.6s | a form the renderer cannot draw, named |
+| J09 export | 4.4s | 4.6s | run, export CSV, reconcile against the chat |
+| J10 model status | 3.9s | 3.2s | the emulator's gate verdict |
+| J11 unseen category | 2.0s | 2.0s | refused before a cohort is frozen |
+| J12 out of range | 2.3s | 2.4s | the bound reported, not clipped |
+| J13 cancel | 1.6s | 1.7s | stopped between actions |
+| J14 double Run | 5.5s | 5.7s | two approvals, one result |
+| **whole suite** | **50.3s** | **51.2s** | 14 journeys, real browser |
+
+**Where the time goes on a scenario turn.** The cohort read is bounded by the
+engine and the declared cap (`MAX_COHORT_ROWS = 250_000`); the arithmetic runs in
+the worker process under a monotonic guard set to `DEADLINE_SHARE = 0.9` of the
+step's own budget, because `_run_step` computes a per-step budget and enforces
+none of it — each arm enforces its own, and this arm declares its bounds.
+
+**What is NOT in these numbers:** a provider round trip. A live model would add
+its own latency to the action and answer turns, and no live journey has been run
+— see row V01 of the requirement matrix.
+
+## Offline explanation documents
+
+| Book | Command | Measured |
+|---|---|---|
+| Corporate | `build_explanations.py --domain corporate` | 41s, 41,944 development rows, 12 curves |
+| Retail | `build_explanations.py --domain retail` | 41s, 88,160 development rows, 12 curves |
+
+Two builds of each are byte-identical. This is why the response relationships
+are offline: evaluating the blend over an 11-point grid for every one of 39
+features is not work a chat turn may do.
+
+## Artifact verification
+
+| Command | Measured |
+|---|---|
+| `verify_artifacts.py --domain corporate` | refit 184s, every published hash, weight, gate and metric reproduced |
+| `verify_artifacts.py --domain retail` | refit ~4 min, same |
+
+The verification refits from scratch into a temporary directory and compares
+component hashes, blend weights, every gate's measured value and verdict, the
+seeds, the library versions and the three period splits. Nothing published is
+touched, and a mismatch is reported rather than regenerated away.
