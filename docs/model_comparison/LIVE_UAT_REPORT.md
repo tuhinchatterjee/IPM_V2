@@ -89,3 +89,5 @@ The before/after below was produced on saved comparison `cmp-654f3cdff4cf`. Revi
 ```
 
 The script exits non-zero if the engine-run count changes.
+
+**Frozen regression after lab-eval-2** (`frozen_regression.py`, 2026-09-26): 3,315 passed, 33 skipped, 0 failed. This is unchanged from the baseline. The evidence files were restored and the protected manifest check passed.
