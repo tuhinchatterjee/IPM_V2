@@ -46,6 +46,20 @@ GROUP BY f.sector
 ORDER BY f.sector
 """.strip()
 
+#: Two metrics per sector: EAD (SAR million) AND the facility count. The
+#: live Opus answer in cmp-f364d8b6901a cited both for Construction.
+TWO_METRIC_SQL = """
+SELECT sector,
+       SUM(ead_sar_mn) AS stage2_ead_sar_mn,
+       COUNT(DISTINCT facility_id) AS stage2_facilities
+FROM corp_facility_quarter
+WHERE stage = 2
+  AND reporting_quarter = (SELECT MAX(reporting_quarter)
+                           FROM corp_facility_quarter)
+GROUP BY sector
+ORDER BY stage2_ead_sar_mn DESC
+""".strip()
+
 #: Whole-book: every stage. Syntactically valid, plausible, wrong population.
 WHOLE_BOOK_SQL = STAGE2_SQL.replace("WHERE stage = 2\n  AND ", "WHERE ")
 
@@ -121,6 +135,36 @@ def _executed_artifact(messages) -> tuple[str, list[dict[str, Any]]] | None:
     if not steps or not steps[0].get("artifact_id"):
         return None
     return steps[0]["artifact_id"], list(steps[0].get("preview") or [])
+
+
+def _finalize_two_metrics(artifact: str, rows: list[dict[str, Any]], *,
+                          call_id: str, sector: str = "Construction"
+                          ) -> dict[str, Any]:
+    """Two direct claims on ONE row: money and a facility count."""
+    key = f"sector={sector}"
+    ref = {"artifact_id": artifact, "row_key": key}
+    return {"id": call_id, "name": "finalize_response", "input": {
+        "disposition": "answer",
+        "narrative": (f"{sector} carries {{{{claim.construction}}}} of Stage "
+                      f"2 exposure across {{{{claim.construction_facilities"
+                      f"}}}}."),
+        "coverage": [{"subquestion": "Stage 2 exposure by sector, latest "
+                                     "quarter", "status": "answered",
+                      "evidence_refs": [ref | {"column_id":
+                                               "stage2_ead_sar_mn"}]}],
+        "numeric_claims": [
+            {"claim_id": "construction", "unit": "SAR million",
+             "evidence": ref | {"column_id": "stage2_ead_sar_mn"}},
+            {"claim_id": "construction_facilities", "unit": "facilities",
+             "evidence": ref | {"column_id": "stage2_facilities"}}],
+        "evidence_refs": [], "tables": [{"title": "Stage 2 by sector",
+                                         "artifact_id": artifact,
+                                         "columns": ["sector",
+                                                     "stage2_ead_sar_mn",
+                                                     "stage2_facilities"]}],
+        "charts": [], "limitations": [], "suggested_questions": [],
+        "clarification_question": "", "clarification_options": [],
+        "referral_owner": "", "referral_reason": ""}}
 
 
 def _finalize(artifact: str, rows: list[dict[str, Any]], *,
@@ -218,6 +262,11 @@ class FixtureProvider:
             return FixtureResult(tool_calls=[_finalize(
                 artifact, rows, call_id=f"fx-{n}")], model=self.model,
                 **usage)
+        if executed and b == "two_metrics":
+            artifact, rows = executed
+            return FixtureResult(tool_calls=[_finalize_two_metrics(
+                artifact, rows, call_id=f"fx-{n}")], model=self.model,
+                **usage)
         if executed:
             artifact, rows = executed
             extra = ""
@@ -235,6 +284,8 @@ class FixtureProvider:
             sql = BROKEN_SQL
         elif b == "wrong_scope":
             sql = WHOLE_BOOK_SQL
+        elif b == "two_metrics":
+            sql = TWO_METRIC_SQL
         elif b == "alternate_plan":
             sql = ALTERNATE_SQL
         else:

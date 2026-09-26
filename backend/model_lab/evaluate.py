@@ -262,11 +262,40 @@ def _value_column(rows: list[dict], preferred: str | None = None) -> str:
     return ""
 
 
-def _sector_map(rows: list[dict]) -> dict[str, float]:
+def _metric_column(rows: list[dict], reference: dict | None,
+                   fr: dict | None) -> tuple[str, bool]:
+    """The artifact column that carries the reference's PRIMARY metric.
+
+    Chosen by unit class and column name through `oracle.match_metric`,
+    using the units the frozen answer declared (table `column_units`, then
+    the numeric claims citing that column). Falls back to the first numeric
+    column only when nothing matches, and says so (confirmed=False)."""
+    if not rows:
+        return "", False
+    primary = (reference or {}).get("primary_metric")
+    units: dict[str, str] = {}
+    for t in (fr or {}).get("tables") or []:
+        units.update(t.get("column_units") or {})
+    for c in (fr or {}).get("numeric_claims") or []:
+        col = (c.get("evidence") or {}).get("column_id")
+        if col and c.get("unit"):
+            units.setdefault(col, c["unit"])
+    numeric = [k for k, v in rows[0].items()
+               if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if primary:
+        hits = [k for k in numeric if oracle.match_metric(
+            reference, k, units.get(k), None) == primary]
+        if len(hits) == 1:
+            return hits[0], True
+    return _value_column(rows), False
+
+
+def _sector_map(rows: list[dict], column: str | None = None
+                ) -> dict[str, float]:
     if not rows:
         return {}
     key = next((k for k in rows[0] if k in ("sector", "sector_name")), None)
-    col = _value_column(rows)
+    col = _value_column(rows, column)
     if not key or not col:
         return {}
     return {str(r[key]): float(r[col]) for r in rows
@@ -533,10 +562,16 @@ def _checks(child, answers, runs, tenant, task, reference
         artifact_id = artifact_id or (c.get("evidence") or {}).get(
             "artifact_id")
     produced: dict[str, float] = {}
+    metric_column, metric_confirmed = "", False
     if artifact_id:
-        produced = _sector_map(_artifact_rows(runs, artifact_id, tenant))
+        rows = _artifact_rows(runs, artifact_id, tenant)
+        metric_column, metric_confirmed = _metric_column(
+            rows, reference, fr)
+        produced = _sector_map(rows, metric_column)
     facts["artifact_id"] = artifact_id
     facts["produced"] = produced
+    facts["metric_column"] = metric_column
+    facts["metric_column_confirmed"] = metric_confirmed
     exp, wrong = reference["values"], reference["wrong_population_values"]
     if not artifact_id:
         checks.append({"check_id": "S2-RESULT", "stage": "S2",
@@ -574,7 +609,13 @@ def _checks(child, answers, runs, tenant, task, reference
         "severity": "CRITICAL" if not pop_ok else "INFO",
         "status": "AUTO_CHECKED",
         "evidence_ref": {"artifact_id": artifact_id,
-                         "run_id": last["run_id"]},
+                         "run_id": last["run_id"],
+                         "metric_column": metric_column},
+        "metric": reference.get("primary_metric"),
+        "metric_column_confirmed": metric_confirmed,
+        "note": ("" if metric_confirmed else
+                 f"the metric column could not be confirmed by unit and "
+                 f"name; compared column {metric_column!r}"),
         "detail": {k: {"produced": v[0], "expected": v[1]}
                    for k, v in list(mism.items())[:20]}})
     checks.append({
@@ -679,7 +720,9 @@ def _artifact_record(runs, artifact_id: str, tenant: str) -> dict | None:
 
 
 def _numeric_claim(c: dict[str, Any], runs, tenant, task, reference,
-                   facts, frozen: dict[str, Any]) -> dict[str, Any]:
+                   facts, frozen: dict[str, Any],
+                   column_units: dict[str, str] | None = None
+                   ) -> dict[str, Any]:
     """One structured numeric claim, resolved with the FROZEN resolvers.
 
     Direct claims are located with `derivation.row_index_for` -- the same
@@ -696,12 +739,13 @@ def _numeric_claim(c: dict[str, Any], runs, tenant, task, reference,
 
     from backend.cockpit_v4 import derivation as deriv
 
-    exp = (reference or {}).get("values") or {}
     ev = c.get("evidence") or {}
     status, why, evidence_status = UNVERIFIABLE, "", EV_COMPLETE
     value: Any = None
     refs: list[str] = []
     row_label = None
+    metric: str | None = None
+    reference_value: float | None = None
     if c.get("derivation"):
         try:
             d = deriv.parse(c["derivation"])
@@ -751,26 +795,40 @@ def _numeric_claim(c: dict[str, Any], runs, tenant, task, reference,
                 row_label = next((str(row[k]) for k in ("sector",
                                                         "sector_name")
                                   if k in row), None)
-                if exp and task and row_label in exp and \
-                        isinstance(value, (int, float)):
-                    if facts.get("population_ok") is False:
-                        status = CONTRADICTED
-                        why = (f"matches its own result ({value:,.2f}) but "
-                               f"the result is over the wrong population; "
-                               f"reference {exp[row_label]:,.2f}")
-                    elif oracle.within(float(value), exp[row_label], task):
+                metric = oracle.match_metric(
+                    reference, col, c.get("unit"),
+                    (column_units or {}).get(col))
+                cmp_ = (oracle.compare(reference, metric, row_label,
+                                       value, task)
+                        if metric and task and row_label and
+                        isinstance(value, (int, float)) else None)
+                same_artifact = refs[0] == facts.get("artifact_id")
+                if facts.get("population_ok") is False and same_artifact:
+                    # The COHORT of this result failed the independent
+                    # population assertion. That is metric-independent and
+                    # already established -- not a cross-metric comparison.
+                    status = CONTRADICTED
+                    why = (f"matches its own result ({value}) but that "
+                           f"result is over the wrong population "
+                           f"(S1S2-POP failed)")
+                    if cmp_:
+                        why += f"; same-metric reference {cmp_[1]:,.2f}"
+                elif cmp_ is not None:
+                    reference_value = cmp_[1]
+                    if cmp_[0]:
                         status = SUPPORTED
-                        why = (f"cell {value:,.2f} = reference "
-                               f"{exp[row_label]:,.2f} within tolerance")
+                        why = (f"cell {value:,.2f} = {metric} reference "
+                               f"{cmp_[1]:,.2f} within tolerance")
                     else:
                         status = CONTRADICTED
-                        why = (f"cell {value:,.2f} vs reference "
-                               f"{exp[row_label]:,.2f}")
+                        why = (f"cell {value:,.2f} vs {metric} reference "
+                               f"{cmp_[1]:,.2f}")
                 else:
+                    metric = None
                     status = SUPPORTED
                     why = ("located in the executed result (frozen row "
-                           "resolver); no independent reference for this "
-                           "cell")
+                           "resolver); frozen Finalizer validated; no "
+                           "same-metric independent reference")
     return {
         "claim_id": c.get("claim_id"),
         "answer_span_ref": f"numeric_claims[{c.get('claim_id')}]",
@@ -782,11 +840,17 @@ def _numeric_claim(c: dict[str, Any], runs, tenant, task, reference,
         "cohort": (reference or {}).get("population"),
         "period": (reference or {}).get("period"),
         "row_label": row_label, "result_refs": refs,
+        "reference_metric": metric,
+        "reference_value": reference_value,
+        "reference_unit": ((reference or {}).get("metrics", {})
+                           .get(metric, {}).get("unit") if metric else None),
         "extraction_method": "structured numeric claim (engine)",
         "extraction_confidence_class": "HIGH",
         "verification_status": status, "evidence_status": evidence_status,
         "frozen_validation": frozen,
-        "assertion_refs": ["S1S2-POP"] if exp else [],
+        "assertion_refs": (["S1S2-POP"] if metric or (
+            facts.get("population_ok") is False and refs and
+            refs[0] == facts.get("artifact_id")) else []),
         "materiality": "MATERIAL", "evaluator_version": EVALUATOR_VERSION,
         "reviewer_status": ("NEEDS_REVIEW" if evidence_status ==
                             EV_INCOMPLETE else "UNREVIEWED"),
@@ -799,8 +863,11 @@ def _claims(fr: dict | None, runs, tenant, task, reference, facts,
         return []
     frozen = frozen or {"status": "UNKNOWN",
                         "message": "no answer.validated event found"}
+    column_units: dict[str, str] = {}
+    for t in fr.get("tables") or []:
+        column_units.update(t.get("column_units") or {})
     claims = [_numeric_claim(c, runs, tenant, task, reference, facts,
-                             frozen)
+                             frozen, column_units)
               for c in fr.get("numeric_claims") or []]
     rendered = fr.get("narrative") or ""
     for i, s in enumerate(_sentences(rendered)):

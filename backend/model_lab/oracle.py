@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-ORACLE_VERSION = "lab-oracle-1"
+ORACLE_VERSION = "lab-oracle-2"
 
 
 @dataclass(frozen=True)
@@ -89,29 +89,110 @@ def find_task(question: str, task_id: str = "") -> Task | None:
     return next((t for t in TASKS if t.matches(question)), None)
 
 
+#: Unit classes. A claim may only be compared with a reference of the SAME
+#: class: money is never compared with a count, and a count of facilities is
+#: never compared with a count of borrowers.
+_MONEY = re.compile(r"\b(sar|usd|inr|eur|gbp|aed|million|mn|bn|billion|"
+                    r"thousand|crore|lakh)\b", re.I)
+_ENTITY = {"facility": re.compile(r"\bfacilit(y|ies)\b", re.I),
+           "borrower": re.compile(r"\bborrowers?\b", re.I),
+           "account": re.compile(r"\baccounts?\b", re.I)}
+
+
+def unit_class(unit: str | None) -> str | None:
+    """`money`, `count:<entity>`, or None when the unit says neither."""
+    text = str(unit or "")
+    for entity, rx in _ENTITY.items():
+        if rx.search(text):
+            return f"count:{entity}"
+    if _MONEY.search(text):
+        return "money"
+    return None
+
+
 def expected(task: Task, release_id: str) -> dict[str, Any]:
-    """The independent reference, plus a deliberate WRONG-POPULATION
-    reference so a whole-book answer is recognised for what it is."""
+    """The independent references, one per METRIC, plus a deliberate
+    WRONG-POPULATION reference so a whole-book answer is recognised.
+
+    Each metric carries its unit and unit class and the column-name hints
+    that identify it; `match_metric` uses them so a claim is only ever
+    compared with a reference for the same metric. The top-level `values`
+    / `largest` / `total` keys are the primary metric (Stage 2 EAD), kept
+    for the population check."""
     if task.task_id == "corp-stage2-ead-by-sector-latest":
         f = _frame(release_id, "corp_facility_quarter")
         latest = str(sorted(f["reporting_quarter"].dropna().unique())[-1])
         q = f[f["reporting_quarter"] == latest]
-        s2 = q[q["stage"] == 2].groupby("sector")["ead_sar_mn"].sum()
+        s2 = q[q["stage"] == 2]
+        ead = {str(k): float(v) for k, v in
+               s2.groupby("sector")["ead_sar_mn"].sum().items()}
+        facilities = {str(k): float(v) for k, v in
+                      s2.groupby("sector")["facility_id"].nunique().items()}
         whole = q.groupby("sector")["ead_sar_mn"].sum()
-        values = {str(k): float(v) for k, v in s2.items()}
+        metrics = {
+            "stage2_ead": {
+                "values": ead, "unit": "SAR million", "unit_class": "money",
+                "column_hints": ("ead", "exposure"),
+                "definition": "SUM(ead_sar_mn), stage 2, latest quarter",
+                "exact": False,
+                "largest": max(ead, key=ead.get) if ead else None},
+            "stage2_facility_count": {
+                "values": facilities, "unit": "facilities",
+                "unit_class": "count:facility",
+                "column_hints": ("facilit",),
+                "definition": "COUNT(DISTINCT facility_id), stage 2, latest "
+                              "quarter",
+                "exact": True,
+                "largest": max(facilities, key=facilities.get)
+                if facilities else None},
+        }
         return {"task_id": task.task_id, "release_id": release_id,
                 "period": latest, "unit": "SAR million",
-                "values": values,
-                "largest": max(values, key=values.get) if values else None,
-                "total": float(sum(values.values())),
+                "primary_metric": "stage2_ead", "metrics": metrics,
+                "values": ead,
+                "largest": metrics["stage2_ead"]["largest"],
+                "total": float(sum(ead.values())),
                 "population": "stage == 2, reporting_quarter == latest",
                 "wrong_population_values": {str(k): float(v)
                                             for k, v in whole.items()},
                 "wrong_population_label": "all stages (whole book)",
                 "oracle_version": ORACLE_VERSION,
                 "digest": hashlib.sha256(json.dumps(
-                    values, sort_keys=True).encode()).hexdigest()}
+                    metrics, sort_keys=True, default=str).encode()
+                ).hexdigest()}
     raise KeyError(task.task_id)
+
+
+def match_metric(reference: dict[str, Any] | None, column_id: str | None,
+                 unit: str | None, column_unit: str | None = None
+                 ) -> str | None:
+    """The ONE reference metric this claim/column is about, or None.
+
+    Both must agree: the claim's unit class (money vs a count of a named
+    entity) equals the metric's, AND the column name carries one of the
+    metric's hints. Ambiguity or no match returns None -- no oracle is
+    applied, and nothing is compared across metrics."""
+    if not reference or not reference.get("metrics"):
+        return None
+    klass = unit_class(unit) or unit_class(column_unit)
+    col = str(column_id or "").lower()
+    hits = [mid for mid, m in reference["metrics"].items()
+            if klass == m["unit_class"] and
+            any(h in col for h in m["column_hints"])]
+    return hits[0] if len(hits) == 1 else None
+
+
+def compare(reference: dict[str, Any], metric_id: str, row_label: str,
+            value: float, task: Task) -> tuple[bool, float] | None:
+    """(agrees, reference_value) for the same metric, or None when the
+    reference has no value for that row."""
+    m = reference["metrics"][metric_id]
+    if row_label not in m["values"]:
+        return None
+    ref = m["values"][row_label]
+    ok = (float(value) == ref) if m.get("exact") else \
+        within(float(value), ref, task)
+    return ok, ref
 
 
 def within(a: float, b: float, task: Task) -> bool:

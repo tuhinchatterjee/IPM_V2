@@ -31,6 +31,11 @@ def summary(body: dict) -> dict[str, dict]:
                        (k.get("stages") or {}).items()},
             "claims": dict(Counter(c["verification_status"]
                                    for c in k.get("claims") or [])),
+            "claim_references": {
+                c["claim_id"]: [c["verification_status"],
+                                c.get("reference_metric")]
+                for c in k.get("claims") or []
+                if c.get("claim_type") in ("numeric", "numeric_derived")},
             "calls_without_tools": sum(1 for c in k.get("calls") or []
                                        if c.get("stop_reason") == "tool_use"
                                        and not c.get("tool_names")),
@@ -81,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     for cid, now in a.items():
         was = b.get(cid, {})
         print(f"\n== {now['model']} ({cid})")
-        for key in ("stages", "claims", "calls_without_tools", "failures"):
+        for key in ("stages", "claims", "claim_references",
+                    "calls_without_tools", "failures"):
             mark = "" if was.get(key) == now[key] else "   <- changed"
             print(f"  {key:20} before {json.dumps(was.get(key))}")
             print(f"  {'':20} after  {json.dumps(now[key])}{mark}")

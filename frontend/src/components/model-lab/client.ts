@@ -126,6 +126,9 @@ export type Claim = {
   verification_status: string;
   evidence_status?: string;
   row_label?: string | null;
+  reference_metric?: string | null;
+  reference_value?: number | null;
+  reference_unit?: string | null;
   frozen_validation?: { status: string; message: string } | null;
   extraction_method: string;
   extraction_confidence_class: string;

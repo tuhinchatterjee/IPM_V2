@@ -91,3 +91,35 @@ The before/after below was produced on saved comparison `cmp-654f3cdff4cf`. Revi
 The script exits non-zero if the engine-run count changes.
 
 **Frozen regression after lab-eval-2** (`frozen_regression.py`, 2026-09-26): 3,315 passed, 33 skipped, 0 failed. This is unchanged from the baseline. The evidence files were restored and the protected manifest check passed.
+
+## Further defect found by re-scoring `cmp-f364d8b6901a` with lab-eval-2 — fixed in lab-eval-3
+
+**Symptom.** `construction_facilities` was marked CONTRADICTED: the asserted value was 1,370 facilities, the located cell was 1,370.00, and the "reference" was 1,016,613.64.
+
+**Root cause.** `evaluate._numeric_claim` applied the oracle whenever the located row's **sector** was in `reference["values"]`, a single, unlabelled Stage 2 **EAD** map. It never checked the claim's column or unit, so a facility count was compared with the Construction EAD in SAR million.
+
+A latent twin had the same blind spot. `_value_column` / `_sector_map` chose the first numeric column for `S1S2-POP`, whatever it measured.
+
+**The facility count is correct.** An independent pandas check, `COUNT(DISTINCT facility_id)` for stage 2 Construction in 2026Q2, gives 1,370.
+
+**Fix** (lab only):
+- `oracle.py`: `expected()` returns per-metric references (`stage2_ead`, `stage2_facility_count`), plus new `unit_class`, `match_metric` and `compare`. The oracle is now `lab-oracle-2`.
+- `evaluate.py`: `_numeric_claim` compares only with the same-metric reference. `_checks` uses the new `_metric_column` for the population check. The evaluator is now `lab-eval-3`.
+- UI: claim cards show the applied reference.
+- `reevaluate.py`: prints each claim's status and reference metric.
+
+**Before/after, with no inference.** Saved reproduction `cmp-31c10cee2d52` puts both claims on one Construction row, Anthropic-shaped. Revision 1 was scored by `lab-eval-2` and revision 2 by `lab-eval-3`. Engine runs were 1 before and 1 after.
+
+| Claim | Before (r1) | After (r2) |
+|---|---|---|
+| `construction` (SAR million) | SUPPORTED | SUPPORTED vs `stage2_ead` 1,016,613.64 |
+| `construction_facilities` (facilities) | **CONTRADICTED** vs 1,016,613.64 | **SUPPORTED** vs `stage2_facility_count` 1,370 |
+| S4 | PARTIAL | PASS |
+
+A genuinely wrong count is still caught: 1,371 against a facility-count reference of 1,370 is CONTRADICTED (`test_a_wrong_facility_count_is_still_contradicted`).
+
+**Re-score the real comparison on the Mac** (no model call):
+
+```bash
+.venv/bin/python scripts/model_lab/reevaluate.py --comparison cmp-f364d8b6901a
+```

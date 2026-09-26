@@ -1,6 +1,6 @@
 # Evaluation rubric
 
-Versions: `lab-eval-2` (evaluator; `lab-eval-1` superseded, see the evidence-status section) and `lab-oracle-1` (oracle). Code: `backend/model_lab/evaluate.py` and `oracle.py`.
+Versions: `lab-eval-3` (evaluator; `lab-eval-1` and `lab-eval-2` superseded) and `lab-oracle-2` (oracle, now metric-aware). Code: `backend/model_lab/evaluate.py` and `oracle.py`.
 
 The evaluator reads only stored evidence: the frozen run store (messages, events, submissions, artifacts, call report, ledger) and the lab's observer spans. It never calls a model. Re-evaluation writes a new revision and marks the previous one `SUPERSEDED`.
 
@@ -53,6 +53,23 @@ The rules that follow from it:
 - **Each claim carries `frozen_validation`**, the frozen Finalizer's `answer.validated` status and message, kept separate. A failed sidecar lookup never overrides it.
 - **S4 fails** only on an `UNSUPPORTED` causal claim. Unmapped claims mark S4 `EVIDENCE_INCOMPLETE` and add a `MEASUREMENT_OR_REVIEW_GAP` card (`model_failure=false`).
 - **Numbers in prose** that are not bound to a claim are `UNVERIFIABLE`, because the frozen Finalizer already refuses bare numbers.
+
+## Metric-aware references (lab-eval-3, lab-oracle-2)
+
+`oracle.expected()` returns **one reference per metric**, each with its own unit, unit class and column hints:
+
+| Metric | Definition | Unit / class | Column hints |
+|---|---|---|---|
+| `stage2_ead` | `SUM(ead_sar_mn)`, stage 2, latest quarter | SAR million / `money` | `ead`, `exposure` |
+| `stage2_facility_count` | `COUNT(DISTINCT facility_id)`, stage 2, latest quarter | facilities / `count:facility` | `facilit` |
+
+How references are applied:
+- **Matching.** `oracle.match_metric` applies a reference only when **both** of these hold: the claim's unit class equals the metric's (money is never compared with a count, and facilities are never compared with borrowers), and the claim's column name carries one of the metric's hints. Ambiguity or no match means **no oracle applies**.
+- **No same-metric reference.** A located cell with no same-metric reference is `SUPPORTED`, explained as "located in the executed result; frozen Finalizer validated; no same-metric independent reference", with `reference_metric = null`.
+- **Same-metric reference.** It compares with tolerance for money and exactly for counts. Disagreement is `CONTRADICTED`.
+- **Population failure** (`S1S2-POP` failed on the same artifact) still gives `CONTRADICTED`. That is a cohort fact, metric-independent, and not a cross-metric comparison.
+- **The population check itself** now selects the artifact column carrying the primary metric by unit and name, using table `column_units` and claim units. It falls back to the first numeric column only when nothing matches, and then says so (`metric_column_confirmed=false`).
+- **Each claim shows** `reference_metric`, `reference_value` and `reference_unit`.
 
 ## Claim ledger
 

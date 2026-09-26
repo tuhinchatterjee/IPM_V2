@@ -354,6 +354,13 @@ export function ClaimList({
                 {c.evidence_status === "EVIDENCE_INCOMPLETE" ? " · evidence incomplete (not assessed)" : ""}
               </span>
             </div>
+            {(c.claim_type === "numeric" || c.claim_type === "numeric_derived") && (
+              <div className="text-text-secondary">
+                {c.reference_metric
+                  ? `Independent reference: ${c.reference_metric} = ${c.reference_value?.toLocaleString("en-US")} ${c.reference_unit ?? ""}`
+                  : "No same-metric independent reference"}
+              </div>
+            )}
             {c.frozen_validation && (
               <div className="text-text-secondary">
                 Frozen Finalizer: {c.frozen_validation.status} — {c.frozen_validation.message}
