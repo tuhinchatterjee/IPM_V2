@@ -173,6 +173,33 @@ const TERMINAL_EVENTS = new Set([
   "run.interrupted",
 ]);
 
+/**
+ * A run in one of these states is finished; there is nothing left to follow.
+ * Mirrors `backend/cockpit_v4/states.py`'s TERMINAL_STATES, and it is the
+ * SETTLED question -- not "did a status arrive", which is a different one and
+ * the one that used to be asked here.
+ */
+export const TERMINAL_RUN_STATES = new Set([
+  "COMPLETED", "PARTIAL", "FAILED", "EXPIRED", "CANCELLED", "UNSUPPORTED",
+  "REFERRED", "WAITING_FOR_USER", "INTERRUPTED",
+]);
+
+/** The states a run passes through while it is still working. */
+const WORKING_LABELS: Record<string, string> = {
+  ACCEPTED: "Accepted",
+  CONTEXT_READY: "Preparing",
+  MODEL_RUNNING: "Working",
+  ACTION_VALIDATING: "Checking the query",
+  TOOL_RUNNING: "Calculating",
+  FINAL_VALIDATING: "Checking the answer",
+};
+
+/** Is this status the end of the run, or a look at a run still going? */
+export function isSettled(status: RunStatus): boolean {
+  return Boolean(status.terminal)
+    || TERMINAL_RUN_STATES.has(String(status.state ?? ""));
+}
+
 export function reduce(view: RunView, action: Action): RunView {
   switch (action.type) {
     case "start":
@@ -320,12 +347,37 @@ export function reduce(view: RunView, action: Action): RunView {
 
     case "settled": {
       if (action.status.run_id !== view.runId) return view;
+      // A STATUS IS NOT AN ENDING.
+      //
+      // This set `terminal: true` for any status that arrived. Two callers
+      // send one mid-run -- the SSE sequence-gap detector, which re-reads the
+      // status when a frame is dropped, and the reader's own "Check its
+      // status" button -- and moments after the POST that status is ACCEPTED
+      // with no response attached. `terminal` latches and nothing clears it,
+      // so the page then read "Stopped: ACCEPTED / This request stopped / No
+      // answer was produced" for as long as the run took, and the live timer
+      // froze with it. The run was working the whole time.
+      //
+      // The server already answers this question: `GET /runs/{id}` carries
+      // `terminal`, and the state itself says so. Asked here, both.
+      const settled = isSettled(action.status);
+      const authoritative = authoritativeElapsedMs(action.status);
+      if (!settled) {
+        // Still working: take the steps and the clock, leave the OUTCOME
+        // alone. A refreshed view of a run in flight is not a verdict on it.
+        return {
+          ...view,
+          state: action.status.state || view.state,
+          errorId: action.status.error_id || view.errorId,
+          elapsedMs: authoritative ?? view.elapsedMs,
+          elapsedIsAuthoritative: authoritative !== null,
+        };
+      }
       // A stage still marked running when the run settled did finish; the
       // event that said so may simply not have reached this browser.
       const steps = view.steps.map((step) =>
         step.state === "running" ? { ...step, state: "done" as StepState } : step,
       );
-      const authoritative = authoritativeElapsedMs(action.status);
       return {
         ...view,
         steps,
@@ -369,6 +421,16 @@ export function collapsedSummary(view: RunView): string {
     if (view.state === "WAITING_FOR_USER") return "Waiting for your answer";
     if (view.state === "REFERRED") return "Referred to another area";
     if (view.state === "CANCELLED") return "Cancelled";
+    if (view.state === "UNSUPPORTED") return "Not supported here";
+    // "STOPPED" ONLY WHEN IT STOPPED.
+    //
+    // The fall-through printed the state verbatim after the word "Stopped",
+    // so a run still working read "Stopped: ACCEPTED". `terminal` no longer
+    // latches on a working status, but a state this list has not seen must
+    // still not be announced as a stop on the strength of being unfamiliar.
+    if (WORKING_LABELS[view.state]) {
+      return `${WORKING_LABELS[view.state]} · ${seconds} elapsed`;
+    }
     return `Stopped: ${view.errorCode || view.state}`;
   }
   const running = view.steps.find((s) => s.state === "running");

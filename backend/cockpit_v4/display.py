@@ -45,6 +45,7 @@ between them is how a PD gets published two orders of magnitude wrong.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -127,6 +128,54 @@ GOVERNED: frozenset[str] = frozenset(
 #: percentage. The factor is part of the class, never inferred from the
 #: value: 0.04 is an ordinary figure in both vocabularies.
 DISPLAY_FACTOR: dict[str, Decimal] = {PROBABILITY: Decimal(100)}
+
+# ---- how small an amount has to be before it earns a decimal -----------
+#
+# MEASURED, NOT ASSUMED. A money figure is written in whole units because
+# three-hundredths of a riyal on a forty-billion book is noise. That is right
+# for the Corporate book, whose totals run to SAR 779,475 million, and it is
+# WRONG for the Retail book, whose entire monthly ECL is SAR 3.19 million:
+#
+#   ECL by product, Retail, at whole millions        what the rows really are
+#     Personal Finance     SAR 2 million               1.6929
+#     Mortgage             SAR 1 million               0.6057
+#     Credit Card          SAR 1 million               0.5681
+#     Auto Finance         SAR 0 million               0.2972
+#     Buy Now Pay Later    SAR 0 million               0.0249
+#
+# Two products read as nothing and the ordering is invisible. The same policy
+# turned a real 20% PD rise on a Retail cohort into
+# "SAR 2 million becomes SAR 2 million, a change of SAR 0 million" -- every
+# digit the display policy doing its job, and together saying the opposite of
+# what happened.
+#
+# So the rule gains a second half, and only a second half: an amount of one
+# unit or more is still written whole, exactly as before. Below one unit, it
+# gets the fewest decimals that give it two significant digits. This is the
+# house convention already: `backend/orchestration/figures.py:60-64` has
+# WHOLE_MONEY_ABOVE and ONE_DECIMAL_MONEY_ABOVE, and `_respecting` there
+# extends precision to keep a figure on the right side of a boundary.
+#
+# The precision is chosen PER GROUP -- one table column, one chart series, one
+# unit's worth of claims in one answer -- from the smallest non-zero amount in
+# it, and every value in the group is then written at that one precision. A
+# column that mixed 1.7 with 0.30 would not be a column anybody could compare
+# down, which is the warning `figures.compact` already carries.
+
+#: At or above this, a money figure is written in whole units. Everything the
+#: accepted Corporate book publishes is above it, so nothing there moves.
+WHOLE_MONEY_AT_OR_ABOVE = Decimal(1)
+
+#: Two significant digits on the smallest non-zero amount in the group. Not
+#: three: this is the precision that makes a figure legible and orderable,
+#: not the precision that makes it look exact.
+MONEY_SIGNIFICANT_DIGITS = 2
+
+#: Where chasing a small figure stops. Four decimals is already past what
+#: anybody reads off a page, and `figures.DEBRIS_DECIMALS` says the same.
+#: An amount below half of the last place this admits is written as zero and
+#: is a KNOWN LIMITATION, not a rounding anybody chose.
+MAX_MONEY_DECIMALS = 4
 
 #: Classes that are not numbers at all. A stage is 2, not 2.00, and a rating
 #: is a grade.
@@ -350,11 +399,72 @@ def classify(unit: str) -> str:
     return named.pop() if len(named) == 1 else UNKNOWN
 
 
-def decimals(unit: str) -> int:
-    return DECIMALS[classify(unit)]
+def decimals(unit: str, *, smallest: Decimal | None = None) -> int:
+    """How many decimal places this unit is written to.
+
+    `smallest` is the smallest NON-ZERO magnitude in the group being written
+    -- one column, one series, one answer's worth of claims in this unit. Pass
+    it and a money amount below one unit earns enough decimals to be legible;
+    omit it and the answer is the class default, which is what every caller
+    that has no group to speak of should get.
+    """
+    kind = classify(unit)
+    if kind == MONETARY_AMOUNT and smallest is not None:
+        return _money_decimals(smallest)
+    return DECIMALS[kind]
 
 
-def resolve_decimals(unit: str, declared: int | None = None) -> int:
+def _money_decimals(smallest: Decimal) -> int:
+    """The fewest decimals that make `smallest` readable, bounded.
+
+    Zero for anything at one unit or above, so the accepted books are written
+    exactly as they were. Below that, two significant digits: 0.3386 -> 2,
+    0.0249 -> 3, 0.00072 -> 4 (the cap). A value the cap cannot reach is a
+    stated limitation rather than a silent zero.
+    """
+    try:
+        magnitude = abs(Decimal(smallest))
+    except (ArithmeticError, TypeError, ValueError):
+        return DECIMALS[MONETARY_AMOUNT]
+    if magnitude >= WHOLE_MONEY_AT_OR_ABOVE or magnitude == 0:
+        return DECIMALS[MONETARY_AMOUNT]
+    # Two significant digits means the first two of them land in front of the
+    # rounding point, so the figure scaled by 10**places must reach 10 -- not
+    # 2. Scaled by 2 the loop stopped one place early and wrote 0.338573 as
+    # "0.3", which is one significant digit and loses the ordering against
+    # 0.297 in the row below it. `scaleb` is exact on a Decimal, so the
+    # question is asked without going through a float.
+    want = Decimal(10) ** (MONEY_SIGNIFICANT_DIGITS - 1)
+    places = 0
+    while places < MAX_MONEY_DECIMALS:
+        places += 1
+        if magnitude.scaleb(places) >= want:
+            return places
+    return MAX_MONEY_DECIMALS
+
+
+def smallest_of(values: Iterable[Any]) -> Decimal | None:
+    """The smallest non-zero magnitude in a group, or None if there is none.
+
+    Written here rather than at each call site so every surface asks the
+    question the same way, which is what makes the narrative, the claim, the
+    table cell, the chart tooltip and the export agree.
+    """
+    found: Decimal | None = None
+    for value in values:
+        try:
+            magnitude = abs(Decimal(str(value)))
+        except (ArithmeticError, TypeError, ValueError):
+            continue
+        if magnitude == 0:
+            continue
+        if found is None or magnitude < found:
+            found = magnitude
+    return found
+
+
+def resolve_decimals(unit: str, declared: int | None = None, *,
+                     smallest: Decimal | None = None) -> int:
     """The precision that will actually be used for this unit.
 
     A declared precision the class does not permit is IGNORED, not refused.
@@ -363,11 +473,26 @@ def resolve_decimals(unit: str, declared: int | None = None) -> int:
     would come back identical but for two characters. The server knows how a
     riyal amount is written; it does not need to be told, and it does not
     need to argue about it.
+
+    `smallest` does not change WHO decides -- the server still does, and
+    `PERMITTED` still refuses an analyst's money precision outright. It
+    changes what the server itself answers, for a group of amounts small
+    enough that whole units would write them as nothing.
     """
     kind = classify(unit)
+    default = decimals(unit, smallest=smallest)
+    if kind in GOVERNED:
+        # THE SERVER'S ANSWER, WHOEVER ASKED. `PERMITTED` for a governed
+        # class is exactly its own default, so honouring a declared value
+        # that happened to match used to be the same thing as ignoring it.
+        # It stopped being the same thing the moment the default could depend
+        # on the group: an analyst declaring 0 on a Retail cohort would have
+        # pinned the column back to whole millions and written 0.34 as
+        # nothing, which is the defect this rule exists to remove.
+        return default
     if declared is None or declared < 0:
-        return DECIMALS[kind]
-    return declared if declared in PERMITTED[kind] else DECIMALS[kind]
+        return default
+    return declared if declared in PERMITTED[kind] else default
 
 
 def governed(unit: str) -> bool:
@@ -549,7 +674,10 @@ def unit_for_field(catalog: Any, relation: str, column: str) -> str:
 
 __all__ = ["CATALOG_UNITS", "CATEGORICAL", "COUNT", "DECIMALS",
            "entity_of",
+           "MAX_MONEY_DECIMALS",
            "MONEY_SCALES",
+           "MONEY_SIGNIFICANT_DIGITS",
+           "WHOLE_MONEY_AT_OR_ABOVE",
            "DISPLAY_FACTOR", "IFRS_STAGE", "INTEGER", "MONETARY_AMOUNT",
            "PERCENTAGE", "PERCENTAGE_POINT", "PERIOD", "PERMITTED",
            "PROBABILITY", "RATING", "RATIO", "ROUNDING", "UNKNOWN",
@@ -557,4 +685,5 @@ __all__ = ["CATALOG_UNITS", "CATEGORICAL", "COUNT", "DECIMALS",
            "classify", "decimals", "display_value", "format_unitless",
            "format_value", "governed",
            "money_unit", "permitted", "plain", "quantize",
-           "resolve_decimals", "unit_for_field", "written_affixes"]
+           "resolve_decimals", "smallest_of", "unit_for_field",
+           "written_affixes"]

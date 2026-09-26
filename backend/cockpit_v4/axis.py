@@ -146,13 +146,24 @@ def measure_axis(label: str, column: str, unit: str,
     low, high = min(numbers), max(numbers)
     if include_zero:
         low, high = min(low, Decimal(0)), max(high, Decimal(0))
+    steps = tick_values(low, high, intervals)
+    # THE LADDER DECIDES ITS OWN PRECISION, from its own rungs.
+    #
+    # A Retail series running 0.02 to 1.69 gets ticks at 0, 0.5, 1.0, 1.5,
+    # 2.0 -- and written to whole millions those read "SAR 0 / SAR 0 / SAR 1 /
+    # SAR 2 / SAR 2 million": a scale with duplicate rungs, which is not a
+    # scale. The smallest non-zero rung is what the ladder has to be able to
+    # say, so it is what the precision is taken from. Asking `display` keeps
+    # this the one policy rather than a second opinion about rounding.
+    places = (disp.decimals(unit, smallest=disp.smallest_of(steps))
+              if unit else None)
     ticks = [
         {"value": _json(value),
          # The same policy that wrote every claim in the answer. An axis
          # label is not a second opinion about how to round.
-         "display": (disp.format_value(value, unit) if unit
+         "display": (disp.format_value(value, unit, places) if unit
                      else disp.format_unitless(value))}
-        for value in tick_values(low, high, intervals)
+        for value in steps
     ]
     return {"kind": MEASURE, "label": label, "column": column,
             "unit": unit, "ticks": ticks}

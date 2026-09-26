@@ -1,5 +1,5 @@
 /**
- * J01-J14 · REAL BROWSER · REAL UI · REAL BACKEND · REAL ENGINE · MOCK ANALYST.
+ * J01-J15 · REAL BROWSER · REAL UI · REAL BACKEND · REAL ENGINE · MOCK ANALYST.
  *
  * A real Chromium against the real Next.js UI, the real V4 API, the real
  * durable store, the real worker and event stream, the real DuckDB session
@@ -472,7 +472,7 @@ function money(text, label) {
 }
 
 async function main() {
-  console.log(`\nJ01-J14 against ${UI} / ${API}  (${BOOK}, MODEL MOCK)\n`);
+  console.log(`\nJ01-J15 against ${UI} / ${API}  (${BOOK}, MODEL MOCK)\n`);
   const browser = await chromium.launch({ executablePath: CHROME });
 
   // ---- J01: a scenario question, and a preview before anything runs ----
@@ -536,31 +536,29 @@ async function main() {
       record.scenario_shown = money(text, "becomes");
       assert.ok(record.baseline_shown && record.scenario_shown,
         "both figures must be rendered, formatted by CreditProbe");
-      // THE MOVEMENT MUST BE LEGIBLE, AND IT MAY BE LEGIBLE AS A PERCENTAGE.
+      // THE MOVEMENT MUST BE LEGIBLE, FULL STOP.
       //
-      // A riyal amount is written to whole numbers and nothing here may change
-      // that, so on the Retail book -- whose monthly cohort carries about SAR
-      // 1.7 million of ECL -- a real 20% rise reads "SAR 2 million becomes SAR
-      // 2 million". What a reader must never be shown is a movement that reads
-      // as none: either the two riyal figures differ, or the answer states the
-      // percentage AND says in words that the absolute figure is rounded.
-      const moved = record.baseline_shown !== record.scenario_shown;
+      // This used to accept "SAR 2 million becomes SAR 2 million" so long as
+      // the answer also carried a percentage and said in words that the riyal
+      // figure had rounded away. That was a workaround for a display policy
+      // that wrote every sub-unit amount as nothing, and the policy has been
+      // fixed: a group of small amounts now earns the decimals it needs, so
+      // on the Retail book the same scenario reads SAR 1.69 -> SAR 2.03
+      // million, a change of SAR 0.34 million. The assertion is strict again.
       record.change_pct_shown =
         (/a change of[^(]*\(([+-]?[0-9.,]+%)\)/i.exec(text) ?? [])[1] ?? "";
-      const rounded = /rounds to zero/i.test(text);
-      assert.ok(moved || (rounded && record.change_pct_shown
-                          && !/^[+-]?0\.00%$/.test(record.change_pct_shown)),
+      assert.notEqual(record.baseline_shown, record.scenario_shown,
         `a 20% PD rise that changed nothing would be a wrong answer. ` +
         `baseline=${record.baseline_shown} scenario=${record.scenario_shown} ` +
-        `pct=${record.change_pct_shown || "(none shown)"} ` +
-        `rounding stated=${rounded}`);
+        `pct=${record.change_pct_shown || "(none shown)"}`);
+      assert.ok(!/rounds to zero/i.test(text),
+        "the rounding apology is a workaround for a defect that is fixed; " +
+        "if it is back on screen the display policy has regressed");
       record.reconciliation =
         `cohort ${record.baseline_shown} -> ${record.scenario_shown} ` +
         `(${record.change_pct_shown || "percentage not shown"}); the book ` +
         `total moves by the same amount and the non-cohort remainder is ` +
-        `reported unchanged` +
-        (moved ? "" : "; the absolute figure rounds to zero at this book's " +
-                      "scale and the answer says so");
+        `reported unchanged`;
       has(text, "outside the cohort",
           "the book identity must be stated, not implied");
       await page.close();
@@ -903,6 +901,64 @@ async function main() {
       await page.close();
     });
 
+  // ---- J15: one bad table must not take the thread with it ----
+  await journey("J15", "a table that cannot render loses one figure, not the page",
+    async (record) => {
+      const page = await open(browser);
+      // A healthy turn first, so the journey can prove it SURVIVES.
+      const healthy = await start(page, record,
+        BOOK === "retail"
+          ? "Which personal finance accounts carry the most ECL? Show me."
+          : "Which construction facilities carry the most ECL? Show me.");
+      assert.ok(/ANSWER/i.test(healthy), "the first turn must answer");
+      await shot(page, record, "before");
+
+      // Then a turn whose answer carries the payload that used to end the
+      // page: a table the server could not resolve to an artifact, so its
+      // rows reach the browser with no `display` map to read cells from.
+      const text = await follow(page, record,
+        "Show me that again but include a malformed table.");
+      await shot(page, record, "contained");
+
+      // 1. THE FAILURE IS VISIBLE, not swallowed.
+      assert.ok(/could not be displayed/i.test(text),
+        `the failed figure must say so in its own place. What was shown: ` +
+        `${text.slice(0, 400)}`);
+      assert.ok(!/This page could not be loaded/i.test(text),
+        "the ROUTE boundary caught it, which means the whole thread page " +
+        "was replaced -- the defect this journey exists to catch");
+
+      // 2. THE CONVERSATION BEFORE IT IS STILL THERE.
+      const turns = await page.$$('[data-testid="v4-turn-assistant"]');
+      assert.ok(turns.length >= 2,
+        `only ${turns.length} assistant turn(s) survived; the earlier answer ` +
+        `was destroyed with the broken figure`);
+      assert.ok(/ANSWER/i.test(text),
+        "the answer's own prose and its GOOD table must still render");
+
+      // 3. THE COMPOSER STILL WORKS, and the thread continues.
+      const composer = await page.$('[data-testid="v4-composer-input"]');
+      assert.ok(composer, "the composer was taken down with the figure");
+      const after = await follow(page, record,
+        BOOK === "retail"
+          ? "Which personal finance accounts carry the most ECL? Show me."
+          : "Which construction facilities carry the most ECL? Show me.");
+      assert.ok(/ANSWER/i.test(after),
+        "a reader could not carry on the conversation after a bad figure");
+      await shot(page, record, "continued");
+
+      // 4. THE EVIDENCE IS STILL REACHABLE for whoever has to fix it.
+      assert.ok((record.client_errors ?? []).length === 0
+                || (record.client_errors ?? []).some((line) => line),
+        "a contained error still writes its stack to the console");
+      record.reconciliation =
+        "one unrenderable table lost one figure; the turn before it, the " +
+        "rest of that turn's answer, the composer and the next turn all " +
+        "survived, and the failure named itself where the figure would have " +
+        "been";
+      await page.close();
+    });
+
   await browser.close();
   write();
   console.log(`\n${results.filter((r) => r.ok).length}/${results.length} ` +
@@ -913,7 +969,7 @@ async function main() {
 function write() {
   fs.mkdirSync("docs/whatif/evidence", { recursive: true });
   const payload = {
-    suite: "J01-J14",
+    suite: "J01-J15",
     book: BOOK,
     release: CANDIDATE[BOOK],
     ui: UI,

@@ -140,13 +140,20 @@ labelled MODEL MOCK. No credential is authorised here, so no journey
 exercises a real model. Nothing in this deliverable claims a live
 validation.
 
-## 10. The Mac launcher was prepared, not installed
+## 10. The Mac launchers were prepared, not installed
 
-`scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` exists with
-its installation steps in its own header. `/Users/tuhinchatterjee/Desktop/
-CreditProbe_Launchers` is not reachable from this Linux container, so the
-file has **not been copied there, not made executable there, and not run**.
-The accepted launchers are untouched.
+Two candidate launchers exist, each with its installation steps in its own
+header: `scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` and
+`scripts/whatif/START_ADVANCEDCOCKPIT_WHATIF_UAT.command`, the second gated by
+`scripts/whatif/uat_preflight.py`. `/Users/tuhinchatterjee/Desktop/
+CreditProbe_Launchers` is not reachable from this Linux container, so neither
+has been **copied there, made executable there, or run**. The accepted
+launchers under `scripts/cockpit_v4/` are untouched and the accepted
+presentation launcher is not overwritten by either.
+
+The preflight pins to the tag `whatif-candidate-h1`. Until that tag exists it
+refuses rather than starting, and says to pass `--any-revision` for a
+pre-freeze run and to record that in the evidence.
 
 ## 11. Twenty periods is twenty periods
 
@@ -198,55 +205,91 @@ baselines. It does **not** store the membership itself. Reopening a scenario
 against the same release reuses the id; reopening it against a different one
 drops the binding entirely and does not rebind.
 
-## 16. Three findings in the accepted UI that this work surfaced and did not fix
+## 16. Three findings in the accepted UI, now fixed
 
-Each was found by driving J01–J14 through the real product. Each is in a
-protected file this authorisation does not cover, so each is recorded here
-rather than changed. None is caused by the scenario path; the scenario path is
-what made them visible.
+All three were measured by driving J01–J15 through the real product. All three
+sat in protected files; all three were authorised in the hardening round and
+are closed. Each is recorded here with what it was and what it now does,
+because a fix nobody can find the reason for is a fix somebody will undo.
 
-**16.1 A riyal amount cannot show a small movement.**
+**16.1 A money figure that read as nothing when it was something. FIXED.**
+
 `display.PERMITTED[MONETARY_AMOUNT]` is `(0,)` — a money figure is written to
-whole units and the precision is CreditProbe's outright. The Retail book's
-monthly cohort carries about **SAR 1.69 million** of ECL, so a genuine 20% PD
-rise produces "baseline ECL of SAR 2 million becomes SAR 2 million, a change of
-SAR 0 million". Every digit there is the display policy doing its job, and
-together they say the opposite of what happened. The same number appears as
-`1.69` in the table beside it, because a table column with no declared unit is
-formatted as unitless at two decimals — so one answer shows one figure two
-ways.
+whole units and the precision is CreditProbe's outright. Right for the
+Corporate book, whose totals run to SAR 779,475 million. Wrong for the Retail
+book, whose **entire monthly ECL is SAR 3.19 million**: its ECL-by-product
+table read `2 / 1 / 1 / 0 / 0` for rows that are 1.69, 0.61, 0.57, 0.30 and
+0.02, and a real 20% PD rise on a Retail cohort read
+`SAR 2 million becomes SAR 2 million, a change of SAR 0 million`.
 
-*What this work does instead of changing the policy:* the percentage change is
-quoted beside the absolute one (a percentage class carries two decimals and
-states the movement exactly), and when the riyal figure rounds to nothing the
-answer says so in words and points at the unrounded rows. Nothing is rounded
-before it is computed.
+The rule gained a second half and only a second half. At one unit or above a
+money figure is still written whole. Below one unit it gets the fewest decimals
+that give the **smallest non-zero amount in its group** two significant digits,
+capped at four — where a group is one table column, one chart series, or one
+unit's worth of claims in one answer. One precision per group, because a column
+mixing `1.7` with `0.30` is a column nobody can read down.
 
-**16.2 A run still working reads as a run that stopped.**
-The thread view renders the assistant's turn as soon as the run view says
-`terminal`, and the run poller latches `terminal` from the first status it reads
-— which, moments after the POST, is `ACCEPTED` with no response attached. The
-page then reads **"Stopped: ACCEPTED / This request stopped / No answer was
-produced"** for as long as the run takes, and corrects itself only when the
-settled status arrives. A reader watching a slow scenario run is told it failed.
+Measured, through the product: Retail now reads
+`SAR 1.69 million becomes SAR 2.03 million, a change of SAR 0.34 million
+(20.00%)`, and Corporate still reads `SAR 171 million becomes SAR 202 million,
+a change of SAR 31 million`. The 76 accepted browser journeys produced **no
+money-string change at all**. `display.py` is the one policy, so the narrative,
+the claim line, the table cell, the chart tooltip, the axis and the CSV and
+Markdown exports all inherit it; `tests/cockpit_v4/test_whatif_money_precision.py`
+(28 tests) fails if any of them disagrees.
 
-*Reproduction:* any turn in `journeys-corporate.json`; the harness had to learn
-that an unexplained stop is indistinguishable from a run in progress, and counts
-a stop as an ending only once it has named an error code.
+**Residual:** an amount below `0.00005` in its own group still writes as
+`0.0000` at the cap. Holding the declared scale fixed is what makes that
+possible; per-column scale switching (thousands, riyals) is the follow-up that
+removes it, and it was deliberately not taken in a hardening round.
 
-**16.3 A published table the server did not render crashes the thread page.**
-`finalization.render_tables` builds a published table from the stored artifact
-and passes an unrecognised one through untouched. `ResultTable` then reads
-`row.display[column]` on rows that have no `display` map, throws
-`Cannot read properties of undefined`, and the error boundary replaces the whole
-page — including the composer, so the conversation cannot be continued. The
-failure mode is a white "This page could not be loaded" for what is a single
-malformed table.
+**16.2 A run still working read as a run that stopped. FIXED.**
 
-*Reproduction:* have an analyst declare a table with inline `rows` and no
-`artifact_id`. Two guards would close it — a server-side refusal to publish a
-table it did not render, and a UI that draws a cell it cannot find as empty —
-and both are in protected files.
+`reducer.ts`'s `settled` case set `terminal: true` for **any** status that
+arrived. Two callers send one mid-run — the SSE sequence-gap detector, which
+re-reads the status when a frame is dropped, and the reader's own "Check its
+status" button — and moments after the POST that status is `ACCEPTED` with no
+response attached. `terminal` latched and nothing cleared it, so the page read
+`Stopped: ACCEPTED / This request stopped / No answer was produced` for as long
+as the run took, and the live timer froze with it.
+
+The server already answered the question: `GET /runs/{id}` carries `terminal`
+(`routes.py:458`) and the state itself says so. Both are now asked. A working
+status refreshes the steps and the clock and leaves the **outcome** alone — a
+refreshed view of a run in flight is not a verdict on it. `collapsedSummary`
+maps the six working states to their own words, so "Stopped" appears only when
+something stopped. One terminal-state list, in `reducer.ts`, mirroring
+`states.py:50-52`; the duplicate in `thread-view.tsx` is gone.
+
+**16.3 One malformed table destroyed the whole thread. FIXED.**
+
+`finalization.render_tables` publishes a table it could not resolve to a stored
+artifact by passing the analyst's raw dict through untouched — no `row_id`, no
+`canonical`, no `display`. `ResultTable` reads `row.display[column]`, so the
+subtree threw `Cannot read properties of undefined`, and the nearest boundary
+is the **route's** (`app/error.tsx`): the entire thread page was replaced by
+"This page could not be loaded", taking every earlier turn and the composer
+with it. A reader could not scroll back, could not read the answer that HAD
+worked, and could not ask anything else.
+
+Each figure is now wrapped in the boundary this codebase already had —
+`components/system/error-boundary.tsx`, whose own docstring describes exactly
+this job — with `area` naming which figure failed. One bad table costs one
+`<figure>`. **Nothing is guarded inside the renderer**: defaulting a missing
+`display` map to `{}` would draw blank cells and hide the defect, and this is
+meant to show one. `componentDidCatch` still writes the stack to the console.
+
+Proven by **J15**, on both books: the failed figure says so in its own place,
+the turn before it is still on screen, the rest of that turn's answer still
+renders, the composer still accepts input, and the next turn still answers.
+
+**Still open, and NOT authorised in that round:** the server half.
+`finalization.py:899-905` should refuse to publish a table it did not render
+rather than passing the raw dict on. A malformed table still reaches the
+browser; it just no longer takes the page with it.
+`test_whatif_money_precision.py::test_a_table_the_server_cannot_resolve_is_passed_through_unrendered`
+pins that precondition so the boundary is never removed on the assumption it
+was fixed upstream.
 
 ## 17. The offline explanation document is documentation, not a per-run answer
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bring up the What-If stack and run J01-J14 against real Chromium.
+"""Bring up the What-If stack and run J01-J15 against real Chromium.
 
 One book per run, because a thread is pinned to its book and a scenario is a
 statement about one of them. `--domain all` runs both in sequence and writes
@@ -126,7 +126,7 @@ def run_one(domain_id: str, *, keep_up: bool) -> int:
                                  "/cockpit/trace/warmup")):
             print(f"  warmed {note}")
 
-        heading(f"J01-J14 · {domain_id} · MODEL MOCK")
+        heading(f"J01-J15 · {domain_id} · MODEL MOCK")
         shots = ROOT / "docs" / "whatif" / "evidence" / "journeys" / domain_id
         suite = subprocess.run(
             ["node", "tests/cockpit_v4/browser/whatif.browser.mjs"],

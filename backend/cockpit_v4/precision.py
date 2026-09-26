@@ -133,8 +133,13 @@ def allowed_precisions(unit: str) -> tuple[int, ...]:
     return disp.permitted(unit)
 
 
-def default_precision(unit: str) -> int:
-    return disp.decimals(unit)
+def default_precision(unit: str, *, smallest: Decimal | None = None) -> int:
+    return disp.decimals(unit, smallest=smallest)
+
+
+def smallest_of(values) -> Decimal | None:
+    """The smallest non-zero magnitude in a group of amounts, or None."""
+    return disp.smallest_of(values)
 
 
 def quantize(value: Decimal, places: int) -> Decimal:
@@ -163,7 +168,8 @@ _ROUNDINGS = range(0, 13)
 
 
 def check(asserted: str, canonical: Decimal, *, unit: str,
-          declared_precision: int, label: str) -> Verdict:
+          declared_precision: int, label: str,
+          smallest: Decimal | None = None) -> Verdict:
     """Is `asserted` this canonical value, written for a reader?
 
     Valid as the canonical value itself, or as that value correctly rounded
@@ -178,7 +184,8 @@ def check(asserted: str, canonical: Decimal, *, unit: str,
     what used to send a correct answer back for a model turn over a decimal
     point.
     """
-    places = disp.resolve_decimals(unit, declared_precision)
+    places = disp.resolve_decimals(unit, declared_precision,
+                                   smallest=smallest)
     try:
         given = Decimal(asserted)
     except (InvalidOperation, ValueError):

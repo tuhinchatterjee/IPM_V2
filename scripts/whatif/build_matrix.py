@@ -90,7 +90,7 @@ ISOLATION: list[Row] = [
      "because it takes 90 seconds a build."),
     ("A10", "The protected-file hash check reports every difference and the "
             "allowlist is not broadened.", COVERED, [],
-     "scripts/whatif/protected_hashes.py --check reports 8 changed, 0 "
+     "scripts/whatif/protected_hashes.py --check reports 17 changed, 0 "
      "removed, 25 added; every line is explained in "
      "BASELINE_AND_EXTENSION_MAP.md. No hash regenerated."),
     ("A11", "The candidate's ML dependencies are isolated from the accepted "
@@ -396,6 +396,47 @@ MODEL: list[Row] = [
      COVERED, [],
      "Stated in both model cards, in ML_ACCEPTANCE_TARGETS.md §7 and in "
      "P7_FINDINGS.md. There is no bank engine here to compare against."),
+    ("M19", "The Retail failure reaches the reader: the comparison shows "
+            "Delta COMPLETE, Emulator NOT READY with the gate named, and "
+            "User-defined COMPLETE, with the emulator's cells EMPTY.",
+     COVERED,
+     ["test_the_committed_retail_verdict_is_a_failure_at_the_declared_gate",
+      "test_the_other_three_retail_gates_passed_so_the_failure_is_specific",
+      "test_the_loaded_model_reports_the_failure_rather_than_a_summary",
+      "test_the_products_own_code_turns_the_failed_gate_into_the_reason",
+      "test_the_reason_never_offers_another_model_or_a_zero",
+      "test_all_three_methods_keep_their_row",
+      "test_the_comparison_reads_complete_not_ready_complete",
+      "test_the_reader_facing_verdict_is_a_translation_not_a_second_opinion",
+      "test_the_emulators_cells_are_empty_and_not_zero",
+      "test_the_validation_reason_is_reachable_from_the_published_row",
+      "test_the_status_line_names_the_gate_beside_the_not_ready_verdict",
+      "test_nothing_fell_back_to_delta",
+      "test_the_comparison_still_refuses_to_compose_the_methods"],
+     "M16 records that the gate FAILED; this row is about whether a reader "
+     "is told. The chain is asserted end to end and every link is the "
+     "PRODUCT's own code rather than a restatement in a test: the committed "
+     "verdict in artifacts/whatif/retail/blend.json really is a failure "
+     "(G4 measured 0.343562 against a threshold of 0.15, which is read from "
+     "the file and compared against the predeclared 0.15 written as a "
+     "literal, so loosening the gate fails this row); infer.Loaded reads "
+     "that verdict rather than a summary of it, so failures() names G4 with "
+     "BOTH numbers; bridge._ml_inputs turns it into the reason text and "
+     "returns NO anchored prediction, so there is nothing a caller could "
+     "mistake for an estimate; and the composed comparison publishes three "
+     "rows -- Delta COMPLETE, Emulator NOT READY with the reason in the row "
+     "itself, Your assumption COMPLETE. The emulator's `scenario` and "
+     "`change` are null, NOT the string \"0\", and rows_covered is 0. "
+     "The reader-facing verdict is a TRANSLATION of the analytical status, "
+     "not a second opinion about it: run.VERDICTS maps AVAILABLE/PARTIAL/"
+     "UNAVAILABLE onto COMPLETE/PARTIAL/NOT READY, the status field itself "
+     "is unchanged and is still what the code branches on, and a named test "
+     "asserts the two agree row by row. Also asserted: the reason mentions "
+     "neither Corporate's validated model nor a zero nor a fall back, the "
+     "two methods that did run are genuinely two different methods over one "
+     "identical baseline, and the never-composed statement is still "
+     "published. NO MODEL is fitted or loaded to prove any of this -- only "
+     "the committed gate verdicts are read."),
 ]
 
 RESULTS: list[Row] = [
@@ -563,6 +604,20 @@ JOURNEYS: list[Row] = [
         (12, "Hit an invalid probability and see the cap reported.", ""),
         (13, "Cancel a run mid-flight.", ""),
         (14, "Press Run twice and see one run.", ""),
+        (15, "A table the server could not render loses its own "
+             "figure and nothing else.",
+         "RAN, through real Chromium. The scripted analyst publishes "
+         "the exact payload that used to take the page down -- a table "
+         "with inline rows and no artifact_id, which "
+         "finalization.render_tables passes through unrendered, so "
+         "row.display does not exist. The journey asserts that the "
+         "figure area shows its own error, that Next.js' root "
+         "error.tsx did NOT take over (`This page could not be loaded` "
+         "is absent), that the earlier turn and its answer are still "
+         "on screen, that the composer is still usable, and that a "
+         "further question still answers. The error is CONTAINED, not "
+         "hidden: the message stays visible and componentDidCatch "
+         "still logs it. MODEL MOCK: the analyst is scripted."),
     ]
 ]
 
@@ -573,7 +628,7 @@ def journey_reason() -> str:
         "the real durable store, the real worker and event stream, the real "
         "DuckDB session over the published CANDIDATE release, and the real "
         "scenario engine reached through the real execute_analysis tool. "
-        "14 of 14 on each book, 28 of 28 in total. Evidence per journey in "
+        "15 of 15 on each book, 30 of 30 in total. Evidence per journey in "
         "docs/whatif/evidence/journeys-{corporate,retail}.json and the "
         "screenshots beside them: the prompts as typed, screenshots, the "
         "thread id with the book and release it is pinned to, cohort id and "
@@ -679,30 +734,158 @@ ERRORS: list[Row] = [
      "MODEL MOCK: the analyst is scripted."),
 ]
 
+#: The three defects MEASURED in the product during the J journeys and
+#: reported rather than fixed, because all three live in protected files.
+#: All three were authorised in this round and all three are fixed here.
+#: They are their own family so that "was the defect actually fixed, and
+#: what proves it" is a row a reader can find, not a paragraph.
+UI: list[Row] = [
+    ("U01", "A monetary amount is never displayed as a different amount, "
+            "and a real movement is never displayed as no movement.",
+     COVERED,
+     ["test_a_small_retail_portfolio_is_not_a_column_of_zeroes",
+      "test_a_sub_million_movement_is_never_written_as_no_movement",
+      "test_a_million_level_movement_keeps_the_whole_number_it_always_had",
+      "test_a_billion_level_figure_is_unchanged",
+      "test_the_accepted_corporate_magnitudes_do_not_move",
+      "test_a_negative_change_keeps_its_sign_and_its_precision",
+      "test_a_negative_that_rounds_to_nothing_is_not_written_minus_zero",
+      "test_a_genuine_zero_is_written_as_zero",
+      "test_one_group_is_written_at_one_precision",
+      "test_the_smallest_non_zero_value_is_what_decides",
+      "test_the_analyst_still_cannot_choose_a_money_precision",
+      "test_a_unit_that_is_not_money_is_untouched_by_this_rule",
+      "test_the_floor_is_declared_rather_than_discovered",
+      "test_the_ladder_is_exactly_as_declared"],
+     "MEASURED defect: a candidate Retail cohort of {1.6929, 2.0315, "
+     "0.3386} SAR million read `SAR 2 million becomes SAR 2 million, a "
+     "change of SAR 0 million`. STORED values were always exact; only the "
+     "DISPLAY was wrong, so no calculation changed. The fix is one "
+     "server-side rule in `display.py`, the single authority that produces "
+     "every money string: precision is chosen ONCE PER GROUP -- one table "
+     "column, one chart series or axis, one unit's worth of claims in one "
+     "answer -- from the smallest non-zero magnitude in that group. At or "
+     "above 1 it is 0 decimals, which is today's behaviour, so no accepted "
+     "Corporate string moves; below 1 it is the fewest decimals giving that "
+     "value two significant digits, capped at 4. The SCALE is not switched "
+     "and no precision is manufactured. `PERMITTED[MONETARY_AMOUNT]` stays "
+     "`(0,)` and `GOVERNED` is untouched: the analyst still cannot choose a "
+     "money precision -- only the SERVER's own default became "
+     "magnitude-aware, which is why 94 accepted precision assertions pass "
+     "unedited. Narrative, KPI claim, table cell, chart tick and tooltip, "
+     "CSV and Markdown export all inherit it because they all read the same "
+     "published string or the same published `column_precision` / "
+     "`series_precision`. MEASURED after: `SAR 1.69 million becomes SAR "
+     "2.03 million, a change of SAR 0.34 million (20.00%)`, ECL by product "
+     "`1.693 / 0.606 / 0.568 / 0.297 / 0.025`, and Corporate still `SAR 171 "
+     "million becomes SAR 202 million, a change of SAR 31 million`. "
+     "RESIDUAL, recorded rather than hidden: a value below 0.00005 alone in "
+     "its group still renders `0.0000` at the cap -- KNOWN_LIMITATIONS.md "
+     "16.1."),
+    ("U02", "An active run is never described as stopped.", COVERED, [],
+     "MEASURED defect: for the whole duration of a run the collapsed "
+     "summary read `Stopped: ACCEPTED`. ROOT CAUSE, exact: "
+     "`reducer.ts`'s `settled` case set `terminal: true` "
+     "UNCONDITIONALLY, never reading `action.status.terminal` -- which the "
+     "API does send (`routes.py:458`, "
+     "`body['terminal'] = st.is_terminal(record.state)`) and the frontend "
+     "type does declare (`client.ts:77`). Two callers dispatch `settled` "
+     "with a WORKING status: the SSE sequence-gap detector, which fires "
+     "mid-run, and the `Check its status` button. Nothing ever cleared the "
+     "latch, and the fall-through wrote `Stopped: ${errorCode || state}` "
+     "with `state` still `ACCEPTED` from `initial()`. THE FIX IS COPY AND A "
+     "LATCH, NOT THE STATE MACHINE: the analytical states are untouched. "
+     "`terminal` is now conditioned on the state ACTUALLY being terminal "
+     "(the server's own flag, OR membership of `TERMINAL_RUN_STATES`, which "
+     "already existed in `thread-view.tsx` and was moved into `reducer.ts` "
+     "so there is one list mirroring `states.py:50-52`), and `state`, "
+     "`errorCode` and `response` are applied only on that branch, so a "
+     "mid-run status refreshes the clock without rewriting the outcome. "
+     "Each of the six WORKING_STATES now maps onto truthful copy -- "
+     "Accepted, Preparing, Working, Checking the query, Calculating, "
+     "Checking the answer -- and `Stopped` survives only where execution "
+     "actually stopped. PROVED by six added cases in "
+     "`frontend/src/components/cockpit-v4/reducer.test.ts`: "
+     "accepted-and-still-working is not an ending; every working state "
+     "reads as work and never as a stop; every one of the nine terminal "
+     "states is still an ending with its existing summary; a mid-run gap "
+     "then a real settle ends exactly once; the server's own `terminal` "
+     "flag is honoured for a state the frontend does not know; a working "
+     "status refreshes the clock rather than ending it."),
+    ("U03", "One table the server could not render cannot take down the "
+            "thread or the composer.", COVERED,
+     ["test_a_table_the_server_cannot_resolve_is_passed_through_unrendered"],
+     "MEASURED defect: a preview table with inline rows and no "
+     "`artifact_id` blanked the entire thread page, composer included. ROOT "
+     "CAUSE, exact: `finalization.py:899-905` appends `dict(table)` "
+     "UNTOUCHED when the artifact does not resolve, so rows reach the "
+     "browser with no `display`; `visuals.tsx` then indexes "
+     "`row.display[column]` and throws; and the boundary that caught it was "
+     "`frontend/src/app/error.tsx`, the Next.js ROOT segment, which "
+     "outranks everything below `app/layout.tsx`. THE FIX REUSES WHAT "
+     "EXISTS: `components/system/error-boundary.tsx` already provides a "
+     "class boundary with an `area` prop whose own docstring describes this "
+     "exact use, and it is now wrapped around EACH figure at the two "
+     "`.map()` bodies in `Visuals` -- which has exactly two call sites, the "
+     "stored transcript and the live turn, so both paths are covered by one "
+     "change. No new global UI architecture. NOTHING IS HIDDEN: no "
+     "defensive guard was added inside `ResultTable`, because defaulting "
+     "`row.display` to `{}` would render blank cells and conceal the "
+     "defect; the boundary shows the message, `componentDidCatch` still "
+     "logs it, and the backend test above pins the precondition the "
+     "boundary exists for. PROVED IN A REAL BROWSER by journey J15 on both "
+     "books. RECOMMENDED AND NOT DONE: `finalization.py` should refuse to "
+     "publish a table it did not render; this round authorised a FRONTEND "
+     "resilience change, so the server half is recorded with its file:line "
+     "in KNOWN_LIMITATIONS.md 16.3 rather than made."),
+]
+
 #: The claims that are NOT made. A family of its own, so an unrun claim is a
 #: ROW a reader can find rather than a sentence in a document somewhere.
 UNRUN: list[Row] = [
     ("V01", "A journey driven by a LIVE model, not a scripted analyst.",
      BLOCKED, [],
-     "NOT RUN. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, "
-     "`AZURE_OPENAI_API_KEY` and `COCKPIT_LLM_API_KEY` are all unset in "
-     "this container -- verified, not assumed -- so no journey here "
-     "exercises a real model and none is reported as having done so. Every "
-     "J row is labelled MODEL MOCK. What IS exercised on the real path: the "
-     "UI, the API, the durable store, the worker, the event stream, the "
-     "DuckDB session over the candidate release, the governed execution "
-     "path and the scenario engine. What is scripted: the analyst's tool "
-     "calls. To run it, set a credential and re-run "
-     "`scripts/whatif/browser_evidence.py` against a provider-backed "
-     "server."),
+     "NOT RUN -- BLOCKED, CREDENTIALS NOT AVAILABLE HERE. The variable this "
+     "product actually reads is `config.CREDENTIAL_VAR` "
+     "(`backend/cockpit_v4/config.py:32`), and "
+     "`service.credential_status()` reports MISSING in this container. "
+     "`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `AZURE_OPENAI_API_KEY`, "
+     "`COCKPIT_LLM_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CLAUDE_API_KEY` "
+     "are unset too -- verified, not assumed. No key is read or printed "
+     "anywhere in this evidence; only PRESENT/MISSING is recorded. So no J "
+     "journey here exercises a real model and none is relabelled as though "
+     "it did: every J row stays MODEL MOCK. What IS exercised on the real "
+     "path: the UI, the API, the durable store, the worker, the event "
+     "stream, the DuckDB session over the candidate release, the governed "
+     "execution path and the scenario engine. What is scripted: the "
+     "analyst's tool calls. The gate is PREPARED and ready to run "
+     "unchanged: eight conversations L1-L8 in "
+     "`tests/cockpit_v4/browser/whatif.live.mjs`, driven by "
+     "`scripts/whatif/live_uat.py`, which REFUSES to start (exit 2) when "
+     "the credential is MISSING rather than falling back to the stub. The "
+     "acceptance question is stated in "
+     "`docs/whatif/LIVE_PROVIDER_UAT.md`: not whether the provider writes "
+     "a good paragraph, but whether arbitrary natural language is reliably "
+     "converted into the correct governed deterministic scenario contract "
+     "-- so every assertion reads the submitted whatif_scenario parameters "
+     "back out of the run trace, not the prose."),
     ("V02", "The Mac launcher installed and run on the Mac.", BLOCKED, [],
-     "NOT RUN. "
-     "`scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` "
-     "exists with its installation steps in its own header. "
+     "NOT RUN. Two candidate launchers exist with their installation steps "
+     "in their own headers: the earlier "
+     "`scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` and "
+     "the UAT launcher "
+     "`scripts/whatif/START_ADVANCEDCOCKPIT_WHATIF_UAT.command`, which "
+     "gates on `scripts/whatif/uat_preflight.py` and refuses to start on "
+     "the wrong revision, on missing data or artifacts, or without the "
+     "candidate interpreter -- printing both hashes on a revision "
+     "mismatch. It never takes an occupied port: `start_candidate.py`'s "
+     "`pick_port` steps up past a holder and never kills one. "
      "`/Users/tuhinchatterjee/Desktop/CreditProbe_Launchers` is not "
-     "reachable from this Linux container, so the file has NOT been copied "
-     "there, NOT been made executable there, and NOT been run. The "
-     "accepted launchers are untouched and no port they use is taken."),
+     "reachable from this Linux container, so neither file has been copied "
+     "there, made executable there, or run there. The ACCEPTED launchers "
+     "under `scripts/cockpit_v4/` are untouched -- `git status` on that "
+     "directory is empty -- and the accepted presentation launcher is not "
+     "overwritten."),
 ]
 
 FAMILIES: list[tuple[str, str, list[Row]]] = [
@@ -715,6 +898,7 @@ FAMILIES: list[tuple[str, str, list[Row]]] = [
     ("R", "Results, attribution, charts and exports", RESULTS),
     ("O", "Numeric oracles", ORACLES),
     ("J", "Browser journeys", JOURNEYS),
+    ("U", "Measured UI defects, authorised and fixed", UI),
     ("V", "Claims deliberately not made", UNRUN),
 ]
 

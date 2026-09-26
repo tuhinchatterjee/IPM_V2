@@ -41,7 +41,6 @@ import os
 import sys
 import threading
 import time
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -364,6 +363,40 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
                            dimension="factor_id", intent_of=intent,
                            final_of=final),
                 "tu-sens-answer")])
+
+        # -- J15: a table the SERVER could not render, published anyway.
+        #
+        # `finalization.render_tables` resolves each declared table to a
+        # stored artifact and, when it cannot, appends the analyst's raw dict
+        # untouched -- rows with no `row_id`, no `canonical` and no `display`.
+        # The cell renderer reads `row.display[column]`, so that payload used
+        # to throw and the NEAREST boundary was the route's: the whole thread
+        # page was replaced, every earlier turn and the composer with it.
+        #
+        # This reproduces exactly that payload, beside a table that IS
+        # resolvable, so the journey can show one figure failing and the
+        # other still rendering. Scripted here rather than mocked in the
+        # browser because the point is that the PRODUCT contains it.
+        if "malformed table" in asked:
+            if turn == 0:
+                return ScriptedResult(tool_calls=[tool_call(
+                    "execute_analysis",
+                    submission([investigation_step()],
+                               objective="the cohort as it stands",
+                               understood=asked),
+                    "tu-broken")])
+            step = _step_of(messages)
+            body = plain_body(step, question=asked, dimension="dimension",
+                              intent_of=intent, final_of=final)
+            body["tables"] = list(body.get("tables") or []) + [{
+                "title": "Deliberately unrenderable",
+                # No `artifact_id`, and rows the server never rendered. This
+                # is the shape, verbatim, that took the page down.
+                "columns": ["section", "item"],
+                "rows": [["scope", "book"], ["cohort", "everything"]],
+                "row_ids": []}]
+            return ScriptedResult(tool_calls=[tool_call(
+                "finalize_response", body, "tu-broken-answer")])
 
         # -- J13: a run that keeps working, one modest action at a time.
         #
@@ -798,9 +831,7 @@ def answer_body(step: dict[str, Any], *, question: str, charts: bool,
                          "row_key": f"measure={row['measure']}",
                          "column_id": "scenario_sar_mn"}})
     have = {c["claim_id"] for c in claims}
-    cohort = rows.get("cohort:Total ECL") or {}
-    narrative = _narrative(have, methods,
-                           cohort_change=str(cohort.get("change_sar_mn") or ""))
+    narrative = _narrative(have, methods)
     # `note` IS SHOWN, NOT HIDDEN.
     #
     # It carries the sentences that stop a number being misread -- "exactly
@@ -838,26 +869,7 @@ def answer_body(step: dict[str, Any], *, question: str, charts: bool,
         limitations=_limitations(step.get("preview") or []))
 
 
-def _rounds_to_nothing(raw: str) -> bool:
-    """Would the display policy write this riyal amount as zero?
-
-    `display.PERMITTED[MONETARY_AMOUNT]` is `(0,)`, so anything under half a
-    million is written "SAR 0 million". True here is not an error; it is the
-    cue to say out loud that the absolute figure is rounded and the percentage
-    is not.
-    """
-    text = str(raw or "").strip()
-    if not text:
-        return False
-    try:
-        value = Decimal(text)
-    except (ArithmeticError, ValueError):
-        return False
-    return value != 0 and abs(value) < Decimal("0.5")
-
-
-def _narrative(have: set[str], methods: list[dict[str, Any]], *,
-               cohort_change: str = "") -> str:
+def _narrative(have: set[str], methods: list[dict[str, Any]]) -> str:
     """Prose with placeholders, never digits.
 
     A narrative that spelled a number out would be the analyst formatting
@@ -872,22 +884,11 @@ def _narrative(have: set[str], methods: list[dict[str, Any]], *,
              "becomes {{claim.scenario}} under this scenario, a change of "
              "{{claim.change}}"
              + (" ({{claim.change_pct}})." if "change_pct" in have else ".")]
-    # WHEN THE RIYAL FIGURE ROUNDS TO NOTHING, SAY SO.
-    #
-    # A riyal amount is written to whole numbers, and the Retail book's monthly
-    # cohort is small enough that a real 20% PD rise reads "SAR 2 million
-    # becomes SAR 2 million, a change of SAR 0 million". Every digit there is
-    # the display policy doing its job, and together they say the opposite of
-    # what happened. The percentage above is exact; this sentence tells the
-    # reader why the two look inconsistent and where the full precision is.
-    if _rounds_to_nothing(cohort_change) and "change_pct" in have:
-        lines.append(
-            "At this book's scale a riyal amount is written to whole "
-            "millions, so the absolute change above rounds to zero even "
-            "though the scenario moved the cohort's ECL by the percentage "
-            "stated: the unrounded baseline, scenario and change are in the "
-            "table below, and nothing here was rounded before it was "
-            "computed.")
+    # The sentence that used to stand here explained why a real movement read
+    # as "a change of SAR 0 million". The display policy no longer writes it
+    # that way -- a group of sub-unit amounts earns the decimals it needs --
+    # so the explanation would now be explaining something that does not
+    # happen. A workaround outliving its defect is a lie with a good reason.
     if "book_before" in have and "book_after" in have:
         lines.append("Across the whole book that is {{claim.book_before}} "
                      "becoming {{claim.book_after}}: every exposure outside "

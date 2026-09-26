@@ -73,6 +73,30 @@ PARTIAL = "PARTIAL"
 
 STATUSES = (AVAILABLE, PARTIAL, UNAVAILABLE)
 
+#: The READER-FACING verdict for each analytical status.
+#:
+#: The analytical vocabulary above is the engine's and it does not move:
+#: `AVAILABLE`, `PARTIAL` and `UNAVAILABLE` are what the code branches on and
+#: what every test asserts. But a reader comparing three methods is not
+#: reading a state machine, and "UNAVAILABLE" reads as "the product is broken"
+#: rather than "this method has not passed its validation gates". The mapping
+#: is here so that the copy is a translation of the state rather than a second
+#: source of truth about it -- the same discipline the run-status copy follows.
+#:
+#: NOT READY is the word for a method whose model exists, ran in development,
+#: and missed a predeclared acceptance gate. That is the Retail emulator's
+#: situation exactly: G4 material-group WAPE measured 34.36% against a 15%
+#: threshold declared before the model was fitted. The gate is not moved, the
+#: group is not redefined, no blend weight is invented, Corporate's model does
+#: not stand in, and there is no silent fall back to Delta. The method keeps
+#: its row, its cells stay EMPTY rather than zero, and the reason travels with
+#: it.
+VERDICTS: dict[str, str] = {
+    AVAILABLE: "COMPLETE",
+    PARTIAL: "PARTIAL",
+    UNAVAILABLE: "NOT READY",
+}
+
 #: The three methods, in the order a result displays them. Delta first
 #: because it is the one that always runs.
 ORDER: tuple[str, ...] = (sp.DELTA, sp.ML, sp.USER_DEFINED)
@@ -114,7 +138,9 @@ class Outcome:
 
     def describe(self) -> str:
         if not self.ran:
-            return f"{LABELS[self.method]}: {self.status}. {self.reason}"
+            return (f"{LABELS[self.method]}: "
+                    f"{VERDICTS.get(self.status, self.status)}. "
+                    f"{self.reason}")
         change = self.change or Decimal(0)
         share = (change / self.baseline * 100) if self.baseline else None
         movement = (f"{share:+.2f}%" if share is not None
@@ -204,6 +230,8 @@ class Run:
             "method": method,
             "label": LABELS[method],
             "status": self.outcomes[method].status,
+            "verdict": VERDICTS.get(self.outcomes[method].status,
+                                    self.outcomes[method].status),
             "baseline": str(self.outcomes[method].baseline),
             "scenario": (str(self.outcomes[method].scenario)
                          if self.outcomes[method].scenario is not None
@@ -280,11 +308,12 @@ class Run:
                 continue
             got = self.outcomes[method]
             label = LABELS[method]
+            verdict = VERDICTS.get(got.status, got.status)
             if got.ran and got.scenario is not None:
-                parts.append(f"{label} {got.status}")
+                parts.append(f"{label} {verdict}")
             else:
                 reason = (got.reason or "no reason was recorded").rstrip(".")
-                parts.append(f"{label} {got.status} \u2014 {reason}")
+                parts.append(f"{label} {verdict} \u2014 {reason}")
         return "; ".join(parts)
 
     def disagreement(self) -> str:
@@ -567,6 +596,7 @@ def require_same_book(spec: sp.ScenarioSpec, *, release_id: str,
 
 
 __all__ = ["AVAILABLE", "Coverage", "LABELS", "ORDER", "Outcome", "PARTIAL",
+           "VERDICTS",
            "Run", "STATUSES", "UNAVAILABLE", "execute", "require_same_book",
            "run_delta", "run_ml", "run_user_defined",
            "unresolved_assumptions"]

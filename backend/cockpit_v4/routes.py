@@ -971,6 +971,9 @@ async def export_table(run_id: str, artifact_id: str,
     table = next((t for t in (answer.get("tables") or [])
                   if str(t.get("artifact_id") or "") == artifact_id), {})
     units = dict(table.get("column_units") or {})
+    # The precision the rendered table published, carried into the export so
+    # a downloaded figure reads exactly as the screen's did.
+    places = dict(table.get("column_precision") or {})
     columns = [str(c) for c in (table.get("columns")
                                 or stored.get("columns") or [])]
     body_rows = list(stored.get("rows") or [])
@@ -987,7 +990,8 @@ async def export_table(run_id: str, artifact_id: str,
         complete=len(body_rows) >= total)
     try:
         body = export_mod.table_csv(artifact=payload, lineage=lineage,
-                                    columns=columns, units=units)
+                                    columns=columns, units=units,
+                                    precision=places)
     except export_mod.ExportUnavailable as exc:
         raise HTTPException(409, {"error_code": st.DATA_UNAVAILABLE,
                                   "message": str(exc)}) from exc

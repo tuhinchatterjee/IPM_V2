@@ -389,3 +389,101 @@ test("a run that computed rows carries them into the view, narrative or not", ()
   // And the run is summarised as what it was, not as a bare stop.
   assert.match(collapsedSummary(view), /Partly answered/);
 });
+
+// ---- a status is not an ending ------------------------------------------
+//
+// MEASURED DEFECT. The thread view renders the assistant's turn as soon as
+// the view says `terminal`, and `settled` used to set that for ANY status
+// that arrived. Two callers send one mid-run: the SSE sequence-gap detector,
+// which re-reads the status when a frame is dropped, and the reader's own
+// "Check its status" button. Moments after the POST that status is ACCEPTED
+// with no response attached -- so the page read
+// "Stopped: ACCEPTED / This request stopped / No answer was produced" for as
+// long as the run took, and the live timer froze with it.
+
+function settling(over: Partial<RunStatus> = {}): RunStatus {
+  return {
+    run_id: "run-a", state: "COMPLETED", error_code: "", error_id: "",
+    final_response: null, ...over,
+  } as unknown as RunStatus;
+}
+
+test("an accepted run that is still working is not an ending", () => {
+  let view = reduce(initial("run-a"), { type: "start", runId: "run-a" });
+  view = reduce(view, { type: "settled", status: settling({
+    state: "ACCEPTED" }) });
+
+  assert.equal(view.terminal, false,
+    "a status read while the run is working is a look at it, not a verdict");
+  assert.equal(view.response, null);
+  assert.ok(!/Stopped/.test(collapsedSummary(view)),
+    `a working run must not be announced as stopped: ` +
+    `${collapsedSummary(view)}`);
+});
+
+test("every working state reads as work, never as a stop", () => {
+  for (const state of ["ACCEPTED", "CONTEXT_READY", "MODEL_RUNNING",
+                       "ACTION_VALIDATING", "TOOL_RUNNING",
+                       "FINAL_VALIDATING"]) {
+    let view = reduce(initial("run-a"), { type: "start", runId: "run-a" });
+    view = reduce(view, { type: "settled", status: settling({ state }) });
+    assert.equal(view.terminal, false, state);
+    assert.ok(!/Stopped/.test(collapsedSummary(view)),
+      `${state} read as "${collapsedSummary(view)}"`);
+  }
+});
+
+test("every terminal state is still an ending", () => {
+  const expected: Record<string, RegExp> = {
+    COMPLETED: /Answered in/,
+    PARTIAL: /Partly answered/,
+    WAITING_FOR_USER: /Waiting for your answer/,
+    REFERRED: /Referred to another area/,
+    CANCELLED: /Cancelled/,
+    UNSUPPORTED: /Not supported here/,
+    FAILED: /Stopped/,
+    EXPIRED: /Stopped/,
+    INTERRUPTED: /Stopped/,
+  };
+  for (const [state, reads] of Object.entries(expected)) {
+    let view = reduce(initial("run-a"), { type: "start", runId: "run-a" });
+    view = reduce(view, { type: "settled", status: settling({ state }) });
+    assert.equal(view.terminal, true, state);
+    assert.match(collapsedSummary(view), reads, state);
+  }
+});
+
+test("a mid-run gap followed by a real settle ends exactly once", () => {
+  let view = reduce(initial("run-a"), { type: "start", runId: "run-a" });
+  // The gap detector re-reads the status while the run is still going.
+  view = reduce(view, { type: "settled", status: settling({
+    state: "TOOL_RUNNING" }) });
+  assert.equal(view.terminal, false);
+  // Then the run genuinely finishes.
+  view = reduce(view, { type: "settled", status: settling({
+    state: "COMPLETED",
+    final_response: { disposition: "answer" } as never }) });
+  assert.equal(view.terminal, true);
+  assert.ok(view.response, "the answer must arrive with the real settle");
+  assert.match(collapsedSummary(view), /Answered in/);
+});
+
+test("the server's own terminal flag is honoured when it is sent", () => {
+  let view = reduce(initial("run-a"), { type: "start", runId: "run-a" });
+  // A state this build has never heard of, flagged terminal by the server.
+  view = reduce(view, { type: "settled", status: settling({
+    state: "SOMETHING_NEW", terminal: true } as never) });
+  assert.equal(view.terminal, true,
+    "the API sends `terminal` and it is the authority when it disagrees " +
+    "with a state list this build happens to carry");
+});
+
+test("a working status still refreshes the clock it does not end", () => {
+  let view = reduce(initial("run-a"), { type: "start", runId: "run-a" });
+  view = reduce(view, { type: "settled", status: settling({
+    state: "MODEL_RUNNING",
+    budget: { elapsed_seconds: 12 } } as never) });
+  assert.equal(view.terminal, false);
+  assert.equal(view.elapsedMs, 12_000,
+    "a run in flight still reports how long it has been going");
+});

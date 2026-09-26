@@ -398,12 +398,37 @@ Authorised as `PROTECTED_CORE_INCOMPATIBILITY.md` §7 **Option A only**, with
 always-true, always-false, flag-ignoring or language-only each makes a named
 test fail.
 
+### H1 added the fifth authorised extension: the three measured UI defects
+
+Authorised in the final-hardening round, defect by defect, after each had been
+measured through the real product and reported rather than fixed. The
+authorisation was explicit about scope: *"the smallest protected UI formatting
+change"*, *"the smallest protected status-rendering change"*, *"the narrowest
+component-level error containment"*.
+
+| File | Change | Reason | Defect |
+|---|---|---|---|
+| `backend/cockpit_v4/display.py` | `+WHOLE_MONEY_AT_OR_ABOVE`, `+MONEY_SIGNIFICANT_DIGITS`, `+MAX_MONEY_DECIMALS`, `+_money_decimals()`, `+smallest_of()`; `decimals()` and `resolve_decimals()` gain an optional `smallest=` | The Retail book's entire monthly ECL is SAR 3.19 million, so whole-unit money wrote its ECL-by-product column as `2 / 1 / 1 / 0 / 0` and a real 20% PD rise as "SAR 2 million becomes SAR 2 million, a change of SAR 0 million". `PERMITTED[MONETARY_AMOUNT]` stays `(0,)` and `GOVERNED` is untouched: the analyst still cannot choose, the SERVER's own default became magnitude-aware. Mirrors `orchestration/figures.py:60-64`, the house convention | 1 |
+| `backend/cockpit_v4/finalization.py` | `+_places_for()`; `_cell` takes `places`; `render_tables` publishes `column_precision`; `render_charts` publishes `series_precision`; `_matrix` and `_boxes` take one precision each; `+_agree_on_precision()` called from `validate` before anything renders | One precision per GROUP — a column, a series, one unit's worth of claims. A claim's precision cannot be decided while looking at that claim alone: "a change of SAR 0 million" is only wrong once the baseline it moved is visible | 1 |
+| `backend/cockpit_v4/axis.py` | `measure_axis` derives its precision from its own tick values | A Retail series 0.02–1.69 gets ticks at 0, 0.5, 1.0, 1.5, 2.0, which at whole units read "SAR 0 / 0 / 1 / 2 / 2 million" — a scale with duplicate rungs is not a scale | 1 |
+| `backend/cockpit_v4/export.py` | `_published` and `table_csv` take `precision`; the markdown writer reads `column_precision` | An export that rounded for itself would be a second opinion about a figure the screen had already published | 1 |
+| `backend/cockpit_v4/precision.py` | `default_precision`, `check` and `+smallest_of` thread `smallest` through to `display` | The delegating layer; no policy of its own | 1 |
+| `frontend/src/components/cockpit-v4/reducer.ts` | `settled` latches `terminal` only when the status is genuinely settled; `+TERMINAL_RUN_STATES`, `+isSettled()`, `+WORKING_LABELS`; `collapsedSummary` names the working states | It set `terminal: true` for ANY status, and two callers send one mid-run, so the page read "Stopped: ACCEPTED" for as long as the run took. The server already sends `terminal` (`routes.py:458`) and the state says so; both are now asked | 2 |
+| `frontend/src/components/cockpit-v4/thread-view.tsx` | imports the shared `TERMINAL_RUN_STATES`; its own duplicate removed | Two copies of the terminal-state list would drift the first time either changed | 2 |
+| `frontend/src/components/cockpit-v4/visuals.tsx` | each figure in `Visuals` wrapped in `ErrorBoundary` with an `area` | One unrenderable table threw and the ROUTE boundary replaced the whole thread page, composer included. Wrapped per figure it costs one `<figure>`. Reuses `components/system/error-boundary.tsx`, which already existed for exactly this; **no guard added inside the renderer**, because a blank cell would hide the defect | 3 |
+| `frontend/src/components/cockpit-v4/reducer.test.ts` | six added tests | The uncovered case was a `settled` dispatch carrying a WORKING state | 2 |
+
+**Lint parity holds file by file.** Every pre-existing finding in these files is
+still there and no new one was introduced (`display.py` 0→0, `precision.py`
+2→2, `finalization.py` 3→3, `export.py`+`routes.py` 12→12, `axis.py` 0→0).
+
 ### The 25 added data files
 
-`--check` reports `8 changed, 0 removed, 25 added`. The eight are `context.py`
-(P3 and P5b both touched it — one file, one line of the report), `schema.py`,
-`domains.py`, `domain_resolver.py` and `worker.py` from P5b, and `contracts.py`,
-`execute_tool.py` and `routes.py` from B1. The
+`--check` reports `17 changed, 0 removed, 25 added`. Eight are the audited set:
+`context.py` (P3 and P5b both touched it — one file, one line of the report),
+`schema.py`, `domains.py`, `domain_resolver.py` and `worker.py` from P5b, and
+`contracts.py`, `execute_tool.py` and `routes.py` from B1. Nine are the H1 table
+above. The
 additions are the two candidate release directories under
 `data/cockpit_v4_lake/`, which the protected glob covers by design — it
 reports a NEW file matching a protected pattern as drift, and that is the behaviour that would catch someone quietly

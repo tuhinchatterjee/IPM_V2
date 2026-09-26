@@ -55,9 +55,23 @@ row with empty cells rather than a zero, and no other model stands in. Delta
 and User-defined work normally. Corporate passes all four gates and its
 estimate is published beside Delta's.
 
-**One thing was never run.** No provider credential is authorised here, so
-every journey uses a scripted analyst and is labelled MODEL MOCK. A
-live-provider journey is row V01 of the matrix, marked BLOCKED — NOT RUN.
+**One thing was never run.** No provider credential is authorised here —
+`service.credential_status()` reports MISSING for `COCKPIT_ANTHROPIC_API_KEY`,
+the variable this product actually reads — so every journey uses a scripted
+analyst and is labelled MODEL MOCK. Nothing is relabelled. The live-provider
+gate is PREPARED and refuses to run without a credential rather than falling
+back to the stub: `docs/whatif/LIVE_PROVIDER_UAT.md`,
+`scripts/whatif/live_uat.py`, `tests/cockpit_v4/browser/whatif.live.mjs`
+(L1–L8). Matrix row V01, marked BLOCKED — CREDENTIALS NOT AVAILABLE HERE.
+
+**Three measured UI defects were fixed in this round**, each authorised
+explicitly and each with its own matrix row: **U01** a money amount displayed
+as a different amount (a Retail cohort read `SAR 2m → SAR 2m, change SAR 0m`);
+**U02** an active run described as `Stopped: ACCEPTED` for its whole duration;
+**U03** one unrenderable table taking down the thread page and the composer.
+All three are display-layer fixes: no calculation, no analytical state machine
+and no stored value changed. `KNOWN_LIMITATIONS.md` §16 has the before, the
+fix and the measurement for each.
 
 ## 2. What the accepted application still is
 
@@ -67,21 +81,38 @@ Unchanged. This is the claim that matters most and it is checked three ways:
 |---|---|
 | `v4-saudi-corporate-20q-v4` fingerprint | `e37236d0f6d4e494…` — **unchanged** |
 | `v4-saudi-retail-20m-v5` fingerprint | `a1e797dcc73236b7…` — **unchanged** |
-| Full V4 + frontend regression, flags OFF | **4301 passed, 4 skipped, 0 failed** |
+| Full V4 + frontend regression, flags OFF | **4349 passed, 4 skipped, 0 failed** |
 | Accepted browser journeys, real Chromium | **76/76 passed** |
-| `protected_hashes.py --check` | 8 changed, **0 removed**, 25 added — every line explained |
+| `protected_hashes.py --check` | 17 changed, **0 removed**, 25 added — every line explained |
 
-**The protected core is NOT byte-identical.** Five files differ, each an
-authorised flag-gated extension, each recorded with its exact diff in
-`BASELINE_AND_EXTENSION_MAP.md`:
+**The protected core is NOT byte-identical.** Seventeen files differ, each
+recorded with its exact diff in `BASELINE_AND_EXTENSION_MAP.md`. Eight carry
+the flag-gated extension and the authorised bridge:
 
-| File | Extension |
+| File | Extension | Authorised as |
+|---|---|---|
+| `context.py` | `scenario_blocks()` and `scenario_packet()` | P3, P5b |
+| `schema.py` | `candidate_relations()` | P5b |
+| `domains.py` | `current_release()` | P5b |
+| `domain_resolver.py` | reads `current_release()` | P5b |
+| `worker.py` | routes the thread context by kind; writes a confirmed scenario after settle | P5b |
+| `contracts.py` | the step language must parse before the dispatch is reached | B1 |
+| `execute_tool.py` | the dispatch itself | B1 |
+| `routes.py` | one line: the pinned release is read through `current_release()` | B1 |
+
+Nine are the three authorised UI fixes, which are display-layer only:
+
+| File | Fix |
 |---|---|
-| `context.py` | `scenario_blocks()` and `scenario_packet()` |
-| `schema.py` | `candidate_relations()` |
-| `domains.py` | `current_release()` |
-| `domain_resolver.py` | reads `current_release()` |
-| `worker.py` | routes the thread context by kind; writes a confirmed scenario after settle |
+| `display.py` | money precision chosen once per group from the smallest non-zero magnitude (U01) |
+| `finalization.py` | publishes `column_precision` / `series_precision` and agrees one precision per unit across an answer's claims (U01) |
+| `axis.py` | ticks take the group's precision, so an axis agrees with its cells (U01) |
+| `export.py` | CSV and Markdown read the published precision (U01) |
+| `precision.py` | delegates to `display.py` rather than holding a second opinion (U01) |
+| `reducer.ts` | `terminal` latches only on a genuinely terminal state; working states get truthful copy (U02) |
+| `thread-view.tsx` | imports the one `TERMINAL_RUN_STATES` list instead of keeping a second (U02) |
+| `visuals.tsx` | each figure is wrapped in the existing `ErrorBoundary` (U03) |
+| `reducer.test.ts` | six cases pinning U02 |
 
 Each returns the accepted value with the flags off, and each import of the
 candidate package sits inside a `try/ImportError` **after** the flag check.
@@ -208,30 +239,49 @@ afterwards has them off. `--stop` stops only the pids this script recorded.
 Started with the accepted interpreter it **refuses**, naming the libraries
 it cannot import, rather than coming up with Method 2 silently unavailable.
 
-### The Mac launcher: prepared, not installed
+### The Mac launchers: prepared, not installed
 
-`scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` exists with
-its installation steps in its own header.
+Two candidate launchers exist, both with their installation steps in their own
+headers:
+
+* `scripts/whatif/START_ADVANCED_COCKPIT_WHATIF_CANDIDATE.command` — the
+  earlier one, which starts the candidate directly.
+* `scripts/whatif/START_ADVANCEDCOCKPIT_WHATIF_UAT.command` — the UAT
+  launcher. It runs `scripts/whatif/uat_preflight.py` as a GATE and starts
+  nothing if the preflight fails: it checks the expected candidate revision
+  and prints both hashes on a mismatch, the candidate interpreter and its
+  pinned libraries, both releases published at their expected fingerprints,
+  both emulator artifact sets and their gate verdicts (printing Retail's
+  FAILED G4 without refusing, because that is the product's real state), and
+  the credential as PRESENT or MISSING — the key itself is never read or
+  printed. It then shows the Corporate and Retail candidate release state and
+  hands over to `start_candidate.py`, whose `pick_port` steps past an occupied
+  port and never kills its holder.
+
 `/Users/tuhinchatterjee/Desktop/CreditProbe_Launchers` is not reachable from
-this Linux container, so it has **not been copied there, not made executable
-there, and not run**. The accepted launchers are unchanged; do not replace
-them with this one.
+this Linux container, so neither has been **copied there, made executable
+there, or run**. The accepted launchers under `scripts/cockpit_v4/` are
+unchanged — `git status` on that directory is empty — and the accepted
+presentation launcher is not overwritten by either of these.
 
 ## 10. Verification
 
 ```bash
 cd /home/user/whatif_wt
 COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python -m pytest -o addopts="" -q \
-    tests/cockpit_v4 tests/frontend        # 4301 passed, 4 skipped
-python -m pytest -o addopts="" -q tests/cockpit_agentic
+    tests/cockpit_v4 tests/frontend        # 4349 passed, 4 skipped
+python -m pytest -o addopts="" -q tests/cockpit_agentic       # 564 passed
+cd frontend && npm test && npx tsc --noEmit && cd ..          # 593 passed
 /root/.local/bin/ruff check backend/cockpit_v4 tests/cockpit_v4 scripts/whatif
-python3 scripts/whatif/protected_hashes.py --check
+python3 scripts/whatif/protected_hashes.py --check    # 17 changed, 0 removed
 python3 scripts/whatif/build_matrix.py
 python3 scripts/whatif/build_sensitivities.py     # cards vs published release
 python3 scripts/cockpit_v4/browser_evidence.py    # 76/76, the ACCEPTED suite
-python3 scripts/whatif/browser_evidence.py --domain all   # J01-J14, 28/28
+python3 scripts/whatif/browser_evidence.py --domain all   # J01-J15, 30/30
 .venv-whatif/bin/python scripts/whatif/build_explanations.py --domain all
 .venv-whatif/bin/python scripts/whatif/verify_artifacts.py --domain all
+.venv-whatif/bin/python scripts/whatif/uat_preflight.py   # the UAT gate
+.venv-whatif/bin/python scripts/whatif/live_uat.py        # refuses: no credential
 ```
 
 The last one refits both emulators from scratch into a temporary directory and
@@ -256,6 +306,7 @@ regenerated away.
 | `REQUIREMENT_TEST_MATRIX.md` + `ACCEPTANCE_CASES.json` | one row per acceptance ID |
 | `KNOWN_LIMITATIONS.md` | everything this candidate does not do |
 | `PERFORMANCE_AND_BUDGETS.md` | measured build times, sizes and budgets |
+| `LIVE_PROVIDER_UAT.md` | the live-provider gate: the eight conversations, what each must produce, the exact Mac commands, and why it is BLOCKED here |
 
 ## 12. The remaining ask
 

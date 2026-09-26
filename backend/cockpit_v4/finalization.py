@@ -31,6 +31,7 @@ presentation. It is the ONLY transformation applied to the analyst's words.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -254,7 +255,7 @@ class ValidationReport:
                 "claims_checked": len(self.claim_values)}
 
 
-def _cell(value: Any, unit: str, disp: Any) -> Any:
+def _cell(value: Any, unit: str, disp: Any, places: int | None = None) -> Any:
     """One published cell, as a reader sees it.
 
     A null and a non-numeric value pass through unchanged. A number whose
@@ -262,6 +263,10 @@ def _cell(value: Any, unit: str, disp: Any) -> Any:
     could name is still written for a person -- no unit asserted, but not
     sixteen digits either, because machine precision reaching a reader is a
     defect whether or not we know what the number measures.
+
+    `places` is the ONE precision this cell's group was given -- its column,
+    its series. Passed rather than recomputed per cell, because a column that
+    wrote 1.7 beside 0.30 would not be a column anybody could read down.
     """
     if value is None:
         return value
@@ -270,8 +275,32 @@ def _cell(value: Any, unit: str, disp: Any) -> Any:
     except (InvalidOperation, ValueError):
         return value
     if unit:
-        return disp.format_value(number, unit)
+        return disp.format_value(number, unit, places)
     return disp.format_unitless(number)
+
+
+def _places_for(rows: Sequence[Mapping[str, Any]], columns: Sequence[str],
+                units: Mapping[str, str], disp: Any) -> dict[str, int]:
+    """One precision per column, from the amounts actually in it.
+
+    A money column of sub-unit amounts is written to whole units as a column
+    of zeroes -- the Retail book's ECL by product reads 2 / 1 / 1 / 0 / 0 for
+    rows that are 1.69, 0.61, 0.57, 0.30 and 0.02. The precision is therefore
+    chosen from the smallest non-zero amount in the column, once, and every
+    cell in it is written at that precision.
+
+    A column whose unit is not money keeps its class default: this asks
+    `display` the question and `display` answers it, so there is no second
+    policy here.
+    """
+    out: dict[str, int] = {}
+    for column in columns:
+        unit = units.get(column, "")
+        if not unit:
+            continue
+        smallest = disp.smallest_of(row.get(column) for row in rows)
+        out[column] = disp.decimals(unit, smallest=smallest)
+    return out
 
 
 def _format(claim: NumericClaim) -> str:
@@ -387,7 +416,16 @@ class Finalizer:
             problem = self._check_claim(claim)
             if problem:
                 problems.append(problem)
-            else:
+        # THE GROUP IS SETTLED BEFORE ANYTHING IS WRITTEN.
+        #
+        # A claim's precision cannot be decided while looking at that claim
+        # alone: "a change of SAR 0 million" is only wrong once you can see
+        # the baseline it moved. So every claim is checked first, the
+        # precision is then chosen once per unit from all the amounts in the
+        # answer, and only then is anything rendered.
+        self._agree_on_precision()
+        for claim in final.numeric_claims:
+            if claim.claim_id in self.canonical or claim.claim_id in self.text:
                 values[claim.claim_id] = self._render(claim)
 
         referenced = set(PLACEHOLDER.findall(final.narrative))
@@ -463,6 +501,50 @@ class Finalizer:
         return ValidationReport(
             ok=not problems, rendered_narrative=rendered, problems=problems,
             warnings=warnings, claim_values=values)
+
+    def _agree_on_precision(self) -> None:
+        """One precision per unit, across every claim this answer publishes.
+
+        Money is written in whole units because three-hundredths of a riyal on
+        a forty-billion book is noise. On the Retail book, whose whole monthly
+        ECL is SAR 3.19 million, the same rule turned a real 20% PD rise into
+        "SAR 2 million becomes SAR 2 million, a change of SAR 0 million" --
+        three figures, none of them wrong, together saying the opposite of
+        what happened.
+
+        The precision is therefore taken from the SMALLEST non-zero amount the
+        answer quotes in that unit, so the figure that would have vanished is
+        the one that decides. Every claim in the unit is then written at that
+        one precision, because a sentence that reads 1.7 in one clause and
+        0.34 in the next is a sentence about two different scales.
+
+        `display` answers the question; nothing here is a second opinion about
+        rounding, and a unit that is not money is unaffected.
+        """
+        by_unit: dict[str, list[Any]] = {}
+        for claim in self._claims:
+            verdict = self.canonical.get(claim.claim_id)
+            if verdict is None or verdict.canonical is None:
+                continue
+            by_unit.setdefault(claim.unit, []).append(verdict.canonical)
+        if not by_unit:
+            return
+        from backend.cockpit_v4 import display as disp
+
+        agreed = {unit: disp.decimals(unit, smallest=disp.smallest_of(values))
+                  for unit, values in by_unit.items()}
+        for claim in self._claims:
+            verdict = self.canonical.get(claim.claim_id)
+            places = agreed.get(claim.unit)
+            if verdict is None or places is None:
+                continue
+            if verdict.precision == places:
+                continue
+            self.canonical[claim.claim_id] = prec.Verdict(
+                verdict.ok, verdict.problem,
+                canonical=verdict.canonical,
+                display=prec.plain(prec.quantize(verdict.canonical, places)),
+                precision=places)
 
     def _render(self, claim: NumericClaim) -> str:
         """The published text of a claim, from the canonical value."""
@@ -906,15 +988,21 @@ class Finalizer:
             columns = [str(c) for c in (table.get("columns")
                                         or record["columns"])]
             units = self._units_for(artifact_id, columns, catalog)
+            # ONE PRECISION PER COLUMN, chosen from what is in the column.
+            # Travels beside the unit everywhere the unit already travels, so
+            # the cell, the export and the reader's eye all agree.
+            places = _places_for(record["rows"], columns, units, disp)
             rows = []
             for index, row in enumerate(record["rows"]):
                 rows.append({
                     "row_id": deriv.row_id_for(index),
                     "canonical": {c: row.get(c) for c in columns},
-                    "display": {c: _cell(row.get(c), units.get(c, ""), disp)
+                    "display": {c: _cell(row.get(c), units.get(c, ""), disp,
+                                         places.get(c))
                                 for c in columns},
                 })
             body.update({"columns": columns, "column_units": units,
+                         "column_precision": places,
                          "rows": rows, "row_count": len(rows),
                          "rendered_by": "creditprobe"})
             out.append(body)
@@ -950,6 +1038,11 @@ class Finalizer:
             # its own axis: a chart is allowed to plot a measure no claim
             # happens to cite. The catalogue still fills in what it can.
             declared = str(chart.get("unit") or "")
+            # One precision per SERIES, for the same reason a table gets one
+            # per column: a tooltip that reads 1.7 on one point and 0.30 on
+            # the next is two scales on one line.
+            series_units = {c: units.get(c, declared) for c in series}
+            places = _places_for(record["rows"], series, series_units, disp)
             points = []
             for index, row in enumerate(record["rows"]):
                 values = {c: row.get(c) for c in series}
@@ -958,12 +1051,13 @@ class Finalizer:
                     "label": row.get(label) if label else None,
                     "values": values,
                     "display": {
-                        c: _cell(values[c], units.get(c, declared), disp)
+                        c: _cell(values[c], series_units[c], disp,
+                                 places.get(c))
                         for c in series},
                 })
             body.update({"points": points,
-                         "series_units": {c: units.get(c, declared)
-                                          for c in series},
+                         "series_units": series_units,
+                         "series_precision": places,
                          "rendered_by": "creditprobe"})
             kind = str(chart.get("kind") or "").lower()
             if kind == HEATMAP:
@@ -1128,6 +1222,11 @@ class Finalizer:
         measure = next((str(c) for c in (chart.get("y_columns") or []) if c),
                        "")
         unit = units.get(measure, declared)
+        # One precision for the whole grid: a heatmap read cell against cell
+        # is exactly the comparison a mixed precision would break.
+        places = disp.decimals(
+            unit, smallest=disp.smallest_of(
+                row.get(measure) for row in record["rows"])) if unit else None
 
         rows_seen: list[str] = []
         columns_seen: list[str] = []
@@ -1142,7 +1241,7 @@ class Finalizer:
                 columns_seen.append(across)
             value = row.get(measure) if measure else None
             cells[f"{down}|{across}"] = value
-            display[f"{down}|{across}"] = _cell(value, unit, disp)
+            display[f"{down}|{across}"] = _cell(value, unit, disp, places)
 
         # ONE ORDERED AXIS FOR BOTH SIDES when the two name the same things,
         # which a migration always does: from-A must sit above to-A or the
@@ -1200,6 +1299,13 @@ class Finalizer:
             return (ordered[low]
                     + (ordered[high] - ordered[low]) * (position - low))
 
+        # One precision across every box, for the same reason: five numbers
+        # per box and a dozen boxes are only comparable on one scale.
+        places = disp.decimals(
+            unit, smallest=disp.smallest_of(
+                value for values in grouped.values()
+                for value in values)) if unit else None
+
         out: list[dict[str, Any]] = []
         for key, values in grouped.items():
             ordered = sorted(values)
@@ -1209,7 +1315,7 @@ class Finalizer:
             out.append({
                 "label": key, "count": len(ordered), "unit": unit,
                 **{name: str(value) for name, value in five.items()},
-                "display": {name: _cell(value, unit, disp)
+                "display": {name: _cell(value, unit, disp, places)
                             for name, value in five.items()}})
         return out
 

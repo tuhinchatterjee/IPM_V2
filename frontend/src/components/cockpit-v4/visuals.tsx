@@ -38,6 +38,7 @@ import { PLOT_BOX, bandOf, extentOf, slice, xOf, yOf } from "./chart-frame";
 import { px } from "./chart-geometry";
 import type { HoverPoint } from "./chart-frame";
 import type { ChartPoint, RenderedChart, RenderedTable } from "./client";
+import { ErrorBoundary } from "@/components/system/error-boundary";
 import { ChartDownload, TableDownload } from "./figure-download";
 import { TOP_N, choose, numeric, text } from "./visual-choice";
 import type { ChartKind } from "./visual-choice";
@@ -1061,16 +1062,40 @@ export function Visuals({
   // rendered and dropped a line before the screen. And a reader who wanted
   // the numbers under the picture had to give up the picture to get them,
   // which is not a choice anybody wants to make about their own result.
+  // ONE FIGURE AT A TIME, BEHIND ITS OWN BOUNDARY.
+  //
+  // MEASURED DEFECT. `finalization.render_tables` publishes a table it could
+  // not resolve to a stored artifact by passing the analyst's raw dict
+  // through untouched -- no `row_id`, no `canonical`, no `display`. The cell
+  // renderer reads `row.display[column]`, so the whole subtree threw
+  // "Cannot read properties of undefined", and the nearest boundary is the
+  // ROUTE's (`app/error.tsx`): the entire thread page was replaced by "This
+  // page could not be loaded", taking every earlier turn and the composer
+  // with it. A reader could not scroll back, could not read the answer that
+  // HAD worked, and could not ask anything else.
+  //
+  // Wrapped per figure, a malformed table costs one <figure>. The boundary
+  // is the one this codebase already has, whose own docstring describes this
+  // exact job; `area` names which figure failed, the message is shown rather
+  // than swallowed, and `componentDidCatch` still writes the stack to the
+  // console. Nothing is guarded INSIDE the renderer: a blank cell would hide
+  // a defect, and this is meant to show one.
   return (
     <div data-testid="v4-visuals" className="mt-4 space-y-5">
       {usefulCharts.map((chart, index) => (
-        <ResultChart key={`${chart.artifact_id}-${chart.kind}-${index}`}
-                     chart={chart} runId={runId}
-                     index={chartIndices[index]} />
+        <ErrorBoundary key={`${chart.artifact_id}-${chart.kind}-${index}`}
+                       area={chart.title ? `The chart "${chart.title}"`
+                                         : "This chart"}>
+          <ResultChart chart={chart} runId={runId}
+                       index={chartIndices[index]} />
+        </ErrorBoundary>
       ))}
       {usefulTables.map((table, index) => (
-        <ResultTable key={`${table.artifact_id}-${index}`} table={table}
-                     runId={runId} />
+        <ErrorBoundary key={`${table.artifact_id}-${index}`}
+                       area={table.title ? `The table "${table.title}"`
+                                         : "This table"}>
+          <ResultTable table={table} runId={runId} />
+        </ErrorBoundary>
       ))}
     </div>
   );

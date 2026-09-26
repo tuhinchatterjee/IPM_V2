@@ -243,7 +243,8 @@ def _now() -> str:
 
 def table_csv(*, artifact: dict[str, Any], lineage: Lineage,
               columns: list[str] | None = None,
-              units: dict[str, str] | None = None) -> str:
+              units: dict[str, str] | None = None,
+              precision: dict[str, int] | None = None) -> str:
     """One result as CSV, with its lineage in a comment block above it.
 
     Two columns per measure: the canonical value a spreadsheet can compute
@@ -256,6 +257,7 @@ def table_csv(*, artifact: dict[str, Any], lineage: Lineage,
     if not names:
         raise ExportUnavailable("This result has no columns to export.")
     units = units or {}
+    precision = precision or {}
 
     out = io.StringIO()
     for line in lineage.lines():
@@ -275,19 +277,26 @@ def table_csv(*, artifact: dict[str, Any], lineage: Lineage,
             value = row.get(name)
             line.append("" if value is None else value)
             if units.get(name):
-                line.append(_published(value, units[name]))
+                line.append(_published(value, units[name],
+                                       precision.get(name)))
         writer.writerow(line)
     return out.getvalue()
 
 
-def _published(value: Any, unit: str) -> str:
-    """The reader's form of one cell, or empty when it is not a number."""
+def _published(value: Any, unit: str, places: int | None = None) -> str:
+    """The reader's form of one cell, or empty when it is not a number.
+
+    `places` is the precision the SERVER published for this column, carried
+    here rather than recomputed. An export that rounded for itself would be a
+    second opinion about a figure the screen had already written, and the
+    first time the two disagreed nobody could say which was the answer.
+    """
     from decimal import Decimal, InvalidOperation
 
     if value is None or isinstance(value, bool):
         return ""
     try:
-        return disp.format_value(Decimal(str(value)), unit)
+        return disp.format_value(Decimal(str(value)), unit, places)
     except (InvalidOperation, ValueError, TypeError):
         return ""
 
@@ -340,13 +349,18 @@ def analysis_markdown(*, record: Any, answer: dict[str, Any],
         columns = [str(c) for c in (table.get("columns")
                                     or artifact.get("columns") or [])]
         units = dict(table.get("column_units") or {})
+        # The precision the SERVER published for this column, not one this
+        # export chose. The markdown a reader forwards has to carry the same
+        # figures the screen they forwarded it from was showing.
+        places = dict(table.get("column_precision") or {})
         parts.append("| " + " | ".join(columns) + " |")
         parts.append("| " + " | ".join("---" for _ in columns) + " |")
         for row in artifact.get("rows") or []:
             cells = []
             for column in columns:
                 value = row.get(column)
-                shown = _published(value, units.get(column, ""))
+                shown = _published(value, units.get(column, ""),
+                                   places.get(column))
                 cells.append(shown or ("" if value is None else str(value)))
             parts.append("| " + " | ".join(cells) + " |")
         parts.append("")

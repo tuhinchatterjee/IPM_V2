@@ -62,16 +62,11 @@ import {
 import { chipsToShow } from "./follow-ups";
 import { AnswerActions } from "./answer-actions";
 import { ProcessPanel } from "./process-panel";
-import { initial, reduce, type RunView } from "./reducer";
+import { TERMINAL_RUN_STATES, initial, reduce, type RunView }
+  from "./reducer";
 import { ResponsePanel } from "./response-panel";
 import { Visuals } from "./visuals";
 import { RecipientPicker } from "./recipient-picker";
-
-/** A run in one of these states is finished; there is nothing to follow. */
-const TERMINAL_RUN_STATES = new Set([
-  "COMPLETED", "PARTIAL", "FAILED", "EXPIRED", "CANCELLED", "UNSUPPORTED",
-  "REFERRED", "WAITING_FOR_USER", "INTERRUPTED",
-]);
 
 /** One exchange already on the server. */
 type Settled = {

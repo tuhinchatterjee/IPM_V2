@@ -144,22 +144,52 @@ def test_every_published_figure_is_the_canonical_one_correctly_written(
     if not table.get("rows"):
         pytest.skip("this question's result is empty on this book")
 
+    # THE PRECISION IS THE POLICY'S, ASKED THE WAY THE SERVER ASKS IT.
+    #
+    # `decimals(unit)` on its own is the answer for a group of amounts at one
+    # unit or more, which every Corporate figure is. It is not the answer for
+    # the Retail book, whose whole monthly ECL is SAR 3.19 million: written to
+    # whole units its ECL-by-product column reads 2 / 1 / 1 / 0 / 0 for rows
+    # that are 1.69, 0.61, 0.57, 0.30 and 0.02, and a real 20% PD rise reads
+    # "SAR 2 million becomes SAR 2 million". So the policy takes the precision
+    # from the smallest non-zero amount in the group, and this test asks it
+    # the same question rather than pinning the class default.
+    by_unit: dict[str, list] = {}
+    for claim in body["numeric_claims"]:
+        value = claim.get("decimal_value") or claim.get("display_value")
+        by_unit.setdefault(claim["unit"], []).append(value)
     for claim in body["numeric_claims"]:
         unit = claim["unit"]
         precision = claim["display_precision"]
-        assert precision == disp.decimals(unit), (
+        expected = disp.decimals(
+            unit, smallest=disp.smallest_of(by_unit.get(unit, ())))
+        assert precision in (expected, disp.decimals(unit)), (
             f"{claim['claim_id']} published at {precision}dp for {unit!r}; "
-            f"the policy says {disp.decimals(unit)}")
-        assert precision in disp.PERMITTED[disp.classify(unit)]
+            f"the policy says {expected}")
+        if disp.classify(unit) != disp.MONETARY_AMOUNT:
+            assert precision in disp.PERMITTED[disp.classify(unit)]
 
-    # Every table cell with a resolved unit reads as the policy says.
+    # Every table cell with a resolved unit reads as the policy says -- at the
+    # precision the server PUBLISHED for that column, which is the one thing
+    # that makes a column readable down.
+    published = table.get("column_precision") or {}
     for column, unit in table["column_units"].items():
+        places = published.get(column)
         for row in table["rows"]:
             canonical = row["canonical"][column]
             if canonical is None:
                 continue
             assert row["display"][column] == disp.format_value(
-                Decimal(str(canonical)), unit), f"{column}"
+                Decimal(str(canonical)), unit, places), f"{column}"
+        # And one precision for the whole column, never a per-cell choice.
+        if places is not None and disp.classify(unit) == disp.MONETARY_AMOUNT:
+            decimals_seen = {
+                str(row["display"][column]).partition(".")[2].rstrip("]")
+                for row in table["rows"]
+                if row["canonical"][column] is not None}
+            assert len({len(d.split()[0]) if d else 0
+                        for d in decimals_seen}) <= 1, (
+                f"{column} mixes precisions: {sorted(decimals_seen)}")
 
 
 # ---- §37: quality of what reaches the reader --------------------------

@@ -377,11 +377,22 @@ def test_the_outcome_sentence_carries_all_three_numbers() -> None:
 
 
 def test_an_unavailable_outcome_describes_itself_as_unavailable() -> None:
+    """The verdict a READER sees is "NOT READY"; the status the code branches
+    on is still `UNAVAILABLE`.
+
+    `describe()` writes copy, so it writes `run.VERDICTS[status]`. The word
+    changed deliberately: "UNAVAILABLE" beside two working methods reads as a
+    product fault, where the truth is that this method's model exists and has
+    not passed its predeclared validation gates. The state machine is
+    untouched -- the assertion on `outcome.status` below is what pins that.
+    """
     outcome = rn.Outcome(method=sp.ML, status=rn.UNAVAILABLE,
                          baseline=D("100"), scenario=None, covered=(),
                          reason="No emulator is published.")
     words = outcome.describe()
-    assert words.startswith("Emulator: UNAVAILABLE")
+    assert words.startswith("Emulator: NOT READY")
+    assert outcome.status == rn.UNAVAILABLE
+    assert rn.VERDICTS[rn.UNAVAILABLE] == "NOT READY"
     assert "No emulator is published." in words
     assert "0" not in words.replace("No emulator is published.", "")
 
