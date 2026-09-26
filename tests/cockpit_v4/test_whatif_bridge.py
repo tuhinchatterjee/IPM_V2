@@ -75,7 +75,14 @@ class Store:
     def put_artifact(self, **kw: Any) -> str:
         self.artifacts.append(kw)
         if kw.get("kind") == th.ARTIFACT_KIND:
-            self.context = kw["rows"][0]
+            # The same wrapping `thread.remember` does: the artifact row IS
+            # the body, and the thread context is `{kind, body}`. Mirrored
+            # here rather than invented, because the first version of this
+            # double took the artifact row as the whole context -- so it
+            # could not have caught the bridge publishing the wrong shape,
+            # which it was, and which only a real run through the server
+            # surfaced.
+            self.context = {"kind": th.KIND, "body": kw["rows"][0]}
         return f"art-{len(self.artifacts)}"
 
 

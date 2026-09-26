@@ -213,21 +213,16 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
                     charts: bool = True) -> Any:
         """A final response built from the rows the run actually produced.
 
-        Reads the tool result out of the conversation rather than restating a
+        Reads the step out of the conversation rather than restating a
         number, because the point of the journey is that the figure in the
-        answer is the figure the engine computed.
+        answer is the figure the engine computed -- named by an
+        `EvidenceRef` into the stored artifact, and resolved into the prose
+        by CreditProbe rather than spelled out here.
         """
-        rows = _rows_from(messages)
-        claims, tables, chart_specs = _claims(rows, charts=charts)
         return ScriptedResult(tool_calls=[tool_call(
             "finalize_response",
-            final(intent=intent("DATA_ANALYSIS", "COCKPIT",
-                                understood=question),
-                  narrative=_narrative(rows, claims),
-                  numeric_claims=claims, tables=tables,
-                  charts=chart_specs,
-                  limitations=_limitations(rows),
-                  evidence_refs=[]),
+            answer_body(_step_of(messages), question=question, charts=charts,
+                        intent_of=intent, final_of=final),
             "tu-answer")])
 
     def preview_clarification(messages: list[dict[str, Any]], *,
@@ -240,7 +235,23 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
             final(intent=intent("DATA_ANALYSIS", "COCKPIT",
                                 understood=question),
                   disposition="clarification",
-                  narrative="",
+                  # A clarification still needs a narrative: the contract
+                  # requires one and a run whose narrative was empty burned
+                  # every provider attempt being told so, seven times, before
+                  # ending as CALL_LIMIT. The preview's own summary IS the
+                  # narrative -- there is nothing else this turn is saying.
+                  narrative=(
+                      f"Nothing has been calculated. This is what would "
+                      f"happen, over the cohort frozen as "
+                      f"{_value(rows, 'cohort', 'Cohort id')}: "
+                      f"{_value(rows, 'cohort', 'Exposures selected')} "
+                      f"exposures carrying a baseline ECL of "
+                      f"{_value(rows, 'cohort', 'Baseline ECL')} SAR "
+                      f"million. The rules, the methods and the policies "
+                      f"below are exactly what a yes would approve. No "
+                      f"source row, no reported ECL and no accounting "
+                      f"record would change: this is a simulation over a "
+                      f"generated book."),
                   clarification_question=(
                       f"This would apply the rules below to the "
                       f"{_value(rows, 'cohort', 'Exposures selected')} "
@@ -275,10 +286,30 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
 
         @staticmethod
         def _question(messages) -> str:
+            """THE READER'S OWN WORDS, not the packet that carries them.
+
+            `context.build` writes `USER REQUEST (original wording,
+            unmodified):` and then the question, as the FIRST part of a block
+            that goes on to hold the catalogue, the policy, the scenario
+            semantics and the recent turns. Returning the whole block
+            lowercased -- which is what this did -- meant every keyword test
+            matched something: "which", "show me", "compare", "model" and
+            "sensitivity" all appear in a packet about a credit book. Every
+            scenario question was routed to the investigation branch and ran
+            a SELECT instead of a scenario step.
+
+            So the question is cut out of the block: the text after the
+            marker's own line, up to the blank line that closes that part.
+            """
+            marker = "USER REQUEST"
             for message in messages:
                 content = message.get("content")
-                if isinstance(content, str) and "USER REQUEST" in content:
-                    return content.lower()
+                if not isinstance(content, str) or marker not in content:
+                    continue
+                after = content.split(marker, 1)[1]
+                if "\n" in after:
+                    after = after.split("\n", 1)[1]
+                return after.split("\n\n", 1)[0].strip().lower()
             return ""
 
         def converse(self, *, system, messages, tools=None, max_tokens=4096,
@@ -288,9 +319,9 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
             question = self._question(messages)
             turn = sum(1 for m in messages if m.get("role") == "assistant")
             time.sleep(0.4)
-            return _script(question, turn, messages)
+            return _script(question, turn, messages, system)
 
-    def _script(question: str, turn: int, messages) -> Any:
+    def _script(question: str, turn: int, messages, system=None) -> Any:
         """Which scripted turn this is. Keyed on the reader's own words."""
         asked = question
 
@@ -317,7 +348,12 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
                         objective="published macro sensitivities",
                         understood=asked),
                     "tu-sens")])
-            return answer_from(messages, question=asked, charts=False)
+            return ScriptedResult(tool_calls=[tool_call(
+                "finalize_response",
+                plain_body(_step_of(messages), question=asked,
+                           dimension="factor_id", intent_of=intent,
+                           final_of=final),
+                "tu-sens-answer")])
 
         # -- J01/J02 and the rest: a scenario.
         confirming = any(
@@ -333,7 +369,7 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
 
         if confirming:
             if turn == 0:
-                digest = _stored_digest(messages)
+                digest = _stored_digest(messages, system)
                 return ScriptedResult(tool_calls=[tool_call(
                     "execute_analysis",
                     submission([scenario_step(
@@ -355,7 +391,12 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
                                objective="the cohort as it stands",
                                understood=asked),
                     "tu-invest")])
-            return answer_from(messages, question=asked)
+            return ScriptedResult(tool_calls=[tool_call(
+                "finalize_response",
+                plain_body(_step_of(messages), question=asked,
+                           dimension="dimension", intent_of=intent,
+                           final_of=final),
+                "tu-invest-answer")])
 
         if turn == 0:
             value = "40" if "40" in asked else "20"
@@ -392,48 +433,55 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
 # ---- reading the run's own rows back -----------------------------------
 
 def _rows_from(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The preview rows of the LAST tool result in this conversation.
+    """The preview rows of the last scenario tool result in this conversation.
 
-    The scripted analyst quotes the engine rather than restating a number, so
+    The scripted analyst QUOTES the engine rather than restating a number, so
     a journey that shows the wrong figure is a real defect rather than a stub
-    that agreed with itself.
+    agreeing with itself.
+
+    Two layers, and the first version only unwrapped one. A tool-result
+    message's `content` is a JSON ARRAY of blocks, and each block's own
+    `content` is a JSON STRING holding the tool's result. Scanning the outer
+    text for `{` found the block wrapper, whose payload was still an
+    unparsed string, so the rows were never reached and every preview
+    rendered with empty values.
     """
     for message in reversed(messages):
-        content = message.get("content")
-        if not isinstance(content, str) or "preview" not in content:
-            continue
-        found = _preview_rows(content)
+        found = _tool_result_rows(message.get("content"))
         if found:
             return found
-    for message in reversed(messages):
-        content = message.get("content")
-        if isinstance(content, str):
-            found = _preview_rows(content)
-            if found:
-                return found
     return []
 
 
-def _preview_rows(content: str) -> list[dict[str, Any]]:
-    """Every `preview` list in a tool-result blob, flattened."""
-    out: list[dict[str, Any]] = []
-    for start in range(len(content)):
-        if content[start] != "{":
-            continue
+def _tool_result_rows(content: Any) -> list[dict[str, Any]]:
+    """Every `preview` list inside one message, both layers unwrapped."""
+    blocks = content
+    if isinstance(blocks, str):
         try:
-            parsed, _ = json.JSONDecoder().raw_decode(content[start:])
+            blocks = json.loads(blocks)
         except ValueError:
+            return []
+    if not isinstance(blocks, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for block in blocks:
+        if not isinstance(block, dict) or block.get("type") != "tool_result":
             continue
-        for step in _walk(parsed):
-            rows = step.get("preview")
+        payload = block.get("content")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except ValueError:
+                continue
+        for node in _walk(payload):
+            rows = node.get("preview")
             if isinstance(rows, list) and rows and isinstance(rows[0], dict):
                 out.extend(rows)
-        if out:
-            return out
     return out
 
 
 def _walk(node: Any):
+    """Every dict inside a nested structure, the node itself included."""
     if isinstance(node, dict):
         yield node
         for value in node.values():
@@ -450,86 +498,294 @@ def _value(rows: list[dict[str, Any]], section: str, item: str) -> str:
     return ""
 
 
-def _stored_digest(messages: list[dict[str, Any]]) -> str:
+def _stored_digest(messages: list[dict[str, Any]], system: Any = None) -> str:
     """The digest of the preview the reader is answering.
 
-    Read from the conversation, not remembered in the stub: the whole claim
-    of J02 is that the confirmation names the scenario the reader was SHOWN.
+    Read from the CONTEXT THE PRODUCT HANDED THE ANALYST, which is the whole
+    point of J02: `thread.remember` wrote the confirmed-scenario body after
+    the preview turn settled, `context.scenario_packet` rendered it into this
+    turn's packet, and `digest_to_confirm` is the field that says which
+    scenario a yes approves.
+
+    So this looks for that field by name rather than scanning for any
+    64-character hex string. A scan was the first version and it was worse in
+    both directions: it would have matched a membership hash or a release
+    fingerprint just as happily, and when the packet carried no digest at all
+    it fell back to zeros -- which reached the engine as a confirmation of
+    something, and was refused as stale rather than as absent.
     """
+    for blob in _texts(messages, system):
+        found = _field_in(blob, "digest_to_confirm")
+        if found:
+            return found
+    for blob in _texts(messages, system):
+        found = _field_in(blob, "confirmed_digest")
+        if found and len(found) == 64:
+            return found
+    return ""
+
+
+def _texts(messages: list[dict[str, Any]], system: Any = None):
+    """Every string this turn was handed, newest first."""
     for message in reversed(messages):
         content = message.get("content")
-        if not isinstance(content, str):
+        if isinstance(content, str):
+            yield content
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and isinstance(
+                        block.get("text"), str):
+                    yield block["text"]
+    if isinstance(system, str):
+        yield system
+    elif isinstance(system, list):
+        for block in system:
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                yield block["text"]
+
+
+def _field_in(blob: str, field: str) -> str:
+    """One JSON field's value out of a block of text, or `""`.
+
+    The packet's scenario block is `HEADER + "\n" + json.dumps(facts)`, so
+    the facts are findable but the block as a whole is not valid JSON. Rather
+    than guess at the header's length, every `{` is tried until one decodes
+    to an object carrying the field.
+    """
+    marker = f'"{field}"'
+    if marker not in blob:
+        return ""
+    decoder = json.JSONDecoder()
+    for start in (i for i, c in enumerate(blob) if c == "{"):
+        try:
+            parsed, _ = decoder.raw_decode(blob[start:])
+        except ValueError:
             continue
-        for token in content.replace('"', " ").replace("'", " ").split():
-            candidate = token.strip(",:;)(")
-            if (len(candidate) == 64
-                    and all(c in "0123456789abcdef" for c in candidate)):
-                return candidate
-    return "0" * 64
+        for node in _walk(parsed):
+            value = node.get(field)
+            if isinstance(value, str) and value:
+                return value
+    return ""
 
 
-def _claims(rows: list[dict[str, Any]], *, charts: bool):
-    """Numeric claims, a table and a chart, from whatever rows came back."""
+def _step_of(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """The last tool-result STEP in this conversation, whole.
+
+    The step, not only its rows: `artifact_id` is what an `EvidenceRef` has
+    to name, and a claim without one is refused --
+    *"numeric_claims[0] carries neither 'evidence' nor 'derivation'"*.
+    """
+    for message in reversed(messages):
+        blocks = message.get("content")
+        if isinstance(blocks, str):
+            try:
+                blocks = json.loads(blocks)
+            except ValueError:
+                continue
+        if not isinstance(blocks, list):
+            continue
+        for block in blocks:
+            if (not isinstance(block, dict)
+                    or block.get("type") != "tool_result"):
+                continue
+            payload = block.get("content")
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except ValueError:
+                    continue
+            for node in _walk(payload):
+                steps = node.get("steps")
+                if not isinstance(steps, list):
+                    continue
+                for step in steps:
+                    if (isinstance(step, dict) and step.get("artifact_id")
+                            and isinstance(step.get("preview"), list)
+                            and step["preview"]):
+                        return step
+    return {}
+
+
+#: The measures the answer quotes, in the order a reader meets them, with the
+#: claim id each gets. Named rather than "the first six numeric rows": a
+#: narrative that quotes whichever rows happened to come first is a narrative
+#: nobody can review.
+QUOTED: tuple[tuple[str, str, str], ...] = (
+    ("baseline", "cohort:Total ECL", "baseline_sar_mn"),
+    ("scenario", "cohort:Total ECL", "scenario_sar_mn"),
+    ("change", "cohort:Total ECL", "change_sar_mn"),
+    ("book_before", "book:Total ECL", "baseline_sar_mn"),
+    ("book_after", "book:Total ECL", "scenario_sar_mn"),
+)
+
+
+def plain_body(step: dict[str, Any], *, question: str, dimension: str,
+               intent_of, final_of) -> dict[str, Any]:
+    """The investigation turn's answer: an ordinary SQL result, cited.
+
+    Separate from `answer_body` because a scenario result and a SELECT are
+    different shapes. The first version used one builder for both, keyed on
+    the scenario table's `measure` column -- which a plain query does not
+    have, so every claim came back without evidence and the investigation
+    turn published as PARTIAL with ANSWER_VALIDATION. A builder that cannot
+    find its rows should not produce a claim about them.
+    """
+    rows = list(step.get("preview") or [])
+    artifact = str(step.get("artifact_id") or "")
+    if not rows or dimension not in rows[0]:
+        return final_of(
+            intent=intent_of("DATA_ANALYSIS", "COCKPIT",
+                             understood=question),
+            narrative=("The rows this query produced are in the table "
+                       "below. Measured on a generated book: not bank "
+                       "output and not an accounting figure."),
+            tables=[{"title": "Result", "artifact_id": artifact,
+                     "columns": list(rows[0]) if rows else []}],
+            limitations=[_SYNTHETIC])
+    top = rows[0]
+    return final_of(
+        intent=intent_of("DATA_ANALYSIS", "COCKPIT", understood=question),
+        narrative=("The cohort in view carries {{claim.ecl}} of reported "
+                   "ECL across {{claim.count}} exposures. Measured on a "
+                   "generated book: no figure here is bank output, an "
+                   "accounting figure or bank-validated."),
+        numeric_claims=[
+            {"claim_id": "ecl", "unit": "SAR million",
+             "evidence": {"artifact_id": artifact,
+                          "row_key": f"{dimension}={top[dimension]}",
+                          "column_id": "ecl_sar_mn"}},
+            {"claim_id": "count", "unit": "count",
+             "evidence": {"artifact_id": artifact,
+                          "row_key": f"{dimension}={top[dimension]}",
+                          "column_id": "exposures"}}],
+        coverage=[{"subquestion": question[:120] or "the cohort",
+                   "status": "answered",
+                   "evidence_refs": [
+                       {"artifact_id": artifact,
+                        "row_key": f"{dimension}={top[dimension]}",
+                        "column_id": "ecl_sar_mn"}]}],
+        tables=[{"title": "The cohort as it stands",
+                 "artifact_id": artifact,
+                 "columns": [dimension, "exposures", "ead_sar_mn",
+                             "ecl_sar_mn"]}],
+        charts=[{"kind": "bar", "title": "Reported ECL",
+                 "artifact_id": artifact, "x_column": dimension,
+                 "y_columns": ["ecl_sar_mn"], "unit": "SAR million"}],
+        limitations=[_SYNTHETIC])
+
+
+#: One sentence, on every answer this stub writes.
+_SYNTHETIC = (
+    "Measured on a generated book. Not bank output, not an accounting "
+    "figure, and no model or sensitivity here is bank-validated.")
+
+
+def answer_body(step: dict[str, Any], *, question: str, charts: bool,
+                intent_of, final_of) -> dict[str, Any]:
+    """A `finalize_response` body built from the step the engine produced.
+
+    Every number is a CLAIM with an `evidence` reference into the stored
+    artifact, and the narrative carries `{{claim.<id>}}` placeholders rather
+    than digits -- the server owns the numeric string, so a figure that did
+    not come out of the artifact cannot appear in the prose.
+    """
+    rows = {str(r.get("measure", "")): r for r in step.get("preview") or []}
+    artifact = str(step.get("artifact_id") or "")
     claims: list[dict[str, Any]] = []
-    money = [r for r in rows
-             if str(r.get("baseline_sar_mn") or "").strip()
-             and str(r.get("scenario_sar_mn") or "").strip()]
-    for row in money[:6]:
+    for claim_id, measure, column in QUOTED:
+        row = rows.get(measure)
+        if not row or not str(row.get(column) or "").strip():
+            continue
         claims.append({
-            "claim_id": f"c{len(claims) + 1}",
-            "label": f"{row.get('section', '')} {row.get('item', '')}",
-            "value": str(row.get("scenario_sar_mn")),
-            "unit": "SAR million", "row_ids": [], "operation": "as computed",
-            "operands": []})
+            "claim_id": claim_id,
+            "unit": "SAR million",
+            "evidence": {"artifact_id": artifact,
+                         "row_key": f"measure={measure}",
+                         "column_id": column}})
+    methods = [r for r in (step.get("preview") or [])
+               if r.get("section") == "method"]
+    for index, row in enumerate(methods, start=1):
+        if not str(row.get("scenario_sar_mn") or "").strip():
+            # An unavailable method has no number to quote, and inventing a
+            # zero here is the substitution section 12 forbids.
+            continue
+        claims.append({
+            "claim_id": f"method{index}",
+            "unit": "SAR million",
+            "evidence": {"artifact_id": artifact,
+                         "row_key": f"measure={row['measure']}",
+                         "column_id": "scenario_sar_mn"}})
+    have = {c["claim_id"] for c in claims}
+    narrative = _narrative(have, methods)
     tables = [{"title": "Scenario result",
+               "artifact_id": artifact,
                "columns": ["section", "item", "baseline_sar_mn",
-                           "scenario_sar_mn", "change_sar_mn", "status"],
-               "rows": [[r.get("section", ""), r.get("item", ""),
-                         str(r.get("baseline_sar_mn", "")),
-                         str(r.get("scenario_sar_mn", "")),
-                         str(r.get("change_sar_mn", "")),
-                         r.get("status", "")] for r in rows],
-               "row_ids": []}]
+                           "scenario_sar_mn", "change_sar_mn", "status"]}]
     chart_specs: list[dict[str, Any]] = []
-    if charts and money:
-        chart_specs.append({
-            "title": "Baseline against scenario, by method",
-            "kind": "grouped_bar",
-            "x_label": "method", "y_label": "SAR million",
-            "series": [
-                {"name": "baseline",
-                 "points": [{"x": str(r.get("item")),
-                             "y": float(r.get("baseline_sar_mn") or 0)}
-                            for r in money if r.get("section") == "method"]},
-                {"name": "scenario",
-                 "points": [{"x": str(r.get("item")),
-                             "y": float(r.get("scenario_sar_mn") or 0)}
-                            for r in money if r.get("section") == "method"]},
-            ]})
-    return claims, tables, chart_specs
+    if charts and methods:
+        chart_specs = [
+            {"kind": "grouped_bar",
+             "title": "Baseline against scenario, by method",
+             "artifact_id": artifact, "x_column": "item",
+             "y_columns": ["baseline_sar_mn", "scenario_sar_mn"],
+             "unit": "SAR million"},
+            {"kind": "waterfall",
+             "title": "What moved the ECL",
+             "artifact_id": artifact, "x_column": "item",
+             "y_columns": ["change_sar_mn"], "unit": "SAR million"},
+        ]
+    return final_of(
+        intent=intent_of("DATA_ANALYSIS", "COCKPIT", understood=question),
+        narrative=narrative,
+        numeric_claims=claims,
+        coverage=[{"subquestion": question[:120] or "the scenario",
+                   "status": "answered",
+                   "evidence_refs": [c["evidence"] for c in claims[:1]]}]
+        if claims else [],
+        tables=tables, charts=chart_specs,
+        limitations=_limitations(step.get("preview") or []))
 
 
-def _narrative(rows: list[dict[str, Any]], claims) -> str:
-    cohort = [r for r in rows
-              if r.get("section") == "cohort" and r.get("item") == "Total ECL"]
-    if not cohort:
+def _narrative(have: set[str], methods: list[dict[str, Any]]) -> str:
+    """Prose with placeholders, never digits.
+
+    A narrative that spelled a number out would be the analyst formatting
+    currency, which is the one thing section 7 of the accepted brief took
+    away from it. `{{claim.x}}` is resolved by CreditProbe from the evidence.
+    """
+    if "baseline" not in have:
         return ("The rows this run produced are in the table below. Every "
-                "figure in it came from the run and none of it is bank "
-                "output: this is a generated book.")
-    row = cohort[0]
-    return (
-        f"On the frozen cohort, baseline ECL of {row.get('baseline_sar_mn')} "
-        f"SAR million becomes {row.get('scenario_sar_mn')} SAR million under "
-        f"this scenario -- a change of {row.get('change_sar_mn')} SAR "
-        f"million. The methods are shown side by side below, each against the "
-        f"same confirmed scenario, the same frozen cohort and the same "
-        f"baseline. Nothing in the source was changed: this is a simulation "
-        f"over a generated book.")
+                "figure in it came from the run. Measured on a generated "
+                "book: not bank output and not an accounting figure.")
+    lines = ["On the frozen cohort, baseline ECL of {{claim.baseline}} "
+             "becomes {{claim.scenario}} under this scenario, a change of "
+             "{{claim.change}}."]
+    if "book_before" in have and "book_after" in have:
+        lines.append("Across the whole book that is {{claim.book_before}} "
+                     "becoming {{claim.book_after}}: every exposure outside "
+                     "the cohort is unchanged, and its change is exactly "
+                     "zero rather than approximately zero.")
+    ran = [m for m in methods
+           if str(m.get("scenario_sar_mn") or "").strip()]
+    if len(ran) > 1:
+        lines.append(
+            "The methods below were each run against the same confirmed "
+            "scenario, the same frozen cohort and the same baseline, and "
+            "they are shown side by side rather than averaged.")
+    held = [m for m in methods
+            if not str(m.get("scenario_sar_mn") or "").strip()]
+    for row in held:
+        lines.append(
+            f"{row.get('item')} produced no estimate and its cells are "
+            f"empty rather than zero: {row.get('note')}")
+    lines.append("Nothing in the source changed. This is a simulation over "
+                 "a generated book, and no figure here is bank output, an "
+                 "accounting figure or bank-validated.")
+    return " ".join(lines)
 
 
 def _limitations(rows: list[dict[str, Any]]) -> list[str]:
-    out = ["Measured on a generated book. Not bank output, not an accounting "
-           "figure, and no model or sensitivity here is bank-validated."]
+    out = [_SYNTHETIC]
     for row in rows:
         if (row.get("section") == "method"
                 and "UNAVAILABLE" in str(row.get("status", ""))):

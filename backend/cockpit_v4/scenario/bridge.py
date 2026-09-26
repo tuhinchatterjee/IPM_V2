@@ -84,6 +84,8 @@ from backend.cockpit_v4.scenario.errors import (
     CONFIRMATION_STALE,
     METHOD_COVERAGE_GAP,
     PARAMETER_OUT_OF_RANGE,
+    SOURCE_VERSION_MISMATCH,
+    as_governed,
     as_step_failed,
     raise_for,
 )
@@ -114,6 +116,20 @@ MAX_COHORT_ROWS = 250_000
 #: the step's own budget. The read is bounded by the engine; this is the part
 #: that runs in this process.
 DEADLINE_SHARE = 0.9
+
+#: EVERY PUBLISHED NUMBER NEEDS A CITABLE ROW.
+#:
+#: `EvidenceRef` requires a `row_key` of the form `column=value`, and a claim
+#: that cannot name one is refused: *"numeric_claims[0] carries neither
+#: 'evidence' nor 'derivation'"*. Neither `section` nor `item` is unique on
+#: its own -- "Total ECL" is a row of both `cohort` and `book`, and citing
+#: either would be citing two rows -- so the pair is published as one column
+#: and that column is the row's identity.
+#:
+#: This is not presentation. A number a reader cannot trace to one cell is a
+#: number the validator cannot check, and section 13.4 asks for every figure
+#: in the narrative to resolve to a ledger fact.
+MEASURE_KEY = "measure"
 
 #: The sections one result artifact carries. A scenario answers several
 #: questions at once -- what changed, by which method, driven by what -- and
@@ -397,7 +413,8 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
     a preview that computed it would make the confirmation ceremonial.
     """
     frozen = ch.freeze(
-        session=session, scope=scope,
+        session=session,
+        scope=_scope_for(scope, domain_id=domain_id, release_id=release_id),
         predicate=request.selection.predicate(),
         period=request.period,
         selection=request.selection.selection,
@@ -443,7 +460,7 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
 
 
 _PREVIEW_COLUMNS: tuple[str, ...] = (
-    "section", "item", "detail", "value", "unit", "status")
+    MEASURE_KEY, "section", "item", "detail", "value", "unit", "status")
 
 
 def _preview_rows(built: pv.Preview, *, frozen: ch.Frozen, graph: ru.Graph,
@@ -460,8 +477,9 @@ def _preview_rows(built: pv.Preview, *, frozen: ch.Frozen, graph: ru.Graph,
 
     def add(section: str, item: str, detail: str = "", value: Any = "",
             unit: str = "", status: str = "") -> None:
-        out.append({"section": section, "item": item, "detail": detail,
-                    "value": value, "unit": unit, "status": status})
+        out.append({MEASURE_KEY: f"{section}:{item}", "section": section,
+                    "item": item, "detail": detail, "value": value,
+                    "unit": unit, "status": status})
 
     add("scope", "Book", frozen.domain_id, frozen.domain_id)
     add("scope", "Release", "the bytes this scenario is built against",
@@ -570,8 +588,10 @@ def _execute(request: ExecuteRequest, *, session: Any, scope: Any, store: Any,
                          release_fingerprint=str(
                              getattr(scope, "release_fingerprint", "") or ""))
     clock.check("checking the confirmation")
-    frozen = ch.reresolve(session=session, scope=scope,
-                          stored=_cohort_context(stored, confirmed))
+    frozen = ch.reresolve(
+        session=session,
+        scope=_scope_for(scope, domain_id=domain_id, release_id=release_id),
+        stored=_cohort_context(stored, confirmed))
     _bound_cohort(frozen)
     clock.check("re-resolving the cohort")
     return _compute(confirmed, session=session, scope=scope, store=store,
@@ -955,16 +975,23 @@ def _remember_spec(store: Any, *, run_id: str, tenant_id: str,
                "whatif_scenario_version": spec.version,
                "complete": True, "produced_rows": 1,
                "referenced_relations": [], "origin": "SYNTHETIC_DEMO"},
-        columns=["kind", "body"],
-        rows=[{"kind": th.KIND, "body": stored}])
+        # `rows[0]` IS the body. `remember` reads it as
+        # `read({"kind": KIND, "body": rows[0]})`, so wrapping it here in a
+        # second `{"kind": ..., "body": ...}` made the body a value with no
+        # `body_version` at its top level -- `read` returned None, `remember`
+        # skipped the artifact, and the thread never held the scenario. The
+        # next turn then said, correctly, that nothing had been previewed.
+        columns=sorted(stored),
+        rows=[stored])
 
 
 #: One tidy table, so every number a reader is shown has a row id and every
 #: section reconciles to the ones above it.
 _RESULT_COLUMNS: tuple[str, ...] = (
-    "section", "view", "method", "item", "scope", "baseline_sar_mn",
-    "scenario_sar_mn", "change_sar_mn", "change_pct", "unit", "status",
-    "note")
+    "measure", "section", "view", "method", "item", "scope",
+    "baseline_sar_mn", "scenario_sar_mn", "change_sar_mn", "change_pct",
+    "unit", "status", "note")
+
 
 
 def _groups(spec: sp.ScenarioSpec, view: str
@@ -1134,7 +1161,8 @@ def _result_rows(spec: sp.ScenarioSpec, *, outcome: rn.Run,
 
     def add(section: str, item: str, **kw: Any) -> None:
         row = {c: "" for c in _RESULT_COLUMNS}
-        row.update({"section": section, "item": item})
+        row.update({MEASURE_KEY: f"{section}:{item}",
+                    "section": section, "item": item})
         row.update(kw)
         out.append(row)
 
@@ -1268,7 +1296,8 @@ def _ml_explanation(loaded: Any, *, outcome: rn.Run,
 
     def add(item: str, **kw: Any) -> None:
         row = {c: "" for c in _RESULT_COLUMNS}
-        row.update({"section": "ml_explanation", "method": sp.ML,
+        row.update({MEASURE_KEY: f"ml_explanation:{item}",
+                    "section": "ml_explanation", "method": sp.ML,
                     "item": item})
         row.update(kw)
         rows.append(row)
@@ -1306,6 +1335,53 @@ def _ml_explanation(loaded: Any, *, outcome: rn.Run,
     return rows
 
 
+def _tenant_of(scope: Any) -> str:
+    """The tenant this scope belongs to, or the lake's default."""
+    from backend.cockpit_v4 import lake
+
+    return str(getattr(scope, "tenant_id", "") or lake.DEFAULT_TENANT)
+
+
+def _scope_for(scope: Any, *, domain_id: str, release_id: str) -> Any:
+    """A scope object `cohort.freeze` can actually read.
+
+    THE TWO SCOPES ARE NOT THE SAME SHAPE, and this is not a detail.
+    `domain_resolver.scope_for` returns a `DomainScope`, which carries
+    `release_id`, `periods` and a `latest_period` property. `ExecutionService`
+    is handed an `analytical_runtime.ReadScope`, which carries
+    `dataset_release_id` and `relations` and neither of the other two.
+
+    `cohort.freeze` reads `scope.latest_period` when no period is named and
+    `scope.release_id` for the frozen cohort's provenance. Against the
+    executor's scope those are an AttributeError and an empty string --
+    measured, against a real turn, which failed with
+    `'ReadScope' object has no attribute 'latest_period'` after the step had
+    already been accepted and counted.
+
+    So the scope is normalised here, once, from what the executor actually
+    has plus the book's own published periods. `DomainScope` is passed
+    through untouched when that is what arrived, so the library keeps one
+    code path and the tests that drive it directly are unaffected.
+    """
+    if hasattr(scope, "periods") and hasattr(scope, "latest_period"):
+        return scope
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    resolved = resolver.scope_for(domain_id,
+                                  tenant_id=_tenant_of(scope),
+                                  release_id=release_id)
+    if resolved.release_id != release_id:
+        # The executor is bound to one release and this resolved another.
+        # Refusing is the only safe answer: a cohort frozen against a
+        # different release than the step is running on would carry a
+        # membership hash nothing can check.
+        raise_for(SOURCE_VERSION_MISMATCH,
+                  f"this step runs against {release_id} and the book resolves "
+                  f"to {resolved.release_id}. Nothing was frozen.",
+                  field_path="release_id")
+    return resolved
+
+
 class _Clock:
     """The step's own deadline, enforced between phases.
 
@@ -1336,6 +1412,7 @@ class _Clock:
 
 
 __all__ = ["EXECUTE", "EXECUTE_KEYS", "MAX_COHORT_ROWS", "MAX_SHOCKS",
-           "OPERATIONS", "PREVIEW", "PREVIEW_KEYS", "Produced",
+           "MEASURE_KEY", "OPERATIONS", "PREVIEW", "PREVIEW_KEYS",
+           "Produced",
            "ExecuteRequest", "PreviewRequest", "SECTIONS", "SHOCK_KEYS",
-           "as_step_failed", "execute", "validate"]
+           "as_governed", "as_step_failed", "execute", "validate"]

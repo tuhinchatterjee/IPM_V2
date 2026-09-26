@@ -217,7 +217,23 @@ async def start_run(body: StartRun, request: Request,
         # different numbers is a substitution, and the reader would have no
         # way to see it afterwards.
         pinned_release = str(pin.get("release_id") or "")
-        current = dom_mod.DEFAULT_RELEASES.get(pinned or "", "")
+        # `current_release`, NOT `DEFAULT_RELEASES`, and for the same reason
+        # `domain_resolver.availability` reads it: a thread pins the release
+        # its FIRST turn was answered against, and that is whatever
+        # `scope_for` opened.
+        #
+        # The two disagreed. With a What-If flag on, a thread pinned the
+        # candidate and this compared it against the accepted id, so they
+        # never matched and EVERY follow-up turn in EVERY thread was refused
+        # 409 RELEASE_SUPERSEDED -- telling the reader the book had moved
+        # when nothing had moved, about the release their own conversation was
+        # opened on. A two-turn conversation was impossible.
+        #
+        # With both flags off this is exactly `DEFAULT_RELEASES[domain_id]`,
+        # so the accepted refusal, its message and its 409 are unchanged: a
+        # genuinely superseded accepted release is still refused, which is
+        # what this check is for.
+        current = dom_mod.current_release(pinned) if pinned else ""
         if pinned_release and current and pinned_release != current:
             raise HTTPException(409, {
                 "error_code": "RELEASE_SUPERSEDED",

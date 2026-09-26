@@ -289,6 +289,25 @@ def as_step_failed(exc: Exception, *, check: str
     return (category.maps_to, check, message, detail)
 
 
+def as_governed(exc: Exception) -> tuple[str, str, str, dict[str, Any]] | None:
+    """A scenario failure as the four values a `Rejection` takes, or None.
+
+    The VALIDATION-phase twin of `as_step_failed`, and the distinction is not
+    cosmetic. `execute_tool.validate_batch` runs before any step and its
+    caller catches `Rejection` and nothing else; `run_batch` runs the steps
+    and catches `StepFailed` and nothing else. Raising the wrong one for the
+    phase means the run ends as an unhandled INTERNAL_ERROR -- measured,
+    against a real turn, which is how this function came to exist.
+    """
+    if not isinstance(exc, ScenarioError):
+        return None
+    category = exc.category
+    detail = {**dict(exc.detail), "whatif_error": exc.code,
+              "meaning": category.meaning,
+              "next_action": category.next_action}
+    return (category.maps_to, exc.message, exc.field_path, detail)
+
+
 def raise_for(code: str, message: str, *, field_path: str = "",
               **detail: Any) -> None:
     """Shorthand at the call sites, which are many and want to stay readable."""
@@ -302,5 +321,5 @@ __all__ = [
     "METHOD_COVERAGE_GAP", "MODEL_NOT_READY", "PARAMETER_OUT_OF_RANGE",
     "RECONCILIATION_FAILED", "REJECT", "RULE_CONFLICT", "ScenarioError",
     "SENSITIVITY_NOT_SUPPORTED", "SOURCE_VERSION_MISMATCH",
-    "UNIT_AMBIGUOUS", "BOOK_MISMATCH", "as_step_failed", "raise_for",
+    "UNIT_AMBIGUOUS", "BOOK_MISMATCH", "as_governed", "as_step_failed", "raise_for",
 ]

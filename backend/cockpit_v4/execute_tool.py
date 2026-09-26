@@ -617,12 +617,51 @@ class ExecutionService:
         return bridge
 
     def _validate_whatif(self, step: Step) -> None:
-        """Refuse a malformed operation before the book is read."""
+        """Refuse a malformed operation before the book is read.
+
+        Raises `Rejection`, NOT `StepFailed`, and the difference is the whole
+        reason this comment exists. `validate_batch` is called from
+        `_do_execute` inside a `try/except Rejection`; `run_batch` catches
+        `StepFailed`. A `StepFailed` raised here is caught by nothing and the
+        run ends as an unhandled INTERNAL_ERROR -- which is what a real turn
+        did, reporting "Something inside CreditProbe failed" about a
+        perfectly ordinary contract refusal.
+        """
         bridge = self._bridge()
         try:
-            bridge.validate(step.parameters, step_id=step.step_id)
+            bridge.validate(step.parameters, step_id=step.step_id,
+                            domain_id=self._domain_id())
+        except Rejection:
+            raise
         except Exception as exc:  # noqa: BLE001
-            raise self._scenario_failure(exc, check=CHECK_SCENARIO) from exc
+            raise self._scenario_rejection(exc) from exc
+
+    def _domain_id(self) -> str:
+        """The book this service is bound to.
+
+        The scope first, the catalogue second. A scenario is a statement about
+        one book and every field, column and mapping check depends on which --
+        `validate` refuses outright without it rather than checking spelling
+        against nothing.
+        """
+        return str(getattr(self.scope, "domain_id", "")
+                   or getattr(self.catalog, "domain_id", ""))
+
+    def _scenario_rejection(self, exc: Exception) -> Rejection:
+        """A validation-phase scenario failure as a governed refusal."""
+        bridge = self._bridge()
+        translated = bridge.as_governed(exc)
+        if translated is not None:
+            code, message, field_path, detail = translated
+            return Rejection(code, message,
+                             field_path=field_path or "steps",
+                             detail={**detail,
+                                     "failed_check": CHECK_SCENARIO})
+        return Rejection(
+            INTERNAL_ERROR,
+            f"the scenario step could not be validated: "
+            f"{type(exc).__name__}: {exc}. Nothing was executed.",
+            field_path="steps", detail={"failed_check": CHECK_SCENARIO})
 
     def _run_whatif(self, step: Step, *,
                     deadline_seconds: float) -> StepResult:
