@@ -34,6 +34,7 @@ together so that they cannot drift.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field as _field
 from decimal import Decimal
@@ -111,6 +112,20 @@ class Factor:
     #: SQL for rows the shock cannot move, and the reason a reader is shown.
     excluded_when: str = ""
     exclusion_reason: str = ""
+    #: THE READER'S OWN SCOPE FOR THIS RULE, as `{column: value}`.
+    #:
+    #: `Shock.where` carried this from the start and nothing applied it: the
+    #: digest recorded that a rule was meant for construction, and
+    #: `scale_row` then multiplied every row in the cohort. A reader who
+    #: wrote "all customers PD +10%, and construction PD +20%" would have
+    #: been shown one number for a scenario nobody described.
+    #:
+    #: Not SQL and not a predicate string. The keys are columns of the
+    #: book's own exposure relation and the values are literals, both
+    #: checked by `selector` before a spec is built, so the row walk here
+    #: and the population SQL in `sql.py` read the same declared facts
+    #: rather than two parsings of one string.
+    scope: tuple[tuple[str, Any], ...] = ()
     #: The column's storage convention, so the arithmetic stays in it.
     storage: str = un.FRACTION
 
@@ -239,7 +254,11 @@ def plan(spec: sp.ScenarioSpec, *,
             field_id=shock.field_id, shock=shock,
             applies_when=APPLIES_WHEN.get(shock.field_id, ""),
             excluded_when=excluded, exclusion_reason=reason,
-            storage=entry.storage))
+            storage=entry.storage,
+            # Sorted, so two plans built from one spec carry the scope in one
+            # order and a note or a digest over them cannot differ by it.
+            scope=tuple(sorted((str(k), v)
+                               for k, v in (shock.where or {}).items()))))
 
     if unhandled and not structural:
         notes.append(
@@ -298,6 +317,8 @@ def scale_row(plan_: Plan, row: dict[str, Any]) -> RowResult:
     for factor in plan_.factors:
         if factor.applies_when and not _matches(factor.applies_when, row):
             continue
+        if factor.scope and not _in_scope(factor.scope, row):
+            continue
         contribution = factor.contribution(_decimal(row[factor.field_id]))
         if contribution is None:
             return RowResult(reported, reported, UNSUPPORTED, fd.ZERO_BASELINE)
@@ -351,6 +372,30 @@ def baseline_ccf(row: dict[str, Any]) -> Decimal | None:
 
 
 # ---- the small amount of interpretation this module does ---------------
+
+def _in_scope(scope: Sequence[tuple[str, Any]],
+              row: dict[str, Any]) -> bool:
+    """Is this row inside the scope the reader gave one rule?
+
+    String comparison on the rendered values, so `"5"` from a parquet column
+    and `5` from a reader's clause are the same scope. Not a numeric
+    comparison: `scope` is an equality map over categorical columns --
+    sector, stage, product, region, grade -- and coercing a category code to
+    a number is how `"07"` and `"7"` stop matching.
+
+    A column the row does not carry is NOT a match. The alternative, treating
+    an absent column as satisfied, would widen a construction-only rule to
+    the whole cohort on any frame that forgot to select `sector` -- which is
+    the failure this function exists to prevent, arriving by a different
+    route.
+    """
+    for column, value in scope:
+        if column not in row:
+            return False
+        if str(row[column]) != str(value):
+            return False
+    return True
+
 
 def _matches(predicate: str, row: dict[str, Any]) -> bool:
     """Evaluate one of THIS module's own predicates against one row.

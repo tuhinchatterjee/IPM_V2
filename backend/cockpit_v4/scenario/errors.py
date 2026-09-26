@@ -251,6 +251,44 @@ class ScenarioError(Exception):
         }
 
 
+def as_step_failed(exc: Exception, *, check: str
+                   ) -> tuple[str, str, str, dict[str, Any]] | None:
+    """A scenario failure as the four values `StepFailed` takes, or None.
+
+    `execute_tool.run_batch` catches `StepFailed` and nothing else, and the
+    tool router above it catches only `Rejection`. So a `ScenarioError` that
+    reached the executor unconverted would end the run as an unhandled
+    exception -- a crash where a governed refusal belongs. This is the
+    adapter, and it lives here rather than in the protected file so that the
+    mapping can be read, tested and extended without touching the core.
+
+    `None` for anything that is not a `ScenarioError`, so the caller keeps
+    the decision about what an unexpected exception means.
+
+    An ASK code is mapped too, rather than refused the way `as_rejection`
+    refuses it. `UNIT_AMBIGUOUS` and `RULE_CONFLICT` belong to the PREVIEW,
+    where a reader can answer them; one arriving at execution time means a
+    scenario was confirmed with a question still open, and the honest result
+    is a failed step that says so -- not a clarification nobody asked for and
+    not a run under a reading nobody chose.
+    """
+    if not isinstance(exc, ScenarioError):
+        return None
+    category = exc.category
+    detail = {**dict(exc.detail), "whatif_error": exc.code,
+              "meaning": category.meaning,
+              "next_action": category.next_action}
+    if exc.field_path:
+        detail["field_path"] = exc.field_path
+    message = exc.message
+    if exc.code in ASK_CODES:
+        message = (
+            f"{message} This scenario was confirmed with that reading still "
+            f"open, so nothing was calculated: the question belongs to the "
+            f"preview, where it can be answered.")
+    return (category.maps_to, check, message, detail)
+
+
 def raise_for(code: str, message: str, *, field_path: str = "",
               **detail: Any) -> None:
     """Shorthand at the call sites, which are many and want to stay readable."""
@@ -264,5 +302,5 @@ __all__ = [
     "METHOD_COVERAGE_GAP", "MODEL_NOT_READY", "PARAMETER_OUT_OF_RANGE",
     "RECONCILIATION_FAILED", "REJECT", "RULE_CONFLICT", "ScenarioError",
     "SENSITIVITY_NOT_SUPPORTED", "SOURCE_VERSION_MISMATCH",
-    "UNIT_AMBIGUOUS", "BOOK_MISMATCH", "raise_for",
+    "UNIT_AMBIGUOUS", "BOOK_MISMATCH", "as_step_failed", "raise_for",
 ]

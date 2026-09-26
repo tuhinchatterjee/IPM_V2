@@ -419,7 +419,14 @@ def test_o09_method_two_reports_not_ready_rather_than_a_number() -> None:
         cohort=sp.CohortRef(cohort_id="fx", membership_hash="0" * 64,
                             grain="facility", entity_count=4),
         methods=(sp.DELTA, sp.ML))
-    assert pv.readiness(spec)[sp.ML] == "MODEL_NOT_READY"
+    # "fixture" is not a release any emulator was fitted on, so the answer is
+    # MODEL_NOT_READY and the reason says which of the several possible
+    # reasons it is. Asserted as a prefix because the reason is the point:
+    # this used to be a hardcoded constant, which was true while nothing was
+    # trained and would have gone on saying so afterwards.
+    told = pv.readiness(spec)[sp.ML]
+    assert told.startswith("MODEL_NOT_READY")
+    assert "fixture" in told or "no emulator is published" in told
 
 
 # ---- O10 ---------------------------------------------------------------

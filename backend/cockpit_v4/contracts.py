@@ -428,6 +428,48 @@ def flat_intent(payload: Any) -> dict[str, Any]:
 _STEP_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 MAX_CODE_BYTES = 64_000
 
+#: THE STEP LANGUAGES THIS RUNTIME ACCEPTS.
+#:
+#: The accepted pair, unless some book has What-If enabled -- which is no book
+#: by default. So with the flags off `_step_languages()` returns exactly this
+#: tuple, the refusal message below is the accepted sentence word for word,
+#: and the schema the provider receives is the accepted schema byte for byte.
+BASE_STEP_LANGUAGES: tuple[str, ...] = ("sql", "python")
+
+#: A scenario step is dispatched SERVER-SIDE to `scenario/run.py`. It is not
+#: source code: `execute_tool._run_whatif` never parses or executes `code`,
+#: and the operation it carries in `parameters` is validated against the
+#: typed confirmed-scenario contract before anything is read. The name sits
+#: here rather than in `scenario/` because `parse_steps` has to know it
+#: without importing the candidate package.
+WHATIF_STEP_LANGUAGE = "whatif_scenario"
+
+
+def _step_languages() -> tuple[str, ...]:
+    """`BASE_STEP_LANGUAGES`, plus the scenario language when it is enabled.
+
+    The import is local and guarded, the same shape as
+    `context.scenario_blocks`: `backend.cockpit_v4.scenario` is a candidate
+    package and a module-level import here would make the accepted runtime
+    fail to start without it.
+
+    `any_enabled()` rather than `enabled(domain_id)` because this function is
+    reached from two places that have no book in hand -- `parse_steps`, which
+    validates a payload before a scope exists, and `provider_tools`, which
+    assembles one schema for the request. The per-book check is where it
+    matters: `execute_tool._is_scenario` requires `enabled(scope.domain_id)`,
+    so a Corporate-only deployment cannot run a Retail scenario even though
+    the language parses.
+    """
+    try:
+        from backend.cockpit_v4.scenario import flags as whatif_flags
+    except ImportError:  # pragma: no cover - the package is optional
+        return BASE_STEP_LANGUAGES
+    if not whatif_flags.any_enabled():
+        return BASE_STEP_LANGUAGES
+    return BASE_STEP_LANGUAGES + (WHATIF_STEP_LANGUAGE,)
+
+
 
 @dataclass(frozen=True)
 class Step:
@@ -522,11 +564,15 @@ def parse_steps(payload: Any, *, max_steps: int) -> tuple[Step, ...]:
                             field_path=f"{path}.step_id")
         seen.add(step_id)
         language = _require_text(raw, "language", path)
-        if language not in ("sql", "python"):
+        allowed = _step_languages()
+        if language not in allowed:
             raise Rejection(
                 "INVALID_MODEL_OUTPUT",
-                f"{path}.language must be 'sql' or 'python'. A python step "
-                f"is never executed as SQL, or the reverse.",
+                f"{path}.language must be "
+                + (" or ".join(f"{x!r}" for x in allowed) if len(allowed) < 3
+                   else ", ".join(f"{x!r}" for x in allowed[:-1])
+                   + f" or {allowed[-1]!r}")
+                + ". A python step is never executed as SQL, or the reverse.",
                 field_path=f"{path}.language")
         code = _require_text(raw, "code", path)
         if len(code.encode("utf-8")) > MAX_CODE_BYTES:
@@ -1371,6 +1417,10 @@ def provider_tools(*, withhold: tuple[str, ...] = (),
         if name in blocked:
             continue
         schema = _no_nested_intent(_inline(_load(files[name]), defs))
+        if name == TOOL_EXECUTE:
+            # The scenario step language, added to the PROVIDER'S COPY only
+            # and only when a book has What-If on. See `_whatif_language`.
+            schema = _whatif_language(schema)
         description = _DESCRIPTIONS[name]
         if name == TOOL_FINALIZE and stage == "analytical_action":
             schema = _action_finalize(schema)
@@ -1379,6 +1429,34 @@ def provider_tools(*, withhold: tuple[str, ...] = (),
                       "description": _speak(description, catalog),
                       "input_schema": _speak(schema, catalog)})
     return tools
+
+
+def _whatif_language(schema: dict[str, Any]) -> dict[str, Any]:
+    """Tell the provider about the scenario step language, when it exists.
+
+    Returns the schema **unchanged** when no book has What-If enabled, which
+    is every book by default, so the accepted payload does not move and the
+    provider-payload snapshot tests measure the same bytes they always did.
+
+    `backend/cockpit_v4/contracts/shared_defs.schema.json` is a protected
+    file and is deliberately NOT edited. The enum it declares is the accepted
+    pair at its baseline hash; the extra value is added here, to the copy
+    already inlined for this one request. A schema the analyst is shown is a
+    statement about what this runtime will accept right now, and with the
+    flags off this runtime does not accept a scenario step -- so a file
+    claiming otherwise would be the wrong place to say it.
+    """
+    extra = [x for x in _step_languages() if x not in BASE_STEP_LANGUAGES]
+    if not extra:
+        return schema
+    steps = ((schema.get("properties") or {}).get("steps") or {})
+    language = (((steps.get("items") or {}).get("properties")
+                 or {}).get("language") or {})
+    values = language.get("enum")
+    if not isinstance(values, list):  # pragma: no cover - shape changed
+        return schema
+    language["enum"] = list(values) + [x for x in extra if x not in values]
+    return schema
 
 
 def _speak(value: Any, catalog: Any) -> Any:

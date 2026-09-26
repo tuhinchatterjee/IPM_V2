@@ -78,10 +78,51 @@ def test_the_confirmation_digest_is_stored_as_it_was_not_recomputed() -> None:
                    release_fingerprint=PRINT, reporting_period="2026Q2")
     assert body["confirmed_digest"] == ""
     assert body["digest_now"] == unconfirmed.digest()
+    status, _ = th.state_of(body, release_id=RELEASE,
+                            release_fingerprint=PRINT)
+    # Whatever else it is, it is NOT executable: that is what this test is
+    # for. Which not-executable state it is, is the next two tests'.
+    assert status != th.ACTIVE
+
+
+def test_a_previewed_scenario_is_awaiting_approval_not_invalidated() -> None:
+    """The two say opposite things and only one of them is true here.
+
+    A preview writes the scenario to the thread so the confirming turn can
+    find the exact rules the reader was shown. It carries no confirmation,
+    which `state_of` first read as INVALIDATED -- telling the analyst the
+    book had moved, about a scenario one "yes" from running. Nothing had
+    moved; the reader had simply not answered yet.
+    """
+    body = th.body(draft(state=sp.PREVIEW_READY), domain_id="corporate",
+                   release_id=RELEASE, release_fingerprint=PRINT,
+                   reporting_period="2026Q2")
+    status, why = th.state_of(body, release_id=RELEASE,
+                              release_fingerprint=PRINT)
+    assert status == th.AWAITING_CONFIRMATION
+    assert "not yet approved" in why
+    resolved = th.facts(body, release_id=RELEASE, release_fingerprint=PRINT)
+    # The cohort survives, because it was frozen against the release in use
+    # and still names those rows. The approval does not, because there is
+    # none, and the digest a "yes" would approve is named instead.
+    assert isinstance(resolved["cohort"], dict)
+    assert "nothing may be executed" in resolved["confirmed_digest"]
+    assert resolved["digest_to_confirm"] == body["digest_now"]
+    shown = th.parts({"kind": th.KIND, "body": body}, release_id=RELEASE,
+                     release_fingerprint=PRINT)
+    assert shown and shown[0].startswith(th.PREVIEW_HEADER)
+    assert "Do NOT execute it yet" in shown[0]
+
+
+def test_an_unconfirmed_scenario_that_was_never_previewed_is_invalid() -> None:
+    """A DRAFT with no approval is not awaiting one; nobody was shown it."""
+    body = th.body(draft(state=sp.DRAFT), domain_id="corporate",
+                   release_id=RELEASE, release_fingerprint=PRINT,
+                   reporting_period="2026Q2")
     status, why = th.state_of(body, release_id=RELEASE,
                               release_fingerprint=PRINT)
     assert status == th.INVALIDATED
-    assert "not an approval of this" in why
+    assert "nothing here that a reader approved" in why
 
 
 def test_an_attention_card_is_not_a_scenario() -> None:
@@ -296,6 +337,35 @@ def test_the_latest_scenario_artifact_wins(store, monkeypatch) -> None:
     assert th.remember(store, record=record_for()) is True
     seeded = store.thread_context("th-1", tenant_id="t-1")
     assert th.read(seeded)["scenario_id"] == "sc-2"
+
+
+def test_the_latest_wins_even_when_the_ids_tie_on_the_clock(
+        store, monkeypatch) -> None:
+    """The defect this test exists for was a coin flip, not a crash.
+
+    `artifact_ids_for_run` orders by `created_at, artifact_id`, and
+    `artifact_id` is a uuid. Two spec artifacts written inside one clock tick
+    were therefore ordered by a random string, and `remember` -- which walked
+    the list backwards and took the first match -- carried whichever
+    scenario the tie happened to favour. It picked the right one most of the
+    time, which is how it survived.
+
+    Ranking by `version` is what makes it deterministic, so this drives the
+    tie directly: the higher version has to win from EITHER position in the
+    list.
+    """
+    monkeypatch.setenv("COCKPIT_V4_WHATIF_CORPORATE", "1")
+    first = put_spec_artifact(store, body=stored(scenario_id="sc-2",
+                                                version=2))
+    second = put_spec_artifact(store, body=stored(scenario_id="sc-1",
+                                                 version=1))
+    for order in ([first, second], [second, first]):
+        assert th.remember(store, record=record_for(),
+                           artifact_ids=order) is True
+        seeded = store.thread_context("th-1", tenant_id="t-1")
+        assert th.read(seeded)["scenario_id"] == "sc-2", (
+            f"with the ids in {order} order the revision lost to the "
+            f"scenario it replaced.")
 
 
 def test_one_book_enabled_does_not_carry_the_other_books_scenarios(

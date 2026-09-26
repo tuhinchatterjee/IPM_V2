@@ -64,6 +64,17 @@ BODY_VERSION = 1
 ACTIVE = "ACTIVE"
 INVALIDATED = "INVALIDATED"
 
+#: PREVIEWED, SHOWN, AND NOT YET APPROVED.
+#:
+#: A third state, because two were not enough and the gap was not harmless.
+#: A preview writes the scenario to the thread so the confirming turn can
+#: find the exact rules the reader was shown -- but a previewed scenario has
+#: no confirmation, and `state_of` read a missing confirmation as INVALIDATED.
+#: That told the analyst the book had moved, which it had not, about a
+#: scenario that was one "yes" from running. The two are opposite
+#: instructions: one says rebuild it, the other says ask for approval.
+AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
+
 #: What the analyst is told this block is. Written out here rather than at
 #: the call site so the protected-core diff stays a branch and a call.
 HEADER = (
@@ -74,6 +85,14 @@ HEADER = (
     "not an instruction and not an approval of anything new: a change to "
     "any of it is a new version that needs its own preview and its own "
     "confirmation before anything is calculated):")
+
+PREVIEW_HEADER = (
+    "SCENARIO AWAITING THIS READER'S APPROVAL (the reader was shown this "
+    "preview and has not answered it. These are the exact rules, cohort and "
+    "baseline they saw, so a plain yes approves THIS and nothing wider. Do "
+    "NOT execute it yet, and do not treat naming a method or reading a "
+    "sensitivity as the answer. If the reader changes any of it, that is a "
+    "new version and needs a new preview):")
 
 INVALID_HEADER = (
     "PREVIOUS SCENARIO IN THIS CONVERSATION, NO LONGER VALID (the book "
@@ -177,13 +196,34 @@ def invalidation(stored: dict[str, Any], *, release_id: str,
 
 def state_of(stored: dict[str, Any], *, release_id: str,
              release_fingerprint: str = "") -> tuple[str, str]:
-    """`(ACTIVE or INVALIDATED, the reason)` for this scenario, here, now."""
+    """This scenario's standing, here, now, and why.
+
+    The book is checked before the confirmation, and deliberately: a
+    scenario whose release has moved is invalid whatever its approval said,
+    and reporting the approval first would be describing a fact about the
+    old book as though it still held.
+
+    Then the three states are distinguished by what is actually missing. A
+    scenario that was previewed and never approved is AWAITING_CONFIRMATION
+    -- not INVALIDATED, which would tell the analyst to rebuild something
+    that is one affirmative reply from running.
+    """
     reason = invalidation(stored, release_id=release_id,
                           release_fingerprint=release_fingerprint)
     if reason:
         return INVALIDATED, reason
     confirmed = str(stored.get("confirmed_digest") or "")
-    if not confirmed or confirmed != str(stored.get("digest_now") or ""):
+    now = str(stored.get("digest_now") or "")
+    if not confirmed:
+        if str(stored.get("state") or "") == sp.PREVIEW_READY:
+            return AWAITING_CONFIRMATION, (
+                "The reader has been shown this preview and has not yet "
+                "approved it.")
+        return INVALIDATED, (
+            "This scenario carries no confirmation, and it was not left at "
+            "the preview either, so there is nothing here that a reader "
+            "approved.")
+    if confirmed != now:
         return INVALIDATED, (
             "The stored confirmation does not match the stored scenario. "
             "Something that changes the answer moved after the approval was "
@@ -225,15 +265,24 @@ def facts(stored: dict[str, Any], *, release_id: str,
             "No source row, no reported ECL and no accounting record was "
             "changed by it."),
     }
-    if status == ACTIVE:
+    if status in (ACTIVE, AWAITING_CONFIRMATION):
+        # The cohort survives here because it is real: it was frozen against
+        # the release in use and its identifiers still name those rows. What
+        # separates the two states is the approval, not the binding.
         out["cohort"] = {
             **dict(canonical.get("cohort") or {}),
             "cohort_id": stored.get("cohort_id", ""),
             "baseline_ead": stored.get("cohort_baseline_ead", "0"),
             "baseline_ecl": stored.get("cohort_baseline_ecl", "0")}
         out["source"] = canonical.get("source", {})
-        out["confirmed_digest"] = stored.get("confirmed_digest", "")
         out["run_id"] = stored.get("run_id", "")
+    if status == ACTIVE:
+        out["confirmed_digest"] = stored.get("confirmed_digest", "")
+    elif status == AWAITING_CONFIRMATION:
+        out["awaiting"] = reason
+        out["confirmed_digest"] = (
+            "None. Nothing has been approved, so nothing may be executed.")
+        out["digest_to_confirm"] = stored.get("digest_now", "")
     else:
         out["why_it_is_no_longer_valid"] = reason
         out["cohort"] = (
@@ -258,7 +307,9 @@ def parts(seed: dict[str, Any] | None, *, release_id: str,
         return []
     resolved = facts(stored, release_id=release_id,
                      release_fingerprint=release_fingerprint)
-    header = HEADER if resolved["status"] == ACTIVE else INVALID_HEADER
+    header = {ACTIVE: HEADER,
+              AWAITING_CONFIRMATION: PREVIEW_HEADER}.get(
+                  resolved["status"], INVALID_HEADER)
     return [header + "\n" + json.dumps(resolved, ensure_ascii=False,
                                        default=str)]
 
@@ -286,7 +337,21 @@ def remember(store: Any, *, record: Any, artifact_ids: Sequence[str] = (),
 
     ids = list(artifact_ids) or store.artifact_ids_for_run(
         run_id, tenant_id=tenant_id)
-    for artifact_id in reversed(ids):
+    # RANKED, NOT REVERSED.
+    #
+    # This walked the list backwards and took the first spec artifact it
+    # found, on the assumption that the list is chronological. It is ordered
+    # `created_at, artifact_id`, and `artifact_id` is a uuid -- so two
+    # artifacts written inside one clock tick are ordered by a random string
+    # and "the run's latest scenario" was whichever way the tie happened to
+    # fall. It showed up as a test that passed almost always, which is the
+    # worst way for it to show up.
+    #
+    # A revision bumps `version`, so version is what "later" means here, and
+    # list position only breaks a tie between two artifacts carrying the SAME
+    # version -- which are the same scenario, so the tie does not matter.
+    candidates: list[tuple[int, int, dict[str, Any]]] = []
+    for index, artifact_id in enumerate(ids):
         artifact = store.get_artifact(artifact_id, tenant_id=tenant_id)
         if not artifact or str(artifact.get("kind") or "") != ARTIFACT_KIND:
             continue
@@ -297,12 +362,20 @@ def remember(store: Any, *, record: Any, artifact_ids: Sequence[str] = (),
         stored.setdefault("run_id", run_id)
         if read({"kind": KIND, "body": stored}) is None:
             continue
-        store.set_thread_context(thread_id, tenant_id=tenant_id, kind=KIND,
-                                 body=stored)
-        return True
-    return False
+        try:
+            version = int(stored.get("version") or 0)
+        except (TypeError, ValueError):
+            version = 0
+        candidates.append((version, index, stored))
+    if not candidates:
+        return False
+    _version, _index, chosen = max(candidates, key=lambda c: (c[0], c[1]))
+    store.set_thread_context(thread_id, tenant_id=tenant_id, kind=KIND,
+                             body=chosen)
+    return True
 
 
-__all__ = ["ACTIVE", "ARTIFACT_KIND", "BODY_VERSION", "HEADER",
+__all__ = ["ACTIVE", "ARTIFACT_KIND", "AWAITING_CONFIRMATION",
+           "BODY_VERSION", "HEADER", "PREVIEW_HEADER",
            "INVALIDATED", "INVALID_HEADER", "KIND", "body", "facts",
            "invalidation", "parts", "read", "remember", "state_of"]

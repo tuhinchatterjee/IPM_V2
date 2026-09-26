@@ -49,7 +49,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -132,6 +133,12 @@ class Anchored:
     applied_once: str
     rows: int
     warnings: tuple[str, ...] = ()
+    #: WHY THIS PREDICTION, from `explain.contributions`. Carried on the
+    #: anchored result rather than recomputed downstream, because it is a
+    #: statement about the exact frames this run scored and those frames do
+    #: not outlive the call. Empty when the explainer was unavailable, which
+    #: is reported rather than filled in.
+    explanation: dict[str, Any] = field(default_factory=dict)
 
     @property
     def observed_total(self) -> float:
@@ -169,7 +176,56 @@ class Anchored:
                           "ECL1 = M1 + O0. The model's level is never used, "
                           "only its difference."),
             "warnings": list(self.warnings),
+            "explanation": dict(self.explanation),
         }
+
+
+def gate_status(domain_id: str, *, root: Path | None = None,
+                release_id: str = "") -> tuple[bool, list[str], str]:
+    """`(passed, the failures by name, model version)` without loading a model.
+
+    Reads `blend.json` and stops there. No pickle is opened, no booster is
+    deserialised and neither xgboost nor lightgbm needs to be installed, so
+    this can be called from `preview.readiness` on a turn that is deciding
+    what to OFFER -- before a reader has approved anything and before a
+    prediction is wanted.
+
+    That separation is the point. Method 2's availability used to be the
+    constant `"MODEL_NOT_READY"` in `preview.readiness`, which was honest
+    when no model existed and became a lie the moment one did. It is now this
+    function's answer, and this function's answer is the gates that were
+    predeclared in `ML_ACCEPTANCE_TARGETS.md` and measured once on the
+    held-out split.
+
+    A missing artifact is not a failure to report: it is `(False, [the
+    reason], "")`, because a book with no trained emulator and a book whose
+    emulator missed a gate are both "not available" and a reader needs to be
+    told which.
+    """
+    base = (root or ARTIFACT_DIR) / domain_id
+    manifest = base / "blend.json"
+    if not manifest.exists():
+        return False, [f"no emulator is published for the {domain_id} book "
+                       f"({manifest} is absent)."], ""
+    try:
+        card = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return False, [f"the {domain_id} emulator's manifest could not be "
+                       f"read: {exc}"], ""
+    version = str(card.get("model_version") or "")
+    trained_on = str(card.get("release_id") or "")
+    if release_id and trained_on and trained_on != release_id:
+        return False, [
+            f"the {domain_id} emulator was fitted on {trained_on} and the "
+            f"book in use is {release_id}. A model is a statement about the "
+            f"bytes it was fitted on."], version
+    failed = [
+        f"{name} ({str(row.get('what') or name)}): measured "
+        f"{row.get('measured')} against a threshold of "
+        f"{row.get('threshold')}"
+        for name, row in sorted((card.get("gates") or {}).items())
+        if isinstance(row, Mapping) and not row.get("passed")]
+    return (not failed), failed, version
 
 
 def load(domain_id: str, *, root: Path | None = None,
@@ -276,6 +332,128 @@ def anchor(loaded: Loaded, *, baseline_frame: Any, scenario_frame: Any,
         warnings=tuple(warnings))
 
 
+def for_scenario(loaded: Loaded, *, spec: Any, rows: Sequence[Mapping[str, Any]],
+                 plan: Any) -> Anchored:
+    """The emulator's anchored estimate for one confirmed scenario.
+
+    Builds the two feature frames -- the cohort as it is, and the cohort with
+    the scenario's parameters moved -- and hands them to `anchor`, which does
+    section 11.4's three lines and nothing else.
+
+    THE MOVED VALUES COME FROM THE SAME PLAN DELTA USES. Both methods read
+    `plan.factors`, so a 20% PD rise means one thing in this run: the feature
+    vector is moved by the same arithmetic that scales the ECL. Two
+    independent readings of "20%" is how a method comparison becomes a
+    comparison of two different scenarios.
+
+    THE MACRO MOVE IS APPLIED ONCE. `applied_once` records where -- through
+    the risk parameter, because that is what the plan moved. A macro factor
+    that had also been written into a macro feature would enter the prediction
+    twice, and the specification names that as a defect rather than a
+    conservatism.
+    """
+    import pandas as pd
+
+    from backend.cockpit_v4.scenario import units as un
+
+    wanted = list(loaded.features)
+    base = pd.DataFrame([{name: row.get(name) for name in wanted}
+                         for row in rows])
+    moved = base.copy()
+    touched: list[str] = []
+    for factor in getattr(plan, "factors", ()):
+        column = factor.field_id
+        if column not in moved.columns:
+            continue
+        touched.append(column)
+        inside = _scope_mask(moved, factor)
+        moved.loc[inside, column] = [
+            float(un.apply(Decimal(str(value if value is not None else 0)),
+                           factor.shock.amount, storage=factor.storage))
+            for value in moved.loc[inside, column]]
+    # DTYPES, AND WHY THEY ARE SET HERE RATHER THAN HOPED FOR.
+    #
+    # The rows arrive as dicts of `Decimal` and `str`, because that is what a
+    # currency calculation needs and what DuckDB returns through
+    # `cohort._rows`. Pandas builds `object` columns from both, and a booster
+    # refuses an object column outright -- "dtypes for data must be int,
+    # float, bool or category". So every column is put into the dtype the
+    # model was FITTED with: the declared categoricals become categories with
+    # the SAME category set in both frames, and everything else becomes float.
+    #
+    # The shared category set matters more than it looks. Casting each frame
+    # independently gives the scenario frame its own codes, so a booster
+    # trained to split on code 3 would be handed a different sector under the
+    # same number -- a wrong prediction with no error anywhere.
+    categorical = set(loaded.categorical)
+    for column in list(base.columns):
+        if column in categorical:
+            kind = pd.CategoricalDtype(
+                categories=sorted({str(v) for v in base[column].dropna()}
+                                  | {str(v) for v in moved[column].dropna()}))
+            base[column] = base[column].astype(str).astype(kind)
+            moved[column] = moved[column].astype(str).astype(kind)
+        else:
+            base[column] = pd.to_numeric(base[column], errors="coerce"
+                                         ).astype(float)
+            moved[column] = pd.to_numeric(moved[column], errors="coerce"
+                                          ).astype(float)
+    denominator = [float(row.get("ead_sar_mn") or 0) for row in rows]
+    overlay = float(sum(Decimal(str(row.get("overlay_sar_mn") or 0))
+                        for row in rows))
+    reported = float(sum(Decimal(str(row.get("ecl_sar_mn") or 0))
+                         for row in rows))
+    warnings: list[str] = []
+    missing = [c for c in getattr(plan, "fields", lambda: ())()
+               if c not in base.columns]
+    if missing:
+        warnings.append(
+            f"{', '.join(missing)} are moved by this scenario and are not "
+            f"features of this emulator, so its estimate does not see them. "
+            f"Method 1 does.")
+    if not touched:
+        warnings.append(
+            "none of this scenario's parameters is a feature of this "
+            "emulator, so its estimate is its baseline and its change is "
+            "exactly zero -- which is a statement about the model's inputs, "
+            "not about the scenario.")
+    made = anchor(loaded, baseline_frame=base, scenario_frame=moved,
+                  denominator=denominator,
+                  observed_modelled=reported - overlay,
+                  observed_overlay=overlay,
+                  applied_once=VIA_PARAMETER, warnings=warnings)
+    # The explanation is of the SCENARIO frame, because that is the frame the
+    # published estimate was scored on. Explaining the baseline frame would
+    # answer a question about a number nobody reported.
+    from backend.cockpit_v4.scenario.ml import explain
+
+    try:
+        told = explain.contributions(loaded, moved)
+    except Exception as exc:  # noqa: BLE001
+        told = {"components": [], "shap": [],
+                "note": f"no explanation was computed: {exc}"}
+    return replace(made, explanation=told)
+
+
+def _scope_mask(frame: Any, factor: Any) -> Any:
+    """Which rows one rule reaches, as a boolean mask over the frame.
+
+    The same scope `delta._in_scope` tests row by row and `sql.scope_sql`
+    renders into the population query, read a third time here. All three read
+    `factor.scope`, which is a checked structure, rather than parsing one
+    string three ways.
+    """
+    inside = frame.index == frame.index
+    for column, value in getattr(factor, "scope", ()):
+        if column not in frame.columns:
+            # An absent column is NOT a match, the same refusal
+            # `delta._in_scope` makes: treating it as satisfied would widen a
+            # scoped rule to the whole cohort on a frame that forgot a column.
+            return frame.index != frame.index
+        inside = inside & (frame[column].astype(str) == str(value))
+    return inside
+
+
 def zero_shock_is_zero(loaded: Loaded, frame: Any,
                        denominator: Sequence[float]) -> bool:
     """M-oracle. An unchanged scenario moves the answer by exactly zero."""
@@ -332,6 +510,7 @@ def support_warnings(loaded: Loaded, scenario_frame: Any,
     return out
 
 
-__all__ = ["ARTIFACT_DIR", "Anchored", "Loaded", "VIA_FACTOR",
+__all__ = [
+    "for_scenario", "gate_status","ARTIFACT_DIR", "Anchored", "Loaded", "VIA_FACTOR",
            "VIA_PARAMETER", "anchor", "load", "refuse_composition",
            "support_warnings", "zero_shock_is_zero"]

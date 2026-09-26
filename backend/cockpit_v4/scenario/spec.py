@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
@@ -453,6 +453,133 @@ def _may_overlap(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return True
 
 
+def from_canonical(canonical: Mapping[str, Any], *, scenario_id: str,
+                   version: int, name: str = "", state: str = CONFIRMED,
+                   confirmed_digest: str = "", cohort_id: str = "",
+                   cohort_baseline_ead: str = "0",
+                   cohort_baseline_ecl: str = "0",
+                   original_clauses: Sequence[str] = ()) -> ScenarioSpec:
+    """Rebuild a spec from the canonical form a thread stored.
+
+    WHY THIS EXISTS, AND WHY IT IS NOT A CONVENIENCE.
+
+    `thread.state_of` decides ACTIVE or INVALIDATED by comparing two values
+    that were BOTH written at the same moment -- `confirmed_digest` and
+    `digest_now`. That is a fine staleness check and a poor authorisation
+    check: it proves the two strings agree, not that either describes the
+    scenario stored beside them. Anything that edited the stored canonical
+    form would leave both digests untouched and still read as ACTIVE.
+
+    So the execution path does not trust them. It rebuilds the spec from the
+    canonical form itself and calls `require_confirmed()`, which recomputes
+    the digest from the rules that are actually about to run. A canonical
+    form and a confirmation that disagree is then a refusal, not a run.
+
+    Everything outside the digest is passed in rather than inferred, because
+    it was stored separately: the identity fields, and the cohort's id and
+    baselines, which `CohortRef.canonical` deliberately leaves out.
+
+    The shocks are returned to their AUTHORED order, from `ordering`, rather
+    than left in the sorted order the digest uses. Order can change the
+    answer, and a spec rebuilt with the rules in a different sequence would
+    be a different scenario that happened to hash the same.
+    """
+    if not isinstance(canonical, Mapping):
+        raise ScenarioError(
+            CONFIRMATION_STALE,
+            "the stored scenario has no canonical form, so what was "
+            "confirmed cannot be reconstructed. Nothing was run.")
+    src = dict(canonical.get("source") or {})
+    coh = dict(canonical.get("cohort") or {})
+    shocks = [_shock_from_canonical(raw)
+              for raw in (canonical.get("shocks") or [])]
+    shocks = _in_authored_order(shocks, canonical.get("ordering") or [])
+    return ScenarioSpec(
+        scenario_id=str(scenario_id),
+        version=int(version),
+        source=SourceRef(
+            domain_id=str(src.get("domain_id", "")),
+            release_id=str(src.get("release_id", "")),
+            release_fingerprint=str(src.get("release_fingerprint", "")),
+            reporting_period=str(src.get("reporting_period", ""))),
+        cohort=CohortRef(
+            cohort_id=str(cohort_id),
+            membership_hash=str(coh.get("membership_hash", "")),
+            grain=str(coh.get("grain", "")),
+            entity_count=int(coh.get("entity_count", 0) or 0),
+            baseline_ead=str(cohort_baseline_ead),
+            baseline_ecl=str(cohort_baseline_ecl),
+            fixed=bool(coh.get("fixed", True))),
+        shocks=tuple(shocks),
+        methods=tuple(str(m) for m in (canonical.get("methods") or (DELTA,))),
+        delta_submode=str(canonical.get("delta_submode") or PROPORTIONAL),
+        user_assumption=dict(canonical.get("user_assumption") or {}),
+        stage_policy=str(canonical.get("stage_policy") or "frozen"),
+        overlay_policy=str(canonical.get("overlay_policy") or "fixed"),
+        fx_policy=str(canonical.get("fx_policy") or "constant"),
+        bounds_policy=dict(canonical.get("bounds_policy") or {}),
+        warnings=tuple(str(w) for w in (canonical.get("warnings") or ())),
+        artifact_versions=dict(canonical.get("artifact_versions") or {}),
+        name=str(name), state=str(state),
+        original_clauses=tuple(str(c) for c in original_clauses),
+        confirmed_digest=str(confirmed_digest))
+
+
+def _shock_from_canonical(raw: Mapping[str, Any]) -> Shock:
+    """One shock, back from its digest form.
+
+    `origin` is not reconstructed and deliberately is not: it is the reader's
+    own sentence, it sits outside the digest, and inventing one here would
+    put words in their mouth in the audit record. The clauses are carried
+    whole on the spec instead.
+    """
+    if not isinstance(raw, Mapping):
+        raise ScenarioError(
+            CONFIRMATION_STALE,
+            "a stored rule is not an object, so the confirmed scenario "
+            "cannot be reconstructed. Nothing was run.")
+    return Shock(
+        field_id=str(raw.get("field", "")),
+        amount=un.parse(raw.get("value"), str(raw.get("operation", ""))),
+        where=dict(raw.get("where") or {}),
+        derived_from=str(raw.get("derived_from", "")),
+        mapping_version=str(raw.get("mapping_version", "")))
+
+
+def _in_authored_order(shocks: Sequence[Shock],
+                       ordering: Sequence[Any]) -> list[Shock]:
+    """The shocks, back in the sequence `ordering` records.
+
+    A rule named in `ordering` but absent from `shocks`, or the reverse, is a
+    stored scenario that contradicts itself. It is refused rather than
+    reordered on a best effort: the sequence is in the digest because it
+    changes the answer.
+    """
+    wanted = [str(key) for key in ordering]
+    if not wanted:
+        return list(shocks)
+    remaining = list(shocks)
+    out: list[Shock] = []
+    for key in wanted:
+        match = next((s for s in remaining
+                      if f"{s.field_id}:{s.amount.operation}" == key), None)
+        if match is None:
+            raise ScenarioError(
+                CONFIRMATION_STALE,
+                f"the stored scenario applies {key!r} in its recorded order "
+                f"but carries no such rule, so the sequence that was "
+                f"confirmed cannot be reproduced. Nothing was run.")
+        remaining.remove(match)
+        out.append(match)
+    if remaining:
+        raise ScenarioError(
+            CONFIRMATION_STALE,
+            f"the stored scenario carries {len(remaining)} rule(s) that its "
+            f"recorded order does not place. Rule order changes the answer, "
+            f"so nothing was run.")
+    return out
+
+
 def _canonical(value: Any) -> Any:
     """JSON-safe and order-stable, with Decimal kept exact as a string."""
     if isinstance(value, Decimal):
@@ -472,5 +599,5 @@ __all__ = [
     "NEEDS_CLARIFICATION", "PARTIAL", "PREVIEW_READY", "PROPORTIONAL",
     "RUNNING", "SCENARIO_RESOLVED", "STATES", "STRUCTURAL_EAD",
     "ScenarioSpec", "Shock", "SourceRef", "TERMINAL", "TRANSITIONS",
-    "USER_DEFINED",
+    "USER_DEFINED", "from_canonical",
 ]

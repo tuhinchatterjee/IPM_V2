@@ -35,6 +35,7 @@ from decimal import Decimal
 from backend.cockpit_v4.scenario import cohort as ch
 from backend.cockpit_v4.scenario import delta as dl
 from backend.cockpit_v4.scenario import fields as fd
+from backend.cockpit_v4.scenario import selector as sel
 from backend.cockpit_v4.scenario import spec as sp
 from backend.cockpit_v4.scenario import units as un
 from backend.cockpit_v4.scenario.errors import METHOD_COVERAGE_GAP, raise_for
@@ -147,9 +148,41 @@ def factor_sql(factor: dl.Factor) -> str:
     ratio = (f"CASE WHEN {col} = 0 AND {moved} = 0 THEN 1 "
              f"WHEN {col} = 0 THEN NULL "
              f"ELSE {moved} / {col} END")
-    if not factor.applies_when:
+    reach = reach_sql(factor)
+    if not reach:
         return f"({ratio})"
-    return f"(CASE WHEN {factor.applies_when} THEN ({ratio}) ELSE 1 END)"
+    return f"(CASE WHEN {reach} THEN ({ratio}) ELSE 1 END)"
+
+
+def scope_sql(factor: dl.Factor) -> str:
+    """The reader's own scope for one rule, as SQL. `""` for an unscoped rule.
+
+    The literals are re-rendered here rather than carried as text from the
+    request, and they are rendered by `selector`, which is the same code that
+    checked them. So the population query and the row walk are two readings
+    of one checked structure rather than two parsings of one string -- and a
+    value that could not become SQL was refused before a spec existed.
+    """
+    if not factor.scope:
+        return ""
+    return " AND ".join(
+        sel.Filter(column=c, operator="=", values=(v,)).sql()
+        for c, v in factor.scope)
+
+
+def reach_sql(factor: dl.Factor) -> str:
+    """WHICH ROWS THIS FACTOR REACHES: where its parameter enters the ECL,
+    AND where the reader scoped the rule. `""` means every row.
+
+    One function, used by every caller that needs the answer, because the
+    three that needed it used to compute it separately from `applies_when`
+    alone. A rule scoped to construction would then have been multiplied into
+    the whole cohort by `factor_sql` while `disposition_sql` labelled the rows
+    SCALED -- consistently wrong in two places, which is the hardest kind of
+    wrong to notice.
+    """
+    parts = [p for p in (factor.applies_when, scope_sql(factor)) if p]
+    return " AND ".join(f"({p})" for p in parts)
 
 
 def multiplier_sql(plan: dl.Plan) -> str:
@@ -171,10 +204,10 @@ def unaffected_sql(plan: dl.Plan) -> str:
     `FALSE` when at least one factor applies everywhere, which is the common
     case: an LGD shock touches every eligible row.
     """
-    scoped = [f for f in plan.factors if f.applies_when]
+    scoped = [f for f in plan.factors if reach_sql(f)]
     if not plan.factors or len(scoped) < len(plan.factors):
         return "FALSE"
-    return " AND ".join(f"NOT ({f.applies_when})" for f in scoped)
+    return " AND ".join(f"NOT ({reach_sql(f)})" for f in scoped)
 
 
 def disposition_sql(plan: dl.Plan) -> str:
@@ -203,9 +236,10 @@ def disposition_sql(plan: dl.Plan) -> str:
 
 def _scoped(factor: dl.Factor, predicate: str) -> str:
     """A predicate about one factor, restricted to the rows it reaches."""
-    if not factor.applies_when:
+    reach = reach_sql(factor)
+    if not reach:
         return f"({predicate})"
-    return f"(({factor.applies_when}) AND ({predicate}))"
+    return f"(({reach}) AND ({predicate}))"
 
 
 def scenario_ecl_sql(plan: dl.Plan) -> str:
@@ -333,4 +367,4 @@ __all__ = ["COLUMN", "DISPOSITION", "book_totals_sql", "column",
            "disposition_sql", "factor_sql", "ineligible_sql", "literal",
            "moved_value", "multiplier_sql", "reads_only_published",
            "row_ledger_sql", "scenario_ecl_sql", "submission",
-           "unaffected_sql"]
+           "reach_sql", "scope_sql", "unaffected_sql"]

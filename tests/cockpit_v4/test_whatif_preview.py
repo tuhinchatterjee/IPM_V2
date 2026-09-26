@@ -189,10 +189,20 @@ def test_c13_any_subset_of_methods_is_accepted(frozen) -> None:
 def test_the_ml_method_says_it_is_not_ready_rather_than_vanishing(
         frozen) -> None:
     """Section 11.5: a failed model gate cannot be declared a completed ML
-    capability -- and neither can one that was never built."""
+    capability -- and neither can one that was never built.
+
+    The status now carries the REASON, because section 12 asks for
+    `ML NOT READY - <specific validation reason>` rather than a bare label. A
+    reader told only "not ready" cannot tell a missing artifact from a failed
+    gate from a model fitted on another release, and those three call for
+    three different actions.
+    """
     listed = build(frozen, methods=(sp.DELTA, sp.ML)).body["methods"]
     statuses = {m["method"]: m["status"] for m in listed}
-    assert statuses[sp.ML] == "MODEL_NOT_READY"
+    assert statuses[sp.ML].startswith("MODEL_NOT_READY")
+    assert statuses[sp.ML] != "MODEL_NOT_READY", (
+        "the status has to say WHY. A bare label is what this used to be, "
+        "when the answer was a constant rather than the model's own gates.")
     assert statuses[sp.DELTA] == "READY"
 
 

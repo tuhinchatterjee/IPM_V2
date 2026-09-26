@@ -301,23 +301,47 @@ def confirm(preview: Preview, reply: str) -> sp.ScenarioSpec:
     return preview.spec.confirm()
 
 
-def readiness(spec: sp.ScenarioSpec) -> dict[str, str]:
+def readiness(spec: sp.ScenarioSpec, *, release_id: str = "") -> dict[str, str]:
     """Which selected methods can actually run, before anything is confirmed.
 
-    Method 2 is not built in this pass and says so rather than being quietly
-    dropped from the list -- section 11.5: *"A failed model gate cannot be
-    declared a completed ML capability."* The same applies to one that was
-    never built.
+    Method 2's answer comes from ITS OWN GATES, read from the frozen
+    emulator's manifest. It used to be the constant `"MODEL_NOT_READY"`,
+    which was true while no model existed and became false the moment one
+    did -- and a preview that understates what is available is as misleading
+    as one that overstates it, because a reader chooses their methods from
+    this list.
+
+    Section 11.5 is the rule in both directions: *"A failed model gate cannot
+    be declared a completed ML capability."* A gate that PASSED cannot be
+    declared a failure either, and a gate that failed is named here rather
+    than summarised, so the reader can see which one and by how much.
+
+    Reads `blend.json` and no model file, so this costs a file read and needs
+    none of the emulator's libraries: a runtime without xgboost reports
+    MODEL_NOT_READY with the missing artifact named instead of raising.
     """
     out: dict[str, str] = {}
     for method in spec.methods:
         if method == sp.ML:
-            out[method] = "MODEL_NOT_READY"
+            out[method] = _ml_readiness(spec, release_id=release_id)
         elif method == sp.USER_DEFINED and not spec.user_assumption:
             out[method] = "NEEDS_ASSUMPTION"
         else:
             out[method] = "READY"
     return out
+
+
+def _ml_readiness(spec: sp.ScenarioSpec, *, release_id: str) -> str:
+    """READY, or MODEL_NOT_READY with the reason, for this book's emulator."""
+    try:
+        from backend.cockpit_v4.scenario.ml import infer
+    except ImportError as exc:  # pragma: no cover - optional package
+        return f"MODEL_NOT_READY: {exc}"
+    passed, failures, _version = infer.gate_status(
+        spec.source.domain_id, release_id=release_id or spec.source.release_id)
+    if passed:
+        return "READY"
+    return "MODEL_NOT_READY: " + "; ".join(failures)
 
 
 __all__ = ["Preview", "REQUIRED_SECTIONS", "SOURCE_UNTOUCHED", "build",

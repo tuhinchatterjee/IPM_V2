@@ -53,6 +53,16 @@ CHECK_SANDBOX = "sandbox"
 #: exhaustive over every value the field actually takes.
 CHECK_DEPENDENCY = "dependency"
 CHECK_BATCH = "batch"
+#: A SCENARIO STEP'S OWN CONTRACT CHECK.
+#:
+#: A `whatif_scenario` step is refused here when the typed operation it
+#: carries is not one this runtime creates: an unknown operation, an unknown
+#: key, a field or filter the book does not have, a confirmation that does
+#: not match the scenario the SERVER stored. It is a judgement about the
+#: request, made before the book is read, so it belongs on the `check` rung
+#: with the other static refusals. A scenario that fails while RUNNING
+#: reports `CHECK_RUNTIME`, like any other step that got as far as executing.
+CHECK_SCENARIO = "scenario_contract"
 
 #: HOW FAR A STEP GOT BEFORE IT STOPPED. A LADDER, NOT A SET OF LABELS.
 #:
@@ -78,6 +88,7 @@ PHASE_OF_CHECK: dict[str, str] = {
     CHECK_DOMAIN: PHASE_CHECK,
     CHECK_GRAIN: PHASE_CHECK,
     CHECK_SANDBOX: PHASE_CHECK,
+    CHECK_SCENARIO: PHASE_CHECK,
     CHECK_BIND: PHASE_BIND,
     CHECK_RUNTIME: PHASE_RUNTIME,
     CHECK_DEPENDENCY: PHASE_NOT_STARTED,
@@ -382,7 +393,14 @@ class ExecutionService:
         bound: list[str] = []
         deferred: list[str] = []
         for step in submission.steps:
-            if step.language == "sql":
+            # The scenario arm comes FIRST because the two below are not a
+            # two-valued switch with a safe default: the `else` here is the
+            # Python arm, so an unrecognised language is refused as an
+            # unavailable sandbox, and `_run_step`'s fallthrough is SQL, so
+            # it would be handed to the binder as a query.
+            if self._is_scenario(step):
+                self._validate_whatif(step)
+            elif step.language == "sql":
                 self._validate_sql(step)
                 self._check_join_grain(step)
                 if self._bindable_now(step):
@@ -548,6 +566,127 @@ class ExecutionService:
                     field_path=f"steps.{step.step_id}.code",
                     detail={"failed_check": CHECK_SANDBOX})
 
+    # -- the scenario step ------------------------------------------------
+    #
+    # THE AUTHORISED INTEGRATION ADAPTER, AND NOTHING MORE.
+    #
+    # Three short methods, and every one of them delegates. The typed
+    # operation contract, the confirmation re-verification, the cohort
+    # re-resolution and the arithmetic all live in
+    # `backend/cockpit_v4/scenario/bridge.py`, which is not protected. What
+    # is here is the branch, the guard and the error translation -- which is
+    # the smallest shape this can take and still sit inside the existing
+    # validation, budget, artifact and event machinery rather than beside it.
+    #
+    # What this deliberately is NOT: a way to run arbitrary Python. The
+    # sandbox is untouched. `step.code` is never parsed and never executed on
+    # this path; it carries a restatement for the trace. No module name, no
+    # callable, no path and no expression is read from the step.
+
+    def _is_scenario(self, step: Step) -> bool:
+        """Is this the typed scenario operation, for a book that allows it?
+
+        Both halves are required and the flag is checked PER BOOK, not
+        globally: `contracts._step_languages` lets the language parse when
+        any book has What-If on, so without this check a Corporate-only
+        deployment would accept a Retail scenario step. Anything else --
+        including a step that merely names the language while the flag is off
+        -- is not a scenario step and falls through to the arms that were
+        always there.
+        """
+        if step.language != "whatif_scenario":
+            return False
+        try:
+            from backend.cockpit_v4.scenario import flags as whatif_flags
+        except ImportError:  # pragma: no cover - the package is optional
+            return False
+        return bool(whatif_flags.enabled(
+            str(getattr(self.scope, "domain_id", "")
+                or getattr(self.catalog, "domain_id", ""))))
+
+    def _bridge(self) -> Any:
+        """The adapter module, or a refusal that says what is missing."""
+        try:
+            from backend.cockpit_v4.scenario import bridge
+        except ImportError as exc:  # pragma: no cover - optional package
+            raise StepFailed(
+                INTERNAL_ERROR, CHECK_SCENARIO,
+                f"the What-If scenario package is enabled for this book but "
+                f"could not be imported ({exc}). Nothing was executed and "
+                f"nothing was substituted.") from exc
+        return bridge
+
+    def _validate_whatif(self, step: Step) -> None:
+        """Refuse a malformed operation before the book is read."""
+        bridge = self._bridge()
+        try:
+            bridge.validate(step.parameters, step_id=step.step_id)
+        except Exception as exc:  # noqa: BLE001
+            raise self._scenario_failure(exc, check=CHECK_SCENARIO) from exc
+
+    def _run_whatif(self, step: Step, *,
+                    deadline_seconds: float) -> StepResult:
+        """Dispatch the confirmed scenario, server-side, and store its rows."""
+        bridge = self._bridge()
+        digest = code_digest(step.code)
+        try:
+            produced = bridge.execute(
+                step.parameters, session=self.session, scope=self.scope,
+                catalog=self.catalog, store=self.store, run_id=self.run_id,
+                tenant_id=self.tenant_id, release_id=self.release_id,
+                header=self.header, step_id=step.step_id,
+                deadline_seconds=deadline_seconds)
+        except Exception as exc:  # noqa: BLE001
+            raise self._scenario_failure(exc, check=CHECK_RUNTIME) from exc
+        columns = list(produced.columns)
+        rows = list(produced.rows)
+        artifact_id = self.store.put_artifact(
+            run_id=self.run_id, tenant_id=self.tenant_id, kind="result",
+            release_id=self.release_id,
+            scope={"step_id": step.step_id, "language": "whatif_scenario",
+                   "domain_id": str(getattr(self.catalog, "domain_id", "")),
+                   # Declared, because this path reads the book through the
+                   # session rather than through SQL text, so there is no
+                   # query for `v4_sql.referenced_relations` to parse.
+                   "referenced_relations": list(produced.relations),
+                   "input_artifact_ids": list(step.input_artifact_ids),
+                   "complete": len(rows) <= self.limits.preview_rows,
+                   "produced_rows": len(rows),
+                   **dict(produced.provenance)},
+            columns=columns, rows=rows, code_digest=digest)
+        self.artifacts[step.step_id] = artifact_id
+        return StepResult(
+            step_id=step.step_id, status="ok", language="whatif_scenario",
+            code_digest=digest, purpose=step.purpose, columns=columns,
+            row_count=len(rows), preview=rows[:self.limits.preview_rows],
+            row_ids=[deriv.row_id_for(i) for i in
+                     range(min(len(rows), self.limits.preview_rows))],
+            money_unit=self._money_unit(), artifact_id=artifact_id,
+            warnings=list(produced.warnings))
+
+    def _scenario_failure(self, exc: Exception, *, check: str) -> StepFailed:
+        """Every scenario failure as a GOVERNED step failure.
+
+        `run_batch` catches `StepFailed` and nothing else, and the tool
+        router above it catches only `Rejection`, so anything else raised
+        from this path would end the run as an unhandled exception rather
+        than as a reported step. That is the difference between a governed
+        refusal and a crash, so the conversion is total: a `ScenarioError`
+        keeps its own code and detail, and anything unexpected becomes an
+        INTERNAL_ERROR that says the scenario did not run.
+        """
+        if isinstance(exc, StepFailed):
+            return exc
+        bridge = self._bridge()
+        translated = bridge.as_step_failed(exc, check=check)
+        if translated is not None:
+            code, failed_check, message, detail = translated
+            return StepFailed(code, failed_check, message, detail=detail)
+        return StepFailed(
+            INTERNAL_ERROR, check,
+            f"the scenario step did not run: {type(exc).__name__}: {exc}. "
+            f"No result was produced and nothing was substituted.")
+
     # -- execution -------------------------------------------------------
 
     def run_batch(self, submission: ExecutionSubmission, *,
@@ -624,6 +763,8 @@ class ExecutionService:
                 "repair anything: the corrected code is yours to write."))
 
     def _run_step(self, step: Step, *, deadline_seconds: float) -> StepResult:
+        if self._is_scenario(step):
+            return self._run_whatif(step, deadline_seconds=deadline_seconds)
         if step.language == "python":
             return self._run_python(step, deadline_seconds=deadline_seconds)
         return self._run_sql(step, deadline_seconds=deadline_seconds)

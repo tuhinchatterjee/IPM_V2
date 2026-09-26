@@ -248,13 +248,27 @@ CORE_IMPORTERS: dict[str, str] = {
         "P5b's whatif_thread.remember(): the confirmed scenario is written "
         "after a turn settles, through the server-only "
         "set_thread_context."),
+    # -- the authorised execution bridge. PROTECTED_CORE_INCOMPATIBILITY.md
+    # section 7, Option A: approved narrowly, to make the already-built
+    # deterministic engine reachable from the existing conversation.
+    "execute_tool.py": (
+        "the scenario branch: one arm in validate_batch, one in _run_step, "
+        "and a thin _run_whatif that delegates to scenario/bridge.py. The "
+        "step's code is never parsed and never executed on this path."),
+    "contracts.py": (
+        "the scenario step LANGUAGE: parse_steps accepts it and "
+        "provider_tools adds it to the provider's copy of the schema, both "
+        "only while a book has What-If on. The protected schema JSON files "
+        "are not edited and stay at their baseline hashes. Recorded as the "
+        "second protected file this bridge needed, which was stopped for and "
+        "authorised before it was written."),
 }
 
 
 def test_a04_only_the_recorded_core_files_reach_this_package() -> None:
-    """Four protected files import the candidate package, each for a reason.
+    """Six protected files import the candidate package, each for a reason.
 
-    Any fifth appearing here is a new core dependency, which is exactly
+    Any seventh appearing here is a new core dependency, which is exactly
     what section 1.2 asks to be recorded rather than accumulated quietly.
     The list is written out in `CORE_IMPORTERS` with the extension each one
     carries, so growing it is a deliberate edit to this file rather than a
