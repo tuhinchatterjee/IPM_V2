@@ -39,8 +39,14 @@ def build_provider(profile: Profile, *, env: dict[str, str] | None = None
         key = env.get(key_env) if key_env else None
         if key_env and not key:
             raise AdapterUnavailable(f"{key_env} is not set")
-        return OpenAICompatProvider(
-            base_url=base, model=profile.requested_model, api_key=key,
-            endpoint_class=ep.get("class", "local_loopback"),
-            native_ollama=(profile.route == "ollama_native"))
+        try:
+            return OpenAICompatProvider(
+                base_url=base, model=profile.requested_model, api_key=key,
+                endpoint_class=ep.get("class", "local_loopback"),
+                native_ollama=(profile.route == "ollama_native"),
+                request_controls=profile.raw.get("request_controls"))
+        except ValueError as exc:
+            # An unsupported request control (or endpoint rule) blocks the
+            # child with its reason; it is never run without the control.
+            raise AdapterUnavailable(str(exc)) from exc
     raise AdapterUnavailable(f"unknown route {profile.route}")

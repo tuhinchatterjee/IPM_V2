@@ -46,6 +46,24 @@ def _models(base: str, native_root: str | None, transport=None
         return False, [], f"{type(exc).__name__}: {exc}"
 
 
+def _digest(native_root: str | None, model: str, transport=None
+            ) -> str | None:
+    """Served artifact digest from Ollama's native /api/tags, if any."""
+    if not native_root:
+        return None
+    try:
+        with httpx.Client(timeout=5, transport=transport) as c:
+            r = c.get(native_root + "/api/tags")
+            if r.status_code != 200:
+                return None
+            for m in r.json().get("models", []):
+                if model in (m.get("name"), m.get("model")):
+                    return m.get("digest")
+    except (httpx.HTTPError, ValueError):
+        return None
+    return None
+
+
 def probe_profile(profile: Profile, *, base_url: str, api_key: str | None =
                   None, transport=None) -> dict[str, Any]:
     from backend.model_lab.adapters.openai_compat import OpenAICompatProvider
@@ -61,12 +79,24 @@ def probe_profile(profile: Profile, *, base_url: str, api_key: str | None =
                            "requested_model": model, "controls": {}}
     if not (reachable and model in models):
         return out
+    expected = (profile.raw.get("artifact") or {}).get(
+        "expected_digest_prefix")
+    if expected:
+        served = _digest(native_root, model, transport)
+        out["digest"] = served
+        out["expected_digest_prefix"] = expected
+        # None when the runtime does not report one: unproven, not a match.
+        out["digest_match"] = (served.removeprefix("sha256:")
+                               .startswith(expected) if served else None)
+    controls = profile.raw.get("request_controls") or None
+    out["request_controls"] = controls
     p = OpenAICompatProvider(base_url=base_url, model=model,
                              api_key=api_key, stream=True,
                              endpoint_class=profile.raw.get(
                                  "endpoint", {}).get("class",
                                                      "local_loopback"),
-                             transport=transport)
+                             transport=transport,
+                             request_controls=controls)
     sysblk = [{"type": "text", "text": "You are a protocol probe. Use the "
                "tool when asked."}]
     ctl = out["controls"]
@@ -87,7 +117,9 @@ def probe_profile(profile: Profile, *, base_url: str, api_key: str | None =
                              "args": call and call["input"],
                              "usage": r.native_usage,
                              "first_protocol_event_ms":
-                             r.first_protocol_event_ms}
+                             r.first_protocol_event_ms,
+                             "request_controls": r.request_controls,
+                             "reasoning_chars": r.reasoning_chars}
         if call:
             r2 = p.converse(system=sysblk, messages=[
                 {"role": "user", "content": "Call probe_echo with value 7."},
@@ -99,12 +131,22 @@ def probe_profile(profile: Profile, *, base_url: str, api_key: str | None =
             ctl["tool_result_roundtrip"] = r2.stop_reason in ("end_turn",
                                                               "tool_use")
             out["second_call"] = {"stop_reason": r2.stop_reason,
-                                  "text": r2.text[:200]}
+                                  "text": r2.text[:200],
+                                  "reasoning_chars": r2.reasoning_chars}
+        if controls:
+            # Both controlled requests were accepted (no 4xx) and the
+            # forced tool call came back under the control.
+            ctl["request_controls_accepted"] = (
+                call is not None and r.request_controls == controls)
         # Unforced turn must be allowed to answer in text.
         ctl["effort_control"] = False
         ctl["token_counting"] = False
     except Exception as exc:  # noqa: BLE001 - a probe reports, never raises
         out["error"] = f"{type(exc).__name__}: {exc}"[:400]
+        status = (getattr(exc, "detail", None) or {}).get("status_code")
+        if controls and status and 400 <= status < 500:
+            ctl["request_controls_accepted"] = False
+            out["request_controls_refused"] = f"HTTP {status}"
     return out
 
 

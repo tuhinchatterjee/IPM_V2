@@ -86,6 +86,8 @@ class _Observed:
             "first_complete_tool_ms": getattr(
                 result, "first_complete_tool_ms", None),
             "request_id": str(getattr(result, "request_id", "") or ""),
+            "request_controls": getattr(result, "request_controls", None),
+            "reasoning_chars": getattr(result, "reasoning_chars", None),
         })
         return result
 

@@ -17,6 +17,7 @@ Identities for the open-weight models come from master prompt v2.1 [R1]–[R8]. 
 | `opus-frozen` | `claude-opus-5` (from the frozen price card) | Frozen `AnthropicProvider`, non-streaming | NEEDS_APPROVAL | No `COCKPIT_ANTHROPIC_API_KEY`; `opus_spend` not granted |
 | `qwen3.5-9b` | Qwen/Qwen3.5-9B (tag `qwen3.5:9b`) | OpenAI-compatible (Ollama /v1) | NOT_INSTALLED | No runtime; probe not run |
 | `qwen3.5-4b` | Qwen/Qwen3.5-4B | OpenAI-compatible | NOT_INSTALLED | Same |
+| `qwen3.5-4b-nothink` | Qwen/Qwen3.5-4B (tag `qwen3.5:4b`, digest prefix `2a654d98e6fb`) | OpenAI-compatible, request control `reasoning_effort: "none"` | NOT_INSTALLED | Runtime reasoning variant of `qwen3.5-4b` (`parent_profile_id`); probe not run here |
 | `granite-4.2-8b` | ibm-granite/granite-4.2-8b | OpenAI-compatible | NOT_INSTALLED | Same; parser/template must be qualified |
 | `ministral-3-8b` | mistralai/Ministral-3-8B-Instruct-2512 | OpenAI-compatible | NOT_INSTALLED | Same |
 | `fin-r1-7b` | SUFE-AIFLM-Lab/Fin-R1 | — | DISABLED | Backlog; diagnostic-only until the mandatory controls pass |
@@ -44,5 +45,17 @@ The frozen engine relies on four controls:
 | **Ollama /v1 (OpenAI-compatible)** | `tool_choice` is sent; whether it is *enforced* is what the probe tests. Streamed tool calls are assembled before dispatch. |
 | **Ollama native `/api/chat`** | Has native counters and nanosecond timings, but **no `tool_choice`**. Forced tool use is not enforced on this route, and that is recorded in the translation notes. Use it only for diagnostics unless probes pass. |
 | **vLLM / RunPod-style** | The same adapter. The parser for each model family must be qualified by the probe. |
-| **Effort and thinking controls** | Not sent to candidates (`effort_control: false`). An accepted-but-ignored field is not treated as enforcement. |
+| **Effort and thinking controls** | Not sent to candidates by default (`effort_control: false`). An accepted-but-ignored field is not treated as enforcement. The one exception is an explicit per-profile `request_controls` (below). |
 | **Tuning / quantisation / reasoning variants** | Each is a **new profile** with `parent_profile_id`. Baseline profiles are immutable, and every child pins `profile_digest`. |
+
+## Request controls (opt-in, per profile)
+
+A profile may carry `request_controls`, for example `{"reasoning_effort": "none"}`. The rules:
+
+- **Absent by default.** With no `request_controls`, the adapter's request is byte-identical to the pre-control adapter (`tests/model_lab/test_request_controls.py` compares against commit `8b0d422`). Every existing profile is unaffected.
+- **Allowlisted per route** (`SUPPORTED_REQUEST_CONTROLS` in `adapters/openai_compat.py`). Currently only `reasoning_effort` ∈ {`none`, `low`, `medium`, `high`} on `openai_compat`. `ollama_native` and `anthropic` accept none.
+- **Explicit failure.** An unknown key, an unsupported value or an unsupported route is refused at profile load (`RegistryError`) and again at adapter construction; a child whose profile carries one is BLOCKED with the reason and never runs without the control.
+- **Sent only when configured**, as a top-level body field, with the translation note `request control applied: key=value`. Tools, `tool_choice`, messages and `max_tokens` are unchanged.
+- **Proven by the probe.** A profile with controls also needs `request_controls_accepted` (the controlled forced-tool request was not refused and returned the tool call). A profile with `artifact.expected_digest_prefix` also needs the served digest (Ollama `/api/tags`) to match.
+- **Recorded as evidence.** Observer spans, call rows and export rows carry `request_controls` and `reasoning_chars` (length of any reasoning text the server streamed; observed only, never added to the answer). Each child carries `request_controls`, `parent_profile_id` and `reasoning_variant` (`reasoning_effort=none`, or `runtime-default (no reasoning control sent)` for an OpenAI-compatible profile with none).
+- **A variant is a separate profile.** The parent profile file is never edited; its runs stay separate evidence.

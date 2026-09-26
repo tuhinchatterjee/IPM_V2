@@ -46,6 +46,14 @@ MANDATORY_CONTROLS = ("tools", "forced_tool_use", "tool_result_roundtrip",
                       "stop_reason_mapping")
 
 
+def _mandatory(raw: dict[str, Any]) -> tuple[str, ...]:
+    """Controls a probe must prove. A profile that opts into request
+    controls must also prove the runtime ACCEPTED them."""
+    extra = (("request_controls_accepted",)
+             if raw.get("request_controls") else ())
+    return MANDATORY_CONTROLS + extra
+
+
 class RegistryError(ValueError):
     pass
 
@@ -95,6 +103,12 @@ def _validate(raw: dict[str, Any], path: Path) -> Profile:
         raise RegistryError(f"{path.name}: unknown status {raw['status']}")
     if raw["role"] not in (ROLE_COMPARATOR, ROLE_CANDIDATE, ROLE_FIXTURE):
         raise RegistryError(f"{path.name}: unknown role {raw['role']}")
+    if raw.get("request_controls") not in (None, {}):
+        from backend.model_lab.adapters.openai_compat import RequestControlError, validate_request_controls
+        try:
+            validate_request_controls(raw["request_controls"], raw["route"])
+        except RequestControlError as exc:
+            raise RegistryError(f"{path.name}: {exc}") from exc
     ep = raw.get("endpoint") or {}
     if "api_key" in ep:
         raise RegistryError(f"{path.name}: a profile may name a credential "
@@ -201,9 +215,16 @@ def readiness(profile: Profile, *, approvals: dict[str, Any],
                              [f"requested {profile.requested_model} but the "
                               f"server resolved {probe['resolved_model']}"],
                              "pin the exact artifact tag/digest", checks)
+        elif (raw.get("artifact") or {}).get("expected_digest_prefix") and \
+                probe.get("digest_match") is False:
+            return Readiness(profile.profile_id, INCOMPATIBLE_PROTOCOL,
+                             [f"served digest {probe.get('digest')!r} does "
+                              f"not start with the expected "
+                              f"{raw['artifact']['expected_digest_prefix']!r}"],
+                             "pull the pinned artifact", checks)
         elif not all(probe.get("controls", {}).get(c) for c in
-                     MANDATORY_CONTROLS):
-            failed = [c for c in MANDATORY_CONTROLS
+                     _mandatory(raw)):
+            failed = [c for c in _mandatory(raw)
                       if not probe.get("controls", {}).get(c)]
             return Readiness(profile.profile_id, INCOMPATIBLE_PROTOCOL,
                              [f"mandatory controls not proven: {failed}"],

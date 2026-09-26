@@ -81,6 +81,21 @@
    "group_wall_clock_s": 600,
    "deep_diagnostics": false,
    "note": "Scripted fixtures through the real engine. The comparator here is a FIXTURE, not Opus; Opus and Qwen stay visible with their blockers."
+  },
+  {
+   "preset_id": "qwen4b-reasoning-variants",
+   "name": "Qwen3.5-4B reasoning variants",
+   "profiles": [
+    "qwen3.5-4b-nothink"
+   ],
+   "comparator": "",
+   "execution_mode": "E2E_BASELINE",
+   "deployment": "mac_sequential",
+   "trial_count": 1,
+   "group_spend_cap_usd": 0.0,
+   "group_wall_clock_s": 1800,
+   "deep_diagnostics": false,
+   "note": "Local only, no paid call. Runs the no-thinking runtime variant (reasoning_effort=none) of qwen3.5:4b. The earlier default-thinking qwen3.5-4b run stays its own saved evidence; nothing is overwritten."
   }
  ]
 }

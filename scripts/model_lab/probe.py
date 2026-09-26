@@ -43,7 +43,12 @@ def main(argv: list[str] | None = None) -> int:
     path = probe.save(Path(args.runtime_dir).expanduser().resolve(), res)
     print(json.dumps({k: res.get(k) for k in (
         "profile_id", "runtime_reachable", "model_present",
-        "resolved_model", "controls", "error")}, indent=1))
+        "resolved_model", "controls", "error", "request_controls",
+        "request_controls_refused", "digest", "expected_digest_prefix",
+        "digest_match") if k in res or k in (
+        "profile_id", "runtime_reachable", "model_present", "resolved_model",
+        "controls", "error")} | {"reasoning_chars_first_call": (
+        res.get("first_call") or {}).get("reasoning_chars")}, indent=1))
     r = registry.readiness(prof, approvals={}, probes={prof.profile_id: res})
     print(f"readiness: {r.status} - {r.reasons[0]}")
     print(f"saved to {path}")

@@ -39,6 +39,44 @@ from backend.cockpit_v4.states import (
     PROVIDER_UNAVAILABLE,
 )
 
+#: Per-route request controls a PROFILE may opt into. Absent by default;
+#: anything not listed here is refused explicitly, never dropped silently.
+SUPPORTED_REQUEST_CONTROLS: dict[str, dict[str, frozenset[str]]] = {
+    "openai_compat": {"reasoning_effort": frozenset(
+        {"none", "low", "medium", "high"})},
+    "ollama_native": {},
+}
+
+
+class RequestControlError(ValueError):
+    """A configured request control this route cannot honour."""
+
+
+def validate_request_controls(controls: Any, route: str
+                              ) -> dict[str, str] | None:
+    """The controls to send, or None. Raises on anything unsupported."""
+    if controls in (None, {}):
+        return None
+    if not isinstance(controls, dict):
+        raise RequestControlError("request_controls must be an object")
+    allowed = SUPPORTED_REQUEST_CONTROLS.get(route)
+    if allowed is None:
+        raise RequestControlError(f"route {route!r} takes no request "
+                                  f"controls")
+    out: dict[str, str] = {}
+    for key, value in controls.items():
+        if key not in allowed:
+            raise RequestControlError(
+                f"request control {key!r} is not supported on route "
+                f"{route!r} (supported: {sorted(allowed) or 'none'})")
+        if str(value) not in allowed[key]:
+            raise RequestControlError(
+                f"request control {key}={value!r} is not supported on "
+                f"route {route!r} (allowed: {sorted(allowed[key])})")
+        out[key] = str(value)
+    return out
+
+
 _FINISH = {"tool_calls": "tool_use", "function_call": "tool_use",
            "stop": "end_turn", "length": "max_tokens",
            "content_filter": "refusal", "eos": "end_turn"}
@@ -66,6 +104,13 @@ class ConverseResult:
         self.first_complete_tool_ms = kw.get("first_complete_tool_ms")
         self.translation_notes: list[str] = kw.get("translation_notes", [])
         self.raw_digest = kw.get("raw_digest")
+        #: The opt-in request controls actually SENT on this call (None when
+        #: the profile configures none), and how much reasoning text the
+        #: server returned -- evidence of thinking vs no thinking. The
+        #: reasoning text itself never enters the answer or the history.
+        self.request_controls: dict[str, str] | None = kw.get(
+            "request_controls")
+        self.reasoning_chars: int = int(kw.get("reasoning_chars") or 0)
 
 
 # ---- request translation --------------------------------------------------
@@ -77,7 +122,8 @@ def _dump(obj: Any) -> str:
 def translate_request(*, system: Any, messages: list[dict[str, Any]],
                       tools: list[dict[str, Any]] | None,
                       tool_choice: dict[str, Any] | None,
-                      max_tokens: int, model: str, native_ollama: bool = False
+                      max_tokens: int, model: str, native_ollama: bool = False,
+                      request_controls: dict[str, str] | None = None
                       ) -> tuple[dict[str, Any], list[str]]:
     notes: list[str] = []
     out: list[dict[str, Any]] = []
@@ -161,6 +207,15 @@ def translate_request(*, system: Any, messages: list[dict[str, Any]],
             body.pop("parallel_tool_calls", None)
     else:
         body["max_tokens"] = max_tokens
+    if request_controls:
+        # Opt-in only: a profile that configures nothing gets a body that is
+        # byte-identical to the one this function built before controls
+        # existed. Validated again here so nothing unsupported is sent.
+        route = "ollama_native" if native_ollama else "openai_compat"
+        for key, value in validate_request_controls(request_controls,
+                                                    route).items():
+            body[key] = value
+            notes.append(f"request control applied: {key}={value}")
     return body, notes
 
 
@@ -217,6 +272,7 @@ def translate_response(data: dict[str, Any], *, seq: int
         stop = "tool_use"
         notes.append("finish_reason 'stop' with tool calls mapped to "
                      "tool_use")
+    reasoning = msg.get("reasoning") or msg.get("reasoning_content") or ""
     usage = data.get("usage") or {}
     cached = ((usage.get("prompt_tokens_details") or {})
               .get("cached_tokens") or 0)
@@ -228,7 +284,7 @@ def translate_response(data: dict[str, Any], *, seq: int
         input_tokens=(prompt - cached) if prompt is not None else None,
         output_tokens=usage.get("completion_tokens"),
         cache_read_tokens=cached, native_usage=usage or None,
-        translation_notes=notes)
+        translation_notes=notes, reasoning_chars=len(reasoning))
 
 
 def assemble_stream(chunks: Iterable[dict[str, Any]], *, seq: int,
@@ -240,6 +296,7 @@ def assemble_stream(chunks: Iterable[dict[str, Any]], *, seq: int,
     model = rid = ""
     usage: dict[str, Any] = {}
     first_evt = first_text = None
+    reasoning_chars = 0
     for ch in chunks:
         now = clock()
         if first_evt is None:
@@ -250,6 +307,8 @@ def assemble_stream(chunks: Iterable[dict[str, Any]], *, seq: int,
             usage = ch["usage"]
         for choice in ch.get("choices") or []:
             d = choice.get("delta") or {}
+            reasoning_chars += len(d.get("reasoning") or
+                                   d.get("reasoning_content") or "")
             if d.get("content"):
                 if first_text is None:
                     first_text = (now - t0) * 1000
@@ -292,6 +351,7 @@ def assemble_stream(chunks: Iterable[dict[str, Any]], *, seq: int,
     res.first_protocol_event_ms = first_evt
     res.first_visible_text_ms = first_text
     res.first_complete_tool_ms = ((done - t0) * 1000 if msg_calls else None)
+    res.reasoning_chars = reasoning_chars
     return res
 
 
@@ -335,7 +395,8 @@ class OpenAICompatProvider:
                  api_key: str | None = None,
                  endpoint_class: str = "local_loopback",
                  native_ollama: bool = False, stream: bool = True,
-                 transport: httpx.BaseTransport | None = None) -> None:
+                 transport: httpx.BaseTransport | None = None,
+                 request_controls: dict[str, Any] | None = None) -> None:
         if endpoint_class == "local_loopback" and not base_url.startswith(
                 ("http://127.0.0.1", "http://localhost", "http://[::1]")):
             raise ValueError("a local profile must use a loopback endpoint")
@@ -343,6 +404,11 @@ class OpenAICompatProvider:
                 "https://"):
             raise ValueError("a remote endpoint must use TLS (or an "
                              "approved SSH tunnel to loopback)")
+        # Refused HERE, at construction, so a child whose profile asks for an
+        # unsupported control is blocked -- never run without it.
+        self.request_controls = validate_request_controls(
+            request_controls,
+            "ollama_native" if native_ollama else "openai_compat")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self._key = api_key
@@ -371,7 +437,8 @@ class OpenAICompatProvider:
         body, notes = translate_request(
             system=system, messages=messages, tools=tools,
             tool_choice=tool_choice, max_tokens=max_tokens,
-            model=self.model, native_ollama=self.native)
+            model=self.model, native_ollama=self.native,
+            request_controls=self.request_controls)
         if output_config:
             notes.append("output_config not sent (no equivalent control on "
                          "this route)")
@@ -410,6 +477,8 @@ class OpenAICompatProvider:
                                   f"connection failed: {type(exc).__name__}",
                                   retry_class="transport") from exc
         res.translation_notes = notes + res.translation_notes
+        res.request_controls = dict(self.request_controls) \
+            if self.request_controls else None
         if res.stop_reason == "max_tokens":
             # Let the frozen engine raise its own OutputTruncated from the
             # stop reason; nothing is dispatched from a cut-off turn.

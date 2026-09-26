@@ -114,6 +114,9 @@ export function Overview({
               </td>
               <td className="p-2 text-text-secondary">
                 {blind ? "hidden" : `${c.requested_model} · ${c.identity?.status ?? "UNAVAILABLE"}`}
+                {!blind && c.reasoning_variant && (
+                  <div className="text-text-muted">reasoning: {c.reasoning_variant}</div>
+                )}
               </td>
               {cols.map(([k]) => (
                 <td key={k} className="p-2 text-text-secondary">

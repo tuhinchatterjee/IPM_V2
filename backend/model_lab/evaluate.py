@@ -302,6 +302,17 @@ def _sector_map(rows: list[dict], column: str | None = None
             if r.get(col) is not None and r.get(key) is not None}
 
 
+def _reasoning_variant(profile: dict[str, Any]) -> str | None:
+    """Label that separates a default-thinking run from a run whose
+    reasoning was switched off by a runtime request control."""
+    rc = profile.get("request_controls") or {}
+    if "reasoning_effort" in rc:
+        return f"reasoning_effort={rc['reasoning_effort']}"
+    if profile.get("route") == "openai_compat":
+        return "runtime-default (no reasoning control sent)"
+    return None
+
+
 def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
                    spec: dict[str, Any], task: oracle.Task | None,
                    reference: dict[str, Any] | None, tenant: str,
@@ -317,6 +328,9 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
         "profile_digest": child["profile_digest"],
         "requested_model": (profile.get("endpoint") or {}).get("model")
         or profile.get("registry_id"),
+        "request_controls": profile.get("request_controls") or None,
+        "reasoning_variant": _reasoning_variant(profile),
+        "parent_profile_id": profile.get("parent_profile_id"),
     }
     turns = child.get("turns") or []
     spans = [e["payload_obj"] for e in events
@@ -449,6 +463,8 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
             "protocol_flag": g.get("protocol_flag", ""),
             "provider_error": (s.get("error") or "")[:300],
             "provider_error_code": s.get("error_code") or "",
+            "request_controls": s.get("request_controls"),
+            "reasoning_chars": s.get("reasoning_chars"),
         })
     out["calls"] = calls
     out["app_lane"] = app_lane

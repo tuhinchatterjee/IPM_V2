@@ -1,0 +1,75 @@
+{
+ "profile_id": "qwen3.5-4b-nothink",
+ "display_name": "Qwen3.5-4B (no-thinking runtime variant)",
+ "parent_profile_id": "qwen3.5-4b",
+ "variant_kind": "runtime_reasoning_control",
+ "variant_note": "Runtime variant of qwen3.5-4b: the same base model, Ollama tag qwen3.5:4b and artifact digest, served by the same local endpoint. The ONLY difference is the request control reasoning_effort=none, which turns off Qwen3.5's default thinking. Results are evidence about this runtime configuration, not about a different model; the default-thinking parent run stays separate evidence.",
+ "role": "candidate",
+ "family": "Qwen",
+ "registry_id": "Qwen/Qwen3.5-4B",
+ "publisher_model_card": "https://huggingface.co/Qwen/Qwen3.5-4B",
+ "identity_source": "master prompt v2.1 [R2]; not re-verified in this session (no model-card fetch)",
+ "route": "openai_compat",
+ "status": "NOT_INSTALLED",
+ "status_reason": "Not installed on this host (no local runtime present).",
+ "recovery": "Ollama must serve qwen3.5:4b (digest prefix 2a654d98e6fb); run scripts/model_lab/probe.py --profile qwen3.5-4b-nothink to prove the runtime accepts reasoning_effort=none.",
+ "parameters_total": "4B",
+ "endpoint": {
+  "class": "local_loopback",
+  "base_url_env": "LAB_OLLAMA_OPENAI_URL",
+  "base_url_default": "http://127.0.0.1:11434/v1",
+  "model": "qwen3.5:4b",
+  "api_key_env": null
+ },
+ "context_tokens": null,
+ "max_output_tokens": 8192,
+ "limitations": [
+  "Never substitutes for 9B.",
+  "Runtime variant: reasoning disabled by request control; not comparable to the default-thinking parent as the same configuration."
+ ],
+ "allowed_modes": [
+  "E2E_BASELINE",
+  "OBSERVED_STAGE_EVIDENCE"
+ ],
+ "deployment_profiles": [
+  "mac_sequential",
+  "remote_parallel",
+  "same_model_hardware_diagnostic"
+ ],
+ "requires_probe": true,
+ "supported_controls": {
+  "tools": null,
+  "forced_tool_use": null,
+  "named_tool_forcing": null,
+  "tool_result_roundtrip": null,
+  "stop_reason_mapping": null,
+  "effort_control": false,
+  "token_counting": false
+ },
+ "price": {
+  "input_usd_per_mtok": 0.0,
+  "output_usd_per_mtok": 0.0,
+  "cache_write_usd_per_mtok": 0.0,
+  "cache_read_usd_per_mtok": 0.0,
+  "basis": "local marginal token charge only; hardware, power and cloud time are NOT included and are reported separately",
+  "verified_at": "2026-09-25",
+  "source": "lab local-inference policy"
+ },
+ "licence": "UNVERIFIED - read the model card before activation",
+ "provenance_status": "UNVERIFIED",
+ "base_revision": null,
+ "tokenizer_revision": null,
+ "artifact": {
+  "kind": null,
+  "digest": null,
+  "producer": null,
+  "official_build": null,
+  "expected_digest_prefix": "2a654d98e6fb",
+  "digest_source": "Mac `ollama list` ID prefix observed 2026-09-26"
+ },
+ "parameters_active": null,
+ "observed_probes": [],
+ "request_controls": {
+  "reasoning_effort": "none"
+ }
+}

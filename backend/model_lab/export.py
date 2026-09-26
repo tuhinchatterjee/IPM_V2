@@ -77,6 +77,10 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
             "error_code": k.get("error_code") or "",
             "reason": k.get("reason") or "",
             "requested_model": k.get("requested_model"),
+            "request_controls": (json.dumps(k["request_controls"],
+                                            sort_keys=True)
+                                 if k.get("request_controls") else ""),
+            "reasoning_variant": k.get("reasoning_variant") or "",
             "identity_status": (k.get("identity") or {}).get("status"),
             "repetition": k["repetition"], "lineage": k.get("lineage"),
             "first_divergence": (k.get("first_divergence") or {}).get(
@@ -128,7 +132,8 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                           "input_tokens", "output_tokens",
                           "cache_read_tokens", "cache_write_tokens",
                           "token_status", "token_source", "protocol_flag",
-                          "errors_returned")} | {"duration_ms_unit": "ms"})
+                          "errors_returned", "request_controls",
+                          "reasoning_chars")} | {"duration_ms_unit": "ms"})
         for c in k["checks"]:
             out["checks"].append(base | {
                 "check_id": c["check_id"], "stage": c["stage"],

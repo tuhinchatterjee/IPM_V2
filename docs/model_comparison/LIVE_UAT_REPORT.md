@@ -125,3 +125,25 @@ A genuinely wrong count is still caught: 1,371 against a facility-count referenc
 ```
 
 **Frozen regression after lab-eval-3** (2026-09-26): 3,315 passed, 33 skipped, 0 failed. This is unchanged. The evidence files were restored and the protected manifest check passed.
+
+## Qwen3.5-4B on the Mac: default-thinking run, and the no-thinking runtime variant
+
+**Mac facts (operator-reported, 2026-09-26):**
+- Ollama tag `qwen3.5:4b`, ID/digest prefix `2a654d98e6fb`; probe READY_E2E for `qwen3.5-4b`.
+- Ollama with a 65,536-token context, flash attention, q8_0 KV cache, 100% GPU.
+- The first full comparison with `qwen3.5-4b` **expired after about 413 s**.
+- A warm-up with `num_predict=4` returned only `thinking` and no content: **Qwen3.5 thinks by default**. The lab adapter sent no reasoning control, so every engine call paid for a thinking pass under the frozen 30 s per-call / 180 s analytical deadlines.
+
+**That run is kept as valid evidence.** It measures `qwen3.5-4b` under the runtime's default reasoning behaviour. It is not overwritten, re-scored as something else, or merged with the variant.
+
+**The variant.** `qwen3.5-4b-nothink` is a separate profile (`parent_profile_id: qwen3.5-4b`, `variant_kind: runtime_reasoning_control`):
+- same model, tag, expected digest prefix and local endpoint;
+- the only difference is the request control `reasoning_effort: "none"`, which Ollama's OpenAI-compatible API accepts;
+- `profiles/qwen3.5-4b.json` is unchanged (a test compares its Git blob).
+
+Its results measure a **runtime configuration**, not a different model. The overview, call rows and exports label each child `reasoning_effort=none` or `runtime-default (no reasoning control sent)`, and `reasoning_chars` per call shows whether reasoning text was actually streamed.
+
+**Before running it, the probe must prove** that the runtime accepted the control (`request_controls_accepted`) and that the served digest starts with `2a654d98e6fb` (`digest_match`). Preset: **Qwen3.5-4B reasoning variants** (local only, $0 cap, no comparator, so no paid call).
+
+**Frozen regression.** Not re-run for this change: no frozen file or frozen interface is touched (adapter, registry, probe, observer, evaluator, export and UI are lab-owned). The protected manifest check passed: 1,775 files match `245c50e`.
+

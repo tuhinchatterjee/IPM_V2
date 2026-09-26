@@ -158,6 +158,8 @@ export type Call = {
   token_source: string;
   errors_returned: string[];
   protocol_flag: string;
+  request_controls?: Record<string, string> | null;
+  reasoning_chars?: number | null;
 };
 
 export type Failure = {
@@ -200,6 +202,9 @@ export type ChildEval = {
   error_code?: string;
   reason: string;
   requested_model: string;
+  request_controls?: Record<string, string> | null;
+  reasoning_variant?: string | null;
+  parent_profile_id?: string | null;
   identity: { status: string; resolved?: string[] };
   answer: {
     disposition?: string;
