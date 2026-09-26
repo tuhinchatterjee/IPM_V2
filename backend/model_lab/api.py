@@ -68,6 +68,9 @@ class CompareRequest(BaseModel):
     task_id: str = ""
     label: str = ""
     parent_id: str | None = None
+    #: A saved comparison whose comparator answers are compared with this
+    #: group's (agreement only, never latency). Empty means none.
+    reference_comparison_id: str = ""
 
 
 class ClarifyRequest(BaseModel):

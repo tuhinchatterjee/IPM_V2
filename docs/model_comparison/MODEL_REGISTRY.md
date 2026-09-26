@@ -18,6 +18,7 @@ Identities for the open-weight models come from master prompt v2.1 [R1]–[R8]. 
 | `qwen3.5-9b` | Qwen/Qwen3.5-9B (tag `qwen3.5:9b`) | OpenAI-compatible (Ollama /v1) | NOT_INSTALLED | No runtime; probe not run |
 | `qwen3.5-4b` | Qwen/Qwen3.5-4B | OpenAI-compatible | NOT_INSTALLED | Same |
 | `qwen3.5-4b-nothink` | Qwen/Qwen3.5-4B (tag `qwen3.5:4b`, digest prefix `2a654d98e6fb`) | OpenAI-compatible, request control `reasoning_effort: "none"` | NOT_INSTALLED | Runtime reasoning variant of `qwen3.5-4b` (`parent_profile_id`); probe not run here |
+| `qwen3.5-4b-nothink-longrun` | Same model, tag, digest prefix and `reasoning_effort: "none"` as `qwen3.5-4b-nothink` | OpenAI-compatible; **LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE** | NOT_INSTALLED | 900 s calls, 3,600 s run, in an isolated child process; runs only in `LONG_RUN_DIAGNOSTIC` mode |
 | `granite-4.2-8b` | ibm-granite/granite-4.2-8b | OpenAI-compatible | NOT_INSTALLED | Same; parser/template must be qualified |
 | `ministral-3-8b` | mistralai/Ministral-3-8B-Instruct-2512 | OpenAI-compatible | NOT_INSTALLED | Same |
 | `fin-r1-7b` | SUFE-AIFLM-Lab/Fin-R1 | — | DISABLED | Backlog; diagnostic-only until the mandatory controls pass |
@@ -59,3 +60,14 @@ A profile may carry `request_controls`, for example `{"reasoning_effort": "none"
 - **Proven by the probe.** A profile with controls also needs `request_controls_accepted` (the controlled forced-tool request was not refused and returned the tool call). A profile with `artifact.expected_digest_prefix` also needs the served digest (Ollama `/api/tags`) to match.
 - **Recorded as evidence.** Observer spans, call rows and export rows carry `request_controls` and `reasoning_chars` (length of any reasoning text the server streamed; observed only, never added to the answer). Each child carries `request_controls`, `parent_profile_id` and `reasoning_variant` (`reasoning_effort=none`, or `runtime-default (no reasoning control sent)` for an OpenAI-compatible profile with none).
 - **A variant is a separate profile.** The parent profile file is never edited; its runs stay separate evidence.
+
+## Long-run diagnostic limits (operator-authorised, isolated process)
+
+The frozen engine takes its time limits from module constants in `backend/cockpit_v4/config.py` (`STANDARD_LIMITS`, `DEEP_LIMITS`, `ANALYTICAL_*_LIMITS`), read by `envelope.limits_for_family` when `Worker.execute` builds its `Ledger`. No Runtime, config or environment seam changes them. For the long-run diagnostic only, the operator authorised an in-memory override. The rules:
+
+- **Profile field `diagnostic_limits`**, allowlisted to `deadline_seconds` ≤ 3600, `action_call_seconds` ≤ 900 and `answer_call_seconds` ≤ 900. Values must be finite and positive; anything else is refused at load. Such a profile must also set `sla_comparable: false` and `diagnostic_label: "LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE"`.
+- **Separate process.** The coordinator runs such a child with `python -m backend.model_lab.diagnostic_child`, which calls the same `Coordinator._run_child` path. The override (`backend/model_lab/diagnostic_limits.py`) refuses to run unless that process was armed as a diagnostic child. It replaces only the three time fields on the four limit families and restores them in `finally`; then the process exits. The lab server's frozen values are never replaced.
+- **Mode separation.** Diagnostic profiles run only in execution mode `LONG_RUN_DIAGNOSTIC`, and `E2E_BASELINE` refuses them.
+- **Evidence.** Each diagnostic child records the frozen policy (from the lab server), the effective policy (from the child process), both process ids, the policy after restore, the frozen engine's own "Allowance" events and each call's `call_timeout_seconds`. The UI, export and HTML report carry the label.
+- **Reference baseline.** A comparison may name `reference_comparison_id`. Its saved evaluation is read, never rewritten, and each child gets `reference_match` against the saved comparator (agreement only, never latency).
+

@@ -109,6 +109,18 @@ def _validate(raw: dict[str, Any], path: Path) -> Profile:
             validate_request_controls(raw["request_controls"], raw["route"])
         except RequestControlError as exc:
             raise RegistryError(f"{path.name}: {exc}") from exc
+    if raw.get("diagnostic_limits") is not None:
+        from backend.model_lab import diagnostic_limits as dl
+        try:
+            dl.validate(raw["diagnostic_limits"])
+        except dl.DiagnosticLimitsError as exc:
+            raise RegistryError(f"{path.name}: {exc}") from exc
+        # A profile with relaxed time limits must say so, everywhere.
+        if raw.get("sla_comparable") is not False or \
+                raw.get("diagnostic_label") != dl.LABEL:
+            raise RegistryError(
+                f"{path.name}: a diagnostic_limits profile must set "
+                f"sla_comparable=false and diagnostic_label={dl.LABEL!r}")
     ep = raw.get("endpoint") or {}
     if "api_key" in ep:
         raise RegistryError(f"{path.name}: a profile may name a credential "
@@ -242,7 +254,10 @@ def readiness(profile: Profile, *, approvals: dict[str, Any],
     # READY_E2E only here, from evidence -- never from its declared status.
     if raw.get("requires_probe"):
         modes = raw.get("allowed_modes") or []
-        status = (READY_E2E if "E2E_BASELINE" in modes
+        # A long-run diagnostic still runs the whole frozen workflow end to
+        # end; it is labelled SLA NOT COMPARABLE, never a baseline.
+        status = (READY_E2E if ("E2E_BASELINE" in modes or
+                                "LONG_RUN_DIAGNOSTIC" in modes)
                   else READY_DIAGNOSTIC_ONLY)
         return Readiness(profile.profile_id, status, ["probe passed"], "",
                          checks)

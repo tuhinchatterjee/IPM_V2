@@ -131,6 +131,10 @@ export function ModelComparisonLab() {
       trial_count: preset?.trial_count ?? 1,
       group_spend_cap_usd: preset?.group_spend_cap_usd ?? 0,
       group_wall_clock_s: preset?.group_wall_clock_s ?? 1800,
+      ...(preset?.execution_mode ? { execution_mode: preset.execution_mode } : {}),
+      ...(preset?.reference_comparison_id
+        ? { reference_comparison_id: preset.reference_comparison_id }
+        : {}),
     };
   }
 

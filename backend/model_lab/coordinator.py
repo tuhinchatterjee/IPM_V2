@@ -24,6 +24,8 @@ import hashlib
 import json
 import os
 import random
+import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -185,9 +187,24 @@ class Coordinator:
         if unknown:
             errors.append(f"unknown profile ids: {unknown}")
         mode = request.get("execution_mode") or "E2E_BASELINE"
-        if mode != "E2E_BASELINE":
+        diag = [p for p in selected if p in self.profiles and
+                self.profiles[p].raw.get("diagnostic_limits")]
+        if mode == "LONG_RUN_DIAGNOSTIC":
+            # Relaxed time limits are never recorded as a baseline run.
+            if not diag:
+                errors.append("LONG_RUN_DIAGNOSTIC needs at least one "
+                              "long-run diagnostic profile")
+        elif mode != "E2E_BASELINE":
             errors.append(f"{mode} is not available from Compare; controlled "
                           f"diagnostics need a saved Deep diagnostics preset")
+        elif diag:
+            errors.append(f"{diag} relax the frozen time limits and may run "
+                          f"only in LONG_RUN_DIAGNOSTIC mode (SLA not "
+                          f"comparable), never as E2E_BASELINE")
+        ref = request.get("reference_comparison_id") or ""
+        if ref and self.store.get_comparison(ref, self.cfg.tenant_id) is None:
+            errors.append(f"reference comparison {ref} is not saved in this "
+                          f"lab")
         deployment = request.get("deployment") or "mac_sequential"
         if deployment not in DEPLOYMENTS:
             errors.append(f"unknown deployment {deployment}")
@@ -333,6 +350,11 @@ class Coordinator:
                                 [r["profile_id"] for r in pre["profiles"]]},
             "preflight": pre,
         }
+        if request.get("reference_comparison_id"):
+            # A SAVED comparison whose comparator this group's answers are
+            # compared with (agreement only; read-only; never latency).
+            spec["reference_comparison_id"] = str(
+                request["reference_comparison_id"])
         spec_hash = _h({k: v for k, v in spec.items()
                         if k not in ("created_at", "preflight")})
         row, created = self.store.create_comparison(
@@ -455,7 +477,12 @@ class Coordinator:
                               child_run_id=child["child_run_id"],
                               status=target, payload={"reason": why})
                 return
-            self._run_child(cid, spec, child, turn=turn, cancel=cancel)
+            if self.profiles[child["profile_id"]].raw.get(
+                    "diagnostic_limits"):
+                self._run_child_isolated(cid, spec, child, turn=turn,
+                                         cancel=cancel)
+            else:
+                self._run_child(cid, spec, child, turn=turn, cancel=cancel)
 
         try:
             if par:
@@ -619,6 +646,89 @@ class Coordinator:
                            "provider_calls": len(spans)},
                   metric_values={"service_ms": (finished - admitted) * 1000},
                   units={"service_ms": "ms"})
+
+    def _run_child_isolated(self, cid: str, spec: dict[str, Any],
+                            child: dict[str, Any], *,
+                            turn: dict[str, Any] | None,
+                            cancel: threading.Event) -> None:
+        """A long-run diagnostic child, in its OWN process.
+
+        The operator-authorised time-limit override (`diagnostic_limits`)
+        patches frozen module values in memory; doing that here would reach
+        every other child this server runs. So the child runs the SAME
+        `_run_child` path in a separate interpreter, which applies the
+        override, restores it, and exits. This process is never patched.
+        """
+        from backend.model_lab import diagnostic_limits as dl
+
+        child_id = child["child_run_id"]
+        prof = self.profiles[child["profile_id"]]
+        limits = dl.validate(prof.raw["diagnostic_limits"])
+        cap_s = limits.get("deadline_seconds", 3600.0) + 300.0
+        job_dir = self.cfg.runtime_dir / "diagnostic"
+        job_dir.mkdir(parents=True, exist_ok=True)
+        job = job_dir / f"{child_id}-{uuid.uuid4().hex[:6]}.json"
+        job.write_text(json.dumps({
+            "cfg": {"runtime_dir": str(self.cfg.runtime_dir),
+                    "tenant_id": self.cfg.tenant_id,
+                    "remote_parallel_workers":
+                        self.cfg.remote_parallel_workers,
+                    "manifest_path": str(self.cfg.manifest_path)},
+            "comparison_id": cid, "child_run_id": child_id, "turn": turn,
+            "profile": prof.raw}, default=str))
+        env = dict(os.environ) | dict(self.env) | {dl.ENV_FLAG: "1"}
+        root = str(Path(__file__).resolve().parents[2])
+        env["PYTHONPATH"] = root + (os.pathsep + env["PYTHONPATH"]
+                                    if env.get("PYTHONPATH") else "")
+        log = (job_dir / f"{job.stem}.log").open("wb")
+        started = time.monotonic()
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "backend.model_lab.diagnostic_child",
+             str(job)], cwd=root, env=env, stdout=log,
+            stderr=subprocess.STDOUT)
+        self.emit(cid, "diagnostic.child.spawned", child_run_id=child_id,
+                  payload={"pid": proc.pid, "parent_pid": os.getpid(),
+                           "label": dl.LABEL, "cap_seconds": cap_s,
+                           "frozen_policy": dl.frozen_policy(),
+                           "requested_overrides": limits,
+                           "log": str(job_dir / f"{job.stem}.log")})
+        forwarded = killed = False
+        try:
+            while proc.poll() is None:
+                if cancel.is_set() and not forwarded:
+                    run_id = (self.store.child(child_id) or {}).get(
+                        "current_run_id")
+                    if run_id:
+                        self.runs.request_cancel(run_id)
+                        forwarded = True
+                if time.monotonic() - started > cap_s:
+                    proc.kill()
+                    killed = True
+                    break
+                time.sleep(0.25)
+            rc = proc.wait()
+        finally:
+            log.close()
+        self.emit(cid, "diagnostic.child.exited", child_run_id=child_id,
+                  status="ok" if rc == 0 and not killed else "error",
+                  payload={"pid": proc.pid, "returncode": rc,
+                           "killed_at_cap": killed,
+                           "parent_policy_after": dl.frozen_policy()},
+                  metric_values={"process_ms":
+                                 (time.monotonic() - started) * 1000},
+                  units={"process_ms": "ms"})
+        now = self.store.child(child_id) or {}
+        if now.get("state") in (C_QUEUED, C_PREPARING, C_RUNNING):
+            why = (f"diagnostic subprocess killed at the {cap_s:.0f}s safety "
+                   f"cap" if killed else
+                   f"diagnostic subprocess exited rc={rc} before the child "
+                   f"settled")
+            self.store.transition_child(
+                child_id, C_FAILED, expect=(C_QUEUED, C_PREPARING, C_RUNNING),
+                finished_monotonic=time.monotonic(), finished_wall=time.time(),
+                reason=why)
+            self.emit(cid, "child.settled", child_run_id=child_id,
+                      status=C_FAILED, payload={"error_code": why})
 
     def _settle_group(self, cid: str) -> None:
         kids = self.store.children(cid)

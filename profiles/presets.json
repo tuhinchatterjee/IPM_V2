@@ -96,6 +96,22 @@
    "group_wall_clock_s": 1800,
    "deep_diagnostics": false,
    "note": "Local only, no paid call. Runs the no-thinking runtime variant (reasoning_effort=none) of qwen3.5:4b. The earlier default-thinking qwen3.5-4b run stays its own saved evidence; nothing is overwritten."
+  },
+  {
+   "preset_id": "qwen4b-longrun-diagnostic",
+   "name": "Qwen3.5-4B long-run diagnostic (SLA not comparable)",
+   "profiles": [
+    "qwen3.5-4b-nothink-longrun"
+   ],
+   "comparator": "",
+   "reference_comparison_id": "cmp-f364d8b6901a",
+   "execution_mode": "LONG_RUN_DIAGNOSTIC",
+   "deployment": "same_model_hardware_diagnostic",
+   "trial_count": 1,
+   "group_spend_cap_usd": 0.0,
+   "group_wall_clock_s": 3600,
+   "deep_diagnostics": false,
+   "note": "LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE. Local only, no paid call. 900 s calls and a 3,600 s run, applied only inside an isolated child process. Answers are compared with the saved Opus comparison cmp-f364d8b6901a for agreement, never latency. The 30 s runs stay separate evidence."
   }
  ]
 }

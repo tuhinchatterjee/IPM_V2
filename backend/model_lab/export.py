@@ -81,6 +81,19 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                                             sort_keys=True)
                                  if k.get("request_controls") else ""),
             "reasoning_variant": k.get("reasoning_variant") or "",
+            "diagnostic_label": (k.get("diagnostic") or {}).get("label")
+            or "",
+            "sla_comparable": k.get("sla_comparable", True),
+            "frozen_timeout_policy": (json.dumps(
+                (k.get("diagnostic") or {}).get("frozen_policy"),
+                sort_keys=True) if k.get("diagnostic") else ""),
+            "effective_timeout_policy": (json.dumps(
+                (k.get("diagnostic") or {}).get("effective_policy"),
+                sort_keys=True) if k.get("diagnostic") else ""),
+            "diagnostic_child_pid": (k.get("diagnostic") or {}).get(
+                "child_pid") or "",
+            "reference_comparison_id": ((ev.get("reference_baseline") or {})
+                                        .get("comparison_id") or ""),
             "identity_status": (k.get("identity") or {}).get("status"),
             "repetition": k["repetition"], "lineage": k.get("lineage"),
             "first_divergence": (k.get("first_divergence") or {}).get(
@@ -133,7 +146,7 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                           "cache_read_tokens", "cache_write_tokens",
                           "token_status", "token_source", "protocol_flag",
                           "errors_returned", "request_controls",
-                          "reasoning_chars")} | {"duration_ms_unit": "ms"})
+                          "reasoning_chars", "call_timeout_seconds")} | {"duration_ms_unit": "ms"})
         for c in k["checks"]:
             out["checks"].append(base | {
                 "check_id": c["check_id"], "stage": c["stage"],
@@ -312,6 +325,13 @@ def _answer_html(k: dict[str, Any]) -> str:
 
 def _readme(ev: dict[str, Any], manifest: dict[str, Any],
             files: list[str]) -> str:
+    banner = "".join(
+        f"<p style='border:3px solid #b00;padding:8px;font-weight:bold'>"
+        f"{_esc(k['diagnostic']['label'])}: {_esc(k['display_name'])}. "
+        f"Frozen policy {_esc(json.dumps(k['diagnostic'].get('frozen_policy'), sort_keys=True))}; "
+        f"effective {_esc(json.dumps(k['diagnostic'].get('effective_policy'), sort_keys=True))}. "
+        f"Timing is hardware evidence only.</p>"
+        for k in ev["children"] if k.get("diagnostic"))
     rows_ = "".join(
         f"<tr><td>{_esc(k['display_name'])}</td>"
         f"<td>{_esc('FIXTURE' if k['fixture'] else 'model')}</td>"
@@ -326,6 +346,7 @@ def _readme(ev: dict[str, Any], manifest: dict[str, Any],
 <title>Comparison {_esc(ev['comparison_id'])}</title>
 <style>body{{font:14px system-ui;margin:24px;max-width:1100px}}td,th{{border:1px solid #999;padding:4px 6px}}table{{border-collapse:collapse}}</style>
 <h1>Model comparison {_esc(ev['comparison_id'])} — {_esc(RELEASE_CLAIM)}</h1>
+{banner}
 <p>Question: <b>{_esc(manifest['question_text'])}</b></p>
 <p>Frozen source {_esc(FROZEN_COMMIT[:12])} · data {_esc(manifest['data_snapshot_id'])} ·
 evaluator {_esc(ev['evaluator_version'])} · comparator {_esc(ev['comparator']['profile_id'])}

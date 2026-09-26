@@ -302,6 +302,45 @@ def _sector_map(rows: list[dict], column: str | None = None
             if r.get(col) is not None and r.get(key) is not None}
 
 
+def _diagnostic(cid: str, profile: dict[str, Any], events: list[dict]
+                ) -> dict[str, Any] | None:
+    """The long-run diagnostic record: frozen policy, effective policy and
+    the isolated process that applied it. None for every ordinary child."""
+    if not profile.get("diagnostic_limits"):
+        return None
+
+    def payload(kind: str) -> dict[str, Any]:
+        ev = [e for e in events if e["child_run_id"] == cid
+              and e["event_type"] == kind and e.get("payload_obj")]
+        return ev[-1]["payload_obj"] if ev else {}
+    spawned = payload("diagnostic.child.spawned")
+    applied = payload("diagnostic.limits.applied")
+    exited = payload("diagnostic.child.exited")
+    restored = payload("diagnostic.limits.restored")
+    return {
+        "label": profile.get("diagnostic_label"),
+        "kind": profile.get("variant_kind"),
+        "sla_comparable": False,
+        "latency_note": "hardware evidence only; never compared with a "
+                        "baseline or SLA run",
+        "configured_limits": profile.get("diagnostic_limits"),
+        # From the lab server, whose frozen values are never patched.
+        "frozen_policy": spawned.get("frozen_policy"),
+        # From the isolated child, at the moment it applied the override.
+        "effective_policy": applied.get("effective_policy"),
+        "frozen_policy_seen_by_child": applied.get("frozen_policy"),
+        "child_pid": applied.get("pid") or spawned.get("pid"),
+        "parent_pid": spawned.get("parent_pid"),
+        "isolated_process": bool(applied.get("pid")) and
+        applied.get("pid") != spawned.get("parent_pid"),
+        "restored_policy": restored.get("policy_after_restore"),
+        "parent_policy_after": exited.get("parent_policy_after"),
+        "process_returncode": exited.get("returncode"),
+        "killed_at_cap": exited.get("killed_at_cap"),
+        "safety_cap_seconds": spawned.get("cap_seconds"),
+    }
+
+
 def _reasoning_variant(profile: dict[str, Any]) -> str | None:
     """Label that separates a default-thinking run from a run whose
     reasoning was switched off by a runtime request control."""
@@ -331,6 +370,8 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
         "request_controls": profile.get("request_controls") or None,
         "reasoning_variant": _reasoning_variant(profile),
         "parent_profile_id": profile.get("parent_profile_id"),
+        "sla_comparable": profile.get("sla_comparable") is not False,
+        "diagnostic": _diagnostic(cid, profile, events),
     }
     turns = child.get("turns") or []
     spans = [e["payload_obj"] for e in events
@@ -346,6 +387,7 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
     answers = []
     app_spans: list[tuple[float, float]] = []
     app_lane: list[dict] = []
+    allowances: list[dict[str, Any]] = []
     for t in turns:
         run = runs.get_run(t["run_id"])
         messages = runs.load_messages(t["run_id"])
@@ -380,6 +422,13 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
                                  "end_ms": el, "duration_ms": el - s,
                                  "message": ev.public_message[:200],
                                  "event_seq": ev.seq})
+            if et == "context.ready" and ev.operation in ("allowance",
+                                                          "budget"):
+                # The frozen engine's own statement of the time it gave
+                # this run (initial, then any analytical widening).
+                allowances.append({"run_id": t["run_id"],
+                                   "operation": ev.operation,
+                                   "message": ev.public_message[:200]})
             if et == "answer.validated":
                 frozen_validation = {
                     "status": ev.status, "message": ev.public_message[:300],
@@ -445,6 +494,7 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
             "outcome": e.get("outcome"), "usable": e.get("usable"),
             "stop_reason": e.get("stop_reason") or s.get("stop_reason"),
             "provider_ms_frozen": e.get("provider_ms"),
+            "call_timeout_seconds": e.get("call_timeout_seconds"),
             "duration_ms": s.get("duration_ms"),
             "start_monotonic": s.get("start_monotonic"),
             "end_monotonic": s.get("end_monotonic"),
@@ -468,6 +518,12 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
         })
     out["calls"] = calls
     out["app_lane"] = app_lane
+    out["frozen_allowances"] = allowances
+    if out.get("diagnostic"):
+        out["diagnostic"]["observed_frozen_allowances"] = allowances
+        out["diagnostic"]["max_call_timeout_seconds"] = max(
+            (c["call_timeout_seconds"] for c in calls
+             if c.get("call_timeout_seconds") is not None), default=None)
 
     # ---- checks against the independent reference
     checks, facts = _checks(child, answers, runs, tenant, task, reference)
@@ -1458,7 +1514,9 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
     for e in events:
         e["payload_obj"] = (json.loads(coord.store.get_blob(e["payload_ref"]))
                             if e.get("payload_ref") and
-                            e["event_type"].startswith("provider.") else None)
+                            e["event_type"].startswith(("provider.",
+                                                        "diagnostic."))
+                            else None)
     task = oracle.find_task(spec["question_text"], spec.get("task_id") or "")
     reference = None
     if task and task.domain == spec.get("domain"):
@@ -1492,6 +1550,7 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
                  else "the comparator is agreement, not truth")}
     for k in kids:
         k["opus_match"] = (opus_match(k, comp) if k is not comp else None)
+    ref_baseline = _reference_baseline(coord, spec, kids)
     started = next((e["monotonic_time"] for e in events
                     if e["event_type"] == "comparison.created"), None)
     settled = [e["monotonic_time"] for e in events
@@ -1512,6 +1571,7 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
                        if k != "wrong_population_values"}
                       if reference else None),
         "comparator": comparator, "comparison_elapsed_ms": elapsed,
+        "reference_baseline": ref_baseline,
         "children": kids,
         "summary": _summary(kids),
         "comparison_class": _comparison_class(spec, kids),
@@ -1519,8 +1579,49 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
     }
 
 
+def _reference_baseline(coord, spec: dict[str, Any], kids: list[dict]
+                        ) -> dict[str, Any] | None:
+    """Agreement with the comparator of a SAVED comparison (read-only).
+
+    Used when a group has no comparator of its own -- a long-run diagnostic
+    is compared with the saved Opus run for answer agreement. Correctness
+    still comes from the independent oracle; latency is never compared.
+    """
+    ref = spec.get("reference_comparison_id")
+    if not ref:
+        return None
+    saved = coord.store.current_evaluation(ref, coord.cfg.tenant_id)
+    base = {"comparison_id": ref, "read_only": True,
+            "note": "separate saved run; answer/analysis agreement only, "
+                    "never latency or SLA"}
+    if saved is None:
+        for k in kids:
+            k["reference_match"] = None
+        return base | {"status": "REFERENCE_UNAVAILABLE"}
+    body = saved["body"]
+    comp_id = (body.get("comparator") or {}).get("profile_id")
+    ref_child = next((c for c in body.get("children") or []
+                      if c.get("profile_id") == comp_id), None)
+    for k in kids:
+        k["reference_match"] = opus_match(k, ref_child)
+    return base | {
+        "status": ("READY" if ref_child and ref_child.get(
+            "execution_state") == "COMPLETED" else "REFERENCE_UNAVAILABLE"),
+        "profile_id": comp_id,
+        "is_opus": comp_id == "opus-frozen",
+        "saved_revision": saved.get("revision"),
+        "saved_evaluator_version": body.get("evaluator_version"),
+        "reference_answer": (ref_child or {}).get("answer"),
+        "reference_checks": [{"check_id": c.get("check_id"),
+                              "outcome": c.get("outcome")}
+                             for c in (ref_child or {}).get("checks") or []],
+    }
+
+
 def _comparison_class(spec, kids) -> list[str]:
     tags = ["SEMANTIC_BASELINE_COMPARISON"]
+    if any(k.get("diagnostic") for k in kids):
+        tags = ["LONG_RUN_HARDWARE_QUALITY_DIAGNOSTIC", "SLA_NOT_COMPARABLE"]
     if any(k["fixture"] for k in kids):
         tags.append("FIXTURE_DEMONSTRATION")
     if spec.get("resource_lane") == "remote_parallel":

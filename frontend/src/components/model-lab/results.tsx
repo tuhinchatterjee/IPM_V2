@@ -80,8 +80,17 @@ export function Overview({
     ["output_tokens", "Output tokens"],
     ["cost_usd", "Cost"],
   ];
+  const diagnostic = ev.children.some((c) => c.diagnostic);
   return (
     <div className="overflow-x-auto">
+      {diagnostic && (
+        <p role="note" className="mb-2 rounded border-2 border-border-strong p-2 text-sm font-bold text-text-primary">
+          LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE. Relaxed time limits applied in an isolated
+          process; timing is hardware evidence only.
+          {ev.reference_baseline &&
+            ` Answers compared with saved comparison ${ev.reference_baseline.comparison_id} (agreement only, not latency; ${ev.reference_baseline.status}).`}
+        </p>
+      )}
       <table className="w-full border-collapse text-xs" aria-label="Overview, one row per model">
         <thead>
           <tr className="border-b border-border-strong text-left text-text-secondary">
@@ -107,6 +116,9 @@ export function Overview({
                 {c.profile_id === ev.comparator.profile_id && (
                   <span className="ml-1 text-text-muted">(comparator)</span>
                 )}
+                {c.diagnostic && (
+                  <div className="mt-1 font-bold text-text-primary">{c.diagnostic.label}</div>
+                )}
               </th>
               <td className="p-2">
                 <Status value={c.execution_state} />
@@ -121,6 +133,9 @@ export function Overview({
               {cols.map(([k]) => (
                 <td key={k} className="p-2 text-text-secondary">
                   <MetricCell m={c.metrics?.[k] as Metric | undefined} />
+                  {c.diagnostic && k.endsWith("_ms") && (
+                    <div className="text-text-muted">(diagnostic, not SLA)</div>
+                  )}
                 </td>
               ))}
               <td className="p-2 text-text-secondary">
@@ -299,7 +314,12 @@ function CallRow({ c }: { c: Call }) {
           <span className="text-warning"> · sources disagree: {c.tool_names_disagree.join(", ")}</span>
         )}
       </td>
-      <td className="p-1">{c.stop_reason}</td>
+      <td className="p-1">
+        {c.stop_reason}
+        {c.call_timeout_seconds != null && (
+          <div className="text-text-muted">timeout {c.call_timeout_seconds}s</div>
+        )}
+      </td>
       <td className="p-1">{c.duration_ms == null ? "unknown" : `${c.duration_ms.toFixed(1)} ms`}</td>
       <td className="p-1" title={c.token_source}>
         {c.input_tokens ?? "unknown"} / {c.output_tokens ?? "unknown"} ({c.token_status.toLowerCase()})
@@ -412,7 +432,8 @@ export function Evidence({
   const checks = stage
     ? child.checks.filter((c) => c.stage.includes(stage))
     : child.checks;
-  const match = child.opus_match;
+  const match = child.opus_match ?? child.reference_match ?? null;
+  const viaReference = !child.opus_match && Boolean(child.reference_match);
   return (
     <section aria-label={`Evidence for ${child.display_name}`} className="space-y-4 text-xs">
       <h3 className="text-sm font-semibold text-text-primary">
@@ -472,9 +493,26 @@ export function Evidence({
       )}
       <div>
         <h4 className="font-medium text-text-secondary">
-          {ev.comparator.is_opus ? "Opus Match" : "Comparator Match"} vs verified correctness
+          {viaReference
+            ? `${ev.reference_baseline?.is_opus ? "Opus Match" : "Comparator Match"} vs saved comparison ${ev.reference_baseline?.comparison_id}`
+            : ev.comparator.is_opus ? "Opus Match" : "Comparator Match"} vs verified correctness
         </h4>
-        <p className="text-text-muted">{ev.comparator.note}. Status: {ev.comparator.status}.</p>
+        <p className="text-text-muted">
+          {viaReference ? ev.reference_baseline?.note : ev.comparator.note}. Status:{" "}
+          {viaReference ? ev.reference_baseline?.status : ev.comparator.status}.
+        </p>
+        {child.diagnostic && (
+          <div className="rounded border-2 border-border-strong p-2">
+            <div className="font-bold text-text-primary">{child.diagnostic.label}</div>
+            <div>Frozen time policy: {JSON.stringify(child.diagnostic.frozen_policy)}</div>
+            <div>Effective diagnostic policy: {JSON.stringify(child.diagnostic.effective_policy)}</div>
+            <div>
+              Isolated process {String(child.diagnostic.child_pid ?? "unknown")} (parent{" "}
+              {String(child.diagnostic.parent_pid ?? "unknown")}); largest call timeout granted:{" "}
+              {child.diagnostic.max_call_timeout_seconds ?? "unknown"} s.
+            </div>
+          </div>
+        )}
         {!match && <p className="text-text-muted">This is the comparator.</p>}
         {match && (
           <table className="w-full border-collapse">

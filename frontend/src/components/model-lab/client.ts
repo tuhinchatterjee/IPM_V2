@@ -88,6 +88,7 @@ export type Preset = {
   trial_count: number;
   group_spend_cap_usd: number;
   group_wall_clock_s: number;
+  reference_comparison_id?: string;
   note?: string;
 };
 
@@ -160,6 +161,25 @@ export type Call = {
   protocol_flag: string;
   request_controls?: Record<string, string> | null;
   reasoning_chars?: number | null;
+  call_timeout_seconds?: number | null;
+};
+
+export type Diagnostic = {
+  label: string;
+  sla_comparable: false;
+  frozen_policy: Record<string, Record<string, number>> | null;
+  effective_policy: Record<string, Record<string, number>> | null;
+  child_pid?: number | null;
+  parent_pid?: number | null;
+  max_call_timeout_seconds?: number | null;
+};
+
+export type ReferenceBaseline = {
+  comparison_id: string;
+  status: string;
+  note: string;
+  is_opus?: boolean;
+  profile_id?: string;
 };
 
 export type Failure = {
@@ -205,6 +225,9 @@ export type ChildEval = {
   request_controls?: Record<string, string> | null;
   reasoning_variant?: string | null;
   parent_profile_id?: string | null;
+  sla_comparable?: boolean;
+  diagnostic?: Diagnostic | null;
+  reference_match?: Record<string, MatchStage> | null;
   identity: { status: string; resolved?: string[] };
   answer: {
     disposition?: string;
@@ -266,6 +289,7 @@ export type Evaluation = {
   task: { task_id: string; description: string } | null;
   reference: { period: string; unit: string; largest: string } | null;
   comparison_elapsed_ms: Metric;
+  reference_baseline?: ReferenceBaseline | null;
   children: ChildEval[];
   summary: Record<string, number | string>;
   comparison_class: string[];
@@ -322,6 +346,8 @@ export type CompareInput = {
   trial_count: number;
   group_spend_cap_usd: number;
   group_wall_clock_s: number;
+  execution_mode?: string;
+  reference_comparison_id?: string;
 };
 
 export const readProfiles = () =>

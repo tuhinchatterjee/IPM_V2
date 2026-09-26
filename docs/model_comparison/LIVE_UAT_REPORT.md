@@ -147,3 +147,35 @@ Its results measure a **runtime configuration**, not a different model. The over
 
 **Frozen regression.** Not re-run for this change: no frozen file or frozen interface is touched (adapter, registry, probe, observer, evaluator, export and UI are lab-owned). The protected manifest check passed: 1,775 files match `245c50e`.
 
+## Qwen3.5-4B long-run hardware/quality diagnostic (`qwen3.5-4b-nothink-longrun`)
+
+**Why.** The no-thinking variant was still cut off by the frozen per-call limit: 30 s per action call, inside a 180 s analytical run. The prompt was still being prefilled on the 16 GB M1 when calls were cancelled.
+
+**The frozen engine has no seam for longer limits.**
+- `Worker.execute` (`worker.py:139-145`) builds its `Ledger` from `envelope.for_request(...).limits`, which come from the constants in `config.py`.
+- The Ledger checks the deadline before each call (`provider.py:406-410`) and caps each call's client timeout at `min(remaining − 2 s, action_call_seconds)` (`provider.py:463`).
+- Deep mode is the only built-in alternative: a 240 s run with 45 s action calls. That is not enough.
+
+**Operator authorisation (2026-09-26).** A lab-only, in-memory override of those values, isolated in a diagnostic child process, with no frozen file edited. See `MODEL_REGISTRY.md` → "Long-run diagnostic limits".
+
+**Effective diagnostic policy:**
+
+| Limit | Frozen | Diagnostic |
+|---|---|---|
+| Action call | 30 s | 900 s |
+| Answer call | 55 s (last attempt: the remainder) | 900 s |
+| Analytical run | 180 s | 3,600 s |
+| Group wall clock | — | 3,600 s |
+| Subprocess safety kill | — | 3,900 s |
+
+Everything else is unchanged: tools, prompts, validators, SQL/Python execution and step limits, repair, the Finalizer, the finalisation reserve, token allowances, `reasoning_effort=none` and the Ollama tag and digest.
+
+**The three Qwen3.5-4B runs are separate evidence and are never merged:**
+1. `qwen3.5-4b`, default thinking: expired after about 413 s.
+2. `qwen3.5-4b-nothink`, 30 s calls: stopped by the frozen time limits.
+3. `qwen3.5-4b-nothink-longrun`: **LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE**.
+
+For run 3, correctness is judged by the independent oracle (S1–S4, claims, repairs). Agreement with the saved Opus comparison `cmp-f364d8b6901a` is shown as `reference_match`, read-only. Latency is reported as hardware evidence only, never against Opus or an SLA.
+
+**Resource measurement on the Mac.** The lab's sampler reads `/proc`, which macOS does not have, so it reports memory as unavailable there. Ollama's model memory is outside the lab process. Record `ollama ps` and `memory_pressure` alongside the run (commands in the handover).
+
