@@ -63,3 +63,29 @@ Expect the frozen 30 s per-call and 180 s analytical deadlines to be the first c
 ## Frozen regression result (final)
 
 `scripts/model_lab/frozen_regression.py`, run on the lab copy after all lab code was added: **3,315 passed, 33 skipped, 0 failed** (1,329.66 s). This is identical to the P0 baseline. The evidence files the frozen tests rewrote were restored from Git, and a diff was kept under `artifacts/model_comparison/regression/`. The protected manifest check passed afterwards.
+
+## Defects found in live Opus UAT (`cmp-f364d8b6901a`), fixed in the lab evaluator (`lab-eval-2`)
+
+The frozen engine answered correctly. Both faults were in the lab's reading of the frozen record.
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 1 | S1 `FAIL: no usable action was produced`; call rows showed `stop=tool_use`, `tools=(none)` | The frozen adapter returns SDK block objects, and the frozen store persists them as repr strings (OG-12). `evaluate._generations` accepted only dict `tool_use` blocks, so every live call had no tools, and `_stages` took the "no usable action" branch. The observer and the frozen call report both held the correct names. | Tool names now come from frozen authority (the call report's `tool_names`, with ids paired from engine-built `tool_result` blocks). Inputs come from frozen `submissions` and `final_response`. "No usable action" now requires the frozen record to say `no_tool_call` on every attempt, on a run that did not complete. |
+| 2 | 10/10 claims `UNSUPPORTED: the cited artifact cell was not found`; S4 FAIL, despite `answer.validated · ok` and `S4-LARGEST` PASS | `evaluate._claims` resolved `row_key` only as `column=value`. The Finalizer, and Opus, use published row ids (`r0`), and derived claims carry no single cell. Every mapping failure was labelled UNSUPPORTED. | Claims are resolved with the frozen `derivation.row_index_for`, and derived claims with `derivation.parse` / `compute`. A mapping failure gives `UNVERIFIABLE` / `EVIDENCE_INCOMPLETE` / `NEEDS_REVIEW`. The frozen validation is shown per claim and never overridden. |
+
+**Reproduced offline, with no paid call** (`tests/model_lab/live_shape.py`). The reproduction is an Anthropic-shaped provider through the real frozen engine: SDK blocks, `r0` row ids and a derived claim.
+
+The before/after below was produced on saved comparison `cmp-654f3cdff4cf`. Revision 1 was written by the pre-fix evaluator from HEAD `e573d20`; revision 2 by `scripts/model_lab/reevaluate.py`. Engine runs were 2 before and 2 after, so no inference took place.
+
+| Child | Before (r1) | After (r2) |
+|---|---|---|
+| Reference analyst | S1 FAIL, S2 NOT_OBSERVED, S4 PARTIAL; 3 calls with `tools=(none)`; claims UNSUPPORTED 2 | S1 PASS, S2 PASS, S4 PASS; 0 calls without tools; claims SUPPORTED 2 (the `r0` cell equals the oracle; the derived total is recomputed) |
+| Invented cause | S1 FAIL, S2 NOT_OBSERVED, S4 FAIL; claims UNSUPPORTED 3 | S1 PASS, S2 PASS, **S4 FAIL** (the causal sentence is still UNSUPPORTED); claims SUPPORTED 2, UNSUPPORTED 1 |
+
+**For the real saved Opus comparison.** Its store is on the Mac. After `git pull`, run the following there. It calls no model and prints the before/after:
+
+```bash
+.venv/bin/python scripts/model_lab/reevaluate.py --comparison cmp-f364d8b6901a
+```
+
+The script exits non-zero if the engine-run count changes.

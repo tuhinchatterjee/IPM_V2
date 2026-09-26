@@ -12,7 +12,7 @@ Nothing here imports from, or writes to, any What-If code or data.
 """
 
 LAB_VERSION = "model-lab-0.1.0"
-EVALUATOR_VERSION = "lab-eval-1"
+EVALUATOR_VERSION = "lab-eval-2"
 FROZEN_COMMIT = "245c50e45786c6e0c866b281f9dd74da17d160b5"
 FROZEN_TAG = "cockpit-round-h-live-pass-2026-09-23"
 RELEASE_CLAIM = "EXPERIMENTAL"

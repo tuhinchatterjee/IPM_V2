@@ -1,6 +1,6 @@
 # Evaluation rubric
 
-Versions: `lab-eval-1` (evaluator) and `lab-oracle-1` (oracle). Code: `backend/model_lab/evaluate.py` and `oracle.py`.
+Versions: `lab-eval-2` (evaluator; `lab-eval-1` superseded, see the evidence-status section) and `lab-oracle-1` (oracle). Code: `backend/model_lab/evaluate.py` and `oracle.py`.
 
 The evaluator reads only stored evidence: the frozen run store (messages, events, submissions, artifacts, call report, ledger) and the lab's observer spans. It never calls a model. Re-evaluation writes a new revision and marks the previous one `SUPERSEDED`.
 
@@ -33,6 +33,26 @@ These are never merged into a single score.
 | `S2-RESULT` | S2 | The result set matches the reference (by semantics, never by SQL text). |
 | `S4-LARGEST` | S4 | The largest sector matches. The right name computed over the wrong population is a FAIL. |
 | `S1-CLAR` | S1 | A clarification when the task marks it `not_required` gives PARTIAL plus NEEDS_REVIEW. Asking is never scored as a wrong answer. |
+
+## Evidence status (lab-eval-2)
+
+Every call row, claim and stage now carries an `evidence_status`:
+
+| Status | Meaning |
+|---|---|
+| `COMPLETE` | The tool call was read from dict blocks in the stored history, or the claim's evidence was located. |
+| `FROM_FROZEN_RECORD` | Tool names were taken from the frozen call report's `tool_names`, paired with the engine-built `tool_result` ids. This is the live Anthropic route (OG-12). |
+| `EVIDENCE_INCOMPLETE` | The frozen record shows a call or claim that the sidecar cannot map. |
+| `NO_TOOL_CALL_RECORDED` | The frozen engine itself recorded `parse_status=no_tool_call`. |
+
+The rules that follow from it:
+- **S1 "no usable action" FAIL** requires `NO_TOOL_CALL_RECORDED` on every attempt, and a run that did not complete. Lost telemetry is never proof that no call happened.
+- **S2** takes its status from the frozen result artifact when call attribution is incomplete.
+- **Claims** are resolved with the frozen public helpers `derivation.row_index_for`, which is exactly the Finalizer's row resolver (`r0`, bare index, `column=value`, unique value), and `derivation.parse` / `compute` for derived claims.
+- **A mapping failure** gives `UNVERIFIABLE` + `EVIDENCE_INCOMPLETE` + `NEEDS_REVIEW`. **It is never `UNSUPPORTED`.** `UNSUPPORTED` requires evidence that was inspected and does not support the claim, such as a causal sentence. `CONTRADICTED` requires located evidence that disagrees.
+- **Each claim carries `frozen_validation`**, the frozen Finalizer's `answer.validated` status and message, kept separate. A failed sidecar lookup never overrides it.
+- **S4 fails** only on an `UNSUPPORTED` causal claim. Unmapped claims mark S4 `EVIDENCE_INCOMPLETE` and add a `MEASUREMENT_OR_REVIEW_GAP` card (`model_failure=false`).
+- **Numbers in prose** that are not bound to a claim are `UNVERIFIABLE`, because the frozen Finalizer already refuses bare numbers.
 
 ## Claim ledger
 

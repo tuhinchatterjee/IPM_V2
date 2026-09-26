@@ -31,6 +31,8 @@ export function statusLabel(status: string | null | undefined): string {
     CONTRADICTED: "Contradicted",
     UNSUPPORTED: "Unsupported",
     UNVERIFIABLE: "Needs review",
+    EVIDENCE_INCOMPLETE: "Evidence incomplete",
+    FROM_FROZEN_RECORD: "From frozen record",
     "NOT_FACTUAL/QUALIFIED": "Qualified / not factual",
   };
   return map[s] ?? s.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());

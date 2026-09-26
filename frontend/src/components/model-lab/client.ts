@@ -124,6 +124,9 @@ export type Claim = {
   asserted_value: number | null;
   units: string | null;
   verification_status: string;
+  evidence_status?: string;
+  row_label?: string | null;
+  frozen_validation?: { status: string; message: string } | null;
   extraction_method: string;
   extraction_confidence_class: string;
   explanation: string;
@@ -139,6 +142,9 @@ export type Call = {
   phase: string;
   stage_tags: string[];
   tool_names: string[];
+  tool_names_source?: string;
+  evidence_status?: string;
+  tool_names_disagree?: string[];
   outcome: string;
   usable: boolean;
   stop_reason: string;

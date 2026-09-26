@@ -63,38 +63,127 @@ def _tool_results(messages: list[dict[str, Any]]) -> dict[str, dict]:
     return out
 
 
+#: Per-call evidence status for WHICH tools a generation called.
+EV_COMPLETE = "COMPLETE"                     # dict tool_use blocks in history
+EV_FROZEN = "FROM_FROZEN_RECORD"             # frozen call_report tool_names
+EV_INCOMPLETE = "EVIDENCE_INCOMPLETE"        # frozen says a call; no names
+EV_NO_TOOL = "NO_TOOL_CALL_RECORDED"         # frozen says: no tool call
+
+
+def _result_ids_after(messages: list[dict[str, Any]], index: int
+                      ) -> list[str]:
+    """tool_use ids answered by the user message after `index`. The engine
+    builds these tool_result blocks itself, as dicts, so they survive the
+    frozen store even when the assistant blocks were SDK objects."""
+    if index + 1 >= len(messages):
+        return []
+    nxt = messages[index + 1]
+    if nxt.get("role") != "user" or not isinstance(nxt.get("content"), list):
+        return []
+    return [str(p.get("tool_use_id") or "") for p in nxt["content"]
+            if isinstance(p, dict) and p.get("type") == "tool_result"]
+
+
 def _generations(messages: list[dict[str, Any]], call_report: list[dict],
                  spans: list[dict]) -> list[dict[str, Any]]:
     """One row per generation ATTEMPT, joined across three sources.
 
-    call_report (frozen, per attempt, ordered) gives purpose/phase/usable.
-    spans (lab observer, per converse, ordered) give time and usage.
-    messages give the tool calls that entered history and their results.
-    The join is by order within the run; the basis is recorded."""
+    WHICH TOOLS a generation called is taken from frozen authority, in
+    order, and never inferred:
+      1. dict `tool_use` blocks in the stored history (fixtures, OpenAI
+         routes);
+      2. the frozen call report's own `tool_names` for that attempt, with
+         ids paired from the engine-built `tool_result` blocks that answer
+         it. This is the path for the live Anthropic route: the frozen
+         adapter hands the engine SDK block objects and the frozen store
+         persists them as repr strings (OG-12), which are never parsed;
+      3. the lab observer's span, recorded as a cross-check only.
+    When the frozen record says a call happened but no source names it,
+    the call is EVIDENCE_INCOMPLETE -- not "no tool call".
+    """
     results = _tool_results(messages)
-    assistant = [m for m in messages if m.get("role") == "assistant"]
-    a_iter = iter(assistant)
+    assistant_idx = [i for i, m in enumerate(messages)
+                     if m.get("role") == "assistant"]
+    a_iter = iter(assistant_idx)
     gens = []
     conv_spans = [s for s in spans if s.get("kind") == "converse"]
     for i, entry in enumerate(call_report):
         span = conv_spans[i] if i < len(conv_spans) else None
-        tool_uses: list[dict] = []
-        if entry.get("parse_status") in ("tool_call",) or \
-                (entry.get("tool_calls") or 0) > 0:
-            msg = next(a_iter, None)
-            if msg and isinstance(msg.get("content"), list):
-                tool_uses = [p for p in msg["content"] if isinstance(p, dict)
-                             and p.get("type") == "tool_use"]
+        frozen_names = [str(n) for n in (entry.get("tool_names") or [])]
+        frozen_says_call = (entry.get("parse_status") == "tool_call" or
+                            (entry.get("tool_calls") or 0) > 0 or
+                            bool(frozen_names))
+        observer_names = [str(n) for n in ((span or {}).get("tool_names")
+                                           or [])]
+        tool_uses: list[dict[str, Any]] = []
+        msg_names: list[str] = []
+        source, status = "", EV_NO_TOOL
+        if frozen_says_call:
+            mi = next(a_iter, None)
+            content = messages[mi].get("content") if mi is not None else None
+            dict_blocks = [p for p in (content or [])
+                           if isinstance(p, dict) and
+                           p.get("type") == "tool_use"] \
+                if isinstance(content, list) else []
+            msg_names = [str(b.get("name")) for b in dict_blocks]
+            if dict_blocks:
+                tool_uses = [{"id": b.get("id"), "name": b.get("name"),
+                              "input": b.get("input")} for b in dict_blocks]
+                source, status = "stored_messages", EV_COMPLETE
+            elif frozen_names:
+                ids = _result_ids_after(messages, mi) if mi is not None \
+                    else []
+                tool_uses = [{"id": ids[k] if k < len(ids) and
+                              len(ids) == len(frozen_names) else None,
+                              "name": n, "input": None}
+                             for k, n in enumerate(frozen_names)]
+                source, status = "frozen_call_report", EV_FROZEN
+            else:
+                source, status = "none", EV_INCOMPLETE
         elif entry.get("parse_status") == "no_tool_call" and \
                 entry.get("response_text_chars"):
             next(a_iter, None)   # a text-only turn that entered history
+        names = [t["name"] for t in tool_uses]
+        by_source = {"stored_messages": msg_names,
+                     "frozen_call_report": frozen_names,
+                     "observer": observer_names}
+        disagree = [k for k, v in by_source.items() if v and v != names]
         gens.append({
             "seq": i + 1, "entry": entry, "span": span,
             "tool_uses": tool_uses,
-            "results": [results.get(t.get("id"), {}) for t in tool_uses],
+            "results": [results.get(t.get("id") or "", {})
+                        for t in tool_uses],
+            "tool_names_source": source, "evidence_status": status,
+            "tool_names_by_source": by_source,
+            "tool_names_disagree": disagree,
             "attribution_basis": ("order-join of frozen call_report, lab "
-                                  "observer spans and persisted messages")})
+                                  "observer spans and persisted messages; "
+                                  f"tool names from {source or 'n/a'}")})
     return gens
+
+
+def _fill_inputs_from_frozen_record(gens: list[dict[str, Any]], runs,
+                                    run_id: str, run: Any) -> None:
+    """Inputs for calls whose stored block was not a dict, from the frozen
+    record only: `execute_analysis` bodies from the frozen `submissions`
+    table (in order), and the disposition of the run's final answer from
+    `runs.final_response`. Nothing is reconstructed from prose or reprs."""
+    subs = [s.get("payload") or {} for s in
+            (runs.submissions_for_run(run_id) or [])]
+    k = 0
+    for g in gens:
+        for t in g["tool_uses"]:
+            if t["name"] == "execute_analysis" and t["input"] is None:
+                if k < len(subs):
+                    t["input"] = subs[k]
+                    t["input_source"] = "frozen_submissions"
+            if t["name"] == "execute_analysis":
+                k += 1
+    finals = [g for g in gens if any(t["name"] == "finalize_response"
+                                     for t in g["tool_uses"])]
+    fr = getattr(run, "final_response", None) or {}
+    if finals and fr.get("disposition"):
+        finals[-1]["final_disposition"] = fr["disposition"]
 
 
 def classify(gens: list[dict[str, Any]]) -> None:
@@ -109,7 +198,8 @@ def classify(gens: list[dict[str, Any]]) -> None:
         tags: list[str] = []
         final = next((t for t in g["tool_uses"]
                       if t.get("name") == "finalize_response"), None)
-        disp = (final or {}).get("input", {}).get("disposition", "")
+        disp = ((final or {}).get("input") or {}).get("disposition", "") \
+            or (g.get("final_disposition", "") if final else "")
         recovering = prev_error or purpose in ("ACTION_FORMAT_RECOVERY",
                                                "ANSWER_FORMAT_RECOVERY",
                                                "ANSWER_CORRECTION")
@@ -134,11 +224,17 @@ def classify(gens: list[dict[str, Any]]) -> None:
         if final and disp in ("answer", "partial_answer", "partial",
                               "safe_failure"):
             tags.append("S4")
+        if final and not disp and e.get("phase") == "answer":
+            tags.append("S4")          # an answer turn whose body is stored
         if purpose == "ANSWER_CORRECTION":
             tags += ["S3", "S4"]
         if not names:
             tags.append("S4" if e.get("phase") == "answer" else "S1")
-            g["protocol_flag"] = "no usable tool call"
+            if g.get("evidence_status") == EV_INCOMPLETE:
+                g["protocol_flag"] = ("tool names unavailable "
+                                      "(EVIDENCE_INCOMPLETE)")
+            else:
+                g["protocol_flag"] = "no usable tool call"
         g["stage_tags"] = sorted(set(tags))
         g["shared"] = len(set(tags) - {"S3"}) > 1 or len(set(tags)) > 1
         prev_error = any(r.get("is_error") for r in g["results"]) or \
@@ -203,6 +299,7 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
         return out
 
     all_gens: list[dict] = []
+    frozen_validation: dict[str, Any] | None = None
     answers = []
     app_spans: list[tuple[float, float]] = []
     app_lane: list[dict] = []
@@ -218,6 +315,7 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
             if answers else 0
         gens = _generations(messages, report,
                             run_spans[offset:offset + len(report)])
+        _fill_inputs_from_frozen_record(gens, runs, t["run_id"], run)
         classify(gens)
         for g in gens:
             g["run_id"] = t["run_id"]
@@ -239,8 +337,13 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
                                  "end_ms": el, "duration_ms": el - s,
                                  "message": ev.public_message[:200],
                                  "event_seq": ev.seq})
-            elif et in ("answer.validated", "answer.ready",
-                        "analysis.preserved"):
+            if et == "answer.validated":
+                frozen_validation = {
+                    "status": ev.status, "message": ev.public_message[:300],
+                    "run_id": t["run_id"], "event_seq": ev.seq,
+                    "source": "frozen Finalizer (answer.validated event)"}
+            if et in ("answer.validated", "answer.ready",
+                      "analysis.preserved"):
                 app_lane.append({"run_id": t["run_id"], "kind": et,
                                  "status": ev.status, "start_ms": el,
                                  "end_ms": el, "duration_ms": 0.0,
@@ -290,6 +393,10 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
             "shared_span": len([x for x in g["stage_tags"]]) > 1,
             "attribution_basis": g["attribution_basis"],
             "tool_names": [t.get("name") for t in g["tool_uses"]],
+            "tool_names_source": g["tool_names_source"],
+            "tool_names_by_source": g["tool_names_by_source"],
+            "tool_names_disagree": g["tool_names_disagree"],
+            "evidence_status": g["evidence_status"],
             "tool_choice": e.get("tool_choice"),
             "required_tool": e.get("required_tool"),
             "outcome": e.get("outcome"), "usable": e.get("usable"),
@@ -322,7 +429,8 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
     out["checks"] = checks
     out["repair"] = _repair(all_gens, facts)
     out["claims"] = _claims(last["final_response"], runs, tenant, task,
-                            reference, facts)
+                            reference, facts, frozen_validation)
+    out["frozen_validation"] = frozen_validation
     out["claim_rates"] = _claim_rates(out["claims"], task, facts)
     out["stages"] = _stages(all_gens, checks, out["repair"], out["claims"],
                             last, task)
@@ -330,6 +438,9 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
                               runs, profile)
     out["facts"] = facts
     out["failures"] = _failures(out, task)
+    gap = _evidence_gap_card(out)
+    if gap:
+        out["failures"].append(gap)     # last: never the first divergence
     out["first_divergence"] = _first_divergence(out)
     return out
 
@@ -558,56 +669,144 @@ def _sentences(text: str) -> list[str]:
             if s.strip()]
 
 
-def _claims(fr: dict | None, runs, tenant, task, reference, facts
-            ) -> list[dict[str, Any]]:
+def _artifact_record(runs, artifact_id: str, tenant: str) -> dict | None:
+    if not artifact_id:
+        return None
+    try:
+        return runs.get_artifact(artifact_id, tenant_id=tenant)
+    except Exception:  # noqa: BLE001 - an unreadable record is "not mapped"
+        return None
+
+
+def _numeric_claim(c: dict[str, Any], runs, tenant, task, reference,
+                   facts, frozen: dict[str, Any]) -> dict[str, Any]:
+    """One structured numeric claim, resolved with the FROZEN resolvers.
+
+    Direct claims are located with `derivation.row_index_for` -- the same
+    public helper the frozen Finalizer uses (`r0`, bare index,
+    `column=value`, unique value). Derived claims are recomputed with the
+    frozen `derivation.parse` / `compute` over the stored artifacts.
+
+    A failure to MAP the evidence is EVIDENCE_INCOMPLETE / UNVERIFIABLE,
+    never UNSUPPORTED: a sidecar that cannot find a locator has not shown
+    that the claim lacks support. CONTRADICTED is reserved for evidence
+    that was found and disagrees.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from backend.cockpit_v4 import derivation as deriv
+
+    exp = (reference or {}).get("values") or {}
+    ev = c.get("evidence") or {}
+    status, why, evidence_status = UNVERIFIABLE, "", EV_COMPLETE
+    value: Any = None
+    refs: list[str] = []
+    row_label = None
+    if c.get("derivation"):
+        try:
+            d = deriv.parse(c["derivation"])
+            refs = list(d.artifact_ids)
+            arts = {a: _artifact_record(runs, a, tenant) for a in refs}
+            missing = [a for a, r in arts.items() if r is None]
+            if missing:
+                raise deriv.DerivationError(
+                    f"artifact(s) {missing} not retrievable by the sidecar")
+            value = deriv.compute(d, arts, label=str(c.get("claim_id")))
+            claimed = c.get("decimal_value")
+            if claimed not in (None, ""):
+                try:
+                    if Decimal(str(claimed)) != Decimal(str(value)):
+                        status, why = CONTRADICTED, (
+                            f"recomputed {value} but the claim asserts "
+                            f"{claimed}")
+                except InvalidOperation:
+                    pass
+            if status != CONTRADICTED:
+                status = SUPPORTED
+                why = (f"recomputed from the stored artifacts with the "
+                       f"frozen derivation ({d.operation}) = {value}; no "
+                       f"independent reference for a derived value")
+        except deriv.DerivationError as exc:
+            status, evidence_status = UNVERIFIABLE, EV_INCOMPLETE
+            why = f"sidecar could not recompute the derivation: {exc}"
+    else:
+        refs = [ev.get("artifact_id") or ""]
+        rec = _artifact_record(runs, refs[0], tenant)
+        col = ev.get("column_id")
+        if rec is None:
+            evidence_status = EV_INCOMPLETE
+            why = (f"sidecar could not retrieve artifact {refs[0]!r}; "
+                   f"support not assessed")
+        else:
+            rows = list(rec.get("rows") or [])
+            idx = deriv.row_index_for(str(ev.get("row_key") or ""), rows)
+            if idx < 0 or not col or col not in rows[idx]:
+                evidence_status = EV_INCOMPLETE
+                why = (f"sidecar could not locate row "
+                       f"{ev.get('row_key')!r} / column {col!r} in "
+                       f"{refs[0]!r}; support not assessed")
+            else:
+                row = rows[idx]
+                value = row[col]
+                row_label = next((str(row[k]) for k in ("sector",
+                                                        "sector_name")
+                                  if k in row), None)
+                if exp and task and row_label in exp and \
+                        isinstance(value, (int, float)):
+                    if facts.get("population_ok") is False:
+                        status = CONTRADICTED
+                        why = (f"matches its own result ({value:,.2f}) but "
+                               f"the result is over the wrong population; "
+                               f"reference {exp[row_label]:,.2f}")
+                    elif oracle.within(float(value), exp[row_label], task):
+                        status = SUPPORTED
+                        why = (f"cell {value:,.2f} = reference "
+                               f"{exp[row_label]:,.2f} within tolerance")
+                    else:
+                        status = CONTRADICTED
+                        why = (f"cell {value:,.2f} vs reference "
+                               f"{exp[row_label]:,.2f}")
+                else:
+                    status = SUPPORTED
+                    why = ("located in the executed result (frozen row "
+                           "resolver); no independent reference for this "
+                           "cell")
+    return {
+        "claim_id": c.get("claim_id"),
+        "answer_span_ref": f"numeric_claims[{c.get('claim_id')}]",
+        "extracted_text": c.get("display_value") or "",
+        "claim_type": "numeric_derived" if c.get("derivation") else
+        "numeric", "asserted_value": value if not hasattr(
+            value, "as_tuple") else str(value),
+        "units": c.get("unit"),
+        "cohort": (reference or {}).get("population"),
+        "period": (reference or {}).get("period"),
+        "row_label": row_label, "result_refs": refs,
+        "extraction_method": "structured numeric claim (engine)",
+        "extraction_confidence_class": "HIGH",
+        "verification_status": status, "evidence_status": evidence_status,
+        "frozen_validation": frozen,
+        "assertion_refs": ["S1S2-POP"] if exp else [],
+        "materiality": "MATERIAL", "evaluator_version": EVALUATOR_VERSION,
+        "reviewer_status": ("NEEDS_REVIEW" if evidence_status ==
+                            EV_INCOMPLETE else "UNREVIEWED"),
+        "explanation": why}
+
+
+def _claims(fr: dict | None, runs, tenant, task, reference, facts,
+            frozen: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     if not fr:
         return []
-    claims: list[dict[str, Any]] = []
-    exp = (reference or {}).get("values") or {}
-    for c in fr.get("numeric_claims") or []:
-        ev = c.get("evidence") or {}
-        rows = _artifact_rows(runs, ev.get("artifact_id", ""), tenant)
-        row_key = ev.get("row_key", "")
-        key, _, val = row_key.partition("=")
-        cell = next((r.get(ev.get("column_id")) for r in rows
-                     if str(r.get(key)) == val), None)
-        status, why = UNVERIFIABLE, "no independent reference for this claim"
-        if cell is None:
-            status, why = UNSUPPORTED, "the cited artifact cell was not found"
-        elif exp and val in exp and task:
-            if facts.get("population_ok") is False:
-                status = CONTRADICTED
-                why = (f"matches its own result ({cell:,.2f}) but the result "
-                       f"is over the wrong population; reference "
-                       f"{exp[val]:,.2f}")
-            elif oracle.within(float(cell), exp[val], task):
-                status, why = SUPPORTED, (f"cell {cell:,.2f} = reference "
-                                          f"{exp[val]:,.2f} within tolerance")
-            else:
-                status = CONTRADICTED
-                why = f"cell {cell:,.2f} vs reference {exp[val]:,.2f}"
-        elif cell is not None:
-            status, why = SUPPORTED, ("bound to an executed result cell by "
-                                      "the frozen Finalizer; no independent "
-                                      "reference")
-        claims.append({
-            "claim_id": c.get("claim_id"), "answer_span_ref":
-            f"numeric_claims[{c.get('claim_id')}]",
-            "extracted_text": c.get("display_value") or "",
-            "claim_type": "numeric", "asserted_value": cell,
-            "units": c.get("unit"), "cohort": (reference or {}).get(
-                "population"), "period": (reference or {}).get("period"),
-            "result_refs": [ev.get("artifact_id")],
-            "extraction_method": "structured numeric claim (engine)",
-            "extraction_confidence_class": "HIGH",
-            "verification_status": status, "assertion_refs": ["S1S2-POP"]
-            if exp else [], "materiality": "MATERIAL",
-            "evaluator_version": EVALUATOR_VERSION,
-            "reviewer_status": "UNREVIEWED", "explanation": why})
+    frozen = frozen or {"status": "UNKNOWN",
+                        "message": "no answer.validated event found"}
+    claims = [_numeric_claim(c, runs, tenant, task, reference, facts,
+                             frozen)
+              for c in fr.get("numeric_claims") or []]
     rendered = fr.get("narrative") or ""
     for i, s in enumerate(_sentences(rendered)):
         numeric_rendered = any((c.get("display_value") or "#") in s
                                for c in fr.get("numeric_claims") or [])
+        evidence_status = EV_COMPLETE
         if CAUSAL.search(s):
             ctype, status = "causal", UNSUPPORTED
             why = ("asserts a cause; no executed result or approved "
@@ -619,9 +818,13 @@ def _claims(fr: dict | None, runs, tenant, task, reference, facts
         elif numeric_rendered:
             continue       # covered by the structured claim above
         elif NUMBER.search(s):
-            ctype, status = "numeric_prose", UNSUPPORTED
-            why = "a number in prose not bound to a structured claim"
-            conf = "LOW"
+            # The frozen Finalizer already refuses bare numbers in a
+            # published narrative, so what is left is periods, labels and
+            # counts it allows. Not bound to a claim here = needs review.
+            ctype, status = "numeric_prose", UNVERIFIABLE
+            why = ("a number in the validated narrative not bound to a "
+                   "structured claim; needs review")
+            conf, evidence_status = "LOW", EV_INCOMPLETE
         else:
             ctype, status, why, conf = ("factual", UNVERIFIABLE,
                                         "prose statement; needs review",
@@ -630,19 +833,25 @@ def _claims(fr: dict | None, runs, tenant, task, reference, facts
             "claim_id": f"narr-{i + 1}", "answer_span_ref":
             f"narrative.sentence[{i}]", "extracted_text": s[:500],
             "claim_type": ctype, "asserted_value": None, "units": None,
-            "cohort": None, "period": None, "result_refs": [],
+            "cohort": None, "period": None, "row_label": None,
+            "result_refs": [],
             "extraction_method": "sentence split + cue patterns (lab)",
             "extraction_confidence_class": conf,
-            "verification_status": status, "assertion_refs": [],
+            "verification_status": status,
+            "evidence_status": evidence_status,
+            "frozen_validation": frozen, "assertion_refs": [],
             "materiality": "MATERIAL" if ctype == "causal" else "MINOR",
             "evaluator_version": EVALUATOR_VERSION,
-            "reviewer_status": "UNREVIEWED", "explanation": why})
+            "reviewer_status": ("NEEDS_REVIEW" if status in (
+                UNVERIFIABLE, UNSUPPORTED) else "UNREVIEWED"),
+            "explanation": why})
     return claims
 
 
 def _claim_rates(claims: list[dict], task, facts) -> dict[str, Any]:
     factual = [c for c in claims if c["claim_type"] in
-               ("numeric", "causal", "numeric_prose", "factual")]
+               ("numeric", "numeric_derived", "causal", "numeric_prose",
+                "factual")]
     assessed = [c for c in factual if c["verification_status"] in
                 (SUPPORTED, CONTRADICTED, UNSUPPORTED)]
     contra = [c for c in assessed if c["verification_status"] == CONTRADICTED]
@@ -657,7 +866,8 @@ def _claim_rates(claims: list[dict], task, facts) -> dict[str, Any]:
     covered = []
     if task and produced:
         covered.append("per_sector_stage2_values")
-        if any(c["claim_type"] == "numeric" for c in claims):
+        if any(c["claim_type"] in ("numeric", "numeric_derived")
+               for c in claims):
             covered.append("largest_sector")
     return {
         "contradicted_rate": rate(len(contra), len(assessed)),
@@ -679,7 +889,15 @@ def _stages(gens, checks, repair, claims, last, task) -> dict[str, Any]:
     stages: dict[str, Any] = {}
     pop = by.get("S1S2-POP")
     clar = by.get("S1-CLAR")
-    no_tool = all(not g["tool_uses"] for g in gens) and gens
+    # "No usable action" needs FROZEN evidence: every attempt recorded as
+    # no_tool_call by the engine itself, and a run that did not complete.
+    # Lost or unparseable telemetry is never evidence that no call happened.
+    no_tool = bool(gens) and all(g["evidence_status"] == EV_NO_TOOL
+                                 for g in gens) and \
+        last["frozen_state"] not in ("COMPLETED", "PARTIAL", "REFERRED",
+                                     "UNSUPPORTED")
+    incomplete = [g["call_id"] for g in gens
+                  if g["evidence_status"] == EV_INCOMPLETE]
 
     # S1
     if no_tool:
@@ -701,7 +919,15 @@ def _stages(gens, checks, repair, claims, last, task) -> dict[str, Any]:
         s1 = {"status": UNKNOWN, "note": "no scope evidence"}
     stages["S1"] = s1
     # S2
-    if not call_ids["S2"]:
+    s2_result = by.get("S2-RESULT")
+    if not call_ids["S2"] and s2_result and \
+            s2_result["outcome"] in (PASS, FAIL):
+        # An executed artifact exists: execution is evidenced by the frozen
+        # store even when the call attribution is incomplete.
+        stages["S2"] = {"status": s2_result["outcome"],
+                        "note": "execution evidenced by the frozen result "
+                                "artifact; call attribution incomplete"}
+    elif not call_ids["S2"]:
         stages["S2"] = {"status": NOT_REACHED if last["frozen_state"] in (
             "WAITING_FOR_USER", "FAILED") else NOT_OBSERVED,
             "note": "no execute_analysis submission"}
@@ -723,9 +949,14 @@ def _stages(gens, checks, repair, claims, last, task) -> dict[str, Any]:
     else:
         bad = [c for c in claims if c["verification_status"] in
                (CONTRADICTED, UNSUPPORTED)]
-        own = [c for c in bad if c["claim_type"] in ("causal",
-                                                     "numeric_prose")]
+        # Only a claim whose evidence WAS inspected and found wanting counts
+        # against S4. An UNVERIFIABLE claim (the sidecar could not map it)
+        # is a review item, never a failure.
+        own = [c for c in bad if c["claim_type"] == "causal" and
+               c["verification_status"] == UNSUPPORTED]
         inherited = [c for c in bad if c not in own]
+        unverifiable = [c for c in claims
+                        if c.get("evidence_status") == EV_INCOMPLETE]
         if own:
             stages["S4"] = {"status": FAIL, "note": f"{len(own)} unsupported "
                             f"claim(s) authored in the narrative"}
@@ -738,7 +969,18 @@ def _stages(gens, checks, repair, claims, last, task) -> dict[str, Any]:
             stages["S4"] = {"status": by["S4-LARGEST"]["outcome"]}
         else:
             stages["S4"] = {"status": UNKNOWN, "note": "no reference"}
+        if unverifiable and "S4" in stages:
+            stages["S4"]["evidence_status"] = EV_INCOMPLETE
+            stages["S4"]["note"] = (stages["S4"].get("note", "") + (
+                f" {len(unverifiable)} claim(s) could not be mapped by the "
+                f"sidecar and need review; the frozen Finalizer's own "
+                f"validation is shown per claim.")).strip()
     for s in stages:
+        stages[s].setdefault("evidence_status", (
+            EV_INCOMPLETE if incomplete and s in ("S1", "S2") else
+            EV_FROZEN if any(g["evidence_status"] == EV_FROZEN
+                             for g in gens if s in g["stage_tags"])
+            else EV_COMPLETE))
         stages[s]["calls"] = call_ids[s]
         stages[s]["shared_calls"] = [g["call_id"] for g in gens
                                      if s in g["stage_tags"] and
@@ -888,8 +1130,8 @@ def _failures(ev: dict[str, Any], task) -> list[dict[str, Any]]:
     base = {"artifact": {"child_run_id": ev["child_run_id"]},
             "fixture": fx}
     err = ev.get("error_code") or ""
-    if ev.get("frozen_state") == "FAILED" and all(
-            not c["tool_names"] for c in ev["calls"]):
+    if ev.get("frozen_state") == "FAILED" and ev["calls"] and all(
+            c["evidence_status"] == EV_NO_TOOL for c in ev["calls"]):
         cards.append(base | {
             "primary_category": "RUNTIME_CAPABILITY",
             "supporting_categories": ["S3_REPAIR_OR_CONTROL"],
@@ -990,6 +1232,34 @@ def _failures(ev: dict[str, Any], task) -> list[dict[str, Any]]:
                 "approval_needed": "none for diagnosis",
                 "model_failure": True, "detail": cl["extracted_text"]})
     return cards
+
+
+def _evidence_gap_card(ev: dict[str, Any]) -> dict[str, Any] | None:
+    calls = [c["call_id"] for c in ev.get("calls") or []
+             if c.get("evidence_status") == EV_INCOMPLETE]
+    claims = [c["claim_id"] for c in ev.get("claims") or []
+              if c.get("evidence_status") == EV_INCOMPLETE and
+              c["claim_type"] in ("numeric", "numeric_derived")]
+    if not (calls or claims):
+        return None
+    return {"primary_category": "MEASUREMENT_OR_REVIEW_GAP",
+            "supporting_categories": [],
+            "symptom": (f"{len(calls)} call(s) without recoverable tool "
+                        f"names; {len(claims)} structured claim(s) the "
+                        f"sidecar could not map"),
+            "failed_requirement": "complete lab evidence mapping",
+            "artifact": {"child_run_id": ev["child_run_id"],
+                         "calls": calls, "claims": claims},
+            "likely_owner": "lab evaluator / observation",
+            "origin_confidence": "ORIGIN_CONFIRMED",
+            "affected_stages": [], "inherited_effects": [],
+            "earliest_event": (calls or claims)[0], "severity": "INFO",
+            "next_diagnostic": "inspect the frozen record for these items; "
+                               "the frozen Finalizer's own validation is "
+                               "shown per claim",
+            "intervention_category": "evidence mapping",
+            "approval_needed": "none", "model_failure": False,
+            "fixture": ev["fixture"], "detail": "EVIDENCE_INCOMPLETE"}
 
 
 def _first_divergence(ev: dict[str, Any]) -> dict[str, Any] | None:

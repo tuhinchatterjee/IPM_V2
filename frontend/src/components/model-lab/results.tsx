@@ -286,7 +286,16 @@ function CallRow({ c }: { c: Call }) {
       <td className="p-1">{c.seq}</td>
       <td className="p-1">{c.stage_tags.join("+")}</td>
       <td className="p-1">{c.purpose}</td>
-      <td className="p-1">{c.tool_names.join(", ") || "(none)"}</td>
+      <td className="p-1" title={`tool names from: ${c.tool_names_source || "n/a"}`}>
+        {c.tool_names.join(", ") ||
+          (c.evidence_status === "EVIDENCE_INCOMPLETE" ? "(not recoverable — evidence incomplete)" : "(none)")}
+        {c.tool_names_source === "frozen_call_report" && (
+          <span className="text-text-muted"> · from frozen record</span>
+        )}
+        {c.tool_names_disagree && c.tool_names_disagree.length > 0 && (
+          <span className="text-warning"> · sources disagree: {c.tool_names_disagree.join(", ")}</span>
+        )}
+      </td>
       <td className="p-1">{c.stop_reason}</td>
       <td className="p-1">{c.duration_ms == null ? "unknown" : `${c.duration_ms.toFixed(1)} ms`}</td>
       <td className="p-1" title={c.token_source}>
@@ -342,8 +351,14 @@ export function ClaimList({
               <span className="text-text-muted">
                 {c.claim_type} · extraction {c.extraction_confidence_class.toLowerCase()} ·{" "}
                 {c.reviewer_status.toLowerCase()}
+                {c.evidence_status === "EVIDENCE_INCOMPLETE" ? " · evidence incomplete (not assessed)" : ""}
               </span>
             </div>
+            {c.frozen_validation && (
+              <div className="text-text-secondary">
+                Frozen Finalizer: {c.frozen_validation.status} — {c.frozen_validation.message}
+              </div>
+            )}
             <blockquote className="mt-1 text-text-primary">{c.extracted_text || "(structured claim)"}</blockquote>
             <div className="text-text-muted">{c.explanation}</div>
             {c.review && (
