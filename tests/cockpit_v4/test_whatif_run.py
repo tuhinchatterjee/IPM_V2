@@ -466,3 +466,86 @@ def test_a_model_that_passed_every_gate_carries_no_limitation() -> None:
                      loaded=clean)
     assert got.outcomes[sp.ML].limitations == ()
     assert "MISSED" not in got.outcomes[sp.ML].describe()
+
+
+# ==========================================================================
+# P8b -- one contract, stated once, and a verdict line that names a refusal
+# ==========================================================================
+
+def test_p8b_the_comparison_states_the_one_contract_it_compared_over() -> None:
+    """Section 6: comparable means one book, period, release, cohort,
+    revision, approval and baseline. Each of those was enforced somewhere and
+    published nowhere, so a reader comparing two figures had to take the
+    comparability on trust."""
+    spec = spec_for(methods=(sp.DELTA, sp.USER_DEFINED),
+                    user_assumption={"form": "relative", "value": "10",
+                                     "stated_as": "10% higher"})
+    got = rn.execute(spec, rows(), key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec))
+    contract = got.compare()["contract"]
+    assert contract["book"] == spec.source.domain_id
+    assert contract["release_id"] == spec.source.release_id
+    assert contract["release_fingerprint"] == spec.source.release_fingerprint
+    assert contract["reporting_period"] == spec.source.reporting_period
+    assert contract["cohort_id"] == spec.cohort.cohort_id
+    assert contract["membership_hash"] == got.membership_hash
+    assert contract["scenario_id"] == spec.scenario_id
+    assert contract["scenario_version"] == spec.version
+    assert contract["confirmed_digest"] == spec.confirmed_digest
+    assert contract["cohort_size"] == got.cohort_size
+
+
+def test_p8b_identical_baselines_are_checked_rather_than_asserted() -> None:
+    spec = spec_for(methods=(sp.DELTA, sp.USER_DEFINED),
+                    user_assumption={"form": "relative", "value": "10",
+                                     "stated_as": "10% higher"})
+    got = rn.execute(spec, rows(), key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec))
+    comparison = got.compare()
+    assert comparison["baselines_identical"] is True
+    baselines = {r["baseline"] for r in comparison["own_population"]}
+    assert len(baselines) == 1
+
+
+def test_p8b_the_status_line_names_every_method_and_its_verdict() -> None:
+    spec = spec_for(methods=(sp.DELTA, sp.ML, sp.USER_DEFINED),
+                    user_assumption={"form": "relative", "value": "5",
+                                     "stated_as": "5% higher"})
+    book = rows()
+    baseline = sum(r["ecl_sar_mn"] for r in book)
+    got = rn.execute(spec, book, key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec),
+                     anchored=_Anchored(float(baseline) * 1.08))
+    line = got.status_line()
+    for method in (sp.DELTA, sp.ML, sp.USER_DEFINED):
+        assert rn.LABELS[method] in line
+    assert line.count(";") == 2
+
+
+def test_p8b_a_refused_method_carries_its_reason_into_the_status_line():
+    """Section 6: do not insert zero and do not silently substitute another
+    model. An unavailable method must be VISIBLE in the line, with why."""
+    spec = spec_for(methods=(sp.DELTA, sp.ML))
+    got = rn.execute(spec, rows(), key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec),
+                     ml_unavailable="G4 material-group WAPE 34.36% > 15%")
+    line = got.status_line()
+    assert rn.LABELS[sp.ML] in line
+    assert "G4" in line and "34.36%" in line
+    assert got.outcomes[sp.ML].scenario is None
+    # Never a zero standing in for the estimate that was not produced.
+    assert "0" not in [r["scenario"] for r in got.compare()["own_population"]]
+    assert None in [r["scenario"] for r in got.compare()["own_population"]]
+
+
+def test_p8b_the_status_line_lists_the_methods_in_the_declared_order() -> None:
+    spec = spec_for(methods=(sp.USER_DEFINED, sp.DELTA),
+                    user_assumption={"form": "relative", "value": "10",
+                                     "stated_as": "10% higher"})
+    got = rn.execute(spec, rows(), key="facility_id",
+                     ecl_column="ecl_sar_mn", plan=plan_for(spec))
+    line = got.status_line()
+    assert line.index(rn.LABELS[sp.DELTA]) < \
+        line.index(rn.LABELS[sp.USER_DEFINED]), (
+            "the line follows run.ORDER, so a reader sees the same sequence "
+            "whatever order the request happened to name the methods in")

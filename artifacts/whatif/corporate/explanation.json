@@ -1,0 +1,623 @@
+{
+ "built_on": "the DEVELOPMENT window only",
+ "development_periods": [
+  "2021Q3",
+  "2021Q4",
+  "2022Q1",
+  "2022Q2",
+  "2022Q3",
+  "2022Q4",
+  "2023Q1",
+  "2023Q2",
+  "2023Q3",
+  "2023Q4",
+  "2024Q1",
+  "2024Q3",
+  "2024Q4",
+  "2025Q1"
+ ],
+ "domain_id": "corporate",
+ "grid_points": 11,
+ "held_back_and_not_read": [
+  "2025Q3",
+  "2025Q4",
+  "2026Q1",
+  "2026Q2"
+ ],
+ "importance": [
+  {
+   "combined_over": "xgboost",
+   "feature": "stage",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.37179
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "sicr_flag",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.337861
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "dpd_days",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.029528
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "pd_lifetime",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.008404
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "pd_pit_12m",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.005527
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "remaining_maturity_months",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.005513
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "lgd_pct",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.003745
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "past_due_flag",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.001708
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "rating_current",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.000463
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "quarters_in_stage",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.000402
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "qualitative_score",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.000175
+  },
+  {
+   "combined_over": "xgboost",
+   "feature": "sub_sector",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.000135
+  }
+ ],
+ "measured_on": "a GENERATED book. Not bank output, not an accounting figure, and not a bank-validated model.",
+ "model_version": "whatif-ecl-emulator-2.0.0",
+ "not_a_decomposition": "This describes how the fitted function responds to its own inputs. It is association in a model, not causation, and it is NOT a decomposition of the scenario's ECL movement -- that is the attribution sections, which are measured by re-running the calculation.",
+ "origin": "SYNTHETIC_DEMO",
+ "release_id": "v4-whatif-corporate-20q-s1",
+ "responses": [
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 1.0,
+     "mean_prediction": 0.00924758
+    },
+    {
+     "at": 3.0,
+     "mean_prediction": 0.16132703
+    }
+   ],
+   "feature": "stage",
+   "shape": "monotone increasing: from 1.0 to 3.0 the mean prediction runs 0.00924758 to 0.16132703, a range of 0.15207945 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 0.0,
+     "mean_prediction": 0.01175842
+    },
+    {
+     "at": 6.0,
+     "mean_prediction": 0.01189644
+    },
+    {
+     "at": 25.0,
+     "mean_prediction": 0.0118925
+    },
+    {
+     "at": 298.0,
+     "mean_prediction": 0.02927402
+    }
+   ],
+   "feature": "dpd_days",
+   "shape": "not monotone: from 0.0 to 298.0 the mean prediction runs 0.01175842 to 0.02927402, a range of 0.01751560 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 0.002346,
+     "mean_prediction": 0.00754229
+    },
+    {
+     "at": 0.005499,
+     "mean_prediction": 0.00769337
+    },
+    {
+     "at": 0.007352,
+     "mean_prediction": 0.00782576
+    },
+    {
+     "at": 0.010002,
+     "mean_prediction": 0.00806847
+    },
+    {
+     "at": 0.013344,
+     "mean_prediction": 0.00848512
+    },
+    {
+     "at": 0.017676,
+     "mean_prediction": 0.00916442
+    },
+    {
+     "at": 0.024603,
+     "mean_prediction": 0.01008133
+    },
+    {
+     "at": 0.034769,
+     "mean_prediction": 0.0120299
+    },
+    {
+     "at": 0.046357,
+     "mean_prediction": 0.01408679
+    },
+    {
+     "at": 0.061173,
+     "mean_prediction": 0.01647533
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.02270615
+    }
+   ],
+   "feature": "pd_pit_12m",
+   "shape": "monotone increasing: from 0.002346 to 1.0 the mean prediction runs 0.00754229 to 0.02270615, a range of 0.01516386 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 16.0589,
+     "mean_prediction": 0.0072912
+    },
+    {
+     "at": 20.33637,
+     "mean_prediction": 0.00878955
+    },
+    {
+     "at": 22.7167,
+     "mean_prediction": 0.00978408
+    },
+    {
+     "at": 24.65717,
+     "mean_prediction": 0.010577
+    },
+    {
+     "at": 26.1834,
+     "mean_prediction": 0.01117937
+    },
+    {
+     "at": 28.05885,
+     "mean_prediction": 0.01198067
+    },
+    {
+     "at": 30.10254,
+     "mean_prediction": 0.01281315
+    },
+    {
+     "at": 32.10133,
+     "mean_prediction": 0.01367466
+    },
+    {
+     "at": 34.2417,
+     "mean_prediction": 0.0144938
+    },
+    {
+     "at": 36.90913,
+     "mean_prediction": 0.01564526
+    },
+    {
+     "at": 43.2045,
+     "mean_prediction": 0.01749685
+    }
+   ],
+   "feature": "lgd_pct",
+   "shape": "monotone increasing: from 16.0589 to 43.2045 the mean prediction runs 0.00729120 to 0.01749685, a range of 0.01020565 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 0.0061,
+     "mean_prediction": 0.00774371
+    },
+    {
+     "at": 0.014295,
+     "mean_prediction": 0.00830661
+    },
+    {
+     "at": 0.019115,
+     "mean_prediction": 0.00874321
+    },
+    {
+     "at": 0.026003,
+     "mean_prediction": 0.00944187
+    },
+    {
+     "at": 0.034692,
+     "mean_prediction": 0.01007258
+    },
+    {
+     "at": 0.045957,
+     "mean_prediction": 0.01086693
+    },
+    {
+     "at": 0.063968,
+     "mean_prediction": 0.01174536
+    },
+    {
+     "at": 0.0904,
+     "mean_prediction": 0.01339174
+    },
+    {
+     "at": 0.120527,
+     "mean_prediction": 0.01435373
+    },
+    {
+     "at": 0.159049,
+     "mean_prediction": 0.01575949
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.0177099
+    }
+   ],
+   "feature": "pd_lifetime",
+   "shape": "monotone increasing: from 0.0061 to 1.0 the mean prediction runs 0.00774371 to 0.01770990, a range of 0.00996619 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 0.0,
+     "mean_prediction": 0.01075885
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.01771098
+    }
+   ],
+   "feature": "sicr_flag",
+   "shape": "monotone increasing: from 0.0 to 1.0 the mean prediction runs 0.01075885 to 0.01771098, a range of 0.00695213 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 24.0,
+     "mean_prediction": 0.01049232
+    },
+    {
+     "at": 33.0,
+     "mean_prediction": 0.01088599
+    },
+    {
+     "at": 43.0,
+     "mean_prediction": 0.0114431
+    },
+    {
+     "at": 52.0,
+     "mean_prediction": 0.01174461
+    },
+    {
+     "at": 62.0,
+     "mean_prediction": 0.01213791
+    },
+    {
+     "at": 71.0,
+     "mean_prediction": 0.01231942
+    },
+    {
+     "at": 81.0,
+     "mean_prediction": 0.01253022
+    },
+    {
+     "at": 91.0,
+     "mean_prediction": 0.01271232
+    },
+    {
+     "at": 101.0,
+     "mean_prediction": 0.01292251
+    },
+    {
+     "at": 110.0,
+     "mean_prediction": 0.01302729
+    },
+    {
+     "at": 120.0,
+     "mean_prediction": 0.01316032
+    }
+   ],
+   "feature": "remaining_maturity_months",
+   "shape": "monotone increasing: from 24.0 to 120.0 the mean prediction runs 0.01049232 to 0.01316032, a range of 0.00266800 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 44.67,
+     "mean_prediction": 0.01248649
+    },
+    {
+     "at": 51.54,
+     "mean_prediction": 0.01205027
+    },
+    {
+     "at": 54.57,
+     "mean_prediction": 0.01196111
+    },
+    {
+     "at": 57.55,
+     "mean_prediction": 0.01195884
+    },
+    {
+     "at": 60.36,
+     "mean_prediction": 0.01201456
+    },
+    {
+     "at": 63.05,
+     "mean_prediction": 0.01211598
+    },
+    {
+     "at": 65.552,
+     "mean_prediction": 0.01224694
+    },
+    {
+     "at": 67.94,
+     "mean_prediction": 0.01240206
+    },
+    {
+     "at": 70.642,
+     "mean_prediction": 0.01260389
+    },
+    {
+     "at": 73.69,
+     "mean_prediction": 0.01283689
+    },
+    {
+     "at": 82.59,
+     "mean_prediction": 0.01323087
+    }
+   ],
+   "feature": "qualitative_score",
+   "shape": "not monotone: from 44.67 to 82.59 the mean prediction runs 0.01248649 to 0.01323087, a range of 0.00127203 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": "Manufacturing",
+     "mean_prediction": 0.01207727
+    },
+    {
+     "at": "Healthcare",
+     "mean_prediction": 0.01193665
+    },
+    {
+     "at": "Wholesale Trade",
+     "mean_prediction": 0.01197407
+    },
+    {
+     "at": "Hospitality",
+     "mean_prediction": 0.01259427
+    },
+    {
+     "at": "Real Estate",
+     "mean_prediction": 0.01260859
+    },
+    {
+     "at": "Construction",
+     "mean_prediction": 0.01274621
+    },
+    {
+     "at": "Retail Trade",
+     "mean_prediction": 0.0118935
+    },
+    {
+     "at": "Transport",
+     "mean_prediction": 0.01192148
+    }
+   ],
+   "feature": "sector",
+   "shape": "not monotone: from Manufacturing to Transport the mean prediction runs 0.01207727 to 0.01192148, a range of 0.00085271 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 1.051,
+     "mean_prediction": 0.01244582
+    },
+    {
+     "at": 1.141,
+     "mean_prediction": 0.01232543
+    },
+    {
+     "at": 1.229,
+     "mean_prediction": 0.0121777
+    },
+    {
+     "at": 1.317,
+     "mean_prediction": 0.0120442
+    },
+    {
+     "at": 1.421,
+     "mean_prediction": 0.01189845
+    },
+    {
+     "at": 1.531,
+     "mean_prediction": 0.01180633
+    },
+    {
+     "at": 1.6054,
+     "mean_prediction": 0.01176118
+    },
+    {
+     "at": 1.6873,
+     "mean_prediction": 0.01172154
+    },
+    {
+     "at": 1.782,
+     "mean_prediction": 0.01169828
+    },
+    {
+     "at": 1.857,
+     "mean_prediction": 0.01169327
+    },
+    {
+     "at": 1.949,
+     "mean_prediction": 0.01170427
+    }
+   ],
+   "feature": "current_ratio_x",
+   "shape": "not monotone: from 1.051 to 1.949 the mean prediction runs 0.01244582 to 0.01170427, a range of 0.00075255 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": 1.535,
+     "mean_prediction": 0.01190892
+    },
+    {
+     "at": 3.0159,
+     "mean_prediction": 0.01217859
+    },
+    {
+     "at": 3.6968,
+     "mean_prediction": 0.01232767
+    },
+    {
+     "at": 4.3377,
+     "mean_prediction": 0.01239001
+    },
+    {
+     "at": 5.017,
+     "mean_prediction": 0.012376
+    },
+    {
+     "at": 5.631,
+     "mean_prediction": 0.01230867
+    },
+    {
+     "at": 6.1942,
+     "mean_prediction": 0.01222069
+    },
+    {
+     "at": 6.7546,
+     "mean_prediction": 0.01212725
+    },
+    {
+     "at": 7.357,
+     "mean_prediction": 0.01203221
+    },
+    {
+     "at": 8.009,
+     "mean_prediction": 0.01194296
+    },
+    {
+     "at": 9.918,
+     "mean_prediction": 0.01178535
+    }
+   ],
+   "feature": "return_on_assets_pct",
+   "shape": "not monotone: from 1.535 to 9.918 the mean prediction runs 0.01190892 to 0.01178535, a range of 0.00060466 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01215245,
+   "curve": [
+    {
+     "at": "Speciality Retail",
+     "mean_prediction": 0.01199319
+    },
+    {
+     "at": "Residential Development",
+     "mean_prediction": 0.01249309
+    },
+    {
+     "at": "Clinics",
+     "mean_prediction": 0.0119351
+    },
+    {
+     "at": "Food Service",
+     "mean_prediction": 0.01241989
+    },
+    {
+     "at": "Water",
+     "mean_prediction": 0.01191213
+    },
+    {
+     "at": "Industrial Supplies",
+     "mean_prediction": 0.01204914
+    },
+    {
+     "at": "Food Distribution",
+     "mean_prediction": 0.01205965
+    },
+    {
+     "at": "Advisory",
+     "mean_prediction": 0.01198088
+    }
+   ],
+   "feature": "sub_sector",
+   "shape": "not monotone: from Speciality Retail to Advisory the mean prediction runs 0.01199319 to 0.01198088, a range of 0.00058096 around a mean of 0.01215245. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  }
+ ],
+ "rows": 41944,
+ "rows_sampled_for_curves": 4000,
+ "seed": 20260930
+}

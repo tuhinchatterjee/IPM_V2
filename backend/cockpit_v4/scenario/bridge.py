@@ -1025,12 +1025,41 @@ def _groups(spec: sp.ScenarioSpec, view: str
     out: dict[str, list[sp.Shock]] = {}
     for shock in spec.shocks:
         if view == at.MECHANISM:
+            # A RULE WITH A SCOPE IS ITS OWN DRIVER.
+            #
+            # Grouping on `field_id` alone collapsed "raise PD by 20%" and
+            # "raise PD by 40% for Construction" into one PD bar, which is
+            # exactly the question section 13.2 asks the mechanism view to
+            # answer: which rule moved it. A scope is part of the intervention,
+            # so it is part of the group's identity -- and a rule over every
+            # row in the cohort keeps its bare field name, so the common case
+            # reads as it always did.
             key = shock.field_id
+            if shock.where:
+                key = f"{shock.field_id} where {_scope_label(shock.where)}"
         else:
             root = shock.derived_from or shock.field_id
             key = (shock.origin.strip() or root)[:80]
         out.setdefault(key, []).append(shock)
     return {k: tuple(v) for k, v in sorted(out.items())}
+
+
+def _scope_label(where: Mapping[str, Any]) -> str:
+    """A rule's scope, written the way the reader wrote it.
+
+    Short and stable: the columns and values in sorted order, so the same
+    predicate is the same driver across two runs and a reader comparing them
+    sees one group rather than two spellings of it.
+    """
+    parts: list[str] = []
+    for column in sorted(str(k) for k in where):
+        value = where[column]
+        if isinstance(value, (list, tuple, set)):
+            shown = ", ".join(str(v) for v in sorted(str(x) for x in value))
+        else:
+            shown = str(value)
+        parts.append(f"{column} = {shown}")
+    return "; ".join(parts)[:60] or "every row"
 
 
 def _coalition_value(spec: sp.ScenarioSpec,
@@ -1191,6 +1220,32 @@ def _result_rows(spec: sp.ScenarioSpec, *, outcome: rn.Run,
              f"{spec.source.release_fingerprint[:12]}")
     add("headline", "Approval", scope=reply[:60],
         note="the reader's own words, as they were given")
+    # THE COMPARABILITY CLAIM, AND THE VERDICTS, AS ROWS.
+    #
+    # Section 6 asks that every selected method run against the SAME confirmed
+    # book, period, release, cohort, revision, approval and baseline, and that
+    # the results be shown side by side. The methods were shown side by side
+    # from the start; what was missing was the statement that they are
+    # comparable at all, and the one line that says which of them did not run
+    # and why. A comparison a reader has to take on trust is not a comparison.
+    compared = outcome.compare()
+    contract = compared["contract"]
+    add("headline", "One contract",
+        scope=contract["scenario_id"],
+        status=("BASELINES IDENTICAL" if compared["baselines_identical"]
+                else "BASELINES DIFFER"),
+        note=(f"every method ran against {contract['book']} "
+              f"{contract['reporting_period']}, release "
+              f"{contract['release_id']} "
+              f"({contract['release_fingerprint'][:16]}), cohort "
+              f"{contract['cohort_id']} of {contract['cohort_size']:,} rows "
+              f"(membership {contract['membership_hash'][:16]}), scenario "
+              f"{contract['scenario_id']} revision "
+              f"{contract['scenario_version']}, approval "
+              f"{contract['confirmed_digest'][:12]}"))
+    add("headline", "Method verdicts", scope="side by side",
+        note=compared["status_line"] + ". " + compared["never_composed"])
+
     # WHICH CODE PRODUCED THIS, IN THE RESULT ITSELF.
     #
     # The versions are in the artifact's provenance, which an auditor can

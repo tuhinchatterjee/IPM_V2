@@ -766,3 +766,190 @@ def _limits() -> Any:
 
     return config.limits_for("analytical") if hasattr(
         config, "limits_for") else config.Limits()
+
+
+# ---- 11. P8b: one contract, published as rows ----------------------------
+
+def test_p8b_the_result_publishes_the_one_contract_it_compared_over(
+        monkeypatch) -> None:
+    """Section 6 asks that the methods be comparable, and comparable means one
+    book, period, release, cohort, revision, approval and baseline. Each was
+    enforced somewhere and published nowhere, so a reader comparing two figures
+    had to take the comparability on trust."""
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta", "user_defined"],
+        user_assumption={"form": "relative", "value": "12",
+                         "stated_as": "assume 12% higher"})
+    rows = {str(r.get("measure", "")): r for r in out.rows}
+    contract = rows["headline:One contract"]
+    note = str(contract["note"])
+    assert "every method ran against" in note
+    for word in ("release", "cohort", "revision", "approval", "membership"):
+        assert word in note
+    assert digest[:12] in note
+    assert contract["status"] == "BASELINES IDENTICAL"
+
+
+def test_p8b_the_published_verdicts_name_every_method(monkeypatch) -> None:
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta", "user_defined"],
+        user_assumption={"form": "relative", "value": "12",
+                         "stated_as": "assume 12% higher"})
+    rows = {str(r.get("measure", "")): r for r in out.rows}
+    line = str(rows["headline:Method verdicts"]["note"])
+    assert "Delta (proportional)" in line
+    assert "Your assumption" in line
+    assert "averaged" in line, (
+        "the row that shows the methods side by side is also the row that "
+        "says they are never combined into a third")
+
+
+def test_p8b_an_unavailable_method_keeps_its_row_and_its_empty_cells(
+        monkeypatch) -> None:
+    """Section 12: do not insert zero and do not silently substitute another
+    model. The method must still be VISIBLE, with its reason."""
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta", "ml"])
+    method_rows = [r for r in out.rows if r["section"] == "method"]
+    emulator = [r for r in method_rows if r.get("method") == "ml"]
+    assert emulator, "a method that did not run still has a row"
+    line = str({str(r.get("measure", "")): r
+                for r in out.rows}["headline:Method verdicts"]["note"])
+    assert "Emulator" in line
+    if emulator[0]["status"] != "AVAILABLE":
+        assert emulator[0]["scenario_sar_mn"] == ""
+        assert emulator[0]["change_sar_mn"] == ""
+        assert emulator[0]["note"], "a refusal must carry its reason"
+
+
+def test_p8b_the_result_publishes_the_versions_that_produced_it(
+        monkeypatch) -> None:
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta"])
+    rows = {str(r.get("measure", "")): r for r in out.rows}
+    note = str(rows["headline:Versions"]["note"])
+    assert "whatif-reference-ecl-" in note, (
+        "a result that cannot say which engine wrote it is not reproducible "
+        "from what it shows")
+
+
+def test_p8b_the_preview_names_the_scenario_it_asks_approval_for(
+        monkeypatch) -> None:
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    store = Store()
+    made = run_bridge(dom.CORPORATE, preview_parameters(dom.CORPORATE),
+                      store=store)
+    rows = {str(r.get("measure", "")): r for r in made.rows}
+    assert rows["scope:Scenario id"]["value"] == \
+        made.provenance["whatif_scenario_id"]
+    assert str(rows["scope:Scenario version"]["value"]) == \
+        str(made.provenance["whatif_scenario_version"])
+
+
+# ---- 12. P9b: two attribution types, kept apart in the published rows ----
+
+def test_p9b_a_scoped_rule_is_its_own_driver(monkeypatch) -> None:
+    """Section 13.2's mechanism view answers "which rule moved it". Grouping on
+    the field alone collapsed "raise PD by 20%" and "raise PD by 40% for
+    Construction" into one PD bar, which answers a different question."""
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    # Two DIFFERENT parameters, one of them scoped. Two rules moving the SAME
+    # parameter on overlapping rows is refused outright as RULE_CONFLICT, which
+    # is the engine asking which one applies rather than quietly composing
+    # them -- so the driver groups are exercised the way a real scenario
+    # reaches them.
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE,
+        shocks=[{"field": "pd_pit_12m", "operation": "relative_pct",
+                 "value": "20", "origin": "increase PD by 20% everywhere"},
+                {"field": "lgd_pct", "operation": "relative_pct",
+                 "value": "10",
+                 "where": {"facility_class": "funded"},
+                 "origin": "and LGD by 10% on funded facilities"}])
+    mechanism = [str(r["item"]) for r in out.rows
+                 if r["section"] == "attribution_mechanism" and r.get("view")]
+    scoped = [d for d in mechanism if " where " in d]
+    assert scoped, (
+        f"a rule with a scope must be its own driver; the mechanism view "
+        f"published {sorted(set(mechanism))}")
+    assert any("facility_class = funded" in d for d in scoped)
+    assert "pd_pit_12m" in mechanism, (
+        "the unscoped rule keeps its bare field name, so the common case "
+        "reads as it always did")
+    # The ECONOMIC view groups by the clause the reader wrote, so it does NOT
+    # carry the scope: a scope is part of the mechanism, not of the economic
+    # statement. The two views are different groupings, not two spellings.
+    economic = [str(r["item"]) for r in out.rows
+                if r["section"] == "attribution_economic" and r.get("view")]
+    assert not [d for d in economic if " where " in d]
+    # Both views still reconcile to the same headline, exactly.
+    for section in ("attribution_mechanism", "attribution_economic"):
+        closes = [r for r in out.rows if r["section"] == section
+                  and r["item"] == "Reconciles to"]
+        assert closes, f"{section} must close on the headline"
+
+
+def test_p9b_the_explanation_is_its_own_section_with_no_currency(
+        monkeypatch) -> None:
+    """Never present feature importance as a decomposition of the scenario ECL
+    movement. The guard, over the rows the product actually publishes."""
+    from backend.cockpit_v4.scenario.ml import explain as ex
+
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta", "ml"])
+    told = [r for r in out.rows if r["section"] == "ml_explanation"]
+    assert told, "a run that selected the emulator must explain it or say why"
+    assert {str(r["section"]) for r in told} == {"ml_explanation"}, (
+        "the prediction explanation lives in its own section; sharing one "
+        "with the attribution rows is how the two become one table")
+    ex.never_a_decomposition(told)
+    for row in told:
+        assert row["change_sar_mn"] == ""
+        assert row["baseline_sar_mn"] == ""
+        assert row["scenario_sar_mn"] == ""
+        assert row["change_pct"] == ""
+
+
+def test_p9b_a_feature_never_appears_as_an_attribution_driver(
+        monkeypatch) -> None:
+    """The two sections answer different questions, so a name in one must not
+    be readable as a bar in the other."""
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta", "ml"])
+    drivers = {str(r["item"]) for r in out.rows
+               if str(r["section"]).startswith("attribution")
+               and r.get("view")}
+    assert drivers, (
+        "the attribution sections are named `attribution_mechanism` and "
+        "`attribution_economic`; an empty set here means this test is looking "
+        "at nothing and would pass whatever the product published")
+    features = {str(r["item"]) for r in out.rows
+                if r["section"] == "ml_explanation"
+                and str(r.get("scope", "")) in (
+                    "feature contribution", "gain importance",
+                    "response relationship")}
+    overlap = drivers & features
+    assert not overlap, (
+        f"{sorted(overlap)} is published both as a driver of the ECL movement "
+        f"and as a feature of the prediction. Those are different quantities "
+        f"and a reader who adds them is adding two different things.")
+
+
+def test_p9b_the_explanation_says_what_it_is_not(monkeypatch) -> None:
+    monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
+    _store, _made, out, _digest = preview_then_execute(
+        dom.CORPORATE, methods=["delta", "ml"])
+    closing = [r for r in out.rows
+               if r["section"] == "ml_explanation"
+               and r["item"] == "What this is not"]
+    if closing:
+        note = str(closing[0]["note"])
+        assert "do not add up to the ECL change" in note
+        assert str(closing[0]["status"]) == \
+            "NOT A DECOMPOSITION OF THE SCENARIO MOVEMENT"

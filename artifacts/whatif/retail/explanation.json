@@ -1,0 +1,503 @@
+{
+ "built_on": "the DEVELOPMENT window only",
+ "development_periods": [
+  "2025-01",
+  "2025-02",
+  "2025-03",
+  "2025-04",
+  "2025-05",
+  "2025-06",
+  "2025-07",
+  "2025-08",
+  "2025-09",
+  "2025-10",
+  "2025-11",
+  "2026-01",
+  "2026-02",
+  "2026-03"
+ ],
+ "domain_id": "retail",
+ "grid_points": 11,
+ "held_back_and_not_read": [
+  "2026-05",
+  "2026-06",
+  "2026-07",
+  "2026-08"
+ ],
+ "importance": [
+  {
+   "combined_over": "lightgbm",
+   "feature": "lgd_pct",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.042046
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "dpd_days",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.037871
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "pd_pit_12m",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.027433
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "effective_interest_rate",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.020057
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "utilisation_pct",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.019809
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "limit_sar_mn",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.0198
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "remaining_maturity_months",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.019423
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "balance_sar_mn",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.018632
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "pd_lifetime",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.016728
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "application_score",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.016544
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "payment_ratio_pct",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.016149
+  },
+  {
+   "combined_over": "lightgbm",
+   "feature": "behaviour_score",
+   "no_gain_from": "additive_log",
+   "unit": "share of split gain",
+   "value": 0.013988
+  }
+ ],
+ "measured_on": "a GENERATED book. Not bank output, not an accounting figure, and not a bank-validated model.",
+ "model_version": "whatif-ecl-emulator-2.0.0",
+ "not_a_decomposition": "This describes how the fitted function responds to its own inputs. It is association in a model, not causation, and it is NOT a decomposition of the scenario's ECL movement -- that is the attribution sections, which are measured by re-running the calculation.",
+ "origin": "SYNTHETIC_DEMO",
+ "release_id": "v4-whatif-retail-20m-s1",
+ "responses": [
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 1.0,
+     "mean_prediction": 0.01217534
+    },
+    {
+     "at": 3.0,
+     "mean_prediction": 0.17641846
+    }
+   ],
+   "feature": "stage",
+   "shape": "monotone increasing: from 1.0 to 3.0 the mean prediction runs 0.01217534 to 0.17641846, a range of 0.16424312 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": "Current",
+     "mean_prediction": 0.01041904
+    },
+    {
+     "at": "1-30",
+     "mean_prediction": 0.01407128
+    },
+    {
+     "at": "31-60",
+     "mean_prediction": 0.03086746
+    },
+    {
+     "at": "61-90",
+     "mean_prediction": 0.03178332
+    },
+    {
+     "at": "90+",
+     "mean_prediction": 0.03176661
+    }
+   ],
+   "feature": "delinquency_bucket",
+   "shape": "not monotone: from Current to 90+ the mean prediction runs 0.01041904 to 0.03176661, a range of 0.02136428 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 0.00096,
+     "mean_prediction": 0.00429103
+    },
+    {
+     "at": 0.003638,
+     "mean_prediction": 0.00586319
+    },
+    {
+     "at": 0.006094,
+     "mean_prediction": 0.00722761
+    },
+    {
+     "at": 0.009374,
+     "mean_prediction": 0.00843629
+    },
+    {
+     "at": 0.014154,
+     "mean_prediction": 0.00964516
+    },
+    {
+     "at": 0.021954,
+     "mean_prediction": 0.01072238
+    },
+    {
+     "at": 0.034783,
+     "mean_prediction": 0.01197256
+    },
+    {
+     "at": 0.053772,
+     "mean_prediction": 0.01296237
+    },
+    {
+     "at": 0.082038,
+     "mean_prediction": 0.01454777
+    },
+    {
+     "at": 0.133485,
+     "mean_prediction": 0.0168972
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.02536078
+    }
+   ],
+   "feature": "pd_lifetime",
+   "shape": "monotone increasing: from 0.00096 to 1.0 the mean prediction runs 0.00429103 to 0.02536078, a range of 0.02106975 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 0.0004,
+     "mean_prediction": 0.00591747
+    },
+    {
+     "at": 0.001516,
+     "mean_prediction": 0.00552956
+    },
+    {
+     "at": 0.002539,
+     "mean_prediction": 0.0056948
+    },
+    {
+     "at": 0.003905,
+     "mean_prediction": 0.00611035
+    },
+    {
+     "at": 0.005898,
+     "mean_prediction": 0.00672481
+    },
+    {
+     "at": 0.009147,
+     "mean_prediction": 0.00787638
+    },
+    {
+     "at": 0.014493,
+     "mean_prediction": 0.00984972
+    },
+    {
+     "at": 0.022404,
+     "mean_prediction": 0.01255161
+    },
+    {
+     "at": 0.034183,
+     "mean_prediction": 0.01707674
+    },
+    {
+     "at": 0.055619,
+     "mean_prediction": 0.02259909
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.02153929
+    }
+   ],
+   "feature": "pd_pit_12m",
+   "shape": "not monotone: from 0.0004 to 1.0 the mean prediction runs 0.00591747 to 0.02153929, a range of 0.01706953 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 0.0,
+     "mean_prediction": 0.01791829
+    },
+    {
+     "at": 11.0,
+     "mean_prediction": 0.01272265
+    },
+    {
+     "at": 269.0,
+     "mean_prediction": 0.02790652
+    }
+   ],
+   "feature": "dpd_days",
+   "shape": "not monotone: from 0.0 to 269.0 the mean prediction runs 0.01791829 to 0.02790652, a range of 0.01518387 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 496.57,
+     "mean_prediction": 0.02352907
+    },
+    {
+     "at": 560.768,
+     "mean_prediction": 0.01362419
+    },
+    {
+     "at": 583.404,
+     "mean_prediction": 0.01295156
+    },
+    {
+     "at": 604.364,
+     "mean_prediction": 0.01268512
+    },
+    {
+     "at": 625.928,
+     "mean_prediction": 0.01236281
+    },
+    {
+     "at": 647.13,
+     "mean_prediction": 0.01215609
+    },
+    {
+     "at": 669.856,
+     "mean_prediction": 0.01216978
+    },
+    {
+     "at": 689.881,
+     "mean_prediction": 0.01244822
+    },
+    {
+     "at": 711.312,
+     "mean_prediction": 0.01294222
+    },
+    {
+     "at": 733.711,
+     "mean_prediction": 0.013577
+    },
+    {
+     "at": 785.59,
+     "mean_prediction": 0.01399088
+    }
+   ],
+   "feature": "behaviour_score",
+   "shape": "not monotone: from 496.57 to 785.59 the mean prediction runs 0.02352907 to 0.01399088, a range of 0.01137298 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 5.0,
+     "mean_prediction": 0.01359072
+    },
+    {
+     "at": 24.02902,
+     "mean_prediction": 0.0077923
+    },
+    {
+     "at": 28.49718,
+     "mean_prediction": 0.00889652
+    },
+    {
+     "at": 60.1457,
+     "mean_prediction": 0.01393668
+    },
+    {
+     "at": 62.6344,
+     "mean_prediction": 0.01452309
+    },
+    {
+     "at": 65.42355,
+     "mean_prediction": 0.01516072
+    },
+    {
+     "at": 75.92028,
+     "mean_prediction": 0.01757001
+    },
+    {
+     "at": 78.7638,
+     "mean_prediction": 0.01823247
+    },
+    {
+     "at": 81.9404,
+     "mean_prediction": 0.01891334
+    }
+   ],
+   "feature": "lgd_pct",
+   "shape": "not monotone: from 5.0 to 81.9404 the mean prediction runs 0.01359072 to 0.01891334, a range of 0.01112104 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": "Personal Finance",
+     "mean_prediction": 0.01394711
+    },
+    {
+     "at": "Credit Card",
+     "mean_prediction": 0.01572122
+    },
+    {
+     "at": "Mortgage",
+     "mean_prediction": 0.00701934
+    },
+    {
+     "at": "Auto Finance",
+     "mean_prediction": 0.01743133
+    },
+    {
+     "at": "Buy Now Pay Later",
+     "mean_prediction": 0.01484262
+    }
+   ],
+   "feature": "product",
+   "shape": "not monotone: from Personal Finance to Buy Now Pay Later the mean prediction runs 0.01394711 to 0.01484262, a range of 0.01041199 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 0.0,
+     "mean_prediction": 0.01208154
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.02128129
+    }
+   ],
+   "feature": "sicr_flag",
+   "shape": "monotone increasing: from 0.0 to 1.0 the mean prediction runs 0.01208154 to 0.02128129, a range of 0.00919975 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 0.0,
+     "mean_prediction": 0.01632031
+    },
+    {
+     "at": 1.0,
+     "mean_prediction": 0.00843024
+    }
+   ],
+   "feature": "secured_flag",
+   "shape": "monotone decreasing: from 0.0 to 1.0 the mean prediction runs 0.01632031 to 0.00843024, a range of 0.00789007 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": "Fixed Rate",
+     "mean_prediction": 0.00975051
+    },
+    {
+     "at": "Salary Advance",
+     "mean_prediction": 0.01420964
+    },
+    {
+     "at": "Variable Rate",
+     "mean_prediction": 0.00974548
+    },
+    {
+     "at": "Signature",
+     "mean_prediction": 0.01479759
+    },
+    {
+     "at": "Consumer Durable",
+     "mean_prediction": 0.01419476
+    },
+    {
+     "at": "Classic",
+     "mean_prediction": 0.01478816
+    },
+    {
+     "at": "Debt Consolidation",
+     "mean_prediction": 0.01415982
+    },
+    {
+     "at": "Used Vehicle",
+     "mean_prediction": 0.01629471
+    }
+   ],
+   "feature": "sub_product",
+   "shape": "not monotone: from Fixed Rate to Used Vehicle the mean prediction runs 0.00975051 to 0.01629471, a range of 0.00654923 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  },
+  {
+   "base_mean_prediction": 0.01449258,
+   "curve": [
+    {
+     "at": 0.0,
+     "mean_prediction": 0.01703354
+    },
+    {
+     "at": 6.0,
+     "mean_prediction": 0.01279391
+    }
+   ],
+   "feature": "delinquency_streak_months",
+   "shape": "monotone decreasing: from 0.0 to 6.0 the mean prediction runs 0.01703354 to 0.01279391, a range of 0.00423963 around a mean of 0.01449258. Association in a fitted function, not causation.",
+   "unit": "mean prediction, model rate space"
+  }
+ ],
+ "rows": 88160,
+ "rows_sampled_for_curves": 4000,
+ "seed": 20260930
+}

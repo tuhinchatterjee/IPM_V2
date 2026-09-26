@@ -216,9 +216,12 @@ class Run:
         } for method in ORDER if method in self.outcomes]
 
         out: dict[str, Any] = {
+            "contract": self.contract(),
+            "status_line": self.status_line(),
             "own_population": rows,
             "coverage": self.coverage.describe(),
             "like_for_like_needed": not self.coverage.uniform,
+            "baselines_identical": len({r["baseline"] for r in rows}) <= 1,
             "never_composed": (
                 "These are alternative answers to one question. The "
                 "emulator's estimate is not multiplied by the Delta factor "
@@ -235,6 +238,54 @@ class Run:
                          "rather than population."),
             } for method in self.ran]
         return out
+
+    def contract(self) -> dict[str, Any]:
+        """THE ONE CONTRACT EVERY METHOD RAN AGAINST.
+
+        Section 6 asks that the methods be comparable, and comparable means
+        one book, one period, one release and fingerprint, one frozen cohort,
+        one scenario revision, one approval and one baseline. Those facts were
+        each enforced somewhere -- `require_same_book`, the cohort
+        re-resolution, `require_confirmed`, the equal-baseline check that
+        raises METHOD_COVERAGE_GAP -- and published nowhere as a single
+        statement, so a reader comparing two figures had to take the
+        comparability on trust. This states it once, and `baselines_identical`
+        beside it is the check rather than the claim.
+        """
+        return {
+            "book": self.spec.source.domain_id,
+            "reporting_period": self.period,
+            "release_id": self.spec.source.release_id,
+            "release_fingerprint": self.spec.source.release_fingerprint,
+            "cohort_id": self.spec.cohort.cohort_id,
+            "membership_hash": self.membership_hash,
+            "cohort_size": self.cohort_size,
+            "scenario_id": self.spec.scenario_id,
+            "scenario_version": self.spec.version,
+            "confirmed_digest": self.spec.confirmed_digest,
+            "book_baseline": str(self.book_baseline),
+        }
+
+    def status_line(self) -> str:
+        """Every selected method, its verdict, and the reason for a refusal.
+
+        One line, in the order the methods are declared in, so a reader sees
+        that a method is missing and why rather than seeing a shorter list.
+        A method that did not run contributes its reason here and no number
+        anywhere: not a zero, and not another model's estimate.
+        """
+        parts: list[str] = []
+        for method in ORDER:
+            if method not in self.outcomes:
+                continue
+            got = self.outcomes[method]
+            label = LABELS[method]
+            if got.ran and got.scenario is not None:
+                parts.append(f"{label} {got.status}")
+            else:
+                reason = (got.reason or "no reason was recorded").rstrip(".")
+                parts.append(f"{label} {got.status} \u2014 {reason}")
+        return "; ".join(parts)
 
     def disagreement(self) -> str:
         """Why the methods differ, in words, without averaging them."""
