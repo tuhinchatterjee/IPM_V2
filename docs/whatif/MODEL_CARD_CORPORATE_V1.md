@@ -1,6 +1,14 @@
 # Model card — Corporate ECL emulator
 
-`whatif-ecl-emulator-2.0.0` · trained on `v4-whatif-corporate-20q-s1`
+> **THIS IS MODEL VERSION 1'S CARD, KEPT AS THE RECORD.** It is superseded by
+> the card of the same name without the `_V1` suffix, and it is not edited:
+> its gate results are what version 1 measured on its single read of the test
+> split, and rewriting them afterwards would destroy the only evidence that
+> they were measured before anything was changed. Version 2's declared
+> changes and the reasons for them are in `ML_ACCEPTANCE_TARGETS_V2.md`.
+
+
+`whatif-ecl-emulator-1.0.0` · trained on `v4-whatif-corporate-20q-s1`
 
 > **This model was trained on a generated book.** Its target is the declared ECL rate produced by `backend/cockpit_v4/scenario/reference_ecl.py`, a calculator written for this demonstration. Passing every gate below establishes that an emulator can learn that calculator on that book. **It does not establish agreement with any bank's ECL engine**, which is not available here and was not tested.
 
@@ -10,10 +18,10 @@ Every predeclared gate passed.
 
 | Gate | What | Threshold | Measured | Outcome |
 |---|---|---|---|---|
-| G1 | out-of-time currency WAPE | 0.100 | 0.0189 | PASSED |
-| G2 | absolute aggregate bias | 0.020 | 0.0113 | PASSED |
-| G3 | worst absolute per-period bias | 0.050 | 0.0234 | PASSED |
-| G4 | worst material-group WAPE | 0.150 | 0.0537 | PASSED |
+| G1 | out-of-time currency WAPE | 0.100 | 0.0197 | PASSED |
+| G2 | absolute aggregate bias | 0.020 | 0.0147 | PASSED |
+| G3 | worst absolute per-period bias | 0.050 | 0.0253 | PASSED |
+| G4 | worst material-group WAPE | 0.150 | 0.0506 | PASSED |
 
 Thresholds come from `docs/whatif/ML_ACCEPTANCE_TARGETS.md`, which was committed **before** this model was fitted and before the test split was read.
 
@@ -21,24 +29,24 @@ Thresholds come from `docs/whatif/ML_ACCEPTANCE_TARGETS.md`, which was committed
 
 | Model | Test WAPE | Test bias |
 |---|---|---|
-| Blend | 0.0189 | -0.0113 |
+| Blend | 0.0197 | -0.0147 |
 | `naive_ead_pd_lgd` (ead × pd × lgd) | 0.0912 | -0.0863 |
 
-The blend beats the naive product on the test split.
+The single model beats the naive product on the test split.
 
-## The blend
+## The weight fit, and what it produced
 
-BLEND of 2 material components, fitted on out-of-fold predictions. Weights: xgboost 0.767, lightgbm 0.000, additive_log 0.233. Below the 0.05 materiality floor and reported as immaterial: lightgbm.
+SINGLE-MODEL RESULT. The weight fit put 1.000 on xgboost and left lightgbm, additive_spline below the 0.05 materiality floor. This is a xgboost model, not a blend, and is reported as one. Weights: xgboost 1.000, lightgbm 0.000, additive_spline 0.000.
 
 | Component | Weight | Material | Library | Seed | Alone (OOF MSE) |
 |---|---|---|---|---|---|
-| xgboost | 0.7668 | yes | 3.0.2 | 20260928 | 0.133981 |
+| xgboost | 1.0000 | yes | 3.0.2 | 20260928 | 0.133981 |
 | lightgbm | 0.0000 | no | 4.6.0 | 20260929 | 0.463083 |
-| additive_log | 0.2332 | yes | 1.6.1 | 20260930 | 0.329057 |
+| additive_spline | 0.0000 | no | 1.6.1 | 20260930 | 1.073603 |
 
 Weights are the exact non-negative, sum-to-one solution over the simplex, fitted on 26,964 **out-of-fold** predictions — predictions each component made for periods it had not trained on. Solved by enumerating the faces of the simplex rather than by an iterative optimiser, so the weights do not depend on a library version.
 
-Blending improved on every single component.
+The fit put every unit of weight on one component, so nothing was blended. The comparison below is that component against the two the optimiser set aside, on the same out-of-fold rows.
 
 ## The split
 
@@ -144,13 +152,13 @@ Train: `2021Q3`–`2024Q1` · Validate: `2024Q3`–`2025Q1` · Test: `2025Q3`–
 | `{"bagging_fraction": 0.8, "bagging_freq": 1, "feature_fraction": 0.8, "lambda_l2": 1.0, "learning_rate": 0.05, "min_data_in_leaf": 80, "num_leaves": 15}` | 0.07096 |
 | `{"bagging_fraction": 0.8, "bagging_freq": 1, "feature_fraction": 0.8, "lambda_l2": 1.0, "learning_rate": 0.1, "min_data_in_leaf": 80, "num_leaves": 15}` | 0.07321 |
 
-### additive_log
+### additive_spline
 
 ```json
 {
-  "alpha": 0.1,
+  "alpha": 10.0,
   "degree": 3,
-  "n_knots": 4
+  "n_knots": 6
 }
 ```
 
@@ -158,18 +166,18 @@ Train: `2021Q3`–`2024Q1` · Validate: `2024Q3`–`2025Q1` · Test: `2025Q3`–
 
 | Configuration | Mean fold WAPE |
 |---|---|
-| `{"alpha": 0.1, "degree": 3, "n_knots": 4}` | 0.09392 |
-| `{"alpha": 0.1, "degree": 3, "n_knots": 8}` | 0.09859 |
-| `{"alpha": 1.0, "degree": 3, "n_knots": 4}` | 0.09900 |
-| `{"alpha": 0.01, "degree": 3, "n_knots": 4}` | 0.09947 |
-| `{"alpha": 0.01, "degree": 3, "n_knots": 8}` | 0.10055 |
-| `{"alpha": 1.0, "degree": 3, "n_knots": 8}` | 0.10128 |
-| `{"alpha": 0.1, "degree": 3, "n_knots": 6}` | 0.10466 |
-| `{"alpha": 1.0, "degree": 3, "n_knots": 6}` | 0.10550 |
-| `{"alpha": 0.01, "degree": 3, "n_knots": 6}` | 0.10936 |
-| `{"alpha": 10.0, "degree": 3, "n_knots": 4}` | 0.12763 |
-| `{"alpha": 10.0, "degree": 3, "n_knots": 6}` | 0.12880 |
-| `{"alpha": 10.0, "degree": 3, "n_knots": 8}` | 0.13216 |
+| `{"alpha": 10.0, "degree": 3, "n_knots": 6}` | 0.32173 |
+| `{"alpha": 10.0, "degree": 3, "n_knots": 8}` | 0.32586 |
+| `{"alpha": 10.0, "degree": 3, "n_knots": 4}` | 0.33104 |
+| `{"alpha": 1.0, "degree": 3, "n_knots": 4}` | 0.34964 |
+| `{"alpha": 0.1, "degree": 3, "n_knots": 4}` | 0.35218 |
+| `{"alpha": 0.01, "degree": 3, "n_knots": 4}` | 0.36053 |
+| `{"alpha": 1.0, "degree": 3, "n_knots": 6}` | 0.37167 |
+| `{"alpha": 1.0, "degree": 3, "n_knots": 8}` | 0.37948 |
+| `{"alpha": 0.1, "degree": 3, "n_knots": 8}` | 0.41316 |
+| `{"alpha": 0.01, "degree": 3, "n_knots": 6}` | 0.42476 |
+| `{"alpha": 0.1, "degree": 3, "n_knots": 6}` | 0.43805 |
+| `{"alpha": 0.01, "degree": 3, "n_knots": 8}` | 0.44471 |
 
 ## Subgroup errors
 
@@ -179,38 +187,38 @@ A group is gated at 100 test observations. Smaller groups stay in this table wit
 
 | Dimension | Value | Test rows | ECL (SAR mn) | Share of test ECL | WAPE | Bias | Gated |
 |---|---|---|---|---|---|---|---|
-| facility_class | Funded | 8,084 | 4,555.28 | 64.23% | 0.0192 | -0.0111 | yes |
-| facility_class | Contingent | 3,900 | 2,536.47 | 35.77% | 0.0184 | -0.0115 | yes |
-| rating_current | B+ | 1,875 | 2,217.54 | 31.27% | 0.0154 | -0.0084 | yes |
-| rating_current | BB+ | 1,822 | 582.73 | 8.22% | 0.0192 | -0.0121 | yes |
-| rating_current | BBB | 1,791 | 259.59 | 3.66% | 0.0352 | -0.0146 | yes |
-| rating_current | BBB- | 1,763 | 388.46 | 5.48% | 0.0232 | -0.0140 | yes |
-| rating_current | BB- | 1,740 | 1,398.56 | 19.72% | 0.0169 | -0.0119 | yes |
-| rating_current | BB | 1,645 | 842.42 | 11.88% | 0.0171 | -0.0118 | yes |
-| rating_current | BBB+ | 677 | 80.33 | 1.13% | 0.0537 **<- G4** | +0.0038 | yes |
-| rating_current | B | 671 | 1,322.12 | 18.64% | 0.0215 | -0.0141 | yes |
-| region | Riyadh | 1,744 | 1,078.67 | 15.21% | 0.0178 | -0.0116 | yes |
-| region | Hail | 1,568 | 946.94 | 13.35% | 0.0220 | -0.0119 | yes |
-| region | Asir | 1,556 | 915.46 | 12.91% | 0.0181 | -0.0109 | yes |
-| region | Tabuk | 1,532 | 916.96 | 12.93% | 0.0166 | -0.0095 | yes |
-| region | Makkah | 1,524 | 976.16 | 13.76% | 0.0184 | -0.0097 | yes |
-| region | Qassim | 1,456 | 801.40 | 11.30% | 0.0178 | -0.0105 | yes |
-| region | Madinah | 1,344 | 765.98 | 10.80% | 0.0195 | -0.0122 | yes |
-| region | Eastern Province | 1,260 | 690.18 | 9.73% | 0.0222 | -0.0148 | yes |
-| sector | Real Estate | 1,024 | 549.63 | 7.75% | 0.0262 | -0.0191 | yes |
-| sector | Manufacturing | 1,016 | 548.84 | 7.74% | 0.0203 | -0.0167 | yes |
-| sector | Transport | 1,012 | 553.11 | 7.80% | 0.0218 | -0.0176 | yes |
-| sector | Retail Trade | 1,008 | 633.97 | 8.94% | 0.0188 | -0.0119 | yes |
-| sector | Wholesale Trade | 1,008 | 614.32 | 8.66% | 0.0170 | -0.0119 | yes |
-| sector | Hospitality | 1,004 | 532.01 | 7.50% | 0.0213 | -0.0105 | yes |
-| sector | Utilities | 996 | 806.00 | 11.37% | 0.0134 | -0.0014 | yes |
-| sector | Construction | 992 | 576.29 | 8.13% | 0.0309 | -0.0265 | yes |
-| sector | Education | 988 | 663.34 | 9.35% | 0.0132 | -0.0004 | yes |
-| sector | Healthcare | 984 | 483.41 | 6.82% | 0.0140 | -0.0044 | yes |
-| sector | Professional Services | 980 | 625.73 | 8.82% | 0.0128 | -0.0045 | yes |
-| sector | Petrochemicals | 972 | 505.10 | 7.12% | 0.0216 | -0.0166 | yes |
-| stage | 1 | 11,947 | 6,842.74 | 96.49% | 0.0179 | -0.0110 | yes |
-| stage | 2 | 37 | 249.00 | 3.51% | 0.0474 | -0.0187 | no |
+| facility_class | Funded | 8,084 | 4,555.28 | 64.23% | 0.0194 | -0.0143 | yes |
+| facility_class | Contingent | 3,900 | 2,536.47 | 35.77% | 0.0201 | -0.0155 | yes |
+| rating_current | B+ | 1,875 | 2,217.54 | 31.27% | 0.0172 | -0.0136 | yes |
+| rating_current | BB+ | 1,822 | 582.73 | 8.22% | 0.0219 | -0.0189 | yes |
+| rating_current | BBB | 1,791 | 259.59 | 3.66% | 0.0243 | -0.0086 | yes |
+| rating_current | BBB- | 1,763 | 388.46 | 5.48% | 0.0210 | -0.0169 | yes |
+| rating_current | BB- | 1,740 | 1,398.56 | 19.72% | 0.0211 | -0.0180 | yes |
+| rating_current | BB | 1,645 | 842.42 | 11.88% | 0.0214 | -0.0183 | yes |
+| rating_current | BBB+ | 677 | 80.33 | 1.13% | 0.0506 **<- G4** | +0.0156 | yes |
+| rating_current | B | 671 | 1,322.12 | 18.64% | 0.0169 | -0.0116 | yes |
+| region | Riyadh | 1,744 | 1,078.67 | 15.21% | 0.0191 | -0.0148 | yes |
+| region | Hail | 1,568 | 946.94 | 13.35% | 0.0207 | -0.0154 | yes |
+| region | Asir | 1,556 | 915.46 | 12.91% | 0.0202 | -0.0162 | yes |
+| region | Tabuk | 1,532 | 916.96 | 12.93% | 0.0178 | -0.0119 | yes |
+| region | Makkah | 1,524 | 976.16 | 13.76% | 0.0198 | -0.0155 | yes |
+| region | Qassim | 1,456 | 801.40 | 11.30% | 0.0181 | -0.0123 | yes |
+| region | Madinah | 1,344 | 765.98 | 10.80% | 0.0199 | -0.0147 | yes |
+| region | Eastern Province | 1,260 | 690.18 | 9.73% | 0.0220 | -0.0174 | yes |
+| sector | Real Estate | 1,024 | 549.63 | 7.75% | 0.0322 | -0.0286 | yes |
+| sector | Manufacturing | 1,016 | 548.84 | 7.74% | 0.0220 | -0.0196 | yes |
+| sector | Transport | 1,012 | 553.11 | 7.80% | 0.0211 | -0.0177 | yes |
+| sector | Retail Trade | 1,008 | 633.97 | 8.94% | 0.0163 | -0.0132 | yes |
+| sector | Wholesale Trade | 1,008 | 614.32 | 8.66% | 0.0174 | -0.0142 | yes |
+| sector | Hospitality | 1,004 | 532.01 | 7.50% | 0.0282 | -0.0247 | yes |
+| sector | Utilities | 996 | 806.00 | 11.37% | 0.0100 | +0.0007 | yes |
+| sector | Construction | 992 | 576.29 | 8.13% | 0.0363 | -0.0343 | yes |
+| sector | Education | 988 | 663.34 | 9.35% | 0.0101 | -0.0026 | yes |
+| sector | Healthcare | 984 | 483.41 | 6.82% | 0.0127 | -0.0054 | yes |
+| sector | Professional Services | 980 | 625.73 | 8.82% | 0.0122 | -0.0062 | yes |
+| sector | Petrochemicals | 972 | 505.10 | 7.12% | 0.0246 | -0.0210 | yes |
+| stage | 1 | 11,947 | 6,842.74 | 96.49% | 0.0196 | -0.0149 | yes |
+| stage | 2 | 37 | 249.00 | 3.51% | 0.0219 | -0.0092 | no |
 
 ## Provenance
 
@@ -219,8 +227,8 @@ A group is gated at 100 test observations. Smaller groups stay in this table wit
 | Release | `v4-whatif-corporate-20q-s1` |
 | Origin | SYNTHETIC_DEMO |
 | Target produced by | `reference_ecl.py` |
-| Model version | `whatif-ecl-emulator-2.0.0` |
-| additive_log | 1.6.1 |
+| Model version | `whatif-ecl-emulator-1.0.0` |
+| additive_spline | 1.6.1 |
 | lightgbm | 4.6.0 |
 | xgboost | 3.0.2 |
 

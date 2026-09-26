@@ -56,7 +56,9 @@ GRIDS: dict[str, tuple[dict[str, Any], ...]] = {
          "min_data_in_leaf": mdl, "lambda_l2": 1.0}
         for nl, lr, mdl in itertools.product((15, 31, 63), (0.05, 0.10),
                                              (20, 80))),
-    ml.ADDITIVE: tuple(
+    # The same twelve configurations version 1 declared, so the search
+    # budget is unchanged: four ridge penalties by three knot counts.
+    ml.ADDITIVE_LOG: tuple(
         {"alpha": a, "n_knots": k, "degree": 3}
         for a, k in itertools.product((0.01, 0.1, 1.0, 10.0), (4, 6, 8))),
 }
@@ -119,9 +121,9 @@ def available() -> dict[str, str]:
     try:
         import sklearn
 
-        out[ml.ADDITIVE] = str(sklearn.__version__)
+        out[ml.ADDITIVE_LOG] = str(sklearn.__version__)
     except ImportError:
-        out[ml.ADDITIVE] = ""
+        out[ml.ADDITIVE_LOG] = ""
     return out
 
 
@@ -185,6 +187,15 @@ def build(component: str, config: dict[str, Any], *, seed: int,
         return lightgbm.LGBMRegressor(
             n_estimators=rounds or ml.MAX_ROUNDS, random_state=seed,
             n_jobs=2, verbose=-1, objective="regression", **config)
+    if component == ml.ADDITIVE_LOG:
+        # Additive in LOGS. The classes it needs are importable by name from
+        # `ml/additive.py` rather than built here, because the fitted object
+        # is pickled and a closure does not survive that.
+        from backend.cockpit_v4.scenario.ml import additive
+
+        return additive.pipeline(alpha=config["alpha"],
+                                 n_knots=config["n_knots"],
+                                 degree=config["degree"], seed=seed)
     if component == ml.ADDITIVE:
         # The boosters read pandas categoricals natively; a spline basis
         # cannot subtract one string from another, so this component needs

@@ -54,7 +54,7 @@ from __future__ import annotations
 
 #: The artifact version every model, card and metric row carries. A scenario
 #: pinned to one version is never silently served another.
-MODEL_VERSION = "whatif-ecl-emulator-1.0.0"
+MODEL_VERSION = "whatif-ecl-emulator-2.0.0"
 
 #: The three components §11.3 asks for. Two boosters and one deliberately
 #: different model: a regularized additive fit is linear in its basis and
@@ -62,8 +62,18 @@ MODEL_VERSION = "whatif-ecl-emulator-1.0.0"
 #: having. Two boosters tuned on one dataset mostly agree.
 XGBOOST = "xgboost"
 LIGHTGBM = "lightgbm"
+#: Version 1's third component, additive in the features' own units. Kept as
+#: a name so a version-1 artifact directory still loads, and NOT in
+#: `COMPONENTS`: it scored 0.32 and 1.82 mean fold WAPE against 0.03 and 0.08
+#: for the boosters, because no sum of univariate terms equals a product and
+#: `ecl_rate` is one. `ML_ACCEPTANCE_TARGETS_V2.md` section 4 has the argument.
 ADDITIVE = "additive_spline"
-COMPONENTS: tuple[str, ...] = (XGBOOST, LIGHTGBM, ADDITIVE)
+
+#: Version 2's third component: the same family -- spline expansion into a
+#: ridge -- additive in LOGS, where the target genuinely is additive.
+ADDITIVE_LOG = "additive_log"
+
+COMPONENTS: tuple[str, ...] = (XGBOOST, LIGHTGBM, ADDITIVE_LOG)
 
 #: The declared reference model, carried through the card beside the blend
 #: so that "better than nothing" is never the standard.
@@ -80,14 +90,15 @@ EARLY_STOPPING_PATIENCE = 50
 
 #: Fixed, and recorded in the card beside every number they produced.
 SEEDS: dict[str, int] = {XGBOOST: 20260928, LIGHTGBM: 20260929,
-                         ADDITIVE: 20260930, "blend": 20260931}
+                         ADDITIVE: 20260930, ADDITIVE_LOG: 20260930,
+                         "blend": 20260931}
 
 #: What Method 2 says when it has no model to run. An existing error code:
 #: section 19 maps a domain failure onto the contract the runtime already
 #: knows, rather than growing it.
 NOT_READY = "MODEL_NOT_READY"
 
-__all__ = ["ADDITIVE", "COMPONENTS", "EARLY_STOPPING_PATIENCE", "LIGHTGBM",
+__all__ = ["ADDITIVE", "ADDITIVE_LOG", "COMPONENTS", "EARLY_STOPPING_PATIENCE", "LIGHTGBM",
            "MATERIAL_WEIGHT", "MAX_CONFIGS_PER_FAMILY", "MAX_FOLDS",
            "MAX_ROUNDS", "MODEL_VERSION", "NAIVE_PRODUCT", "NOT_READY",
            "SEEDS", "XGBOOST"]

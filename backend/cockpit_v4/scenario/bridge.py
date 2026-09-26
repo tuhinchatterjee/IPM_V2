@@ -577,7 +577,22 @@ def _execute(request: ExecuteRequest, *, session: Any, scope: Any, store: Any,
     return _compute(confirmed, session=session, scope=scope, store=store,
                     run_id=run_id, tenant_id=tenant_id,
                     release_id=release_id, domain_id=domain_id,
-                    frozen=frozen, clock=clock, reply=request.reply)
+                    frozen=frozen, clock=clock, reply=request.reply,
+                    # WHAT A SECOND RUN OF THE SAME SCENARIO IS.
+                    #
+                    # Not refused, and not a second answer. The engine is
+                    # deterministic over a frozen cohort and a confirmed
+                    # spec, so pressing Run twice can only produce the same
+                    # numbers -- and refusing the repeat would break a
+                    # reopen, which is the same request arriving
+                    # legitimately.
+                    #
+                    # So it is published as a RE-RUN, naming the run that
+                    # produced the result first. A reader comparing two
+                    # turns then sees one result reported twice rather than
+                    # two results that happen to agree.
+                    previous_run_id=str(
+                        stored.get("executed_run_id") or ""))
 
 
 #: Columns every scenario run reads, whatever it moves: the identity, the
@@ -586,19 +601,27 @@ def _execute(request: ExecuteRequest, *, session: Any, scope: Any, store: Any,
 #: `referenced_relations` is a statement about what was read.
 BASE_COLUMNS: tuple[str, ...] = ("ead_sar_mn", "ecl_sar_mn")
 
-#: The dimensions a scenario attributes its movement across. Present in both
-#: books under these names; a book missing one drops that view rather than
-#: reporting an empty one.
+#: The dimensions a result breaks its movement down by, per book.
+#:
+#: Checked against the release's declared columns in `_cohort_rows`, so a name
+#: that is not in the book is dropped rather than put into a query. The names
+#: here were WRONG on the first attempt -- `rating_current` and
+#: `product_type`, neither of which exists -- and the drop hid it: the run
+#: succeeded with a breakdown missing a dimension nobody had asked after.
+#: `test_the_declared_groupings_are_real_columns` is the guard, and it is the
+#: reason this list is short and exact rather than hopeful.
 GROUPINGS: dict[str, tuple[str, ...]] = {
-    "corporate": ("sector", "stage", "rating_current", "region"),
-    "retail": ("product_type", "stage", "employer_sector", "region"),
+    "corporate": ("sector", "stage", "facility_class", "region",
+                  "relationship_tier"),
+    "retail": ("product", "stage", "score_band", "region",
+               "employment_type"),
 }
 
 
 def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
              store: Any, run_id: str, tenant_id: str, release_id: str,
              domain_id: str, frozen: ch.Frozen, clock: _Clock,
-             reply: str = "") -> Produced:
+             reply: str = "", previous_run_id: str = "") -> Produced:
     """Every eligible method, against ONE contract, and the results composed.
 
     Section 12's requirement in one sentence: the same book, period, release,
@@ -637,11 +660,12 @@ def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
                        outside=outside, plan=plan)
     _remember_spec(store, run_id=run_id, tenant_id=tenant_id,
                    release_id=release_id, spec=confirmed, frozen=frozen,
-                   headline=summary.headline())
+                   headline=summary.headline(), executed=True)
     table = _result_rows(confirmed, outcome=outcome, summary=summary,
                          views=views, ledgers=ledgers, rows=rows,
                          frozen=frozen, domain_id=domain_id, loaded=loaded,
-                         unavailable=unavailable, reply=reply)
+                         unavailable=unavailable, reply=reply,
+                         previous_run_id=previous_run_id, run_id=run_id)
     return Produced(
         columns=list(_RESULT_COLUMNS), rows=table,
         relations=(grain["relation"],),
@@ -655,6 +679,9 @@ def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
             "whatif_reporting_period": confirmed.source.reporting_period,
             "whatif_methods_ran": list(outcome.ran),
             "whatif_methods_unavailable": list(outcome.unavailable),
+            "whatif_previous_run_id": previous_run_id,
+            "whatif_is_rerun": bool(previous_run_id
+                                    and previous_run_id != run_id),
             "whatif_model_version": getattr(loaded, "model_version", ""),
             "origin": "SYNTHETIC_DEMO"},
         warnings=list(outcome.notes))
@@ -890,7 +917,7 @@ def _readiness(spec: sp.ScenarioSpec, *, release_id: str) -> dict[str, str]:
 
 def _remember_spec(store: Any, *, run_id: str, tenant_id: str,
                    release_id: str, spec: sp.ScenarioSpec, frozen: ch.Frozen,
-                   headline: str = "") -> None:
+                   headline: str = "", executed: bool = False) -> None:
     """Publish the scenario as the artifact `thread.remember` looks for.
 
     Published by the RUN, read by `worker.py` after the answer settles, and
@@ -908,6 +935,15 @@ def _remember_spec(store: Any, *, run_id: str, tenant_id: str,
                      release_fingerprint=frozen.release_fingerprint,
                      reporting_period=frozen.period, run_id=run_id,
                      headline=headline)
+    if executed:
+        # WHICH RUN ACTUALLY CALCULATED SOMETHING.
+        #
+        # `body["run_id"]` is set on both paths, because both are runs. It is
+        # therefore not the answer to "has this been executed before": a
+        # preview writes its own run id, and reading that back as a previous
+        # execution made every first run report itself as a re-run of the
+        # preview that produced it.
+        stored["executed_run_id"] = run_id
     stored["cohort_predicate"] = frozen.predicate
     stored["cohort_selection"] = frozen.selection
     stored["cohort_described_as"] = frozen.described_as
@@ -1092,7 +1128,8 @@ def _result_rows(spec: sp.ScenarioSpec, *, outcome: rn.Run,
                  ledgers: Mapping[str, lg.Ledger],
                  rows: Sequence[Mapping[str, Any]], frozen: ch.Frozen,
                  domain_id: str, loaded: Any, unavailable: str,
-                 reply: str) -> list[dict[str, Any]]:
+                 reply: str, previous_run_id: str = "",
+                 run_id: str = "") -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
 
     def add(section: str, item: str, **kw: Any) -> None:
@@ -1116,6 +1153,14 @@ def _result_rows(spec: sp.ScenarioSpec, *, outcome: rn.Run,
         note="the reader's own words, as they were given")
     add("headline", "This is a simulation",
         note=pv.SOURCE_UNTOUCHED, status="NO SOURCE ROW CHANGED")
+    if previous_run_id and previous_run_id != run_id:
+        add("headline", "This result was produced before",
+            scope=previous_run_id, status="RE-RUN, NOT A SECOND RESULT",
+            note=f"run {previous_run_id} ran this same confirmed scenario "
+                 f"over this same frozen cohort. The engine is "
+                 f"deterministic, so these are the same numbers reported "
+                 f"again -- not a second opinion, and not two runs to "
+                 f"average.")
 
     # -- section 13.1's hierarchy
     for scope_name, measures in (("cohort", summary.cohort),

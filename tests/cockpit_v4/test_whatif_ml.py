@@ -205,7 +205,7 @@ def _components(rng, n=400, noise_only=False):
     return y, {
         ml.XGBOOST: [0.7 * v + rng.gauss(0, 0.3) for v in y],
         ml.LIGHTGBM: [0.9 * v + rng.gauss(0, 0.5) for v in y],
-        ml.ADDITIVE: [0.4 * v + rng.gauss(0, 0.8) for v in y],
+        ml.ADDITIVE_LOG: [0.4 * v + rng.gauss(0, 0.8) for v in y],
     }
 
 
@@ -245,7 +245,7 @@ def test_m07_a_one_zero_zero_outcome_is_called_a_single_model_result():
     rng = random.Random(5)
     predictions = {ml.XGBOOST: list(y),
                    ml.LIGHTGBM: [rng.gauss(0, 1) for _ in y],
-                   ml.ADDITIVE: [rng.gauss(0, 1) for _ in y]}
+                   ml.ADDITIVE_LOG: [rng.gauss(0, 1) for _ in y]}
     blended = bl.fit(predictions, y)
     assert blended.is_single_model
     assert blended.material == (ml.XGBOOST,)
@@ -281,7 +281,7 @@ def test_whether_blending_helped_is_reported_either_way() -> None:
 
 def test_weights_fitted_on_mismatched_predictions_are_refused() -> None:
     y, predictions = _components(random.Random(10), n=50)
-    predictions[ml.ADDITIVE] = predictions[ml.ADDITIVE][:40]
+    predictions[ml.ADDITIVE_LOG] = predictions[ml.ADDITIVE_LOG][:40]
     with pytest.raises(ValueError, match="different populations"):
         bl.fit(predictions, y)
 
