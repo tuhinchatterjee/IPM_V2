@@ -123,3 +123,5 @@ A genuinely wrong count is still caught: 1,371 against a facility-count referenc
 ```bash
 .venv/bin/python scripts/model_lab/reevaluate.py --comparison cmp-f364d8b6901a
 ```
+
+**Frozen regression after lab-eval-3** (2026-09-26): 3,315 passed, 33 skipped, 0 failed. This is unchanged. The evidence files were restored and the protected manifest check passed.
