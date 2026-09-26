@@ -70,6 +70,7 @@ from backend.cockpit_v4.scenario import fields as fd
 from backend.cockpit_v4.scenario import flags
 from backend.cockpit_v4.scenario import ledger as lg
 from backend.cockpit_v4.scenario import preview as pv
+from backend.cockpit_v4.scenario import reference_ecl as refecl
 from backend.cockpit_v4.scenario import results as rs
 from backend.cockpit_v4.scenario import rules as ru
 from backend.cockpit_v4.scenario import run as rn
@@ -486,6 +487,17 @@ def _preview_rows(built: pv.Preview, *, frozen: ch.Frozen, graph: ru.Graph,
         frozen.release_id, status=release_id == frozen.release_id
         and "in use" or "NOT THE RELEASE IN USE")
     add("scope", "Reporting period", "", frozen.period)
+    # THE SCENARIO'S OWN IDENTITY, ON THE SCREEN THAT ASKS FOR APPROVAL.
+    #
+    # The cohort was named here from the start and the scenario was not, so a
+    # reader could approve a scenario without ever being shown which one, and
+    # the audit trail for a confirmed run had to be reconstructed from the
+    # artifact afterwards. An approval names what it approves.
+    add("scope", "Scenario id", "the scenario these rules belong to",
+        built.spec.scenario_id)
+    add("scope", "Scenario version",
+        "a revision makes a new version and voids any earlier approval",
+        built.spec.version)
     add("cohort", "Cohort id", frozen.described_as, frozen.ref.cohort_id)
     add("cohort", "Membership hash",
         "the identity of these exact rows; a different hash is a different "
@@ -1179,6 +1191,15 @@ def _result_rows(spec: sp.ScenarioSpec, *, outcome: rn.Run,
              f"{spec.source.release_fingerprint[:12]}")
     add("headline", "Approval", scope=reply[:60],
         note="the reader's own words, as they were given")
+    # WHICH CODE PRODUCED THIS, IN THE RESULT ITSELF.
+    #
+    # The versions are in the artifact's provenance, which an auditor can
+    # reach and a reader cannot. A result that cannot say which engine and
+    # which model wrote it is not reproducible from what it shows.
+    add("headline", "Versions", scope=refecl.VERSION,
+        note=(f"baseline recomputation {refecl.VERSION}; emulator "
+              + (str(getattr(loaded, "model_version", "") or "not loaded")
+                 if loaded is not None else "not used")))
     add("headline", "This is a simulation",
         note=pv.SOURCE_UNTOUCHED, status="NO SOURCE ROW CHANGED")
     if previous_run_id and previous_run_id != run_id:

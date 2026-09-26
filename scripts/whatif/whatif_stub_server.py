@@ -41,6 +41,7 @@ import os
 import sys
 import threading
 import time
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -228,8 +229,21 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
     def preview_clarification(messages: list[dict[str, Any]], *,
                               question: str) -> Any:
         """The preview, published as a clarification the reader confirms."""
+        step = _step_of(messages)
         rows = _rows_from(messages)
         digest = _value(rows, "confirmation", "Digest to approve")
+        # THE TABLE IS NAMED, NOT CARRIED.
+        #
+        # This turn used to inline its own `rows` as arrays of strings. The
+        # server renders a published table from the STORED ARTIFACT
+        # (`finalization.render_tables`) and passes an unrecognised one
+        # straight through, so those raw arrays reached the browser without
+        # the `display` map every cell is read from -- and the thread page
+        # died in its error boundary with "Cannot read properties of
+        # undefined (reading 'section')", taking the composer with it. An
+        # analyst names the artifact and the columns; CreditProbe owns every
+        # value and its formatting.
+        artifact = str(step.get("artifact_id") or "")
         return ScriptedResult(tool_calls=[tool_call(
             "finalize_response",
             final(intent=intent("DATA_ANALYSIS", "COCKPIT",
@@ -264,13 +278,9 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
                   clarification_options=["Yes, run it",
                                         "No, change something"],
                   tables=[{"title": "Scenario preview",
+                          "artifact_id": artifact,
                           "columns": ["section", "item", "detail", "value",
-                                      "status"],
-                          "rows": [[r.get("section", ""), r.get("item", ""),
-                                    r.get("detail", ""), str(r.get("value", "")),
-                                    r.get("status", "")]
-                                   for r in rows],
-                          "row_ids": []}]),
+                                      "unit", "status"]}]),
             "tu-preview")])
 
     class ScenarioProvider:
@@ -354,6 +364,69 @@ def build_app(port: int, runtime_dir: Path, *, domain_id: str,
                            dimension="factor_id", intent_of=intent,
                            final_of=final),
                 "tu-sens-answer")])
+
+        # -- J13: a run that keeps working, one modest action at a time.
+        #
+        # Deliberately NOT one long sleep. V4 observes a cancellation BETWEEN
+        # actions; it does not abort an in-flight provider call, which is what
+        # the deadline and the supervisor are for. A stub that blocked inside
+        # `converse` would be testing whether a socket can be interrupted --
+        # not the mechanism -- and would make a correct implementation look
+        # broken.
+        if "keep working" in asked or "slowly" in asked:
+            return ScriptedResult(tool_calls=[tool_call(
+                "inspect_catalog",
+                {"intent": intent("DATA_ANALYSIS", "COCKPIT",
+                                  understood="looking for the right fields"),
+                 "query": "exposure", "relation_ids": [], "field_ids": [],
+                 "detail": ["discovery"], "reporting_periods": [],
+                 "sample_rows": 0, "cursor": ""},
+                "tu-slow")])
+
+        # -- J11: a category the book does not have. The reader's own words
+        # reach the typed contract unchanged, and `selector` refuses the
+        # column value against the release's declared categories. The refusal
+        # is the product's, not the script's.
+        if "interstellar" in asked:
+            if turn == 0:
+                return ScriptedResult(tool_calls=[tool_call(
+                    "execute_analysis",
+                    submission([scenario_step(
+                        {"operation": "preview_scenario",
+                         "cohort": {"filters": [
+                             {"column": plan["filters"][0]["column"],
+                              "operator": "=",
+                              "value": "Interstellar Freight"}]},
+                         "shocks": [{"field": plan["field"],
+                                     "operation": "relative_pct",
+                                     "value": "20",
+                                     "origin": asked[:200]}],
+                         "methods": ["delta"]},
+                        purpose="preview a scenario over a named category",
+                        restatement="Preview: a category the reader named.")],
+                        objective="preview this scenario", understood=asked),
+                    "tu-unseen")])
+            return answer_from(messages, question=asked, charts=False)
+
+        # -- J12: a probability outside its own range. `units` and the field
+        # dictionary own the bound; the script does not pre-clip it, because
+        # a stub that corrected the request would be testing itself.
+        if "250" in asked:
+            if turn == 0:
+                return ScriptedResult(tool_calls=[tool_call(
+                    "execute_analysis",
+                    submission([scenario_step(
+                        {"operation": "preview_scenario",
+                         "cohort": {"filters": plan["filters"]},
+                         "shocks": [{"field": plan["field"],
+                                     "operation": "set_to", "value": "250",
+                                     "origin": asked[:200]}],
+                         "methods": ["delta"]},
+                        purpose="preview a scenario with a stated bound",
+                        restatement="Preview: set the parameter as asked.")],
+                        objective="preview this scenario", understood=asked),
+                    "tu-range")])
+            return answer_from(messages, question=asked, charts=False)
 
         # -- J01/J02 and the rest: a scenario.
         confirming = any(
@@ -610,12 +683,21 @@ def _step_of(messages: list[dict[str, Any]]) -> dict[str, Any]:
 #: claim id each gets. Named rather than "the first six numeric rows": a
 #: narrative that quotes whichever rows happened to come first is a narrative
 #: nobody can review.
-QUOTED: tuple[tuple[str, str, str], ...] = (
-    ("baseline", "cohort:Total ECL", "baseline_sar_mn"),
-    ("scenario", "cohort:Total ECL", "scenario_sar_mn"),
-    ("change", "cohort:Total ECL", "change_sar_mn"),
-    ("book_before", "book:Total ECL", "baseline_sar_mn"),
-    ("book_after", "book:Total ECL", "scenario_sar_mn"),
+#: Each quoted figure as (claim id, the row's `measure`, the column, the unit).
+#:
+#: The PERCENTAGE change is quoted as well as the absolute one, and not for
+#: symmetry: the display policy fixes a riyal amount at whole numbers
+#: (`display.PERMITTED[MONETARY_AMOUNT] == (0,)`), and the Retail book's
+#: monthly cohort carries about SAR 1.7 million of ECL, so a real 20% rise
+#: rounds in prose to "SAR 2 million becomes SAR 2 million". The percentage is
+#: a percentage class, carries two decimals, and states the movement exactly.
+QUOTED: tuple[tuple[str, str, str, str], ...] = (
+    ("baseline", "cohort:Total ECL", "baseline_sar_mn", "SAR million"),
+    ("scenario", "cohort:Total ECL", "scenario_sar_mn", "SAR million"),
+    ("change", "cohort:Total ECL", "change_sar_mn", "SAR million"),
+    ("change_pct", "cohort:Total ECL", "change_pct", "percent"),
+    ("book_before", "book:Total ECL", "baseline_sar_mn", "SAR million"),
+    ("book_after", "book:Total ECL", "scenario_sar_mn", "SAR million"),
 )
 
 
@@ -692,13 +774,13 @@ def answer_body(step: dict[str, Any], *, question: str, charts: bool,
     rows = {str(r.get("measure", "")): r for r in step.get("preview") or []}
     artifact = str(step.get("artifact_id") or "")
     claims: list[dict[str, Any]] = []
-    for claim_id, measure, column in QUOTED:
+    for claim_id, measure, column, unit in QUOTED:
         row = rows.get(measure)
         if not row or not str(row.get(column) or "").strip():
             continue
         claims.append({
             "claim_id": claim_id,
-            "unit": "SAR million",
+            "unit": unit,
             "evidence": {"artifact_id": artifact,
                          "row_key": f"measure={measure}",
                          "column_id": column}})
@@ -716,11 +798,21 @@ def answer_body(step: dict[str, Any], *, question: str, charts: bool,
                          "row_key": f"measure={row['measure']}",
                          "column_id": "scenario_sar_mn"}})
     have = {c["claim_id"] for c in claims}
-    narrative = _narrative(have, methods)
+    cohort = rows.get("cohort:Total ECL") or {}
+    narrative = _narrative(have, methods,
+                           cohort_change=str(cohort.get("change_sar_mn") or ""))
+    # `note` IS SHOWN, NOT HIDDEN.
+    #
+    # It carries the sentences that stop a number being misread -- "exactly
+    # zero, not approximately", the gate a method failed, which engine and
+    # which model wrote this result. Leaving it out of the declared columns put
+    # all of that in the artifact where only an auditor could reach it, and the
+    # export inherited the same omission.
     tables = [{"title": "Scenario result",
                "artifact_id": artifact,
                "columns": ["section", "item", "baseline_sar_mn",
-                           "scenario_sar_mn", "change_sar_mn", "status"]}]
+                           "scenario_sar_mn", "change_sar_mn", "change_pct",
+                           "status", "note"]}]
     chart_specs: list[dict[str, Any]] = []
     if charts and methods:
         chart_specs = [
@@ -746,7 +838,26 @@ def answer_body(step: dict[str, Any], *, question: str, charts: bool,
         limitations=_limitations(step.get("preview") or []))
 
 
-def _narrative(have: set[str], methods: list[dict[str, Any]]) -> str:
+def _rounds_to_nothing(raw: str) -> bool:
+    """Would the display policy write this riyal amount as zero?
+
+    `display.PERMITTED[MONETARY_AMOUNT]` is `(0,)`, so anything under half a
+    million is written "SAR 0 million". True here is not an error; it is the
+    cue to say out loud that the absolute figure is rounded and the percentage
+    is not.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return False
+    try:
+        value = Decimal(text)
+    except (ArithmeticError, ValueError):
+        return False
+    return value != 0 and abs(value) < Decimal("0.5")
+
+
+def _narrative(have: set[str], methods: list[dict[str, Any]], *,
+               cohort_change: str = "") -> str:
     """Prose with placeholders, never digits.
 
     A narrative that spelled a number out would be the analyst formatting
@@ -759,19 +870,52 @@ def _narrative(have: set[str], methods: list[dict[str, Any]]) -> str:
                 "book: not bank output and not an accounting figure.")
     lines = ["On the frozen cohort, baseline ECL of {{claim.baseline}} "
              "becomes {{claim.scenario}} under this scenario, a change of "
-             "{{claim.change}}."]
+             "{{claim.change}}"
+             + (" ({{claim.change_pct}})." if "change_pct" in have else ".")]
+    # WHEN THE RIYAL FIGURE ROUNDS TO NOTHING, SAY SO.
+    #
+    # A riyal amount is written to whole numbers, and the Retail book's monthly
+    # cohort is small enough that a real 20% PD rise reads "SAR 2 million
+    # becomes SAR 2 million, a change of SAR 0 million". Every digit there is
+    # the display policy doing its job, and together they say the opposite of
+    # what happened. The percentage above is exact; this sentence tells the
+    # reader why the two look inconsistent and where the full precision is.
+    if _rounds_to_nothing(cohort_change) and "change_pct" in have:
+        lines.append(
+            "At this book's scale a riyal amount is written to whole "
+            "millions, so the absolute change above rounds to zero even "
+            "though the scenario moved the cohort's ECL by the percentage "
+            "stated: the unrounded baseline, scenario and change are in the "
+            "table below, and nothing here was rounded before it was "
+            "computed.")
     if "book_before" in have and "book_after" in have:
         lines.append("Across the whole book that is {{claim.book_before}} "
                      "becoming {{claim.book_after}}: every exposure outside "
                      "the cohort is unchanged, and its change is exactly "
                      "zero rather than approximately zero.")
-    ran = [m for m in methods
-           if str(m.get("scenario_sar_mn") or "").strip()]
-    if len(ran) > 1:
+    # EVERY METHOD NAMED, WITH ITS OWN STATUS AND ITS OWN FIGURE.
+    #
+    # "method1 / method2 / method3" told a reader nothing: which of them was
+    # the model, and which was the reader's own assumption, was legible only
+    # in a table row they had to expand to reach. A composed line names each
+    # method, gives its figure through its own claim, and says outright when
+    # one is not ready -- which is also the side-by-side statement the brief
+    # asks for, with no average and no substituted number.
+    status_parts: list[str] = []
+    for index, row in enumerate(methods, start=1):
+        label = str(row.get("item") or f"method {index}")
+        if str(row.get("scenario_sar_mn") or "").strip():
+            status_parts.append(f"{label} COMPLETE at {{{{claim.method{index}}}}}")
+        else:
+            reason = str(row.get("note") or row.get("status") or "").strip()
+            status_parts.append(
+                f"{label} NOT READY{f' — {reason}' if reason else ''}")
+    if status_parts:
         lines.append(
-            "The methods below were each run against the same confirmed "
-            "scenario, the same frozen cohort and the same baseline, and "
-            "they are shown side by side rather than averaged.")
+            "Each method ran against the same confirmed scenario, the same "
+            "frozen cohort, the same release and the same baseline, and they "
+            "are shown side by side rather than averaged: "
+            + "; ".join(status_parts) + ".")
     held = [m for m in methods
             if not str(m.get("scenario_sar_mn") or "").strip()]
     for row in held:
