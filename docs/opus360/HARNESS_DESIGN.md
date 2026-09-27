@@ -78,7 +78,7 @@ what they receive.
 | 39 Progress | one line per turn; a cumulative block every 25 turns |
 | 40 Launchers | `launchers/START_OPUS360_OVERNIGHT.command`, `STATUS_OPUS360.command`, `STOP_OPUS360.command`, `RESUME_OPUS360.command`, `SETUP_OPUS360.command` |
 | 42 Pre-run summary | printed by `run_certification.pre_run_summary` before any turn |
-| 43 Harness tests | `tests/opus360/` (42 tests); frozen regression parity in `artifacts/opus360/regression/` |
+| 43 Harness tests | `tests/opus360/` (43 tests); frozen regression parity in `artifacts/opus360/regression/` |
 | 44 Final proof | `reports.build` re-verifies the manifest and `git diff` on protected paths and writes the result into every report |
 
 ## Definitions

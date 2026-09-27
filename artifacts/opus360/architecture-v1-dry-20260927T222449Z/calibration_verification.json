@@ -1,0 +1,51 @@
+{
+ "ok": true,
+ "live": false,
+ "checks": {
+  "all_calibration_turns_recorded": {
+   "ok": true,
+   "detail": "11/11"
+  },
+  "native_tokens_captured": {
+   "ok": true,
+   "detail": "input/output are provider-native integers on every turn with model calls"
+  },
+  "tokens_reconcile_with_product_ledger": {
+   "ok": true,
+   "detail": "harness per-call totals == reservations.usage totals"
+  },
+  "cost_calculation_matches_price_card": {
+   "ok": true,
+   "detail": "product ledger cost == tokens x verified price card"
+  },
+  "provider_and_local_timing_captured": {
+   "ok": true,
+   "detail": "provider_ms and e2e_processing_ms present"
+  },
+  "submitted_analysis_saved": {
+   "ok": true,
+   "detail": "every answered numeric turn has >=1 persisted submission"
+  },
+  "tool_calls_saved": {
+   "ok": true,
+   "detail": "tool rows == tool.requested events"
+  },
+  "oracle_comparison_works": {
+   "ok": true,
+   "detail": "every answered numeric turn has an oracle verdict"
+  },
+  "claims_evaluated": {
+   "ok": true,
+   "detail": "verdict.json (claims, unbound numbers) written for every turn"
+  },
+  "final_answer_saved": {
+   "ok": true,
+   "detail": "terminal state + final_response persisted"
+  },
+  "protected_core_unchanged": {
+   "ok": true,
+   "detail": "ok"
+  }
+ },
+ "verified_at": "2026-09-27T22:25:11+00:00"
+}

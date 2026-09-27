@@ -1,0 +1,133 @@
+{
+ "experiment_id": "architecture-v1-dry-20260927T222449Z",
+ "suite": "architecture-v1",
+ "live": false,
+ "harness_version": "opus360-harness-1.0.0",
+ "frozen_tag": "cockpit-round-h-live-pass-2026-09-23",
+ "frozen_commit": "245c50e45786c6e0c866b281f9dd74da17d160b5",
+ "harness_head": "859f26aaf998b48d76e525edc8cedb4b6c3177d2",
+ "protected_manifest_sha256": "637c40b0b6e793bec437de4c74a1caad9cc7fc1cae1b96faecd9a134c8b7c6f7",
+ "protected_manifest_path": "config/opus360/protected_manifest.v1.json",
+ "bank_sha256": "e7198a69f8a9e8a9f39a5b15d2df8079e4ccc31c71cb9f48edc2092ffa7dff82",
+ "bank_path": "config/opus360/question_bank.v1.yaml",
+ "oracle_refs_sha256": "fd9b14215451836f16aaa6435b6bc91dfd195d03842fdd4dc386cd973596a164",
+ "oracle_version": "opus360-oracles-1.0.0",
+ "model": "claude-opus-5",
+ "price_card": {
+  "path": "config/cockpit_v4/price_card.claude-opus-5.json",
+  "sha256": "b097e774c7b036c8e8e6b7802586f4472fedc51da80df030a5541eb6cf473d5c",
+  "verified_at": "2026-09-21",
+  "price": {
+   "input_usd_per_mtok": 5.0,
+   "output_usd_per_mtok": 25.0,
+   "cache_write_usd_per_mtok": 6.25,
+   "cache_read_usd_per_mtok": 0.5
+  }
+ },
+ "releases": {
+  "corporate": "v4-saudi-corporate-20q-v4",
+  "retail": "v4-saudi-retail-20m-v5"
+ },
+ "release_fingerprints": {
+  "corporate": "c79d0fdf8753576f391f2a6bb84f281595e7445291a558abe639f6a43e22a740",
+  "retail": "c23a15d78ba88d39aeae6983e68fff2230b644f5c8f91bec5c89085399f04e5b"
+ },
+ "release_fingerprint_note": "corporate: byte fingerprint c79d0fdf8753576f != approved e37236d0f6d4e494 (built_with {'numpy': '2.5.0', 'pandas': '3.0.3', 'pyarrow': '24.0.0', 'python': '3.12.3'}) | retail: byte fingerprint c23a15d78ba88d39 != approved a1e797dcc73236b7 (built_with {'numpy': '2.5.0', 'pandas': '3.0.3', 'pyarrow': '24.0.0', 'python': '3.12.3'}) | content parity against the Round H approved oracle values: 140 values, 14 journeys, 0 differences",
+ "approved_fingerprints": {
+  "corporate": "e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f",
+  "retail": "a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb"
+ },
+ "python": "3.12.3",
+ "requirements_sha256": "fd9dd717f3ffd38a95179696efc6d4e733be65c2096ed6fd7a9b6b5306175b72",
+ "pip_freeze_sha256": "c7bab3bba741cd09818d8e2a99dd162bec438d98c777320343cb1a68e247ec14",
+ "key_packages": {
+  "anthropic": "0.112.0",
+  "duckdb": "1.5.5",
+  "pandas": "3.0.3",
+  "pyarrow": "24.0.0",
+  "numpy": "2.5.0",
+  "fastapi": "0.141.1"
+ },
+ "max_usd": null,
+ "max_hours": null,
+ "credential_source": "not needed (dry run)",
+ "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+ "calibration_cases": [
+  "A-C01",
+  "A-C07",
+  "A-R01",
+  "A-R05",
+  "B-C03-1",
+  "B-R03-2",
+  "C-C02",
+  "C-R06",
+  "E-01",
+  "D-TD04-1",
+  "D-TD04-2"
+ ],
+ "load_cases": [
+  "A-C01",
+  "A-C07",
+  "A-C12",
+  "C-C02",
+  "C-C05",
+  "A-C17",
+  "A-R01",
+  "A-R05",
+  "A-R11",
+  "C-R02",
+  "C-R05",
+  "A-R16"
+ ],
+ "created_at": "2026-09-27T22:24:49+00:00",
+ "preflight": {
+  "checked_at": "2026-09-27T22:23:36+00:00",
+  "frozen_tag": "cockpit-round-h-live-pass-2026-09-23",
+  "tag_resolves_to": "245c50e45786c6e0c866b281f9dd74da17d160b5",
+  "harness_head": "859f26aaf998b48d76e525edc8cedb4b6c3177d2",
+  "frozen_commit_is_ancestor_of_head": true,
+  "git_status_porcelain": "",
+  "bank_sha256": "e7198a69f8a9e8a9f39a5b15d2df8079e4ccc31c71cb9f48edc2092ffa7dff82",
+  "bank_sha_stored": "e7198a69f8a9e8a9f39a5b15d2df8079e4ccc31c71cb9f48edc2092ffa7dff82",
+  "bank_rows": 250,
+  "content_parity": {
+   "ok": true,
+   "journeys_compared": 14,
+   "values_compared": 140,
+   "differences": [],
+   "source": "docs/cockpit_v4/evidence/live_uat_dry_run.json (Round H, approved releases)"
+  },
+  "release_fingerprints": {
+   "corporate": "c79d0fdf8753576f391f2a6bb84f281595e7445291a558abe639f6a43e22a740",
+   "retail": "c23a15d78ba88d39aeae6983e68fff2230b644f5c8f91bec5c89085399f04e5b"
+  },
+  "release_fingerprint_note": "corporate: byte fingerprint c79d0fdf8753576f != approved e37236d0f6d4e494 (built_with {'numpy': '2.5.0', 'pandas': '3.0.3', 'pyarrow': '24.0.0', 'python': '3.12.3'}) | retail: byte fingerprint c23a15d78ba88d39 != approved a1e797dcc73236b7 (built_with {'numpy': '2.5.0', 'pandas': '3.0.3', 'pyarrow': '24.0.0', 'python': '3.12.3'}) | content parity against the Round H approved oracle values: 140 values, 14 journeys, 0 differences",
+  "price_card": {
+   "path": "config/cockpit_v4/price_card.claude-opus-5.json",
+   "sha256": "b097e774c7b036c8e8e6b7802586f4472fedc51da80df030a5541eb6cf473d5c",
+   "verified_at": "2026-09-21",
+   "price": {
+    "input_usd_per_mtok": 5.0,
+    "output_usd_per_mtok": 25.0,
+    "cache_write_usd_per_mtok": 6.25,
+    "cache_read_usd_per_mtok": 0.5
+   }
+  },
+  "model": "claude-opus-5",
+  "python": "3.12.3",
+  "requirements_sha256": "fd9dd717f3ffd38a95179696efc6d4e733be65c2096ed6fd7a9b6b5306175b72",
+  "pip_freeze_sha256": "c7bab3bba741cd09818d8e2a99dd162bec438d98c777320343cb1a68e247ec14",
+  "key_packages": {
+   "anthropic": "0.112.0",
+   "duckdb": "1.5.5",
+   "pandas": "3.0.3",
+   "pyarrow": "24.0.0",
+   "numpy": "2.5.0",
+   "fastapi": "0.141.1"
+  },
+  "max_usd": null,
+  "max_hours": null,
+  "credential_source": "not needed (dry run)"
+ },
+ "manifest_written_at": "2026-09-27T22:24:49+00:00"
+}

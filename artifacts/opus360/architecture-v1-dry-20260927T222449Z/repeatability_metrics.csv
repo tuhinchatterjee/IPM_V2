@@ -1,0 +1,11 @@
+repeatability_group,members,numerical_stability,all_oracle_pass,period_stability,population_stability,sql_plan_identical,distinct_sql_plans,tool_sequence_identical,published_numbers_identical,token_cv,latency_cv,tokens,latency_ms,model_calls
+RG-01,"[""A-C07"", ""G-01-1"", ""G-01-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0576,"[3000, 3000, 3000]","[177, 157, 157]","[2, 2, 2]"
+RG-02,"[""A-C12"", ""G-02-1"", ""G-02-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0949,"[3000, 3000, 3000]","[240, 290, 300]","[2, 2, 2]"
+RG-03,"[""A-C17"", ""G-03-1"", ""G-03-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0611,"[3000, 3000, 3000]","[164, 170, 189]","[2, 2, 2]"
+RG-04,"[""A-R05"", ""G-06-1"", ""G-06-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.1366,"[3000, 3000, 3000]","[121, 87, 114]","[2, 2, 2]"
+RG-05,"[""A-R16"", ""G-07-1"", ""G-07-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0384,"[3000, 3000, 3000]","[163, 174, 159]","[2, 2, 2]"
+RG-06,"[""A-R19"", ""G-10-1"", ""G-10-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.1383,"[3000, 3000, 3000]","[132, 105, 148]","[2, 2, 2]"
+RG-07,"[""C-C02"", ""G-04-1"", ""G-04-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0956,"[3000, 3000, 3000]","[458, 372, 381]","[2, 2, 2]"
+RG-08,"[""C-C06"", ""G-05-1"", ""G-05-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0702,"[3000, 3000, 3000]","[378, 383, 440]","[2, 2, 2]"
+RG-09,"[""C-R01"", ""G-08-1"", ""G-08-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.1469,"[3000, 3000, 3000]","[234, 185, 166]","[2, 2, 2]"
+RG-10,"[""C-R06"", ""G-09-1"", ""G-09-2""]",TRUE,TRUE,TRUE,TRUE,TRUE,1,TRUE,TRUE,0.0,0.0636,"[3000, 3000, 3000]","[230, 260, 226]","[2, 2, 2]"
