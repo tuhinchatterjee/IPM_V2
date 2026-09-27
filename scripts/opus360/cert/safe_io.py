@@ -82,7 +82,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]],
         cols = list(seen)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")
+        writer = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({c: cell(row.get(c)) for c in cols})

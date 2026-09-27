@@ -408,3 +408,9 @@ def test_null_values_survive_every_writer(tmp_path):
     write_csv(tmp_path / "n.csv", [{"a": None, "b": UNKNOWN, "c": 0}])
     row = list(csv.DictReader(open(tmp_path / "n.csv")))[0]
     assert row == {"a": "", "b": "UNKNOWN", "c": "0"}
+
+
+def test_csv_is_written_with_lf_so_checksums_survive_git(tmp_path):
+    """The repo normalises text to LF; a CRLF CSV would fail its own checksum after a clone."""
+    write_csv(tmp_path / "lf.csv", [{"a": 1}, {"a": 2}])
+    assert b"\r" not in (tmp_path / "lf.csv").read_bytes()
