@@ -1,0 +1,9 @@
+# Heavy or machine-local experiment content stays out of git; each experiment's
+# manifest.json and checksums.sha256 record the hashes of everything here.
+*/runtime/
+*/calls/
+*/evidence/
+*/oracle_references.json
+*/STOP
+regression/*.junit.xml
+fixtures/*.junit.xml
