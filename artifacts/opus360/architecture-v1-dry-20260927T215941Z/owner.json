@@ -1,0 +1,8 @@
+{
+ "pid": 20906,
+ "started_at": 1790546303.0,
+ "claimed_iso": "2026-09-27T21:59:41+00:00",
+ "command": "/home/user/IPM_V2/.venv/bin/python scripts/opus360/run_certification.py --dry-run --run-calibration --run-core --run-load-test --export",
+ "cwd": "/home/user/IPM_V2",
+ "experiment_root": "/home/user/IPM_V2/artifacts/opus360/architecture-v1-dry-20260927T215941Z"
+}
