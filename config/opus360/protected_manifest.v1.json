@@ -1,0 +1,1597 @@
+{
+ "built_at": "2026-09-27T21:29:31.525414+00:00",
+ "file_count": 311,
+ "files": {
+  "backend/__init__.py": {
+   "bytes": 77,
+   "git_blob": "1c54ba124815c2427a0a227eefc7c81888be6ab0",
+   "sha256": "a580c44e47bd4cbfe59851c2277bc1e824fbd4b601dec013c77052493bc96f29"
+  },
+  "backend/cockpit_agentic/__init__.py": {
+   "bytes": 6727,
+   "git_blob": "7136f9f53150666b7625579e9622afd891e94273",
+   "sha256": "c12e99882f3841a45925291746c0d3c7d64edfca4060ebf9c6d1db8c62ec62be"
+  },
+  "backend/cockpit_agentic/calendar.py": {
+   "bytes": 13188,
+   "git_blob": "6ccede9a9506b70f013069dc3e36d69008138189",
+   "sha256": "e9ea91537867976b041ac26e4daf129a847861b62c538bcd14dc050db43f1c7b"
+  },
+  "backend/cockpit_agentic/catalog.py": {
+   "bytes": 23676,
+   "git_blob": "0303af85c7d47536f2f9bbe2a2715d863a5f3530",
+   "sha256": "152042abe1eb177c1a30aaeae867a0289a4c51835f435dbd10bed8cc9d352e84"
+  },
+  "backend/cockpit_agentic/contracts.py": {
+   "bytes": 62826,
+   "git_blob": "b9400419061bb7660270e9bcdebec55f8df8d95d",
+   "sha256": "b40ff7c9e14bd05dd88628cac496c4df0465e7d759f2d2fbaac84f83a5008b02"
+  },
+  "backend/cockpit_agentic/fields.py": {
+   "bytes": 82563,
+   "git_blob": "6e872c93c4ef55c4b473f3e3bea0ae9527923d9e",
+   "sha256": "edd71340aefeba62b619f6cce7beb0deb6245bca33abd554d7c4ac4983f6bb96"
+  },
+  "backend/cockpit_agentic/generate.py": {
+   "bytes": 86576,
+   "git_blob": "eb4a5b11fcf4292bf539b27901932c196e636089",
+   "sha256": "9da9a753d6386493223fe39742ae96625ceda6b8a6c23a8fb88f949af45383f4"
+  },
+  "backend/cockpit_agentic/profile.py": {
+   "bytes": 12390,
+   "git_blob": "25fa3ef75c71f99115f0eaf4d1db62d3c1a02132",
+   "sha256": "814a6c818fcff71b031aa9cc4db9f5d61867eaf6f3b34b8af02786eeb0dc5761"
+  },
+  "backend/cockpit_agentic/scope.py": {
+   "bytes": 5267,
+   "git_blob": "bb3248e968d32fbe7d139b278fb63014eb0c17ff",
+   "sha256": "d2c7ba20c7f90431a57e890160b067b236247cf63361f103d8ad5cf019615deb"
+  },
+  "backend/cockpit_agentic/sql.py": {
+   "bytes": 26240,
+   "git_blob": "c8a9d933ff2549ff43910fa90389c5f21d6ecb48",
+   "sha256": "474628d537b3de7a20306b0dea590e81886988ed19eeb17efeb0854ff33c2c1b"
+  },
+  "backend/cockpit_agentic/store.py": {
+   "bytes": 7193,
+   "git_blob": "1ad0d47cdad264c0a6152770f77b7dccc309f383",
+   "sha256": "25eada0d90226646a59442a7f03be794b14eade39545954e9de9c0f2570e2646"
+  },
+  "backend/cockpit_v4/__init__.py": {
+   "bytes": 1728,
+   "git_blob": "442d41ab22eb71d767459b173d8c466d675f9061",
+   "sha256": "bb0697ab27124455a105ef26aee232aca5241706a0274733feebde2095aac2db"
+  },
+  "backend/cockpit_v4/action_state.py": {
+   "bytes": 16037,
+   "git_blob": "9deb5115eec2e2f3100b11b883961206cec2fb6a",
+   "sha256": "6776af4ae378626b00763091a1fe4f181d64fb2ce44947d756e7ac541483fcaa"
+  },
+  "backend/cockpit_v4/analytical_runtime.py": {
+   "bytes": 12008,
+   "git_blob": "80c15d5b45fa1bf95d5e5eb493ccb5ab95b38dd2",
+   "sha256": "88448fbebf80d5d427bbae6ff3a5af7be06262befd83c441ec85b75a86e7ec3c"
+  },
+  "backend/cockpit_v4/app.py": {
+   "bytes": 10999,
+   "git_blob": "dc0b76a767fb9612c1f255121ebe5f796d653275",
+   "sha256": "03da96d4c08e343c8ab49e6f0e2921e7728a852c8c4689ccc9fabc4defe64bc4"
+  },
+  "backend/cockpit_v4/artifacts.py": {
+   "bytes": 4699,
+   "git_blob": "a9987dba574ce719d309cfbc38fc13a664813ffe",
+   "sha256": "07bdd838cc3ca1e7fafb9a21cb4675a090f2f595d67bdb4214f7eaf21634f171"
+  },
+  "backend/cockpit_v4/attention.py": {
+   "bytes": 65365,
+   "git_blob": "dcf43bb76729697f3533d788ac9743c9bada3a6f",
+   "sha256": "6cd77c752e7d674ae271942c6ad1eff212f66090b5c8813fb354a765b28edae7"
+  },
+  "backend/cockpit_v4/attention_v2.py": {
+   "bytes": 58984,
+   "git_blob": "40275530e2bd57cd18e2f6988bf801527b5a18c7",
+   "sha256": "25523fd725a3b5e23dfce2140ffc7a8e52e05b8646e3a87dd69ce4199389af28"
+  },
+  "backend/cockpit_v4/axis.py": {
+   "bytes": 9132,
+   "git_blob": "8f7f194ee2d863c41fe8affa4b2d2d36937fc6e7",
+   "sha256": "8153341b83e0587b6c32ffdc371e032accdd408bc0b70034d7155eb8004a9372"
+  },
+  "backend/cockpit_v4/budgets.py": {
+   "bytes": 26256,
+   "git_blob": "ae0cf45541db7238119cc94ac067d6d09ca7b938",
+   "sha256": "f0208235734266c1e4ca802e95b081bfffafa5a4f002fe2a79d4f7e7cec6b9b9"
+  },
+  "backend/cockpit_v4/capability.py": {
+   "bytes": 10630,
+   "git_blob": "1224b2ce0754dd987f86b03723ee908fc2e13cef",
+   "sha256": "5e75973099c6fd958e76f6ab662ed4da39dbef32b9c32d6532f3a203fac49715"
+  },
+  "backend/cockpit_v4/catalog.py": {
+   "bytes": 22426,
+   "git_blob": "0dc0ea0cb99be704f542803bf84093e3ddfa0da1",
+   "sha256": "9b777425c9e811f3a6a1e24b2d6fb237b8252fe304c2ac800db1f2eca40ac78b"
+  },
+  "backend/cockpit_v4/catalog_tool.py": {
+   "bytes": 27669,
+   "git_blob": "190005e0b0add444045c7b76dfe4433ae13f5e49",
+   "sha256": "c43964d4eca0feb2557eb52ce891d3048fc47dd84c45643a008d441702f340d8"
+  },
+  "backend/cockpit_v4/collaboration.py": {
+   "bytes": 12860,
+   "git_blob": "75b5307a1667bd673bff66fadbb72b96b92b541c",
+   "sha256": "be27a60efda9f2cf5f4eb5c24976f48bd58bbcd0ad4d38c9342a7d3d53c9c8d2"
+  },
+  "backend/cockpit_v4/compat_health.py": {
+   "bytes": 7607,
+   "git_blob": "dbfb3009b68ff4c88ad3bcb4ada1915fb218ae84",
+   "sha256": "1444828fb01103b32833abbdb99025742d66b85650f6fb6718d6ea5fd94b210e"
+  },
+  "backend/cockpit_v4/config.py": {
+   "bytes": 18760,
+   "git_blob": "3cfce5def6c707c2b2892dde1c31e8f2c5d5d637",
+   "sha256": "ddc5682a106eee868a3cc219af4b0444963c978f56d86e2a26c979043741edb7"
+  },
+  "backend/cockpit_v4/context.py": {
+   "bytes": 48648,
+   "git_blob": "82bdc9bf7088d7c2cc4911fed38450dd0a6bc2bf",
+   "sha256": "074605acd2db892ed1d42dc954b310e544a749608ec142bb1570cb898b51bc36"
+  },
+  "backend/cockpit_v4/contracts.py": {
+   "bytes": 63943,
+   "git_blob": "6532e6bdfd75705c4a8d9c7d045504c13e6d3154",
+   "sha256": "7b942a2c2d754f3dd4fbd19f6591d9a16ca3e7055af250e23fa45d287b369857"
+  },
+  "backend/cockpit_v4/contracts/error.schema.json": {
+   "bytes": 2181,
+   "git_blob": "447a294870a2ea3e9d4ba177a18fefdf0eda54b9",
+   "sha256": "be9dcfc2ddbdcf9334f268d4978dda5b4279dabe112a0d12ee20870e80cd815a"
+  },
+  "backend/cockpit_v4/contracts/event.schema.json": {
+   "bytes": 2795,
+   "git_blob": "b198ff2cdb19e45344434e6295b1dcd59843ddf0",
+   "sha256": "b72559cededdd6207144ba0cefba1e3fae2a1a38a8558b2ba315a62bfa30b430"
+  },
+  "backend/cockpit_v4/contracts/execute_analysis.schema.json": {
+   "bytes": 1372,
+   "git_blob": "d50a91a9548189f540d9248f3fdc018530d7cc03",
+   "sha256": "84b6bf4f19fd1da569898c4fbf9253d3c96c1c80bfdcfbacec1953d541eaddb9"
+  },
+  "backend/cockpit_v4/contracts/finalize_response.schema.json": {
+   "bytes": 6204,
+   "git_blob": "7995e712aa4c2b256eb7593d0db1a8de088532b8",
+   "sha256": "1f605ed997cf4168c178e631ac6bf0648b53bd4ddcf0c615cca7efdc092460cd"
+  },
+  "backend/cockpit_v4/contracts/inspect_catalog.schema.json": {
+   "bytes": 2385,
+   "git_blob": "1ee7a9817046b7a6e3c549625bf7c0401943e56f",
+   "sha256": "c978efc94c27f3aa1a7e7534d1db4a41e8a86ff7b25c93b23e4abf0cd5959a26"
+  },
+  "backend/cockpit_v4/contracts/inspect_product_knowledge.schema.json": {
+   "bytes": 1270,
+   "git_blob": "242e139b7174dbef91b0f2ed4c08fcad6e073329",
+   "sha256": "fa933472fb8366635667af208b2cb0a550265ce20675218ea86faa8dc6e345bc"
+  },
+  "backend/cockpit_v4/contracts/read_artifact.schema.json": {
+   "bytes": 1155,
+   "git_blob": "fab9e84861f4f95c5f3263e8521f650b5518350f",
+   "sha256": "91cd37a5482090181a647a1710a3b304f6bcdd4945559b7919b036919838d45b"
+  },
+  "backend/cockpit_v4/contracts/shared_defs.schema.json": {
+   "bytes": 16148,
+   "git_blob": "19384fab7b285bf4402f47a8e5f6374770c826c1",
+   "sha256": "b0fab497b46aa0a4554c639ab2fe783e8cdf53b00e27d1b2ca1d8bf12cc0e825"
+  },
+  "backend/cockpit_v4/contracts/state_machine.json": {
+   "bytes": 11377,
+   "git_blob": "b68650979d9678759bcd15dbe6e86a545dd0cd9b",
+   "sha256": "7f4dd141d54645f6812e6d81f4a3ebbdfeb9c4621bf456cf4ecb62378db3dfe3"
+  },
+  "backend/cockpit_v4/credit_policy.json": {
+   "bytes": 23005,
+   "git_blob": "57e609f84c7144df104ad46d0792558880a99579",
+   "sha256": "df0dd2911fd569ff85a60b182997953c9750b0b2db71aadb84bccf8e2bc5adf0"
+  },
+  "backend/cockpit_v4/credit_policy.py": {
+   "bytes": 16883,
+   "git_blob": "30ac8a995c677bb0a1ba70753985eea637363292",
+   "sha256": "b15a42250a2b2cf8b91e860785c9aa9e8a10002ba103e39e7719e9b4637aed36"
+  },
+  "backend/cockpit_v4/derivation.py": {
+   "bytes": 31650,
+   "git_blob": "479a38f4ccac2ff73a80157d36a58c129156a816",
+   "sha256": "bf37ed594eabaa3ba4f272b26b2106bf39ecee68b88e27341fe8f2a7e9f1cd8e"
+  },
+  "backend/cockpit_v4/display.py": {
+   "bytes": 22234,
+   "git_blob": "7234b6c5c2aac5967299a91991f3e726b0da4319",
+   "sha256": "db12550db55d8c984b98dd0f744d239acd15279957fb06f48483741f59d97e2f"
+  },
+  "backend/cockpit_v4/domain_resolver.py": {
+   "bytes": 10438,
+   "git_blob": "6459e92ff7130ec3805a41b360f4f8ca749d71a2",
+   "sha256": "357bc161d34870e023b4b122a30781ec3e1768996f42399233a582621a1cdf78"
+  },
+  "backend/cockpit_v4/domains.py": {
+   "bytes": 9412,
+   "git_blob": "2b47f461aef30d7e197201741d98e8203ec1fbd3",
+   "sha256": "795d24ef0a0c598e3632221a6ea428384b47f4aa96de983cb4054e12667e4933"
+  },
+  "backend/cockpit_v4/ecl.py": {
+   "bytes": 17749,
+   "git_blob": "e153e2bdfc86f6a808f4047b547dcf61dfb6071e",
+   "sha256": "3b78e64299024381c0a2992224c8050265c4b9788f305b7726cbf15665f9a99a"
+  },
+  "backend/cockpit_v4/envelope.py": {
+   "bytes": 13045,
+   "git_blob": "03252aaff8fa01f28392bad35ee06cbf553f8d76",
+   "sha256": "4528b117cd6ea0ebc26582be364700e47b1b67bcbe085a1806a00eceb8a30c70"
+  },
+  "backend/cockpit_v4/events.py": {
+   "bytes": 14376,
+   "git_blob": "d076b05c4ed58997c1b1784954993e545e4451f1",
+   "sha256": "32782d8695d7ac42b19c10b4c8d53eec6069d84b5d5132701d115345cecd5317"
+  },
+  "backend/cockpit_v4/execute_tool.py": {
+   "bytes": 41283,
+   "git_blob": "5b85a76fd5d303a2997bcd2517f924867c9d3963",
+   "sha256": "7dc545bffc2bd20afd528e064583815808a38ba4d98a42ff5b64051c641b9d3f"
+  },
+  "backend/cockpit_v4/export.py": {
+   "bytes": 57362,
+   "git_blob": "05aca5c5508d0c07383043e058eaa5a9ca4dd61d",
+   "sha256": "a8df6cbd1b90e5fa346a47bf5c294d81ca7f842261b96f3e4e54faf3404462ef"
+  },
+  "backend/cockpit_v4/finalization.py": {
+   "bytes": 85378,
+   "git_blob": "3a90e1e4927bb46a286378fbaab88f5eee93905e",
+   "sha256": "4ccabfa4f2642cba76582722736095ad0b2353aec03632a8e7f82113e6492e17"
+  },
+  "backend/cockpit_v4/generate/__init__.py": {
+   "bytes": 2078,
+   "git_blob": "6788e65133fdffd22ea1ffcbe01f4b93569945cf",
+   "sha256": "82f3e5b734e3db562c6e596f9491b5b108161c5d1bb12d2ff5754800061c116c"
+  },
+  "backend/cockpit_v4/generate/corporate.py": {
+   "bytes": 57305,
+   "git_blob": "1bd2c70a2a39af5fbe461682081b7bc1446d9424",
+   "sha256": "fdd3803133fa3b6d342ed14f0925d79fd9affc23c85cef962d89555ba87f0241"
+  },
+  "backend/cockpit_v4/generate/retail.py": {
+   "bytes": 41158,
+   "git_blob": "c491e82fc51063f184cd45e94d02c8754aba6291",
+   "sha256": "cf383f972f98f2f1b8adb014962ec4c0429ddc41a55999b85a38c0e4a010eeea"
+  },
+  "backend/cockpit_v4/generate/totals.py": {
+   "bytes": 4290,
+   "git_blob": "8b3d11fb6a459d66bc192f3a29d8ee071cf77d5d",
+   "sha256": "115f86cab0a6a8b0846c4e78ef1e8a0ed5960744be9eb058ad579178982d6598"
+  },
+  "backend/cockpit_v4/governance.py": {
+   "bytes": 18105,
+   "git_blob": "5e7092b1fba89e5929634aad81db55c61d29a9ad",
+   "sha256": "c573b86867ebaf9396ef551cf722918a6ea14335b8ea6f9e8fd7cf63de497051"
+  },
+  "backend/cockpit_v4/intake.py": {
+   "bytes": 4849,
+   "git_blob": "8fe9b40e14c493907f460ff0888877ccd1b64e74",
+   "sha256": "f257dd53863506bd8a9997fd5ffc40240e7376a2a6692385f80e4c2faf8e0401"
+  },
+  "backend/cockpit_v4/intent_envelope.py": {
+   "bytes": 14318,
+   "git_blob": "d246e132d023ae5ce2da479452e5983a8b96b454",
+   "sha256": "d269b6c81694af45186232625b9bbf2499964c235b77822c40e33b39b4ccbce9"
+  },
+  "backend/cockpit_v4/invariants.py": {
+   "bytes": 13675,
+   "git_blob": "10a272fa82812fffcdd2f6744daa82ce80cb2e9c",
+   "sha256": "ac92f0b12ae485a7952a87880041e1ef4222fe8e4373e2dc24be437d7df5d0d6"
+  },
+  "backend/cockpit_v4/investigation.py": {
+   "bytes": 12448,
+   "git_blob": "43e04bec2ab1dbd92748eb78e1ef0af16da005fd",
+   "sha256": "006fe8af27ab2ce88ef6569f5895199d07cae2e9260ee42bbc6089d21b8b0490"
+  },
+  "backend/cockpit_v4/lake.py": {
+   "bytes": 9859,
+   "git_blob": "a2fb7fcc9c49d892b940dae90cc01ae865e45108",
+   "sha256": "b9031789fec8c778302eea2fa3e1bd9e16a4015246fa7d14f28402c10f06b5f6"
+  },
+  "backend/cockpit_v4/memory.py": {
+   "bytes": 5888,
+   "git_blob": "04d49fb8c3d2cd650521d3cafab9ae5d2bce1b1f",
+   "sha256": "6061606f5e59e6e1bc366172a2fc284e65515670a5000de64b6a467d6afb730a"
+  },
+  "backend/cockpit_v4/model_capabilities.py": {
+   "bytes": 4951,
+   "git_blob": "e958f875322dca2a0e4f51689c6e461af87392c0",
+   "sha256": "5eb32d99f6fb24debfde61a220d2367dbae3881304a01669ab237df4d1390e87"
+  },
+  "backend/cockpit_v4/orchestration.py": {
+   "bytes": 103193,
+   "git_blob": "0dbb8f4e4a7c1def2f344f00b1d34ab36b72c51f",
+   "sha256": "72b6d4298096211480d4ba2000b1378f09205453bc4503ae741785ba5595e017"
+  },
+  "backend/cockpit_v4/precision.py": {
+   "bytes": 7925,
+   "git_blob": "4d050b69772164cb92b8fa0e922188bab84d833f",
+   "sha256": "e67967559744809a3be17c639a5964ccb5f116050de720b689c1b16383d6e987"
+  },
+  "backend/cockpit_v4/product_knowledge.json": {
+   "bytes": 30105,
+   "git_blob": "3ad31d1ebf43a14ea25e2b753edaf001fefc4b8b",
+   "sha256": "4a24e8af64328601eace47c289462b23e69d34f4d3c88455c5bcb6908c54495c"
+  },
+  "backend/cockpit_v4/product_knowledge.py": {
+   "bytes": 15565,
+   "git_blob": "06ca4243e618390baa680710a71ee5ebbe01b796",
+   "sha256": "309ff460a76f79a681c22200b69e1d796defff58399603ef8c507449542e777d"
+  },
+  "backend/cockpit_v4/prompts/analyst.md": {
+   "bytes": 15848,
+   "git_blob": "ce7fd2376faa6ebb63dd7f497267d04422623388",
+   "sha256": "b547c6630c19f150ebced37e80f0d1fdba6d4e3d925cb020738eb8e4bc9608f1"
+  },
+  "backend/cockpit_v4/provider.py": {
+   "bytes": 35808,
+   "git_blob": "2a2573f8cedd813f7ad903b0ac62ea5aa3cea078",
+   "sha256": "c91cb4531d9eeed495c1bc08b2d8e8552002ff705ea9718de2dc6c60cd370afc"
+  },
+  "backend/cockpit_v4/pyrunner.py": {
+   "bytes": 8124,
+   "git_blob": "50b093200745c1f831588c6e6e39870fbd0ba45c",
+   "sha256": "45961f0f31d29d221dfda62e536381dc58fedadcb30a92d6c0318a3408e3d699"
+  },
+  "backend/cockpit_v4/readiness.py": {
+   "bytes": 8311,
+   "git_blob": "115bd3e707f2f1860a4d4b455a0a4be10c6d66be",
+   "sha256": "a0dc1107f971cfa996b3c07dc3cf54888a79a000549a9fcdf4ea4deb20be0acf"
+  },
+  "backend/cockpit_v4/release.py": {
+   "bytes": 9577,
+   "git_blob": "bb6032dcaa6c4c971ea45160d6a1f4a4d1badb96",
+   "sha256": "f0cbcbfaf5c825a86d40e31eaefb53d33e0137b356def5c5f607986f8dc619dd"
+  },
+  "backend/cockpit_v4/routes.py": {
+   "bytes": 96372,
+   "git_blob": "f82c97e1d2ddeb5e9ca144734fe5d049af9614f2",
+   "sha256": "7976c26b161a047f2eb79ad9b51e00eb186f0e77ff1269b11a5438156a5ee646"
+  },
+  "backend/cockpit_v4/run_store.py": {
+   "bytes": 72517,
+   "git_blob": "67eb13af8d4655d20ffcfdebbafdd8c0990fa5ee",
+   "sha256": "29671f94e6b9ee8766705040a02503313e3e4101fb3c76920b01769d160c2991"
+  },
+  "backend/cockpit_v4/saudi.py": {
+   "bytes": 7668,
+   "git_blob": "5788ced86be0cf61ebcc767026307b9bdb21fcd9",
+   "sha256": "b68dbf5fc318384694253a034d9fb19f4ac4ce6c8fe9ca2876737d84a666e6e1"
+  },
+  "backend/cockpit_v4/schema.py": {
+   "bytes": 41915,
+   "git_blob": "7da5ad141b41a62d7e9009995f42ed4330e31086",
+   "sha256": "d4b99287299307f4751ffec3512f57bc74903eb22a1b9f11ab02fab603f74f84"
+  },
+  "backend/cockpit_v4/semantics.py": {
+   "bytes": 58298,
+   "git_blob": "4028bf9c325f8183a2324d592c4ba39a8c205f02",
+   "sha256": "adaf612ed1feec8fac67300c8e93c49ac84c26545d8a16326041f9bd32ee7708"
+  },
+  "backend/cockpit_v4/service.py": {
+   "bytes": 23440,
+   "git_blob": "4daaee8009735421366b1cb22bc32c0700d6747b",
+   "sha256": "f0e9934b313f6c208315157c9d803ce0cd0ad010a093c3e1488daf193187c9e3"
+  },
+  "backend/cockpit_v4/sql.py": {
+   "bytes": 30942,
+   "git_blob": "95065440e5e884aff43685bf07699a4fe6067ba1",
+   "sha256": "241f608854380c7652fcc2f19e508787c06f8c6e498d81871586af39e7af10d2"
+  },
+  "backend/cockpit_v4/sqlbind.py": {
+   "bytes": 8719,
+   "git_blob": "417d08a780daec4b58eeabceaf1cba1a1d8cc162",
+   "sha256": "ae2cdf5c3bf4a56373b2a3bc27be1a99d8c053bbb02803c8c0d7d72978256639"
+  },
+  "backend/cockpit_v4/states.py": {
+   "bytes": 13751,
+   "git_blob": "4c74a24b9638107461813514bf2b789d96c0ed5f",
+   "sha256": "bc505493a597da68ade1e427f52e5a4798cda14dcdf3547e510e53de834aaa74"
+  },
+  "backend/cockpit_v4/supervisor.py": {
+   "bytes": 9669,
+   "git_blob": "af108236726ac65441759facf8ce2a4731dba4e5",
+   "sha256": "2cc7ab3e98eaf3b91f593ac264c41c86f9a854ae7030a8e1bc4a21cefe33c26f"
+  },
+  "backend/cockpit_v4/values.py": {
+   "bytes": 24247,
+   "git_blob": "47df3d3330827a6b66784d061f9b30b53a81bb21",
+   "sha256": "81eca26bed0907b4a92ea3d52fcbc3dc97dc2c7a6642843b811f34d039b24c14"
+  },
+  "backend/cockpit_v4/worker.py": {
+   "bytes": 22261,
+   "git_blob": "8953b62b56bb3555826d1347b109955c4ccc8006",
+   "sha256": "045bafd783e175fe1faa31fb4877f0695a099f0503488f5143caf8da87bb10a3"
+  },
+  "backend/config.py": {
+   "bytes": 11795,
+   "git_blob": "2f25df52c7adb1483f05bad86bd7ae700104aa2c",
+   "sha256": "6a52c9271f919bf61af35ae96ec1dd964701f611e3e1f6a7afe5a8bb7723218c"
+  },
+  "backend/llm/__init__.py": {
+   "bytes": 5008,
+   "git_blob": "c9dd63b42946911add9b66e78f964ca2fa6c6f6e",
+   "sha256": "bf06aafbe46808e98fd2a6f4a3f88621393dc15f8c526e4edf7dd70a76e96211"
+  },
+  "backend/llm/anthropic_provider.py": {
+   "bytes": 18054,
+   "git_blob": "777007f19343dca366ad17bc899fed32a05ffa03",
+   "sha256": "e519ce4e902b7a4ef4c5163396afc9f64fa1a70ef7f964e2fee5ed782a190f94"
+  },
+  "backend/llm/base.py": {
+   "bytes": 11321,
+   "git_blob": "e107d4e235c7aa63c636484764a7e72167599d88",
+   "sha256": "32845d96bf8668e9ed9c6da2d85a2f2ef1a98908e42416ad9b7161e4e90cfe7d"
+  },
+  "backend/llm/caching.py": {
+   "bytes": 7356,
+   "git_blob": "a998e69ea7b4e5cd555a02a43decd30b60a1b0c6",
+   "sha256": "e5f1628c2cc1ec9e83e214433f60c73cad9fa14c278d2ff256e6084f1316d5fb"
+  },
+  "backend/llm/telemetry.py": {
+   "bytes": 21668,
+   "git_blob": "7d04e368d27b9a75972d95d71e2b3426e407551d",
+   "sha256": "6d7dd5db7ab9e1d53421d4e9780f218917ae5630e7f235ab5efe12a19e846bfa"
+  },
+  "backend/logging_setup.py": {
+   "bytes": 1794,
+   "git_blob": "ea3d335106a95f1f2560124b2c7e1c524a4137ae",
+   "sha256": "c90dfe1d1a0312409b848265798f6727399edae4cbe424214d58aba1917cb727"
+  },
+  "config/cockpit_v4/price_card.claude-opus-5.json": {
+   "bytes": 2146,
+   "git_blob": "ace5c3351c0ab59d9956597d535cf011d0edad79",
+   "sha256": "b097e774c7b036c8e8e6b7802586f4472fedc51da80df030a5541eb6cf473d5c"
+  },
+  "config/cockpit_v4/price_card.json": {
+   "bytes": 1194,
+   "git_blob": "67431ff0cb76364e934ba826f297447942a94f81",
+   "sha256": "7ac61d636eb5e6023c69c6e313d5464826f90bb1b53cd2fd0e7f54cd113494d4"
+  },
+  "frontend/src/app/cockpit/data/page.tsx": {
+   "bytes": 288,
+   "git_blob": "d2bc669878bb0a6ed0f040b4b3127c69544932a0",
+   "sha256": "9ea0ae6d98a7d97033b2f391005ea0c292bf15f18d00585ac8816da74fb6725e"
+  },
+  "frontend/src/app/cockpit/saved/[savedId]/page.tsx": {
+   "bytes": 1788,
+   "git_blob": "981c6201e62a92bae879a12ce5ecfcdac6dcae91",
+   "sha256": "263d7e73e880f0ce2a83459d0ed9f1f00bebf25dbbb8ac9cf8aa3fefd8ca1550"
+  },
+  "frontend/src/app/cockpit/thread/[threadId]/page.tsx": {
+   "bytes": 1854,
+   "git_blob": "eea4287bf186dad44a457f2476ea3afc38e06c72",
+   "sha256": "45ebf2c4faf9bfb9a7b29094e581af9135c2be2d0498b1236ac4b391cc2ce909"
+  },
+  "frontend/src/app/cockpit/trace/[runId]/page.tsx": {
+   "bytes": 1138,
+   "git_blob": "2ddb76f78dd223f562414c38baa9663b46e0af0b",
+   "sha256": "18bd91a48afff55c81fe6724f8600a658cb5fb967dc6f657c40795fafa8d4594"
+  },
+  "frontend/src/components/cockpit-v4/answer-actions.tsx": {
+   "bytes": 12694,
+   "git_blob": "02e5bf3b7bb67e94cc7077e09ed10a53064a8b62",
+   "sha256": "ab2db712db9b4c05f51140012df2a20afd226fd62b8b5263610f7600c6a3e055"
+  },
+  "frontend/src/components/cockpit-v4/ask-box.tsx": {
+   "bytes": 5281,
+   "git_blob": "822bd20cebfc9e0283f7cdc56dfea36f13022241",
+   "sha256": "8dc2056e71410359f14b30a7069b4d4da34556c34e0e33d27174394a91a82460"
+  },
+  "frontend/src/components/cockpit-v4/attention-client.test.ts": {
+   "bytes": 3796,
+   "git_blob": "bc5857a6b9a5dcd5259cf3b9c59e1f7d73469e10",
+   "sha256": "dd1993fdb99b7c81786cfa9696c63b628d46a0ec88ea37a71982eead4e7ae0f2"
+  },
+  "frontend/src/components/cockpit-v4/attention-drawer.tsx": {
+   "bytes": 8288,
+   "git_blob": "bcccafd68bddaa22500c8a0303f9069b0dcb6fbc",
+   "sha256": "27a96dd9465dd594c6a12a375a15061be45d489d2d4b68662cff23ac96932322"
+  },
+  "frontend/src/components/cockpit-v4/attention-panel.tsx": {
+   "bytes": 8956,
+   "git_blob": "8674bcb59abedbd8db5d6b238f9ecae8c7b6dee0",
+   "sha256": "c5fc7cbd866c868b46d4bc55041d31693e4ef900a736d32050b991013d2546af"
+  },
+  "frontend/src/components/cockpit-v4/chart-download.test.ts": {
+   "bytes": 2320,
+   "git_blob": "b56daafa9de772745dd4ce5b7f55c48169bd59db",
+   "sha256": "f7f274da3bf6f17e075e33b7931826ca549022f1250dca64d50feb65db398e0f"
+  },
+  "frontend/src/components/cockpit-v4/chart-download.ts": {
+   "bytes": 4050,
+   "git_blob": "bbebd4ad0fd7db7ef23abc6aa09b9c8f4e86d6bd",
+   "sha256": "6325fe7213b4fba24ecfeca1c086455577c36f4a713cad8d327585d2eb9f7cc5"
+  },
+  "frontend/src/components/cockpit-v4/chart-frame.tsx": {
+   "bytes": 18541,
+   "git_blob": "2ac95d5dee13f42888e20084fbaaa0f2f7bbfca2",
+   "sha256": "e856b8e669aeda22a4ecac5861581ac862989c0df118d07b0c1b0c6263cd79e6"
+  },
+  "frontend/src/components/cockpit-v4/chart-geometry.test.ts": {
+   "bytes": 6024,
+   "git_blob": "75e97f6b276c08a1c9e0f09c576eb6ab58f08638",
+   "sha256": "a04563daa83ffb6fbf2df9030d3dadb976904cf030afe203a4ed9d73f151bd63"
+  },
+  "frontend/src/components/cockpit-v4/chart-geometry.ts": {
+   "bytes": 7424,
+   "git_blob": "f81e92f59d3d4117938dc72f3b16e0ea508c40f1",
+   "sha256": "a0668bc9633c3e715eca0da6ca6b137d4514c15cef4ffba666245e3dcb7df2cb"
+  },
+  "frontend/src/components/cockpit-v4/claim-display.test.ts": {
+   "bytes": 2459,
+   "git_blob": "abf753ca217fa7a1e02ea7b25fde004a6e818584",
+   "sha256": "87687f7d9783347d899be4e525346c34ff5573c413ee2f8567ea73e78b962d79"
+  },
+  "frontend/src/components/cockpit-v4/claim-display.ts": {
+   "bytes": 2251,
+   "git_blob": "9edc6ccd2bb5920b901dcba54603500575c0715c",
+   "sha256": "563bbb3a5c43111e0dd68a5f1a44fd344bfd9e68259157a2e8bcb8131b50ea43"
+  },
+  "frontend/src/components/cockpit-v4/client.test.ts": {
+   "bytes": 6693,
+   "git_blob": "34872d56e91fc7cdac026060d2c585680b0e3a48",
+   "sha256": "933b9d155b0c6455e0c767a098aaf694fae36b99548802f74760b3bc84f2d0fe"
+  },
+  "frontend/src/components/cockpit-v4/client.ts": {
+   "bytes": 50477,
+   "git_blob": "738888de601945d39808af4d7d8fd0e64fb9c619",
+   "sha256": "96f903adc803c6d4bfaadf03ba24ebe17f43133c8543cfc620f46cff476e7849"
+  },
+  "frontend/src/components/cockpit-v4/clock.test.ts": {
+   "bytes": 6521,
+   "git_blob": "977729e3e8d57852f9dd0fedf90c7f4acd3599ed",
+   "sha256": "2f8435b8f53baf06e93c0c10c3b015f1f28e75b9350ed80c21d57dadc5166236"
+  },
+  "frontend/src/components/cockpit-v4/clock.ts": {
+   "bytes": 4276,
+   "git_blob": "1c1c09d5c981a3efe1a377c7c8e626429a347d7a",
+   "sha256": "62e508559feb7838231139af295b3473a6aacc1ed2a8354024dd3cc41305757b"
+  },
+  "frontend/src/components/cockpit-v4/cockpit-v4-home.tsx": {
+   "bytes": 13267,
+   "git_blob": "84e6bb83359c20767abcec76b1e9de4a394a04a3",
+   "sha256": "3489c0550521be3935945dda2d647dfffc48b354d328e1a0abdeca0468aa668d"
+  },
+  "frontend/src/components/cockpit-v4/collaboration-client.test.ts": {
+   "bytes": 4628,
+   "git_blob": "a5498e012beab29fc3cbf0b2dfe7d309606dcda7",
+   "sha256": "0df910de04445bd1bcb5cb059b6b2bbe9f6f5605f4492b67d07b6e542e7c14b9"
+  },
+  "frontend/src/components/cockpit-v4/continue-where-you-left-off.tsx": {
+   "bytes": 3828,
+   "git_blob": "07c945ac0a96542c7c3c95204f246292f2b19715",
+   "sha256": "4b74cda122d17a6f71dac1fa2815491f6e1ba567f5963d7a138fccf4c386aa3f"
+  },
+  "frontend/src/components/cockpit-v4/data-books.tsx": {
+   "bytes": 15504,
+   "git_blob": "6f1a3fb17de49d81f833efac9f554afbf4295c45",
+   "sha256": "240c824a7c385288a430432861851ad540ccf7be4bec9e2176d39d56abf160c4"
+  },
+  "frontend/src/components/cockpit-v4/domain-guard.test.ts": {
+   "bytes": 2515,
+   "git_blob": "77e0dd8786d990e986ce00fe1f82cc0d2f506273",
+   "sha256": "9731c23f647c1389efa278f86b51cbf13c09ffb7cba99573ba0e92409e2cb23d"
+  },
+  "frontend/src/components/cockpit-v4/domain-guard.ts": {
+   "bytes": 1939,
+   "git_blob": "d8646cbaf43571cac01ff780e41001a8918f8266",
+   "sha256": "a1422c23ba1f8224c6ee7e20150e1940c1af961450fc4b51008992c1703a5361"
+  },
+  "frontend/src/components/cockpit-v4/domain-meta.test.ts": {
+   "bytes": 7065,
+   "git_blob": "d4ee831bbaaeb58b551414589279570abb8e4617",
+   "sha256": "2c3a08cf5983750db7a1677560b3d718bfa2c74db44d4eb8276c42ed4438c8c3"
+  },
+  "frontend/src/components/cockpit-v4/domain-meta.ts": {
+   "bytes": 5665,
+   "git_blob": "03774b0c4b60ae4ba667980b7ae9e735125ce0f6",
+   "sha256": "8490e0f7c598f1957c12a926942c2d0453f5c6b7ac8412b561e4bb55b575cc86"
+  },
+  "frontend/src/components/cockpit-v4/domain-switch.tsx": {
+   "bytes": 3599,
+   "git_blob": "ce3942c997e81d059c808986daeea5c43c313a28",
+   "sha256": "fa7b15e636e1b89ac5ac4d70bd6bcd375bc28524d90f8204eb482ab7166e38a0"
+  },
+  "frontend/src/components/cockpit-v4/ecl-panel.tsx": {
+   "bytes": 7391,
+   "git_blob": "1bd06b669c0a80568ad4fef1a636fbb48ed5b77d",
+   "sha256": "257f5fc641100208d26a8c1a53d08d3141f137e19f3a3fa3fd34252fd1a56b9d"
+  },
+  "frontend/src/components/cockpit-v4/figure-download.tsx": {
+   "bytes": 6818,
+   "git_blob": "33ed54cd96c2494c0e71eaf4b1981b0a8bcd20b8",
+   "sha256": "ed7b31863b2799883510f3e3bbf91f4171a59d84bafe3c38477aa4367fd7344e"
+  },
+  "frontend/src/components/cockpit-v4/follow-ups.test.ts": {
+   "bytes": 4188,
+   "git_blob": "213f5dc6fdb77a55282439599d1a0ce0eeda8bbf",
+   "sha256": "16f1ff015f6beb97e8d0e54b53d52700f81cda336c4891f1986d865523ca08e0"
+  },
+  "frontend/src/components/cockpit-v4/follow-ups.ts": {
+   "bytes": 2795,
+   "git_blob": "f5350612f4a464f1af037b1dfe2cdbe0d772d2cf",
+   "sha256": "80dc91b240ee73da1542680f40b400e9ea9acb065e7a16c608d90e28fe9979f1"
+  },
+  "frontend/src/components/cockpit-v4/governance-panel.tsx": {
+   "bytes": 16804,
+   "git_blob": "4758bf76f23987637bf5ddbea65d8a71a3ea8317",
+   "sha256": "412ab1e69f9bda5d67c5e7d65b8f0643343937ba4011e3a0cc796d10f40cc868"
+  },
+  "frontend/src/components/cockpit-v4/greeting.test.ts": {
+   "bytes": 1504,
+   "git_blob": "1ddc0fc72e7017898afc153ce41cbd52ed7a5097",
+   "sha256": "2525ee7418270c4ebcc0d6c46ad89ae31e20b2551e106450f949e367faa5538a"
+  },
+  "frontend/src/components/cockpit-v4/greeting.ts": {
+   "bytes": 897,
+   "git_blob": "6ba45067cdd28ac736a523786ea08f2b42f9ddd0",
+   "sha256": "cac08e56ec17063049f3779bc926b51212964a0353383ff44339f62c75a27bb4"
+  },
+  "frontend/src/components/cockpit-v4/inbox-panel.tsx": {
+   "bytes": 3802,
+   "git_blob": "9ce94305e88c65f303494bb996e72693ba899791",
+   "sha256": "81f401f5b50ea73f3bd000690722912667be114c0aa1acde4d1b822ca6ac3e6f"
+  },
+  "frontend/src/components/cockpit-v4/live-run-fixture.ts": {
+   "bytes": 3941,
+   "git_blob": "5cf7e04ad362af6551e58905d40b97161eee23ba",
+   "sha256": "b2a5bbabb33b1734709789c836e58e0ddac4232f1bef8ac1a88aca7fc58714c0"
+  },
+  "frontend/src/components/cockpit-v4/live-trace.test.ts": {
+   "bytes": 7530,
+   "git_blob": "1fbbf85d4cf039bb31194f4a857ef8cece9f4f84",
+   "sha256": "e5a36237041a8c9be9752494afc6c1baeefa372e316e3c80ee3fbd3e23966c19"
+  },
+  "frontend/src/components/cockpit-v4/markdown-parse.ts": {
+   "bytes": 7955,
+   "git_blob": "d0f16a64020e73dbec54b1fc6a3cabe1a710741c",
+   "sha256": "82d32257e4eaec13279909d5ba16a20ffb17a24135fd2b0ee80b7c1fca902a95"
+  },
+  "frontend/src/components/cockpit-v4/markdown.test.ts": {
+   "bytes": 6766,
+   "git_blob": "a90b1260a000aeaa9a71a94be46679e978435975",
+   "sha256": "8282f11b1ac32ffd29697c633988752f0ae6db82bee955eed93fbadc0d471d6f"
+  },
+  "frontend/src/components/cockpit-v4/markdown.tsx": {
+   "bytes": 6787,
+   "git_blob": "aa042f8abe534c6c6faf0acf698e691d45b15fdb",
+   "sha256": "13e8b07e372a2df9f49e33a55141715b9cd1eaad5782202c25792537d1a94b54"
+  },
+  "frontend/src/components/cockpit-v4/not-in-this-runtime.tsx": {
+   "bytes": 1340,
+   "git_blob": "1d57aab8a1ebe2bf6cfb70bda2d965771eec78d5",
+   "sha256": "5d6218362106bca92ffb018c751ec319624c7dda2d15ff88a74ba265abdb733f"
+  },
+  "frontend/src/components/cockpit-v4/period.ts": {
+   "bytes": 3009,
+   "git_blob": "10b7b925e96f982ae711139a85ef005d729d1c0b",
+   "sha256": "b72102e672b44215746303d5e65bfe5655778a5a34e7d166e39ccaae49944614"
+  },
+  "frontend/src/components/cockpit-v4/process-panel.tsx": {
+   "bytes": 11700,
+   "git_blob": "56b19809d75a8564de39408729b2335845ba67c0",
+   "sha256": "4309c211425e9737a0256d910597a0d8181ff2aa1667ff14908015969478120f"
+  },
+  "frontend/src/components/cockpit-v4/recipient-picker.tsx": {
+   "bytes": 3493,
+   "git_blob": "5e687e985bfa7707cc11b752fd0b0f2ef7a4390c",
+   "sha256": "2521219953f68e7545f03e7ea45cc3b269192e0621cf4ab548382fe247b2cbc6"
+  },
+  "frontend/src/components/cockpit-v4/reducer.test.ts": {
+   "bytes": 14110,
+   "git_blob": "fba1c577169fc47e46caafeaf2158c5ffd9a3c2c",
+   "sha256": "f84aaa60c64ca8e5704844c5773ee4af2a049c13900729ddb341ba228654ad00"
+  },
+  "frontend/src/components/cockpit-v4/reducer.ts": {
+   "bytes": 14530,
+   "git_blob": "54c300e969f03cbb56217eae97d84eae8de1a2d8",
+   "sha256": "29ac9281f71320295fa8308349bb8c303c41b8cf4a80917c96c7db20730fbae0"
+  },
+  "frontend/src/components/cockpit-v4/response-panel.tsx": {
+   "bytes": 10665,
+   "git_blob": "ac32a8706ba9fb4b9d65ab447ac205a61f771ea9",
+   "sha256": "7ae36504034c7ba257ef1eff9cb73202e91257b6c77a926048ea11f06509e0ec"
+  },
+  "frontend/src/components/cockpit-v4/thread-view.tsx": {
+   "bytes": 38051,
+   "git_blob": "efe17e66430d4bce5f251eac00c1ec0fc0978918",
+   "sha256": "d655a0b5e4021e140a7d48875d0f95f242a71371bfff4208d59400fcbcbd4c03"
+  },
+  "frontend/src/components/cockpit-v4/visual-choice.ts": {
+   "bytes": 5306,
+   "git_blob": "28a1913825d0084fcbf41265edbe3005f0f5ef53",
+   "sha256": "81f95fed5e8d6744dbc20b8b9ff31049aca89a85523a3e531c2293c7997a2d93"
+  },
+  "frontend/src/components/cockpit-v4/visuals.test.ts": {
+   "bytes": 10531,
+   "git_blob": "31fcd0c0c7f095afede12d67df8d17a3b5edf0c0",
+   "sha256": "2119e182a1e45b7ef820af52c00eb4676925e8e00da9f440dcb0352c9d006112"
+  },
+  "frontend/src/components/cockpit-v4/visuals.tsx": {
+   "bytes": 42387,
+   "git_blob": "b505131eaa5e77d8f92a6e8ca09fd22ab0b65114",
+   "sha256": "d7a998606818aa0c5a297923bc4ff1db367527ffd8d035c70cefa917ff20f732"
+  },
+  "pyproject.toml": {
+   "bytes": 4411,
+   "git_blob": "6d72584d5fd6e442ac09943b883603df5461767f",
+   "sha256": "aec3cc3a7e6a3ae557ce0c66d778340d0686ee916316c88ddbd7d04094177521"
+  },
+  "requirements.txt": {
+   "bytes": 2241,
+   "git_blob": "0c0bd081caff889b1f8d19d7777ca619b2fcd454",
+   "sha256": "fd9dd717f3ffd38a95179696efc6d4e733be65c2096ed6fd7a9b6b5306175b72"
+  },
+  "scripts/cockpit_v4/START_COCKPIT_V4.command": {
+   "bytes": 379,
+   "git_blob": "07b99736cd48c957c98a80c4f6a224629ec3c993",
+   "sha256": "a4d94b2f196c79f2a5eaa55cd98177843fef62c5b2bdfeb5f7ae4ca5622fa52c"
+  },
+  "scripts/cockpit_v4/STATUS_COCKPIT_V4.command": {
+   "bytes": 380,
+   "git_blob": "2432e49dcac54656b8f4fcd56e9c17cfd3a228ba",
+   "sha256": "fb56540294f7d302487fc19a63629848ecc4b18244950e6e281c5c5b1fbee810"
+  },
+  "scripts/cockpit_v4/STOP_COCKPIT_V4.command": {
+   "bytes": 378,
+   "git_blob": "a0b206b18b41eef4794b13f4db493b27d2de5527",
+   "sha256": "868a5afe26f3b2df0194427f8a114704d452ef7a492c5f1d2b94586adac0e618"
+  },
+  "scripts/cockpit_v4/_common.py": {
+   "bytes": 14332,
+   "git_blob": "8da5c69e754471745e7b443fe8b65d8e9419f6a5",
+   "sha256": "47a127e4646fe224dc4e825509773ae91e4a8c3e6973624b2010071b49d48f84"
+  },
+  "scripts/cockpit_v4/acceptance_evidence.py": {
+   "bytes": 5944,
+   "git_blob": "1200de4f3d2648f72995cd44d3f546c11025a89e",
+   "sha256": "e2d5d7a50980dee6c6566f9e32c06f0a4dcd80d6ec3d6a3abecf7a1e5cbd1951"
+  },
+  "scripts/cockpit_v4/answer_size_evidence.py": {
+   "bytes": 5665,
+   "git_blob": "7025a1dfcf325491fa7d822f9c45917e14b7290c",
+   "sha256": "aab12fed01ac36a81f58c503fa7fe8c41e9f79f980a74da5b88ede949f29a7d1"
+  },
+  "scripts/cockpit_v4/browser_evidence.py": {
+   "bytes": 10772,
+   "git_blob": "fc45736737269102f3022c9957211fd71abe0f25",
+   "sha256": "62082041cfe5974ff00f9b7fdd2d6a95fb1ced5bb547554a4127d3f92d3e081b"
+  },
+  "scripts/cockpit_v4/example_traces.py": {
+   "bytes": 14061,
+   "git_blob": "fb16ffde81f7d0f25afb386db9d738a5939bf29d",
+   "sha256": "e8b5bcb9d3a3362789ac5c5c1fe9fc9912664da7b93894aa139ddc90916ac7a5"
+  },
+  "scripts/cockpit_v4/flake_matrix.py": {
+   "bytes": 10338,
+   "git_blob": "86b94a2e595655a8975a16c8b391690bcd9694b2",
+   "sha256": "f8d2bc2c5523c68a95b1092de32d47171e62e19301f640c777e8f90f8f1f347d"
+  },
+  "scripts/cockpit_v4/ingest_product_deck.py": {
+   "bytes": 46111,
+   "git_blob": "a7c7e4db05448ab8e14e114b30628390327ee6cc",
+   "sha256": "fbbc59a347550b7d1041bbe6ef8ab0a916dc634daea035e9b8bc62f3ec33337f"
+  },
+  "scripts/cockpit_v4/live_path_evidence.py": {
+   "bytes": 16436,
+   "git_blob": "8c4cc895192281bb78ab5efc6a89c2888d669173",
+   "sha256": "073986c5461dca87915c7dc11ca3878dfb197716ffb26e743f3e6616825682ef"
+  },
+  "scripts/cockpit_v4/live_uat.py": {
+   "bytes": 91869,
+   "git_blob": "1afd6896f3f0425abfb5684bd41b7a4f8f2d5178",
+   "sha256": "fa3611da03005119225519f15baa283e8cef0ac8d0208b8e9fe866e65536bf05"
+  },
+  "scripts/cockpit_v4/numeric_evidence.py": {
+   "bytes": 7083,
+   "git_blob": "5a5894c279682a560cb91ac1578f517db15d424c",
+   "sha256": "2f8634fca55276f3f97286d36e1647c5ff1b8e8d074ddabbe3edc7910710b021"
+  },
+  "scripts/cockpit_v4/orchestration_evidence.py": {
+   "bytes": 11890,
+   "git_blob": "ff11ab0553875b248d57e1d89ecf8b813cb61177",
+   "sha256": "3665aca5ac7928fcdaf32d030cca2c0ccc06ec495835e154871d7f3f1ac58a9a"
+  },
+  "scripts/cockpit_v4/release_report.py": {
+   "bytes": 18753,
+   "git_blob": "7dc961852e48fe77fbda293fe68c3cb5c476790a",
+   "sha256": "6c89e75ab2ceee7401f4e42039371ad5a34b1596ce3dc6d636d5823d27bc505b"
+  },
+  "scripts/cockpit_v4/seed_domains.py": {
+   "bytes": 3959,
+   "git_blob": "e303ab1a2f924f0c8e2fc030f11c99dfc82fa8df",
+   "sha256": "e531d2951d76c102d4ae327bcccbb21b9259c16707fa0f8fdc74c3b6361cd320"
+  },
+  "scripts/cockpit_v4/seed_release.py": {
+   "bytes": 9216,
+   "git_blob": "94bb527cb6b8db6a9f919fae6f1730819b4e8ca2",
+   "sha256": "5449a2ab5ef58ba34c8dc031fcf200467d9d345483b3dac2ce98fdc0db1ad14a"
+  },
+  "scripts/cockpit_v4/start.py": {
+   "bytes": 20190,
+   "git_blob": "c890efa54261cd5d54791462a0abe94c687f0f6c",
+   "sha256": "81c2ea83c0134fa6d845ee06c3193ead3e423451534b6f1389029824eeb44f64"
+  },
+  "scripts/cockpit_v4/status.py": {
+   "bytes": 4390,
+   "git_blob": "a1dc03da6335418825639dd04c1f013f31e731f7",
+   "sha256": "e68dbb30246d3db34c04c92b7e8f679ddd7b94aa3064aaafbe21352059503b40"
+  },
+  "scripts/cockpit_v4/stop.py": {
+   "bytes": 3233,
+   "git_blob": "f8b71594036ff42fa18c122b2f02e9bee8ce20ae",
+   "sha256": "c1c36cabff852473f69d2a871df6fb375f0517fef239db7e9948c154ca39ab7c"
+  },
+  "scripts/cockpit_v4/stub_server.py": {
+   "bytes": 24188,
+   "git_blob": "a7b2c0b980f5c442a1c2fb490a209dfd0d63c8df",
+   "sha256": "61a15c684c26e98376a07ce0b256598804dbd9262ffaede536762b05bc21cda4"
+  },
+  "tests/cockpit_v4/__init__.py": {
+   "bytes": 0,
+   "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "tests/cockpit_v4/answer_object.py": {
+   "bytes": 9815,
+   "git_blob": "c369e5d8000c03d0ceac29e7c98b89148a656b2d",
+   "sha256": "920a6c28aa40b9c742e4db8763688cd04f8cba5ded0964e0c0a89fd7d02abdcc"
+  },
+  "tests/cockpit_v4/attention_oracle.py": {
+   "bytes": 12108,
+   "git_blob": "13e71230274b20a8b491f5b0853a529679ab5e8e",
+   "sha256": "d756be7844eacc46522a08c42584f9e5478d37b0d5caa5a354bb53bf9c2e6809"
+  },
+  "tests/cockpit_v4/browser/cockpit_v4.browser.mjs": {
+   "bytes": 120960,
+   "git_blob": "4bc8014bcfec2b7c6763dc4e2bccace548d39c59",
+   "sha256": "4ddb6bd7b2677a41ec858f3b6202e6526a5b75dc93b44dd7f4a2cabda943336d"
+  },
+  "tests/cockpit_v4/conftest.py": {
+   "bytes": 12488,
+   "git_blob": "ea023b333170d3f2d584b5e8a95bcf737bcf6bad",
+   "sha256": "2ce6220fc81993c42320563eeae415f38ecd88e9861304aef533c4afe12d7525"
+  },
+  "tests/cockpit_v4/domain_oracles.py": {
+   "bytes": 14256,
+   "git_blob": "9d03e0eecdaabfd6b3e90d5ef7f5f9f67721eab5",
+   "sha256": "11eb638eea6242dee4be45fc731bfecd7fa06ce7b9af871cac003d8e95c9c7e6"
+  },
+  "tests/cockpit_v4/math_bank.py": {
+   "bytes": 20702,
+   "git_blob": "92ee7289af4142c1f884c5679f5e58611a8d4de0",
+   "sha256": "f463f240e4bd103043c41c8a7455939857f9f49295a773ffebe908862f9d1cd0"
+  },
+  "tests/cockpit_v4/math_sql.py": {
+   "bytes": 7518,
+   "git_blob": "c06f5e90c872a6c9975daea17012b95835a4a1d8",
+   "sha256": "3c24b1c9cf41210a2488f9ed22ee84910e1dcc13b6d3534468f332c6cccacc6d"
+  },
+  "tests/cockpit_v4/oracles.py": {
+   "bytes": 9111,
+   "git_blob": "a1170acc2a7e4d696e3f4877242bb4c190b9de13",
+   "sha256": "d31a4d64067e3ae87bf06c0d4cc4a6566b32287dd3ca7ecdbda5d1a504df1334"
+  },
+  "tests/cockpit_v4/question_bank.py": {
+   "bytes": 57491,
+   "git_blob": "69b78e19187f60d52471d549d4862f8755fa3f34",
+   "sha256": "55b212e4c3f278b76579f90c7f72366420f95d7db5cbe9f5f1981cd436efa712"
+  },
+  "tests/cockpit_v4/test_action_contract.py": {
+   "bytes": 15003,
+   "git_blob": "5a472a8a174c54a4efc2a7eb26dad84530b228e7",
+   "sha256": "6528534a7ffd78f6fc98dabbe0dead39c7a42f8e36d93870692f03ee0f3f1ec0"
+  },
+  "tests/cockpit_v4/test_action_latency.py": {
+   "bytes": 10051,
+   "git_blob": "2bc29255285151b608f5cf0650a47730cb52be75",
+   "sha256": "55e1851285123cc0e82272d4425814cb85d9510b7bbabf7851e431d183faab74"
+  },
+  "tests/cockpit_v4/test_action_matrices.py": {
+   "bytes": 14474,
+   "git_blob": "6471641519e182be652a924f6905a853ca5310ce",
+   "sha256": "7dc438c8098cd0e21974ee544cc25a319f869d4527c5751836f440b987035016"
+  },
+  "tests/cockpit_v4/test_action_payload_snapshot.py": {
+   "bytes": 9243,
+   "git_blob": "e9f637d174068099e152a9bd9ffb653a957c0bfd",
+   "sha256": "67277ada46c196c903010de704b317815ed647e0c68f55a86b8b41a2134277b8"
+  },
+  "tests/cockpit_v4/test_action_state_machine.py": {
+   "bytes": 11770,
+   "git_blob": "ed0d81d3bdf1c285d1c5a437f54fd5a24687cce0",
+   "sha256": "743d83c3d229c40ea64bea424242f9f6374f88a158a29fdab24345666e24f1a8"
+  },
+  "tests/cockpit_v4/test_analytical_execution.py": {
+   "bytes": 24628,
+   "git_blob": "6b88aa8889f66087bbdf0d2066c5c3c3af9b648f",
+   "sha256": "183619cafd4cae1c56ec3d6071dfe749962f466df68aff1fe4de62031e14e725"
+  },
+  "tests/cockpit_v4/test_answer_allowance.py": {
+   "bytes": 20504,
+   "git_blob": "e9c66d8f808355718a3605543b2d3f501e4f33fe",
+   "sha256": "8c52b84f269a3fb700828d134254f2db64376ad869c7737e08a0f4e0e0ec07a9"
+  },
+  "tests/cockpit_v4/test_answer_shape.py": {
+   "bytes": 10324,
+   "git_blob": "082792e6fe63bae32749d90567f5524dbf8ecf52",
+   "sha256": "b9c2b4c5e9347af53f55cd52901dacf59979708961bf83f82b34a40e9d1c19f0"
+  },
+  "tests/cockpit_v4/test_api_and_lifecycle.py": {
+   "bytes": 10418,
+   "git_blob": "96cc61f5c48aaf8dc0b8ad449d5892107096ac56",
+   "sha256": "962e2aa20c1afcd728919311cfdadf51d2bc8a2409b17084639396dd9dd48a86"
+  },
+  "tests/cockpit_v4/test_attention_domains.py": {
+   "bytes": 17684,
+   "git_blob": "1a20c98329a83d95f9af743def9315c4beb6f133",
+   "sha256": "c0bf823f34b4da15381c0982e3fa2334797c446b42dc6475af80f3bc305ed039"
+  },
+  "tests/cockpit_v4/test_attention_feed.py": {
+   "bytes": 27497,
+   "git_blob": "6b616c0aafe863c2f4335f023e9ea2ac13d2b42f",
+   "sha256": "2771b753cf207b38683094c2f624405f8933242b3841734a6ef8e6e413e87589"
+  },
+  "tests/cockpit_v4/test_budget_envelope.py": {
+   "bytes": 15438,
+   "git_blob": "f843fede625330e5fd3e71736ef6291f87030156",
+   "sha256": "8797bcf49cfa4a6784d6d28653fbcd65e308f75ac5f6833ea4494ca8a4a17fd1"
+  },
+  "tests/cockpit_v4/test_call_report.py": {
+   "bytes": 11044,
+   "git_blob": "224c7d7e0324b5e284ece0e4f1c1c53b919f061b",
+   "sha256": "85c8240123975fdb8bf29aeae389eb7b448f5b96e5649f7bc740b11934e0bed0"
+  },
+  "tests/cockpit_v4/test_catalog_answer_memory.py": {
+   "bytes": 21197,
+   "git_blob": "e9dd24f22420b334b83af6be6e0de9137e759847",
+   "sha256": "cbe4850afc170d4a23686f07341ed872dc16fd221c95d001425ef9631dc27e8b"
+  },
+  "tests/cockpit_v4/test_catalog_convergence.py": {
+   "bytes": 13361,
+   "git_blob": "18d418f3adf56641d2111940d497d3f65d5d1db5",
+   "sha256": "da7d1c32e8452ce14af5a7922b6e4a55299c6ae4b0ce88fd74109592a27096b4"
+  },
+  "tests/cockpit_v4/test_chains.py": {
+   "bytes": 16794,
+   "git_blob": "68015fcf57b91f1a53a29550f85f0a8030dba0d5",
+   "sha256": "faf5de05d5b31339cfd88e99adcefb4dd33508d6cb04389374188926c5957a3b"
+  },
+  "tests/cockpit_v4/test_chart_axis.py": {
+   "bytes": 9307,
+   "git_blob": "f5b5cbfad9652fcddf55673545def303dc1e46b1",
+   "sha256": "0201e4ebd1fbb413259acfe57cb36b7af89913b49f7ba7fdcb8dbf151403b1ba"
+  },
+  "tests/cockpit_v4/test_chart_axis_export_parity.py": {
+   "bytes": 6359,
+   "git_blob": "bb36c80c1b4a76530d4d7b661942f5ec03e7c84c",
+   "sha256": "23cb13d5ad388ba1f8ead048a5ba0c570d4ef313191f2b975f7a89e9851a4a84"
+  },
+  "tests/cockpit_v4/test_chart_axis_rendering.py": {
+   "bytes": 11433,
+   "git_blob": "00092b9ffd577ca5206670d3b5a2bc6919aa8343",
+   "sha256": "9f74e02997e5d6420ba4af79804cb9de779849f346155848891db331ef19b484"
+  },
+  "tests/cockpit_v4/test_chart_forms.py": {
+   "bytes": 15411,
+   "git_blob": "ee27a3a8002c6f78c04e2c5e94def61982318ab0",
+   "sha256": "ae8cb7f5a5ee75e551cd9903f1f352bba9f8bcabf582834517151dd0272173ac"
+  },
+  "tests/cockpit_v4/test_chart_presentation.py": {
+   "bytes": 14031,
+   "git_blob": "1d8a0c488d9026cb35fc23b026a6c086c1f934f1",
+   "sha256": "966ebac189b17c802bac92155f77e93e00a2a859add01008a6401af54fefb68c"
+  },
+  "tests/cockpit_v4/test_chart_restraint.py": {
+   "bytes": 8815,
+   "git_blob": "ca3d6c87ab9cf277dc587cffd9aab3ff63e8c407",
+   "sha256": "03fb6b2aabbd12a3e7f73fcc9c174b18453a4b9612896f366740ca97919e8f54"
+  },
+  "tests/cockpit_v4/test_claim_rendering.py": {
+   "bytes": 20230,
+   "git_blob": "83e288fd68149e3fd1bf2888ed8b97ae2544a43d",
+   "sha256": "e356aa43b2c3133c3a10f4330b616ccd531756702e0420b0ac12ab9b34978e30"
+  },
+  "tests/cockpit_v4/test_clarification_round_trip.py": {
+   "bytes": 8561,
+   "git_blob": "a1c1d08400b6402d0601062d9ba43fd408e1b89a",
+   "sha256": "6dab27e580dcdcc6aa163d89549653265163a3a5c52659921a0691c7a0ad67cf"
+  },
+  "tests/cockpit_v4/test_clarification_turn.py": {
+   "bytes": 11871,
+   "git_blob": "b3737a7e11795f86fe7928d66effa23a4e0716b4",
+   "sha256": "d7eb12f93c43eec0d86d09e475e969559034cb64d41d59ea7688cc3473147773"
+  },
+  "tests/cockpit_v4/test_collaboration_and_threads.py": {
+   "bytes": 22469,
+   "git_blob": "8cb60f4832535e062d411e0f4572d7fe8e25c543",
+   "sha256": "3e473b5f8779a7550ca9cda5d44a93fac45e53801beeaafa8eadf1afdfa9cd0d"
+  },
+  "tests/cockpit_v4/test_compartmentalization.py": {
+   "bytes": 17556,
+   "git_blob": "eb74cf0de788a162503e67fa074cbc21931e3afd",
+   "sha256": "89ed996fdda763af78fa9332a4bb9af6380366ab916e799a98e9b9754c74f156"
+  },
+  "tests/cockpit_v4/test_convergence.py": {
+   "bytes": 10893,
+   "git_blob": "1897a20d3e3ec5f7553db0648341e919bd4bdee9",
+   "sha256": "26adf98c2563dd4dcff533074f32faff3f110c43e4922eab16c23c4987d2756d"
+  },
+  "tests/cockpit_v4/test_count_display.py": {
+   "bytes": 3673,
+   "git_blob": "567599d29548046d460838ef12a5fafea2490dc2",
+   "sha256": "ed5dffdeb4ede6e21659cb6f43dbb34a468950fa4c7968f1e0fe0a20a39c3d1c"
+  },
+  "tests/cockpit_v4/test_credit_policy.py": {
+   "bytes": 16303,
+   "git_blob": "1c3523147c6e5542dd74eb28a0fcd1d5b973ec79",
+   "sha256": "f1befb5f8960ad16f7842eb4c5c65f72e7903e847ffe018bba40ec038f02ce63"
+  },
+  "tests/cockpit_v4/test_data_builder.py": {
+   "bytes": 20055,
+   "git_blob": "ac7232fe35e0a73dd23cc437238f9f85a73d5ae3",
+   "sha256": "82a27dd9445da448936e72d2832af6e5788b9d4933c3c5f5edb272bb512f4637"
+  },
+  "tests/cockpit_v4/test_deadline_settlement.py": {
+   "bytes": 8911,
+   "git_blob": "cad4bf096eb7756a24b2b017fc921cfafe06bd84",
+   "sha256": "89bddf35992e1ef7e01de09e1d501e12d77fbd27241b3d8021d74e7a3fd3ce9f"
+  },
+  "tests/cockpit_v4/test_declared_precision.py": {
+   "bytes": 10132,
+   "git_blob": "f14f2c57456a0f3aa604030ba8d5402407ead001",
+   "sha256": "58aa72605eec5db9107b4ccca3dd3c9adac36f85ddfaec45688575a89cc2613a"
+  },
+  "tests/cockpit_v4/test_derived_claims.py": {
+   "bytes": 18094,
+   "git_blob": "7f8533fedfabc9beb0ff78cca95d89723f47274c",
+   "sha256": "cee88af89f426c99579cb2b659cbe808234521069cea3099bfafadb3783020ef"
+  },
+  "tests/cockpit_v4/test_display_policy.py": {
+   "bytes": 7114,
+   "git_blob": "06915a7906d02cce1814917c2e017b5bf16b1b54",
+   "sha256": "552061ebb44af84719658be6c833086a58c0aac735922942bc016db50fd529cd"
+  },
+  "tests/cockpit_v4/test_display_precision.py": {
+   "bytes": 10043,
+   "git_blob": "00b03e386715c271f6d73fd8302d2d843892f180",
+   "sha256": "f860a9c1c9ee4443f923fd738dd2513933f9d0748dd93f5f6c513b84a28a0584"
+  },
+  "tests/cockpit_v4/test_domain_and_numerics.py": {
+   "bytes": 18344,
+   "git_blob": "e9007230ce2b8ff8cda3658d15f34bfc4d6e3a3b",
+   "sha256": "046dfd20ae442641dc8a980213cda2395c47d00c571315d5067a65d90c899f19"
+  },
+  "tests/cockpit_v4/test_domain_calendar_presentation.py": {
+   "bytes": 7761,
+   "git_blob": "704b373b01a2cd14f58d32b9380c1db48986c0a5",
+   "sha256": "0a7bc1e5c51457e6b3d00298f68fdb5156f656c6fa48abb827fc3977315da277"
+  },
+  "tests/cockpit_v4/test_domain_execution.py": {
+   "bytes": 50047,
+   "git_blob": "00d8254f1323d72f2532d085b8c12e10a3761c9f",
+   "sha256": "1c38fb0d2074625996ea43fcdd5fa4f52ef69945a18c662d0db1835dbf6a50eb"
+  },
+  "tests/cockpit_v4/test_domain_routes.py": {
+   "bytes": 16121,
+   "git_blob": "a6ef697fa8db6a0512405887c6da186b818e2fea",
+   "sha256": "2f5e88712e8f0fccddd6d10b5485e4810216e8329b7fb5c9ddeffbef0de4bad8"
+  },
+  "tests/cockpit_v4/test_domains.py": {
+   "bytes": 17972,
+   "git_blob": "c4dca18a847e725d35c042d839051e121092975f",
+   "sha256": "9acc7749ec158242cca9151789d894eef807fae0ff08b85d0ba027625e58a9ea"
+  },
+  "tests/cockpit_v4/test_dual_domain_performance.py": {
+   "bytes": 10051,
+   "git_blob": "e14923b988218f61300c65becb9267dd066eebb7",
+   "sha256": "4c41c4ff57127d5b4e4bf64657a6363b7405140d4e35d1734cdf6ff6a4a3b993"
+  },
+  "tests/cockpit_v4/test_ecl_panel.py": {
+   "bytes": 13343,
+   "git_blob": "be40ba78f3e652770b8d64f1c3e2aa4424441bd6",
+   "sha256": "4946955fcd1181177ab1572ab9b5c90ad74500db99d4ac99bf0af1500bc55157"
+  },
+  "tests/cockpit_v4/test_entity_count_evidence.py": {
+   "bytes": 11870,
+   "git_blob": "f98895b30ddc53ebdce46d7656e443b16fe69a64",
+   "sha256": "93911d52b40580b077b836eba7cb460150fae101c31a654b5f48a76742deeb4a"
+  },
+  "tests/cockpit_v4/test_event_contract_parity.py": {
+   "bytes": 2935,
+   "git_blob": "2fbf6dc7ab0973dd5cf2c7755b74e598ffc64920",
+   "sha256": "019e237531c19df5d099874d61fe29c2adfd79611dfc0bcb4ab6318958f80c86"
+  },
+  "tests/cockpit_v4/test_export.py": {
+   "bytes": 14558,
+   "git_blob": "13fee8fe9161ea17b0a5d621387bff4fc818d8fd",
+   "sha256": "1f6383fc9a96581da1183eda7db22bcfa0fedc513dd06a1433799618ee88af94"
+  },
+  "tests/cockpit_v4/test_failure_injection.py": {
+   "bytes": 16162,
+   "git_blob": "26bc86e570c1cc156ff46e16efdb8320acf419c4",
+   "sha256": "b81ebc0ea029a3d46f62b9776a9f738e140412f9b268f54eceaa2976f88e5327"
+  },
+  "tests/cockpit_v4/test_field_units.py": {
+   "bytes": 5323,
+   "git_blob": "5168218d0107b0fbb44f61f22f6795465140d331",
+   "sha256": "e108fd54034b8718cf4cb895639d2f4787032bf07b6c2f60df5eca004c08bcca"
+  },
+  "tests/cockpit_v4/test_frontend_wiring.py": {
+   "bytes": 23136,
+   "git_blob": "292760cbdf04784518864f50bcd6947f769bd6a3",
+   "sha256": "9efdc3b171e0c06c101a04a05073070ee0b35cb9c8c376ec9229f75f7ba1ff29"
+  },
+  "tests/cockpit_v4/test_generator_determinism.py": {
+   "bytes": 11790,
+   "git_blob": "ebf62d44ff87df046ab2248d0d32e048fa9eebd0",
+   "sha256": "686e12f79cd692045b8c46e22936c1dd05729e1351875aff916f27407ff097b8"
+  },
+  "tests/cockpit_v4/test_governance_record.py": {
+   "bytes": 17074,
+   "git_blob": "f106c6dd4c9c2f77a58a41363cbb7f6ae0e975aa",
+   "sha256": "8c6dc5b8bcb0621515531a02b45cd4d4af6f061f13a8c1d0e9ea6cd4cf2e103e"
+  },
+  "tests/cockpit_v4/test_governed_precision.py": {
+   "bytes": 11405,
+   "git_blob": "6b02fba5e9ae4bedb842a6a94a8d3423f9f6224a",
+   "sha256": "1b7f1ba61d87a3b8b9ad960ade998bf195a64225b7ef70c5663a6ea230692ab5"
+  },
+  "tests/cockpit_v4/test_in_app_messages.py": {
+   "bytes": 10020,
+   "git_blob": "b4c55de08630e30bdd98c78374ea71a4e62b1f7c",
+   "sha256": "e9c49d5f8e789dbb5e3d64df351e8d2af7e6ecbb8a7bfc0e740a284acece9638"
+  },
+  "tests/cockpit_v4/test_incident_err_2569c1be3faa.py": {
+   "bytes": 8075,
+   "git_blob": "37505153d9f7f6854cc8ddce5803685d99bebac0",
+   "sha256": "3b4e69437c8c83b3edc19eb63b78bfaca5be30843eb7dbd2c316836711fc4fba"
+  },
+  "tests/cockpit_v4/test_intent_contract.py": {
+   "bytes": 13718,
+   "git_blob": "b35a495525160cd777541b64874bd3a8bb1f17e7",
+   "sha256": "79ef2b312d8850354c03c62a8ab7848cec30608328e2027a2785ad701b5e8801"
+  },
+  "tests/cockpit_v4/test_intent_envelope.py": {
+   "bytes": 13930,
+   "git_blob": "52b711eca645986b3f78a152fb7f45ad4664e499",
+   "sha256": "b47ded77331d8a38fa2449f84393b2e97d1f326e8d2d2d3889ffcfd9f90a9ae7"
+  },
+  "tests/cockpit_v4/test_investigation_packet.py": {
+   "bytes": 16079,
+   "git_blob": "1e2d9ef625dfd956dad1210cbcaeabdf403a0653",
+   "sha256": "c29ef13f18bf4e087fa0215524dc521a7d691cf6456fde3ddf025855be5b6f07"
+  },
+  "tests/cockpit_v4/test_investigation_routing.py": {
+   "bytes": 7978,
+   "git_blob": "c571dbf005af8ffb205eff4844ed24f02644d63e",
+   "sha256": "06aea45efe2a583ad2e238954b2c115986e7f7b679c9c11c49b9e9e0e6ea69ab"
+  },
+  "tests/cockpit_v4/test_join_grain_refusal.py": {
+   "bytes": 47256,
+   "git_blob": "06f8363da03b04ac2ebeb39af7f3a82c7e171bc2",
+   "sha256": "b85aedb82b04136cf88b0f09e66830efa57f6cdb22afaed5b9092f4bdb833132"
+  },
+  "tests/cockpit_v4/test_language_and_intent.py": {
+   "bytes": 12479,
+   "git_blob": "cd2ebb02883e2e36c6d57e325bf28eb1208375f0",
+   "sha256": "cb3c3b18cb6866b1c3414f95aaeb92b95e9707e5bfd4bddc392e1b96d8ae7820"
+  },
+  "tests/cockpit_v4/test_latency_orchestration.py": {
+   "bytes": 11527,
+   "git_blob": "8795f257310414924ca9876d5679f63769d58455",
+   "sha256": "d6af932d0a397af43c20afa74625854944a07eca6e548902b7e664dfdf71c8b5"
+  },
+  "tests/cockpit_v4/test_launcher_safety.py": {
+   "bytes": 9400,
+   "git_blob": "976be4aeb608907d5d9b0320d1be83cba591d8d2",
+   "sha256": "66c81cec9547d4075c5e9bed4b1022d49ad4a1338f36521353f4af36d7b39e8e"
+  },
+  "tests/cockpit_v4/test_limits_and_isolation.py": {
+   "bytes": 13357,
+   "git_blob": "575c99b48f5b86f4da1d270c9a46497880592a8f",
+   "sha256": "ecf45051cd317968a19b498337dadee80bd7c0a2a07a86a24c8c54751c374404"
+  },
+  "tests/cockpit_v4/test_live_run_62282e6b.py": {
+   "bytes": 10500,
+   "git_blob": "dd648b5c198aac0d6d3985fff578658ca2158363",
+   "sha256": "1c6307ac2586dbf0ef170d09410ba7cc84cfaa5fae1587b83974902f45db3ef7"
+  },
+  "tests/cockpit_v4/test_live_uat_capture.py": {
+   "bytes": 16812,
+   "git_blob": "85b3717ab686f98f1e987f5b8c1963ea919dc5f8",
+   "sha256": "7678844113b8e70a3496d9556c5337fc83f0b801a77591ee435125f89ffd02d1"
+  },
+  "tests/cockpit_v4/test_live_uat_harness.py": {
+   "bytes": 6295,
+   "git_blob": "e36f1f4634b8fc3c89ce542c13220774f2a4b939",
+   "sha256": "044bc161ba3abf4036ea52f0f5ed4a62506017f36f00f7ab105fdc1262b1dc87"
+  },
+  "tests/cockpit_v4/test_live_uat_ledger.py": {
+   "bytes": 8439,
+   "git_blob": "c2c60e5f57f787aa2ccbce7f8b93030ae8c349b3",
+   "sha256": "0015198a84835a4ff368da1eec4b306190b54c4dd5112d209e21d721c1463ecb"
+  },
+  "tests/cockpit_v4/test_live_uat_matrix_revision.py": {
+   "bytes": 9305,
+   "git_blob": "a01ceaa9ccff0a8af95019ec2f6ba4d55348298d",
+   "sha256": "975fc00def27c90864ffa300a22f97542d3b78f929d681131aa40569a8020a72"
+  },
+  "tests/cockpit_v4/test_live_uat_rejudge.py": {
+   "bytes": 17043,
+   "git_blob": "16d07770180df5faea04e36feca66ffcecc16502",
+   "sha256": "fb5009e3d705410a54ef093377713f7a4e3f09003f3950741e1423cc8e910239"
+  },
+  "tests/cockpit_v4/test_live_uat_replay.py": {
+   "bytes": 16520,
+   "git_blob": "19637386ae9b07a321c2521ae7a48d11a5657a48",
+   "sha256": "a8a82424ed04d6331250cdbe087e07783214efb662494d3f4ddb3f82a144e7b2"
+  },
+  "tests/cockpit_v4/test_long_result_explanation.py": {
+   "bytes": 12779,
+   "git_blob": "a38c813f899600e36cefba620caa150a89aaa3ae",
+   "sha256": "0027446e61d04f9811f371205c3972e8c752ffc85709b3fc72d9307c85cfed62"
+  },
+  "tests/cockpit_v4/test_m06_final_closure.py": {
+   "bytes": 31435,
+   "git_blob": "99ba9189c55e9c4354176a6a0a201dd96c533f42",
+   "sha256": "9657a52a1452dd46925874e3fea19ed5aaab0c28bdcfb9cd4d88b980c3932f52"
+  },
+  "tests/cockpit_v4/test_m06_policy_and_projection.py": {
+   "bytes": 16743,
+   "git_blob": "83382caad5c41c280f40794e0cc888bff0954d90",
+   "sha256": "a54e2e2df94390563e58e5259094f3d914c0d859538f249052a60b90d746a2fc"
+  },
+  "tests/cockpit_v4/test_mac_action_replay.py": {
+   "bytes": 15762,
+   "git_blob": "26e1cf89b61a407c54b383765297a23264cdb21c",
+   "sha256": "f0fe76d59126f88173fa8b7dc0b621f6a0bc86c1b40936dbc7530d56e01d1c92"
+  },
+  "tests/cockpit_v4/test_mac_replay.py": {
+   "bytes": 15223,
+   "git_blob": "2b483fe86af53fb3acdc2a7445c982fbcd1eb849",
+   "sha256": "d915c26637990ef48554f00a2c976cc5c71ccfee92bdc8ec03d1062f64186e2b"
+  },
+  "tests/cockpit_v4/test_mandatory_analytical_cases.py": {
+   "bytes": 13174,
+   "git_blob": "573da19b669e6a2c2628dc7537f3cb0038bdb2b4",
+   "sha256": "54d8787c7ccfbef38538e1c0cecaa33f690777a3ce50fddcdbd6009134aa6114"
+  },
+  "tests/cockpit_v4/test_math_bank_rendering.py": {
+   "bytes": 9120,
+   "git_blob": "79ec48d9360ae5acc55feff373edfbaf69cc1231",
+   "sha256": "466bfdb2a22f1044b3e133c9715e39e9cd765109baa670357446504e6ef70522"
+  },
+  "tests/cockpit_v4/test_math_pipeline.py": {
+   "bytes": 38105,
+   "git_blob": "a2e465db026a69c7efdea7a9666b9c6c975d9ceb",
+   "sha256": "8b3594ef0d2053cf4c25834de9666b0c7a87af12639a886b155c654cdc7e412a"
+  },
+  "tests/cockpit_v4/test_metadata_bank.py": {
+   "bytes": 10493,
+   "git_blob": "2a50e30c707b94684f6938fcf472275b8c6ed781",
+   "sha256": "86b87afcadb97a1d7ca50aab28346438cb19fb8c0aaa4c85e185d8efb62fe278"
+  },
+  "tests/cockpit_v4/test_misread_as_product_help.py": {
+   "bytes": 17446,
+   "git_blob": "73013c699bbd918f742aa60d55a5799c07450acb",
+   "sha256": "21952d69a4f60640af051fdba1681ce0e24ec82b29f444a17109a3e23c74497a"
+  },
+  "tests/cockpit_v4/test_money_and_period_format.py": {
+   "bytes": 15004,
+   "git_blob": "085869489dca720c35b73f4dba4fbc12af5636ef",
+   "sha256": "79b83f61718d138dfa985613d9f8119227a572edc3674ce8aec28d8aead9d28b"
+  },
+  "tests/cockpit_v4/test_movement_direction.py": {
+   "bytes": 8778,
+   "git_blob": "71b4d9594b57f318a2573403288d793cdd88d767",
+   "sha256": "e5230fac480de276a53e83280ac9228a268cffc34835304db501a08d32c45c1e"
+  },
+  "tests/cockpit_v4/test_multilingual_and_evidence_labels.py": {
+   "bytes": 7489,
+   "git_blob": "9f29f78cf0e8ccdf1259f6bbb2a7fc083ba2161a",
+   "sha256": "957fcaaf03a54fb963d461521fb13f7f94df94c3968721cc6d141ec0a994ea31"
+  },
+  "tests/cockpit_v4/test_narrative_units.py": {
+   "bytes": 7757,
+   "git_blob": "ecb57f3df2a392f58a67620832323faddd3fc897",
+   "sha256": "cc3c1a4fcbe0ad65304db22c5400e15528e66eab1efcefa1f222377039f85489"
+  },
+  "tests/cockpit_v4/test_negative.py": {
+   "bytes": 15344,
+   "git_blob": "2ea4c06bf2a7a16ed71c5d3c6a17f44ab127ffb8",
+   "sha256": "c01ad9b380cd5a97fe441dc20a630d4b93bdb8193bbf800e9bed452dbca874f3"
+  },
+  "tests/cockpit_v4/test_no_global_domain.py": {
+   "bytes": 7969,
+   "git_blob": "f2e30b45e9d155d4f1622ee9cbe207d86fd074c5",
+   "sha256": "969af33a1860ebb97c02ceae31e7763e91c5cb9740792e73b3688d7e9bd2f800"
+  },
+  "tests/cockpit_v4/test_opening_questions.py": {
+   "bytes": 12154,
+   "git_blob": "2368bfab4387e2963fc3077c0c1a27d8de2c1ae6",
+   "sha256": "ce2f8d2aa82800b0825027f4ca21c2c48c67b3c6b5bb17655b6303e59177e8f2"
+  },
+  "tests/cockpit_v4/test_operator_detail_route.py": {
+   "bytes": 6499,
+   "git_blob": "5bd8661bfbc086fc7fb17b3ddb975fb25ee372fd",
+   "sha256": "8dd85742022482fe285389b822b84511be02747cd45f213b29fb8d0e62f5269a"
+  },
+  "tests/cockpit_v4/test_orchestration_recovery.py": {
+   "bytes": 14701,
+   "git_blob": "3518efd80c0e67b05d2b1e2f82ca264cb860b48b",
+   "sha256": "e4a20b160a0c4b042c662dd86b136c4a14d9970042caadba88e2636b111b3074"
+  },
+  "tests/cockpit_v4/test_ordered_distribution_charts.py": {
+   "bytes": 4161,
+   "git_blob": "2c25abfc8a171b7672306fed7898fa26e63026b5",
+   "sha256": "99e4bd129d8019a6698af502082d9a8a0c38055af922049c7cf56ee766220811"
+  },
+  "tests/cockpit_v4/test_overnight_benchmark.py": {
+   "bytes": 30453,
+   "git_blob": "5d64b328b455c1cd207095f88ada9673718acad3",
+   "sha256": "c065ed22c9cc5137a9de3820d95d58efb6661ec16916d16bcda7bde593a842e8"
+  },
+  "tests/cockpit_v4/test_ownership_and_security.py": {
+   "bytes": 11488,
+   "git_blob": "71eb427c295a3bab9ea6e00d92d4b747a65b6598",
+   "sha256": "3b63f4a9735bd02609ab153ab875578cef59041b53dd6a39bb8410474d81d68b"
+  },
+  "tests/cockpit_v4/test_performance_gates.py": {
+   "bytes": 8975,
+   "git_blob": "15ae931aa4aa853ddf8930869f87ef1fab0645cc",
+   "sha256": "821eb52571e94700cad38f2ceb87ddb2af94795b16e3af2ccef9bb1efab85303"
+  },
+  "tests/cockpit_v4/test_performance_profile.py": {
+   "bytes": 6124,
+   "git_blob": "0cf57ca5855ebaa1f76cf93da4fb40e561540915",
+   "sha256": "f474e88707d5db0776fe00219ed88e8ffa7b6462356f7897fc08462a20442ef0"
+  },
+  "tests/cockpit_v4/test_planted_patterns.py": {
+   "bytes": 17803,
+   "git_blob": "fc6565f968b4cae1c0834f829975ac30d63e3483",
+   "sha256": "c08479693ce188c99b902dbce63054f549034e1679df5b17cb9bccd438c98f69"
+  },
+  "tests/cockpit_v4/test_policy_vocabulary.py": {
+   "bytes": 9131,
+   "git_blob": "13b0fe71913f71b1c785d9b0708aecf0b47822f2",
+   "sha256": "d65b3b8a1bbb7a590df14dd4ce8de29749cda6acc1be22d6c71192540f23e9f6"
+  },
+  "tests/cockpit_v4/test_price_card.py": {
+   "bytes": 8352,
+   "git_blob": "dc8f95289817a6e93c406d4e0085f500c495bf2d",
+   "sha256": "d8b553d0c89565de66df2d5d9a410f076a81838248165eff0f8e481407b1a508"
+  },
+  "tests/cockpit_v4/test_process_events.py": {
+   "bytes": 13819,
+   "git_blob": "2019d4f68e91e045f84dbf3171867209895dfed0",
+   "sha256": "38fb731aea6a4f26f5983b597ff3e401581ff1f914a681936d3cbcd671c36cc9"
+  },
+  "tests/cockpit_v4/test_product_help_benchmark.py": {
+   "bytes": 12585,
+   "git_blob": "449a16c2bea4c0acc468e68760338f45a3bc43ca",
+   "sha256": "3311e5a85db40926b127371b8df5d185885226421d222deb4f0e42fbce02aa7c"
+  },
+  "tests/cockpit_v4/test_product_help_semantics.py": {
+   "bytes": 13617,
+   "git_blob": "67027d66d12ef7c031737e2a7bf6b32a7983d9db",
+   "sha256": "b628833875c0889544a0f174cb3f479987f5f3405efb41edf8f3ef8704ea0b10"
+  },
+  "tests/cockpit_v4/test_protocol_and_bounds.py": {
+   "bytes": 15194,
+   "git_blob": "6146628b06671441a09b3c4ce8ae6448012862b7",
+   "sha256": "dc26b98f06d7fe38e96a57a6e459c71a1fc62480e688b63f6ee8976478675a8f"
+  },
+  "tests/cockpit_v4/test_provider_payload.py": {
+   "bytes": 9512,
+   "git_blob": "6536501a4aa7a6972b26cb58e4ffa41b108e5c73",
+   "sha256": "32f7a90a35c2838a1be1df17b4fbd9ec443d935671a2f47137c8146fea837cd2"
+  },
+  "tests/cockpit_v4/test_provider_payload_isolation.py": {
+   "bytes": 18184,
+   "git_blob": "654ec01e518b668fdc23ea149e9c1c3cf497478b",
+   "sha256": "73ae4747e07e21e7ad7f0709f83e7f90516c0fe7aad6034ad6d36449589f61bd"
+  },
+  "tests/cockpit_v4/test_provider_schema_compatibility.py": {
+   "bytes": 8853,
+   "git_blob": "72535a09c1d56f8f20296a2cc8c2b88b5e9dcab2",
+   "sha256": "b95c27ba5f125ea13fc85287699dc5be28fe8e6e7feb5054eeab86ced011b53f"
+  },
+  "tests/cockpit_v4/test_provision_sequence.py": {
+   "bytes": 9883,
+   "git_blob": "b8a2d95bee1358002a5f2d2fabe05fa719433b09",
+   "sha256": "46b6abb1d4216cfc017aaa6aa7d63b4fdb89397a2f43650a0e4f675ebbc00376"
+  },
+  "tests/cockpit_v4/test_question_banks.py": {
+   "bytes": 9835,
+   "git_blob": "cfb8343dc905f57c1eb062b1d4c266995d87f336",
+   "sha256": "68b388d1228eaaa6fef526db6fafd856d85541d90a12f4811f0a8dcb26d656da"
+  },
+  "tests/cockpit_v4/test_rejudge_oracle_mapping.py": {
+   "bytes": 12452,
+   "git_blob": "d3ce817e8dcb1a55449091809286924829dfc602",
+   "sha256": "69e5d2096e999e72ad0c2aa48994219c41399c5123084b9e79c87f711b81ea4b"
+  },
+  "tests/cockpit_v4/test_release_binding.py": {
+   "bytes": 9557,
+   "git_blob": "f2a1ac6b31db10f71f63ca17d50b91a68fc91610",
+   "sha256": "5978149f2b1acafde8663e65eb1a587fb1c71f0050b9bd15afe784107cff1603"
+  },
+  "tests/cockpit_v4/test_release_header.py": {
+   "bytes": 6323,
+   "git_blob": "57a93a49e8deb4d632f1fe68634a8c0fa50b55fc",
+   "sha256": "986e78560f2482cc02d675b634d32cf51f66840c8ee4d8337a227aa1849fa113"
+  },
+  "tests/cockpit_v4/test_release_history.py": {
+   "bytes": 21742,
+   "git_blob": "e6d80f58ef6ed0324628313fe603b63164b86a1c",
+   "sha256": "784a6f3bdc2f0599211342c8abfe436be0cd4d27d81c41a1125af17c75b81ed1"
+  },
+  "tests/cockpit_v4/test_release_isolation.py": {
+   "bytes": 17372,
+   "git_blob": "ce48eadaa6ef9a4b73f6a7fad5c0ed93e1f0ebb1",
+   "sha256": "d7e481fe8413f78b48565aa55947345fc4039d33d49b480213f0702f5cafc280"
+  },
+  "tests/cockpit_v4/test_release_scale.py": {
+   "bytes": 15307,
+   "git_blob": "71d2c912dc7a667fb5a3ac55f21f4fe119827fe4",
+   "sha256": "554cfc10ab1faa088420438eea8453e515c8d133e7af602a9fb0046aed3bcc93"
+  },
+  "tests/cockpit_v4/test_result_only_publication.py": {
+   "bytes": 12669,
+   "git_blob": "05c81d83f4e1ded35ec09c7ced89629d5c1976fc",
+   "sha256": "b0bd553f00d35fdee6ee96452b364911be81ddebba463a00f69bf4a0f62b4213"
+  },
+  "tests/cockpit_v4/test_result_payload_size.py": {
+   "bytes": 6337,
+   "git_blob": "6cf5b2da1551741fb1f17b17aada0db2e0a1d900",
+   "sha256": "4b571b2821c98c8d2e7e8ebfa0e9734ee3b086b529b3995b95acf8b045819315"
+  },
+  "tests/cockpit_v4/test_row_scope_shorthand.py": {
+   "bytes": 15106,
+   "git_blob": "e5da1de196218dc71541abf8c552e5548d55713d",
+   "sha256": "0bd311503c28b4413da6f24470b331d903055cdce042b32b35090fc97299230a"
+  },
+  "tests/cockpit_v4/test_runtime_readiness.py": {
+   "bytes": 15610,
+   "git_blob": "3f555ba6d8df57eeb07ae9fe0196dd125dc2a895",
+   "sha256": "4219ffab508671558a6a88b117a33bc6a8bdef6e07f2593f3a95214e27d989a4"
+  },
+  "tests/cockpit_v4/test_saudi_demo_surface.py": {
+   "bytes": 8898,
+   "git_blob": "eee482f2de39a6a94ccd9e6b4dfd5a3eb528393e",
+   "sha256": "f1177a8361f729adb175e689d9cf3a0b55016082e3414bbe73f55242803723a5"
+  },
+  "tests/cockpit_v4/test_saudi_localization.py": {
+   "bytes": 13319,
+   "git_blob": "6ffd69522afcd8b328e0b62d9b0e5e9bb41e5cdd",
+   "sha256": "308693aaee8f3ddbb65cccb66c6abbcf3936bb6d8df077314f35f7f896432104"
+  },
+  "tests/cockpit_v4/test_saudi_release_smoke.py": {
+   "bytes": 6410,
+   "git_blob": "934ef70ed3fd5179a626246de4ccc386b3f47403",
+   "sha256": "1c41e55d1c93c5be691564643e32cfba49c52879a8a06db4c4f5484ff14681c5"
+  },
+  "tests/cockpit_v4/test_schema_browser.py": {
+   "bytes": 5482,
+   "git_blob": "ee71f6a62558b66e421a1cec73f9af1b8124ddf4",
+   "sha256": "8fdfa17df4ac3482658945032db32ec0e8bcacab41c931213f951dda11026b23"
+  },
+  "tests/cockpit_v4/test_seeded_case_file.py": {
+   "bytes": 10791,
+   "git_blob": "cff145b0fe9607fdf1a7dd2f7d7556037159a4e4",
+   "sha256": "3e6535edf55f0c34434839d0dce67e7c4909686e926a619e917887a2be7f2fdb"
+  },
+  "tests/cockpit_v4/test_server_rendered_output.py": {
+   "bytes": 8300,
+   "git_blob": "8a693a3fa2990a13860ccb57b4b9f6d3053950e1",
+   "sha256": "82a37737a5f94bb5d9d42b69d12d1fcee8901dfca198fcc4ba2ba1d1391b0ccd"
+  },
+  "tests/cockpit_v4/test_state_machine_and_memory.py": {
+   "bytes": 5031,
+   "git_blob": "9e180818a6e8f1922a28f1658f3ad47b65ad674d",
+   "sha256": "e57db5782dcaa66a1b51c28b5530c8bd2f694215836a9b23e186d3878392e141"
+  },
+  "tests/cockpit_v4/test_store_transactions.py": {
+   "bytes": 7368,
+   "git_blob": "76d68b237b482ee5fab278617ddae2858bdf5c4d",
+   "sha256": "653e1d593145d5438b08911bb3981513a2a5203f5b60fc371c36b7c664487e54"
+  },
+  "tests/cockpit_v4/test_thread_transcript.py": {
+   "bytes": 21342,
+   "git_blob": "875cd683bfc13627552f971be3c58a78e5de2543",
+   "sha256": "6c49e36101d7295cc9e1c61be214c1b68eb166433fb58ac3682d6aadae9c37d8"
+  },
+  "tests/cockpit_v4/test_tool_contract_agreement.py": {
+   "bytes": 14922,
+   "git_blob": "3a718ca7d48a7e79a1c8df13dbab3cee086c670a",
+   "sha256": "e16c188f551f58f892afe2db01585df80053539d49594a2ce82434b8d3c9bfa5"
+  },
+  "tests/cockpit_v4/test_units_across_kinds.py": {
+   "bytes": 11319,
+   "git_blob": "323d0bef538614c778f24dc50dfd8fe12d6ed479",
+   "sha256": "b95307a207d3cee169c7eaecef5b02e47ed8dcdd9e60257eb6d41fa812d3d8d5"
+  },
+  "tests/cockpit_v4/test_value_resolution.py": {
+   "bytes": 25571,
+   "git_blob": "75db877d99aa6575321b9700b195d50efa847b81",
+   "sha256": "f2575663984c20141806303e644b2e87d1369337b47238e56415fcc78fdd4126"
+  },
+  "tests/cockpit_v4/test_vertical_slice.py": {
+   "bytes": 16928,
+   "git_blob": "9880ecf1f0066662f8b2c3a65d6b3ea815e6ba03",
+   "sha256": "9a676ee233d99ffcad1348e883c7c97626bfe0fb3a246bb3cb88844b1820cb6c"
+  },
+  "tests/cockpit_v4/test_visual_choice.py": {
+   "bytes": 5906,
+   "git_blob": "5358ee3a0086492f88bacc66fab0c92c31d48777",
+   "sha256": "84f932c7cb628e47d641406ea0e69137dfd8b9460df645cb29f7eff32feb55a5"
+  },
+  "tests/cockpit_v4/test_who_are_you_acceptance.py": {
+   "bytes": 7604,
+   "git_blob": "d46dca61290f986fbc15010716400f26c83141f6",
+   "sha256": "adc01598f6438b6cda7c141b410248ad0a4c26cb7ee6f4dd63dcd84736b7298c"
+  },
+  "tests/cockpit_v4/test_write_audit.py": {
+   "bytes": 6063,
+   "git_blob": "aad5398e2a9439c9d45350d886fd69571a01fad2",
+   "sha256": "15ca6aa9b5535e68034413ce93d0a68993ffc90da02f270597cd58adf7995e33"
+  },
+  "tests/cockpit_v4/uat_question_bank.py": {
+   "bytes": 42830,
+   "git_blob": "340add93e0b5b24b1cd158211d97d3e7f574bae7",
+   "sha256": "196736a7e2012334a7a86398869bdcbf88984d2cc2c76639c531204081c4321d"
+  },
+  "tests/cockpit_v4/uat_sql.py": {
+   "bytes": 20906,
+   "git_blob": "4f7db720d20b9b6b4bdca5b0e5a01e90b4cd0bd9",
+   "sha256": "a3d4fc877a77e758949201140c820c8094964834696e9fe472892624e426a36a"
+  }
+ },
+ "frozen_commit": "245c50e45786c6e0c866b281f9dd74da17d160b5",
+ "frozen_tag": "cockpit-round-h-live-pass-2026-09-23",
+ "protected_dirs": [
+  "backend/cockpit_v4",
+  "frontend/src/components/cockpit-v4",
+  "frontend/src/app/cockpit",
+  "scripts/cockpit_v4",
+  "tests/cockpit_v4",
+  "config/cockpit_v4"
+ ],
+ "protected_files": [
+  "backend/llm/anthropic_provider.py"
+ ],
+ "runtime_closure": [
+  "backend/__init__.py",
+  "backend/config.py",
+  "backend/llm/__init__.py",
+  "backend/llm/base.py",
+  "backend/llm/caching.py",
+  "backend/llm/telemetry.py",
+  "backend/cockpit_agentic/__init__.py",
+  "backend/cockpit_agentic/calendar.py",
+  "backend/cockpit_agentic/catalog.py",
+  "backend/cockpit_agentic/contracts.py",
+  "backend/cockpit_agentic/fields.py",
+  "backend/cockpit_agentic/generate.py",
+  "backend/cockpit_agentic/profile.py",
+  "backend/cockpit_agentic/scope.py",
+  "backend/cockpit_agentic/store.py",
+  "backend/cockpit_agentic/sql.py",
+  "backend/cockpit_agentic/values.py",
+  "backend/logging_setup.py",
+  "requirements.txt",
+  "pyproject.toml"
+ ],
+ "schema": "opus360.protected_manifest.v1"
+}
