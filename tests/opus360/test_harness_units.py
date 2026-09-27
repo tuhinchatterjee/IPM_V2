@@ -414,3 +414,14 @@ def test_csv_is_written_with_lf_so_checksums_survive_git(tmp_path):
     """The repo normalises text to LF; a CRLF CSV would fail its own checksum after a clone."""
     write_csv(tmp_path / "lf.csv", [{"a": 1}, {"a": 2}])
     assert b"\r" not in (tmp_path / "lf.csv").read_bytes()
+
+
+def test_checksums_cover_the_final_state(tmp_path):
+    exp = Experiment(tmp_path / "c")
+    exp.create({"experiment_id": "c"})
+    exp.log("line", echo=False)
+    exp.event("session_end", exit_code=0)
+    path = exp.write_checksums()
+    for line in path.read_text().splitlines():
+        digest, rel = line.split("  ", 1)
+        assert hashlib.sha256((exp.root / rel).read_bytes()).hexdigest() == digest

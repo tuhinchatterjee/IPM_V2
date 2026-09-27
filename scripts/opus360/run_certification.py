@@ -533,6 +533,9 @@ def main() -> int:
         exp.log(f"P13: exported {len(files)} files to {exp.root}")
     harness.close()
     exp.event("session_end", exit_code=exit_code)
+    if args.export:
+        # Last write of the session, so every file it covers is final.
+        exp.write_checksums()
     return exit_code
 
 
