@@ -37,12 +37,12 @@ The launcher is equivalent to:
 | P3 execution path | done | `docs/opus360/ACTUAL_EXECUTION_PATH.md`, `STATIC_FINDINGS.md` |
 | P4 bank and oracles | done: 250 turns, bank SHA `e7198a69…`; 294 frozen references | `config/opus360/question_bank.v1.yaml` |
 | P5–P6 runner, telemetry, evaluators, reports | done | `scripts/opus360/` |
-| P7 fixture tests | done: 10 scenarios plus 31 unit tests, 41/41 pass | `artifacts/opus360/fixtures/fixture_validation.json` |
+| P7 fixture tests | done: 10 scenarios plus 32 unit tests, 42/42 pass | `artifacts/opus360/fixtures/fixture_validation.json` |
 | P8 frozen regression | done: before and after | `artifacts/opus360/regression/` |
 | P9–P10 live calibration | **blocked** (no cap, no credential) | calibration verified in the dry run: 11/11 checks |
 | P11 live core | **blocked** | dry run: 250/250 turns executed through the real route/worker/validator/executor/finalizer |
 | P12 load microtest | **blocked** live | dry run: concurrency 1, 2 and 4 completed; 429 admission refusals observed at 4 |
-| P13 export | done for the dry run | `artifacts/opus360/architecture-v1-dry-20260927T215941Z/` |
+| P13 export | done for the dry run | `artifacts/opus360/architecture-v1-dry-20260927T221709Z/` |
 | P14 final proof | done: `PROTECTED_CORE_UNCHANGED`, 311 files, git diff on protected paths empty | same folder, `metrics.json` |
 | P15 reports | generated for the dry run; the live reports are produced by the same code | same folder |
 
