@@ -116,11 +116,22 @@ def _validate(raw: dict[str, Any], path: Path) -> Profile:
         except dl.DiagnosticLimitsError as exc:
             raise RegistryError(f"{path.name}: {exc}") from exc
         # A profile with relaxed time limits must say so, everywhere.
+        label = str(raw.get("diagnostic_label") or "")
         if raw.get("sla_comparable") is not False or \
-                raw.get("diagnostic_label") != dl.LABEL:
+                "DIAGNOSTIC" not in label or \
+                not label.endswith("SLA NOT COMPARABLE"):
             raise RegistryError(
                 f"{path.name}: a diagnostic_limits profile must set "
-                f"sla_comparable=false and diagnostic_label={dl.LABEL!r}")
+                f"sla_comparable=false and a diagnostic_label naming the "
+                f"DIAGNOSTIC and ending 'SLA NOT COMPARABLE' "
+                f"(e.g. {dl.LABEL!r})")
+    ctx = raw.get("context_tokens")
+    if ctx is not None and (isinstance(ctx, bool) or not isinstance(ctx, int)
+                            or ctx <= 0):
+        # A declared capacity is what the frozen fits() check enforces; it
+        # is a measured integer or absent, never a guess or a string.
+        raise RegistryError(f"{path.name}: context_tokens must be a positive "
+                            f"integer or null, not {ctx!r}")
     ep = raw.get("endpoint") or {}
     if "api_key" in ep:
         raise RegistryError(f"{path.name}: a profile may name a credential "

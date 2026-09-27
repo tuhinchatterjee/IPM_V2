@@ -302,6 +302,22 @@ def _sector_map(rows: list[dict], column: str | None = None
             if r.get(col) is not None and r.get(key) is not None}
 
 
+def _declared_context(profile: dict[str, Any]) -> dict[str, Any]:
+    """The context capacity the frozen fits() check was told, and where the
+    number came from -- so an INPUT_CONTEXT_LIMIT can be read correctly."""
+    from backend.model_lab.child_runtime import DEFAULT_CONTEXT_TOKENS
+
+    if profile.get("route") == "anthropic":
+        return {"declared_context_tokens": profile.get("context_tokens"),
+                "context_tokens_source": "frozen price card / profile"}
+    if profile.get("context_tokens"):
+        return {"declared_context_tokens": int(profile["context_tokens"]),
+                "context_tokens_source": "profile"}
+    return {"declared_context_tokens": DEFAULT_CONTEXT_TOKENS,
+            "context_tokens_source": f"lab default {DEFAULT_CONTEXT_TOKENS:,} "
+                                     f"(profile context_tokens null)"}
+
+
 def _diagnostic(cid: str, profile: dict[str, Any], events: list[dict]
                 ) -> dict[str, Any] | None:
     """The long-run diagnostic record: frozen policy, effective policy and
@@ -371,6 +387,7 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
         "reasoning_variant": _reasoning_variant(profile),
         "parent_profile_id": profile.get("parent_profile_id"),
         "sla_comparable": profile.get("sla_comparable") is not False,
+        **_declared_context(profile),
         "diagnostic": _diagnostic(cid, profile, events),
     }
     turns = child.get("turns") or []

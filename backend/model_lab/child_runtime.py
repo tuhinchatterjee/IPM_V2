@@ -17,6 +17,10 @@ from typing import Any
 from backend.model_lab.registry import Profile
 
 ROOT = Path(__file__).resolve().parents[2]
+#: What the frozen fits() check is told when a candidate profile declares no
+#: context. Deliberately conservative; a profile that knows its served
+#: context must declare it (`context_tokens`).
+DEFAULT_CONTEXT_TOKENS = 32_768
 os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
 
 
@@ -50,7 +54,8 @@ def capability_for(profile: Profile, probe: dict[str, Any] | None = None
         provider="anthropic",   # the frozen engine's wire dialect, see OG-03
         model_id=profile.requested_model,
         sdk_version=profile.route,
-        context_tokens=int(raw.get("context_tokens") or 32_768),
+        context_tokens=int(raw.get("context_tokens") or
+                           DEFAULT_CONTEXT_TOKENS),
         max_output_tokens=int(raw.get("max_output_tokens") or 8192),
         supports_tools=True,
         supports_token_counting=bool(ctl.get("token_counting")),

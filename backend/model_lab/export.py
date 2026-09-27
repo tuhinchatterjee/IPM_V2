@@ -81,6 +81,8 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                                             sort_keys=True)
                                  if k.get("request_controls") else ""),
             "reasoning_variant": k.get("reasoning_variant") or "",
+            "declared_context_tokens": k.get("declared_context_tokens"),
+            "context_tokens_source": k.get("context_tokens_source") or "",
             "diagnostic_label": (k.get("diagnostic") or {}).get("label")
             or "",
             "sla_comparable": k.get("sla_comparable", True),

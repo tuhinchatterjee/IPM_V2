@@ -81,7 +81,7 @@ def test_1_ordinary_child_keeps_the_frozen_limits(mixed):
 
 def test_1_the_real_profiles_carry_no_override():
     for p in registry.load_profiles().values():
-        if p.profile_id != LONGRUN:
+        if p.profile_id not in (LONGRUN, f"{LONGRUN}-64k"):
             assert "diagnostic_limits" not in p.raw, p.profile_id
             assert p.raw.get("sla_comparable") is not False, p.profile_id
 

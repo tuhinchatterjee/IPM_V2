@@ -129,6 +129,11 @@ export function Overview({
                 {!blind && c.reasoning_variant && (
                   <div className="text-text-muted">reasoning: {c.reasoning_variant}</div>
                 )}
+                {!blind && c.declared_context_tokens != null && !c.fixture && (
+                  <div className="text-text-muted">
+                    context {c.declared_context_tokens.toLocaleString("en-US")} ({c.context_tokens_source})
+                  </div>
+                )}
               </td>
               {cols.map(([k]) => (
                 <td key={k} className="p-2 text-text-secondary">

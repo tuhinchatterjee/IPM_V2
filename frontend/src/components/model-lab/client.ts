@@ -226,6 +226,8 @@ export type ChildEval = {
   reasoning_variant?: string | null;
   parent_profile_id?: string | null;
   sla_comparable?: boolean;
+  declared_context_tokens?: number | null;
+  context_tokens_source?: string;
   diagnostic?: Diagnostic | null;
   reference_match?: Record<string, MatchStage> | null;
   identity: { status: string; resolved?: string[] };

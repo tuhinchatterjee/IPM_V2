@@ -19,6 +19,7 @@ Identities for the open-weight models come from master prompt v2.1 [R1]–[R8]. 
 | `qwen3.5-4b` | Qwen/Qwen3.5-4B | OpenAI-compatible | NOT_INSTALLED | Same |
 | `qwen3.5-4b-nothink` | Qwen/Qwen3.5-4B (tag `qwen3.5:4b`, digest prefix `2a654d98e6fb`) | OpenAI-compatible, request control `reasoning_effort: "none"` | NOT_INSTALLED | Runtime reasoning variant of `qwen3.5-4b` (`parent_profile_id`); probe not run here |
 | `qwen3.5-4b-nothink-longrun` | Same model, tag, digest prefix and `reasoning_effort: "none"` as `qwen3.5-4b-nothink` | OpenAI-compatible; **LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE** | NOT_INSTALLED | 900 s calls, 3,600 s run, in an isolated child process; runs only in `LONG_RUN_DIAGNOSTIC` mode |
+| `qwen3.5-4b-nothink-longrun-64k` | As `qwen3.5-4b-nothink-longrun`, plus `context_tokens: 65536` (the served Ollama context) | OpenAI-compatible; **Qwen3.5-4B no-thinking — LONG-RUN 64K DIAGNOSTIC — SLA NOT COMPARABLE** | NOT_INSTALLED | Same 900 s / 3,600 s limits in an isolated process; `LONG_RUN_DIAGNOSTIC` mode only |
 | `granite-4.2-8b` | ibm-granite/granite-4.2-8b | OpenAI-compatible | NOT_INSTALLED | Same; parser/template must be qualified |
 | `ministral-3-8b` | mistralai/Ministral-3-8B-Instruct-2512 | OpenAI-compatible | NOT_INSTALLED | Same |
 | `fin-r1-7b` | SUFE-AIFLM-Lab/Fin-R1 | — | DISABLED | Backlog; diagnostic-only until the mandatory controls pass |
@@ -70,4 +71,11 @@ The frozen engine takes its time limits from module constants in `backend/cockpi
 - **Mode separation.** Diagnostic profiles run only in execution mode `LONG_RUN_DIAGNOSTIC`, and `E2E_BASELINE` refuses them.
 - **Evidence.** Each diagnostic child records the frozen policy (from the lab server), the effective policy (from the child process), both process ids, the policy after restore, the frozen engine's own "Allowance" events and each call's `call_timeout_seconds`. The UI, export and HTML report carry the label.
 - **Reference baseline.** A comparison may name `reference_comparison_id`. Its saved evaluation is read, never rewritten, and each child gets `reference_match` against the saved comparator (agreement only, never latency).
+
+## Declared context (`context_tokens`)
+
+The frozen `Analyst.fits()` refuses a turn when `counted input + reserved output + max(1024, 2% of input) > Capability.context_tokens`. The lab builds that capability from the profile:
+- A candidate profile with `context_tokens: null` is declared as **32,768** (`child_runtime.DEFAULT_CONTEXT_TOKENS`), whatever the runtime actually serves.
+- A profile that knows its served context must declare it as a positive integer. Anything else (0, negative, a string, a float, a boolean) is refused at load.
+- Each child records `declared_context_tokens` and `context_tokens_source` (`profile` or `lab default 32,768`) in the evaluation, export and UI, so an `INPUT_CONTEXT_LIMIT` can be traced to the declaration that caused it.
 

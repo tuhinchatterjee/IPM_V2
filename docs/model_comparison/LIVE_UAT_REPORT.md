@@ -179,3 +179,22 @@ For run 3, correctness is judged by the independent oracle (S1–S4, claims, rep
 
 **Resource measurement on the Mac.** The lab's sampler reads `/proc`, which macOS does not have, so it reports memory as unavailable there. Ollama's model memory is outside the lab process. Record `ollama ps` and `memory_pressure` alongside the run (commands in the handover).
 
+## Long-run run ended `INPUT_CONTEXT_LIMIT`: a lab declaration mismatch, fixed in a new 64K profile
+
+**Mac facts (2026-09-27).** Ollama serves `qwen3.5:4b` with `CONTEXT=65536`. The long-run run with `qwen3.5-4b-nothink-longrun` ended `INPUT_CONTEXT_LIMIT`.
+
+**Root cause (lab).** That profile has `"context_tokens": null`, so `child_runtime.capability_for` told the frozen engine the model holds 32,768 tokens. The frozen `fits()` check then correctly refused a turn whose counted input, reserved output and margin exceeded 32,768. This is not evidence that Qwen exceeded its real 65,536-token context.
+
+The null was a lab design decision in the first long-run profile: it kept `context_tokens` identical to the parent so that only time would differ. It should have declared the served context.
+
+**Fix.** A new profile, `qwen3.5-4b-nothink-longrun-64k` (parent `qwen3.5-4b-nothink-longrun`). It is identical except for `"context_tokens": 65536`, its identity and its label: **Qwen3.5-4B no-thinking — LONG-RUN 64K DIAGNOSTIC — SLA NOT COMPARABLE**. The preset is `qwen4b-longrun-64k-diagnostic`, still referencing the saved Opus comparison `cmp-f364d8b6901a`.
+
+**Unchanged:**
+- the frozen `fits()` (its source is compared with the frozen commit);
+- the 32,768 fallback for profiles that declare nothing;
+- the base, no-thinking and first long-run profiles.
+
+A request genuinely over 65,536 is still refused, both by the unit tests and through the engine.
+
+**Evidence kept separate:** default-thinking (~413 s), no-thinking at 30 s, the long-run run at 32,768 declared (`INPUT_CONTEXT_LIMIT`), and the long-run run at 65,536 declared (to be run).
+
