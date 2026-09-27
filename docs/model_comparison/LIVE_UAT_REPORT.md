@@ -198,3 +198,20 @@ A request genuinely over 65,536 is still refused, both by the unit tests and thr
 
 **Evidence kept separate:** default-thinking (~413 s), no-thinking at 30 s, the long-run run at 32,768 declared (`INPUT_CONTEXT_LIMIT`), and the long-run run at 65,536 declared (to be run).
 
+## Saved-Opus agreement reference: linkage fixed (lab-eval-4)
+
+**Symptom.** The long-run candidate `cmp-7539e4df59c8` named `reference_comparison_id = cmp-f364d8b6901a`. Its exported pack showed only `comparator = "" / COMPARATOR_UNAVAILABLE`, and `opus_match.csv` held only the live-comparator rows, all N/A. Meanwhile the UI banner said answers were compared with the saved Opus run.
+
+**Root cause (lab).**
+- The export never carried the saved reference.
+- The evaluator found the reference child through the saved run's comparator id rather than its Opus child.
+- It collapsed every failure into one `REFERENCE_UNAVAILABLE`.
+
+**Fix.** A separate, read-only `saved_reference` with explicit statuses (see `EVALUATION_RUBRIC.md`) is now carried in the evaluation, UI and every export file. The live `comparator` is unchanged and stays unavailable when there is no live comparator child. Correctness is still the oracle's.
+
+**Re-score offline on the Mac** (no model call; the reference comparison is checked unchanged):
+
+```bash
+.venv/bin/python scripts/model_lab/reevaluate.py --comparison cmp-7539e4df59c8 --export
+```
+

@@ -1,6 +1,6 @@
 # Evaluation rubric
 
-Versions: `lab-eval-3` (evaluator; `lab-eval-1` and `lab-eval-2` superseded) and `lab-oracle-2` (oracle, now metric-aware). Code: `backend/model_lab/evaluate.py` and `oracle.py`.
+Versions: `lab-eval-4` (evaluator; `lab-eval-1` to `lab-eval-3` superseded) and `lab-oracle-2` (oracle, now metric-aware). Code: `backend/model_lab/evaluate.py` and `oracle.py`.
 
 The evaluator reads only stored evidence: the frozen run store (messages, events, submissions, artifacts, call report, ledger) and the lab's observer spans. It never calls a model. Re-evaluation writes a new revision and marks the previous one `SUPERSEDED`.
 
@@ -138,3 +138,38 @@ Origin confidence is one of `ORIGIN_CONFIRMED`, `ORIGIN_LIKELY`, `MULTI_STAGE_UN
 - the split ledger and contamination.
 
 Gates, as `readiness-gates-1`, are proposed defaults: at least 20 distinct tasks, and at least 5 recurrences before a non-tentative flag. No training is performed, and no uplift is forecast.
+
+## Saved agreement reference (lab-eval-4)
+
+Three concepts stay separate in the evaluation, the UI and the export:
+
+| Concept | Where | Meaning |
+|---|---|---|
+| Live comparator | `comparator`, per-child `opus_match` | A child of THIS comparison, run with the others |
+| Saved agreement reference | `saved_reference`, per-child `reference_match` | The Opus child of ANOTHER, saved comparison, read-only |
+| Independent oracle | `checks`, `claims`, `stages` | Correctness; unaffected by either agreement source |
+
+**How the reference is resolved.** The id comes from the spec's `reference_comparison_id`, or from `reevaluate.py --reference` as an operator override (recorded as `reference_link_source`). The lab reads that comparison's current evaluation and finds its Opus child: `profile_id opus-frozen` or route `anthropic`, from the stored profile, never from the saved comparator id. Nothing is written to either comparison, and no model is called.
+
+**Statuses, each explicit, with no fallback:**
+
+| Status | Meaning |
+|---|---|
+| `READY` | The reference resolved and agreement was computed. |
+| `NO_REFERENCE` | No reference was named. |
+| `REFERENCE_COMPARISON_UNAVAILABLE` | The named comparison is not saved in this lab. |
+| `REFERENCE_NOT_EVALUATED` | The saved comparison has no evaluation. |
+| `REFERENCE_EVALUATION_INCOMPATIBLE` | The saved evaluator is not `lab-eval-3`/`lab-eval-4`, or required evidence is missing. The remedy names the offline re-score; it is never run automatically. |
+| `REFERENCE_HAS_NO_OPUS_CHILD` | The saved comparison contains no Opus child. |
+| `REFERENCE_OPUS_NOT_COMPLETED` | The Opus child did not complete. |
+| `REFERENCE_NOT_COMPARABLE` | The question or data snapshot differs. |
+
+When the status is not READY, every `reference_match` stage is N/A with the status as its reason.
+
+**Export.**
+- `manifest.json` → `saved_reference` (metadata, no answer body) and `evaluation_revision`.
+- `README.html` and the xlsx "Read Me" show "Live comparator: …" and "Saved Opus agreement reference: …" on separate lines.
+- `opus_match.csv` and the xlsx "Opus Match" sheet carry `match_source` (`live_comparator` | `saved_comparison`) plus the reference id, profile, status and revision.
+- `summary.csv` carries the reference fields.
+- `limitations.md` says when agreement comes from a saved separate run.
+

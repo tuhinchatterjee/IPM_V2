@@ -60,6 +60,48 @@ def _metric_cols(prefix: str, m: dict[str, Any] | None) -> dict[str, Any]:
 
 # ---- rows (one calculation source for UI, CSV, XLSX, manifest) ------------
 
+def saved_ref(ev: dict[str, Any]) -> dict[str, Any]:
+    """The saved agreement reference, never the live comparator. Older
+    (lab-eval-3) bodies carried `reference_baseline`; they are shown as
+    such, with their status marked legacy rather than re-interpreted."""
+    ref = ev.get("saved_reference")
+    if ref:
+        return ref
+    old = ev.get("reference_baseline")
+    if old:
+        return {"reference_source": "saved_comparison",
+                "reference_comparison_id": old.get("comparison_id"),
+                "reference_profile_id": old.get("profile_id"),
+                "reference_status": f"LEGACY_{old.get('status')}",
+                "reference_evaluation_revision": old.get("saved_revision"),
+                "note": "legacy lab-eval-3 linkage; re-evaluate to resolve"}
+    return {"reference_source": "saved_comparison",
+            "reference_status": "NO_REFERENCE"}
+
+
+def reference_meta(ev: dict[str, Any]) -> dict[str, Any]:
+    """Reference metadata for the manifest: no answer body."""
+    return {k: v for k, v in saved_ref(ev).items()
+            if k not in ("reference_answer", "reference_checks")}
+
+
+def reference_line(ev: dict[str, Any]) -> str:
+    r = saved_ref(ev)
+    if r.get("reference_status") == "NO_REFERENCE":
+        return "Saved Opus agreement reference: none"
+    rev = r.get("reference_evaluation_revision")
+    return (f"Saved Opus agreement reference: {r.get('reference_status')} — "
+            f"{r.get('reference_comparison_id')}"
+            + (f" (evaluation r{rev})" if rev else "")
+            + "; agreement only, never correctness or latency"
+            + (f". {r['remedy']}" if r.get("remedy") else ""))
+
+
+def comparator_line(ev: dict[str, Any]) -> str:
+    c = ev["comparator"]
+    return (f"Live comparator: {c.get('profile_id') or 'none'} "
+            f"({c.get('status')})")
+
 def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     cid = ev["comparison_id"]
     out: dict[str, list[dict[str, Any]]] = {
@@ -94,8 +136,14 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                 sort_keys=True) if k.get("diagnostic") else ""),
             "diagnostic_child_pid": (k.get("diagnostic") or {}).get(
                 "child_pid") or "",
-            "reference_comparison_id": ((ev.get("reference_baseline") or {})
-                                        .get("comparison_id") or ""),
+            "reference_source": "saved_comparison",
+            "reference_comparison_id": saved_ref(ev).get(
+                "reference_comparison_id") or "",
+            "reference_profile_id": saved_ref(ev).get(
+                "reference_profile_id") or "",
+            "reference_status": saved_ref(ev).get("reference_status"),
+            "reference_evaluation_revision": saved_ref(ev).get(
+                "reference_evaluation_revision"),
             "identity_status": (k.get("identity") or {}).get("status"),
             "repetition": k["repetition"], "lineage": k.get("lineage"),
             "first_divergence": (k.get("first_divergence") or {}).get(
@@ -178,14 +226,28 @@ def rows(ev: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
                           "inherited_effects", "earliest_event", "severity",
                           "next_diagnostic", "intervention_category",
                           "approval_needed", "model_failure")})
-        for s, v in (k.get("opus_match") or {}).items():
-            out["opus_match"].append(base | {
-                "stage": s, "match_pct": v.get("pct"),
-                "display": v.get("display"), "assessed": v.get("assessed"),
-                "defined": v.get("defined"), "reason": v.get("reason"),
-                "checks": json.dumps(v.get("checks"), default=str),
-                "comparator": ev["comparator"]["profile_id"],
-                "comparator_is_opus": ev["comparator"]["is_opus"]})
+        ref = saved_ref(ev)
+        for source, match in (("live_comparator", k.get("opus_match")),
+                              ("saved_comparison", k.get("reference_match"))):
+            for s, v in (match or {}).items():
+                out["opus_match"].append(base | {
+                    "match_source": source,
+                    "stage": s, "match_pct": v.get("pct"),
+                    "display": v.get("display"),
+                    "assessed": v.get("assessed"),
+                    "defined": v.get("defined"), "reason": v.get("reason"),
+                    "checks": json.dumps(v.get("checks"), default=str),
+                    "comparator": ev["comparator"]["profile_id"],
+                    "comparator_status": ev["comparator"]["status"],
+                    "comparator_is_opus": ev["comparator"]["is_opus"],
+                    "reference_comparison_id": ref.get(
+                        "reference_comparison_id") or "",
+                    "reference_profile_id": ref.get(
+                        "reference_profile_id") or "",
+                    "reference_status": ref.get("reference_status"),
+                    "reference_evaluation_revision": ref.get(
+                        "reference_evaluation_revision"),
+                    "meaning": "agreement, not correctness"})
     return out
 
 
@@ -243,6 +305,10 @@ def _xlsx(ev: dict[str, Any], tables: dict[str, list[dict]],
         ["oracle", ev["oracle_version"]],
         ["comparator", ev["comparator"]["profile_id"],
          ev["comparator"]["status"], ev["comparator"]["note"]],
+        [comparator_line(ev)],
+        [reference_line(ev)],
+        ["saved reference", *[f"{k}={v}" for k, v in
+                              reference_meta(ev).items()]],
         ["Blank cells are UNKNOWN / UNAVAILABLE, never zero. Each metric "
          "has _status and _missing_reason columns."],
         ["Shared-stage calls appear once in Calls; do not add stage rows "
@@ -351,8 +417,9 @@ def _readme(ev: dict[str, Any], manifest: dict[str, Any],
 {banner}
 <p>Question: <b>{_esc(manifest['question_text'])}</b></p>
 <p>Frozen source {_esc(FROZEN_COMMIT[:12])} · data {_esc(manifest['data_snapshot_id'])} ·
-evaluator {_esc(ev['evaluator_version'])} · comparator {_esc(ev['comparator']['profile_id'])}
-({_esc(ev['comparator']['status'])})</p>
+evaluator {_esc(ev['evaluator_version'])} · evaluation r{_esc(manifest.get('evaluation_revision'))}</p>
+<p><b>{_esc(comparator_line(ev))}</b></p>
+<p><b>{_esc(reference_line(ev))}</b></p>
 <p>{_esc(ev['summary']['note'])}. Blank = unknown, never zero.
 Opus Match is agreement with the comparator, never correctness.</p>
 <table><tr><th>Model</th><th>Class</th><th>Execution</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th><th>First divergence</th><th>Reason</th></tr>{rows_}</table>
@@ -364,7 +431,8 @@ differ; model outputs are not deterministic.</p>
 
 
 def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
-          *, partial: bool = False) -> dict[str, Any]:
+          *, partial: bool = False,
+          evaluation_revision: int | None = None) -> dict[str, Any]:
     tenant = coord.cfg.tenant_id
     status = coord.status(cid)
     events = coord.store.events(cid, tenant, 0, 100000)
@@ -404,7 +472,9 @@ def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
         "tools_hash": spec["tools_hash"], "policy_hash": spec["policy_hash"],
         "protected_manifest_hash": spec["protected_manifest_hash"],
         "profile_digests": spec["profile_digests"],
+        "evaluation_revision": evaluation_revision,
         "comparator": ev["comparator"],
+        "saved_reference": reference_meta(ev),
         "comparison_class": ev["comparison_class"],
         "release_claim": RELEASE_CLAIM, "generated_at": time.time(),
         "omissions": omissions, "task": ev.get("task"),
@@ -436,6 +506,12 @@ def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
     if ev["comparator"]["status"] != "READY":
         lim.append(f"- {ev['comparator']['status']}: no 'versus comparator' "
                    f"delta is valid.")
+    lim.append(f"- {reference_line(ev)}.")
+    if ev["comparator"]["status"] != "READY" and \
+            saved_ref(ev).get("reference_status") == "READY":
+        lim.append("- Agreement figures come from a SAVED separate Opus run "
+                   "(match_source=saved_comparison), not a live comparator "
+                   "child of this comparison.")
     for o in omissions:
         lim.append(f"- Omitted: {o['item']} ({o['reason']}).")
     files["limitations.md"] = ("\n".join(lim) + "\n").encode()

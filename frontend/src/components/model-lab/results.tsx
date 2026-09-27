@@ -12,6 +12,7 @@
 import * as React from "react";
 
 import type { Call, Check, ChildEval, Claim, Evaluation, Metric } from "./client";
+import { savedReference } from "./client";
 import {
   STAGES,
   STAGE_NAMES,
@@ -81,16 +82,29 @@ export function Overview({
     ["cost_usd", "Cost"],
   ];
   const diagnostic = ev.children.some((c) => c.diagnostic);
+  const ref = savedReference(ev);
   return (
     <div className="overflow-x-auto">
       {diagnostic && (
         <p role="note" className="mb-2 rounded border-2 border-border-strong p-2 text-sm font-bold text-text-primary">
           LONG-RUN HARDWARE/QUALITY DIAGNOSTIC — SLA NOT COMPARABLE. Relaxed time limits applied in an isolated
           process; timing is hardware evidence only.
-          {ev.reference_baseline &&
-            ` Answers compared with saved comparison ${ev.reference_baseline.comparison_id} (agreement only, not latency; ${ev.reference_baseline.status}).`}
         </p>
       )}
+      <div className="mb-2 space-y-0.5 text-xs text-text-secondary" aria-label="Agreement sources">
+        <div>
+          Live comparator: {ev.comparator.profile_id || "none"} ({ev.comparator.status})
+        </div>
+        {ref.reference_status !== "NO_REFERENCE" && (
+          <div className="font-medium text-text-primary">
+            Saved Opus agreement reference: {ref.reference_status} — {ref.reference_comparison_id}
+            {ref.reference_evaluation_revision != null && ` (evaluation r${ref.reference_evaluation_revision})`}
+            {"; agreement only, not correctness or latency."}
+            {ref.remedy && <span className="text-text-muted"> {ref.remedy}</span>}
+          </div>
+        )}
+        <div>Correctness: independent oracle checks (separate from both).</div>
+      </div>
       <table className="w-full border-collapse text-xs" aria-label="Overview, one row per model">
         <thead>
           <tr className="border-b border-border-strong text-left text-text-secondary">
@@ -437,8 +451,10 @@ export function Evidence({
   const checks = stage
     ? child.checks.filter((c) => c.stage.includes(stage))
     : child.checks;
-  const match = child.opus_match ?? child.reference_match ?? null;
-  const viaReference = !child.opus_match && Boolean(child.reference_match);
+  const ref = savedReference(ev);
+  const live = ev.comparator.profile_id ? child.opus_match : null;
+  const viaReference = !live && Boolean(child.reference_match);
+  const match = live ?? child.reference_match ?? null;
   return (
     <section aria-label={`Evidence for ${child.display_name}`} className="space-y-4 text-xs">
       <h3 className="text-sm font-semibold text-text-primary">
@@ -499,12 +515,12 @@ export function Evidence({
       <div>
         <h4 className="font-medium text-text-secondary">
           {viaReference
-            ? `${ev.reference_baseline?.is_opus ? "Opus Match" : "Comparator Match"} vs saved comparison ${ev.reference_baseline?.comparison_id}`
+            ? `Opus Match vs saved comparison ${ref.reference_comparison_id} (${ref.reference_profile_id ?? "no Opus child"})`
             : ev.comparator.is_opus ? "Opus Match" : "Comparator Match"} vs verified correctness
         </h4>
         <p className="text-text-muted">
-          {viaReference ? ev.reference_baseline?.note : ev.comparator.note}. Status:{" "}
-          {viaReference ? ev.reference_baseline?.status : ev.comparator.status}.
+          {viaReference ? ref.note : ev.comparator.note}. Status:{" "}
+          {viaReference ? ref.reference_status : ev.comparator.status}.
         </p>
         {child.diagnostic && (
           <div className="rounded border-2 border-border-strong p-2">
@@ -518,7 +534,13 @@ export function Evidence({
             </div>
           </div>
         )}
-        {!match && <p className="text-text-muted">This is the comparator.</p>}
+        {!match && (
+          <p className="text-text-muted">
+            {child.profile_id === ev.comparator.profile_id
+              ? "This is the comparator."
+              : "No live comparator and no saved agreement reference."}
+          </p>
+        )}
         {match && (
           <table className="w-full border-collapse">
             <thead>

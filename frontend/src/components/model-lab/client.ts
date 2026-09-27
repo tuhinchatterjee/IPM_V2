@@ -182,6 +182,42 @@ export type ReferenceBaseline = {
   profile_id?: string;
 };
 
+/** A SAVED comparison's Opus child, read-only: agreement, never truth. */
+export type SavedReference = {
+  reference_source: "saved_comparison";
+  reference_comparison_id: string | null;
+  reference_profile_id: string | null;
+  reference_status: string;
+  reference_evaluation_revision: number | null;
+  reference_evaluator_version?: string | null;
+  reference_is_fixture?: boolean | null;
+  note?: string;
+  remedy?: string;
+};
+
+/** The saved reference, from a lab-eval-4 body or a legacy one. */
+export function savedReference(ev: Evaluation): SavedReference {
+  if (ev.saved_reference) return ev.saved_reference;
+  const old = ev.reference_baseline;
+  if (old) {
+    return {
+      reference_source: "saved_comparison",
+      reference_comparison_id: old.comparison_id,
+      reference_profile_id: old.profile_id ?? null,
+      reference_status: `LEGACY_${old.status}`,
+      reference_evaluation_revision: null,
+      note: "legacy linkage; re-evaluate to resolve",
+    };
+  }
+  return {
+    reference_source: "saved_comparison",
+    reference_comparison_id: null,
+    reference_profile_id: null,
+    reference_status: "NO_REFERENCE",
+    reference_evaluation_revision: null,
+  };
+}
+
 export type Failure = {
   primary_category: string;
   supporting_categories: string[];
@@ -292,6 +328,7 @@ export type Evaluation = {
   reference: { period: string; unit: string; largest: string } | null;
   comparison_elapsed_ms: Metric;
   reference_baseline?: ReferenceBaseline | null;
+  saved_reference?: SavedReference | null;
   children: ChildEval[];
   summary: Record<string, number | string>;
   comparison_class: string[];

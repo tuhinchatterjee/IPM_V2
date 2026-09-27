@@ -259,12 +259,17 @@ def test_5_saved_comparisons_are_read_not_rewritten(tmp_path):
                       sort_keys=True, default=str) == hist
     assert len(svc.coord.store.events(base_cid, tenant, 0, 100000)) == \
         base_events
-    ref = ev["reference_baseline"]
-    assert ref["comparison_id"] == base_cid and ref["status"] == "READY"
+    ref = ev["saved_reference"]
+    assert ref["reference_comparison_id"] == base_cid
     assert ref["read_only"] is True and "never latency" in ref["note"]
+    # The saved run has no Opus child: an explicit blocker, not a silent
+    # fallback to whatever its comparator was (test_saved_reference.py
+    # covers the READY path).
+    assert ref["reference_status"] == "REFERENCE_HAS_NO_OPUS_CHILD"
     k = child(ev, "fixture-longrun")
     assert k["opus_match"]["S1"]["display"] == "N/A"      # no own comparator
-    assert k["reference_match"]["S2"]["pct"] == 100.0
+    assert k["reference_match"]["S2"]["reason"] == \
+        "REFERENCE_HAS_NO_OPUS_CHILD"
 
 
 def test_5_parent_profile_files_are_unchanged():

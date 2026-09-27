@@ -35,8 +35,10 @@ class LabService:
         self.evaluate(cid)
         self.export(cid)
 
-    def evaluate(self, cid: str) -> dict[str, Any]:
-        body = evaluate.evaluate_comparison(self.coord, cid)
+    def evaluate(self, cid: str, *, reference_override: str | None = None
+                 ) -> dict[str, Any]:
+        body = evaluate.evaluate_comparison(
+            self.coord, cid, reference_override=reference_override)
         body = self._apply_reviews(cid, body)
         rec = self.coord.store.add_evaluation(cid, self.cfg.tenant_id,
                                               EVALUATOR_VERSION, body)
@@ -50,7 +52,8 @@ class LabService:
         cur = self.coord.store.current_evaluation(cid, self.cfg.tenant_id)
         ev = cur["body"] if cur else self.evaluate(cid)
         res = export.build(self.coord, cid, ev, self.exports_dir,
-                           partial=partial)
+                           partial=partial,
+                           evaluation_revision=(cur or ev).get("revision"))
         self.coord.emit(cid, "export." + ("ready" if res["state"] == "READY"
                                           else "failed"),
                         payload={k: res.get(k) for k in

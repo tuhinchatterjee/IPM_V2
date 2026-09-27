@@ -1523,7 +1523,9 @@ def opus_match(cand: dict[str, Any], comp: dict[str, Any] | None
 
 # ---- the comparison --------------------------------------------------------------
 
-def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
+def evaluate_comparison(coord, cid: str, *,
+                        reference_override: str | None = None
+                        ) -> dict[str, Any]:
     status = coord.status(cid)
     spec = status["spec"]
     events = coord.store.events(cid, coord.cfg.tenant_id, 0, 100000)
@@ -1567,7 +1569,8 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
                  else "the comparator is agreement, not truth")}
     for k in kids:
         k["opus_match"] = (opus_match(k, comp) if k is not comp else None)
-    ref_baseline = _reference_baseline(coord, spec, kids)
+    saved_ref = saved_reference(coord, spec, kids,
+                                override=reference_override)
     started = next((e["monotonic_time"] for e in events
                     if e["event_type"] == "comparison.created"), None)
     settled = [e["monotonic_time"] for e in events
@@ -1588,7 +1591,7 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
                        if k != "wrong_population_values"}
                       if reference else None),
         "comparator": comparator, "comparison_elapsed_ms": elapsed,
-        "reference_baseline": ref_baseline,
+        "saved_reference": saved_ref,
         "children": kids,
         "summary": _summary(kids),
         "comparison_class": _comparison_class(spec, kids),
@@ -1596,43 +1599,129 @@ def evaluate_comparison(coord, cid: str) -> dict[str, Any]:
     }
 
 
-def _reference_baseline(coord, spec: dict[str, Any], kids: list[dict]
-                        ) -> dict[str, Any] | None:
-    """Agreement with the comparator of a SAVED comparison (read-only).
+#: Saved evaluations whose child records carry everything agreement needs
+#: (frozen-authority tool calls, row-id claims, metric-aware references).
+COMPATIBLE_REFERENCE_VERSIONS = ("lab-eval-3", "lab-eval-4")
+_REFERENCE_CHILD_KEYS = ("execution_state", "stages", "checks", "claims",
+                         "facts")
+REFERENCE_NOTE = ("saved separate run, read-only; Opus Match is agreement, "
+                  "not truth; correctness comes from the independent "
+                  "oracle; never latency or SLA")
 
-    Used when a group has no comparator of its own -- a long-run diagnostic
-    is compared with the saved Opus run for answer agreement. Correctness
-    still comes from the independent oracle; latency is never compared.
+
+def _is_opus_child(row: dict[str, Any]) -> bool:
+    try:
+        prof = json.loads(row.get("profile_json") or "{}")
+    except ValueError:
+        prof = {}
+    return row.get("profile_id") == "opus-frozen" or \
+        prof.get("route") == "anthropic"
+
+
+def saved_reference(coord, spec: dict[str, Any], kids: list[dict], *,
+                    override: str | None = None) -> dict[str, Any]:
+    """The SAVED agreement reference, resolved read-only.
+
+    Separate from the live comparator (a child of THIS comparison) and from
+    the independent oracle (correctness). It reads a saved comparison's
+    current evaluation and its Opus child, and writes nothing: no model
+    call, no re-evaluation of the reference, no change to either
+    comparison. Every way it can fail has its own status; there is no
+    silent fallback.
     """
-    ref = spec.get("reference_comparison_id")
-    if not ref:
-        return None
-    saved = coord.store.current_evaluation(ref, coord.cfg.tenant_id)
-    base = {"comparison_id": ref, "read_only": True,
-            "note": "separate saved run; answer/analysis agreement only, "
-                    "never latency or SLA"}
-    if saved is None:
-        for k in kids:
-            k["reference_match"] = None
-        return base | {"status": "REFERENCE_UNAVAILABLE"}
-    body = saved["body"]
-    comp_id = (body.get("comparator") or {}).get("profile_id")
-    ref_child = next((c for c in body.get("children") or []
-                      if c.get("profile_id") == comp_id), None)
-    for k in kids:
-        k["reference_match"] = opus_match(k, ref_child)
-    return base | {
-        "status": ("READY" if ref_child and ref_child.get(
-            "execution_state") == "COMPLETED" else "REFERENCE_UNAVAILABLE"),
-        "profile_id": comp_id,
-        "is_opus": comp_id == "opus-frozen",
-        "saved_revision": saved.get("revision"),
-        "saved_evaluator_version": body.get("evaluator_version"),
-        "reference_answer": (ref_child or {}).get("answer"),
-        "reference_checks": [{"check_id": c.get("check_id"),
-                              "outcome": c.get("outcome")}
-                             for c in (ref_child or {}).get("checks") or []],
+    ref = override or spec.get("reference_comparison_id") or ""
+    out: dict[str, Any] = {
+        "reference_source": "saved_comparison",
+        "reference_comparison_id": ref or None,
+        "reference_link_source": ("operator --reference" if override else
+                                  "spec" if ref else None),
+        "reference_profile_id": None, "reference_child_run_id": None,
+        "reference_evaluation_revision": None,
+        "reference_evaluator_version": None,
+        "reference_is_fixture": None, "read_only": True,
+        "note": REFERENCE_NOTE, "remedy": "",
     }
+
+    def done(status: str, ref_child: dict | None = None,
+             remedy: str = "") -> dict[str, Any]:
+        out["reference_status"] = status
+        out["remedy"] = remedy
+        for k in kids:
+            if status == "READY":
+                k["reference_match"] = opus_match(k, ref_child)
+            elif status == "NO_REFERENCE":
+                k["reference_match"] = None
+            else:
+                k["reference_match"] = {
+                    s: {"pct": None, "display": "N/A", "reason": status,
+                        "checks": []} for s in ("S1", "S2", "S3", "S4")}
+        return out
+
+    if not ref:
+        return done("NO_REFERENCE")
+    tenant = coord.cfg.tenant_id
+    row = coord.store.get_comparison(ref, tenant)
+    if row is None:
+        return done("REFERENCE_COMPARISON_UNAVAILABLE",
+                    remedy=f"{ref} is not saved in this lab under owner "
+                           f"scope {tenant}")
+    saved = coord.store.current_evaluation(ref, tenant)
+    if saved is None:
+        return done("REFERENCE_NOT_EVALUATED",
+                    remedy=f"re-score the reference offline first: "
+                           f"scripts/model_lab/reevaluate.py --comparison "
+                           f"{ref}")
+    body = saved["body"]
+    out["reference_evaluation_revision"] = saved.get("revision")
+    out["reference_evaluator_version"] = body.get("evaluator_version")
+    rows = coord.store.children(ref)
+    opus_rows = [r for r in rows if _is_opus_child(r)]
+    if not opus_rows:
+        return done("REFERENCE_HAS_NO_OPUS_CHILD",
+                    remedy=f"{ref} contains no opus-frozen child; choose a "
+                           f"saved comparison in which Opus ran")
+    opus_row = opus_rows[0]
+    out["reference_profile_id"] = opus_row["profile_id"]
+    out["reference_child_run_id"] = opus_row["child_run_id"]
+    try:
+        out["reference_is_fixture"] = json.loads(
+            opus_row.get("profile_json") or "{}").get("role") == "fixture"
+    except ValueError:
+        out["reference_is_fixture"] = None
+    ref_child = next((c for c in body.get("children") or []
+                      if c.get("child_run_id") == opus_row["child_run_id"]),
+                     None)
+    if body.get("evaluator_version") not in COMPATIBLE_REFERENCE_VERSIONS \
+            or ref_child is None or any(k not in ref_child
+                                        for k in _REFERENCE_CHILD_KEYS):
+        return done("REFERENCE_EVALUATION_INCOMPATIBLE",
+                    remedy=f"saved evaluation r{saved.get('revision')} is "
+                           f"{body.get('evaluator_version')}; agreement "
+                           f"needs one of {list(COMPATIBLE_REFERENCE_VERSIONS)}"
+                           f". Operator decision: re-score it offline (no "
+                           f"model call, appends a revision): "
+                           f"scripts/model_lab/reevaluate.py --comparison "
+                           f"{ref}")
+    ref_spec = json.loads(row["spec_json"])
+
+    def norm(q: Any) -> str:
+        return " ".join(str(q or "").casefold().split())
+    if norm(ref_spec.get("question_text")) != norm(
+            spec.get("question_text")) or \
+            ref_spec.get("data_snapshot_id") != spec.get("data_snapshot_id"):
+        return done("REFERENCE_NOT_COMPARABLE",
+                    remedy="the saved reference asked a different question "
+                           "or read a different data snapshot")
+    out["reference_answer"] = ref_child.get("answer")
+    out["reference_checks"] = [{"check_id": c.get("check_id"),
+                                "outcome": c.get("outcome")}
+                               for c in ref_child.get("checks") or []]
+    out["reference_execution_state"] = ref_child.get("execution_state")
+    if ref_child.get("execution_state") != "COMPLETED":
+        return done("REFERENCE_OPUS_NOT_COMPLETED", ref_child,
+                    remedy="the saved Opus child did not complete, so there "
+                           "is no answer to agree with")
+    return done("READY", ref_child)
 
 
 def _comparison_class(spec, kids) -> list[str]:
