@@ -422,13 +422,59 @@ component-level error containment"*.
 still there and no new one was introduced (`display.py` 0→0, `precision.py`
 2→2, `finalization.py` 3→3, `export.py`+`routes.py` 12→12, `axis.py` 0→0).
 
+### H2 added the sixth authorised extension: the live-UAT tenant defect
+
+Authorised after a real live-provider UAT on a Mac failed outright: every
+screen read "Backend unavailable", and underneath, `/attention` and `/ecl`
+were both answering 403 SECURITY_DENIED with *"Release
+'v4-whatif-corporate-20q-s1' holds no data for tenant 'demo'."*
+
+The authorisation was explicit: *"ONLY the smallest protected-core correction
+required to make the local loopback demo principal resolve to the actual
+governed V4 domain tenant"*, server-controlled, and *"do not hardcode a
+What-If-specific workaround if a correct generic V4 fix exists"*.
+
+| File | Change | Reason |
+|---|---|---|
+| `app.py` | `demo_tenant()` resolves the tenant from the governed V4 domain book (`domains.current_release` → `lake.read_manifest` → `tenants[0]`), falling back to `lake.DEFAULT_TENANT`. `DEMO_PRINCIPAL["tenant"]` is `lake.DEFAULT_TENANT` in place of the literal `"demo"`. Two imports added | The old code read `runtime.release_summary`, built from the LEGACY compatibility release, and fell back to a literal that **no published manifest declares** |
+
+**Why a literal was worse than no value at all.** `routes.py:1076` and `:1124`
+read `str(who.get("tenant") or "") or lake.DEFAULT_TENANT` — the governed
+fallback engages only when the tenant is *empty*. `"demo"` is not empty, so it
+won, and `catalog.py:443-448` then refused it. An absent tenant would have
+worked; a wrong one could not.
+
+**Why it fired at all.** `create_app` deliberately installs `runtime = None`
+when preflight fails, and preflight fails for reasons unrelated to identity: no
+`COCKPIT_ANTHROPIC_API_KEY`, the shipped placeholder price card
+(`REPLACE-WITH-YOUR-MODEL-ID`, no `verified_at`), a model with no verified
+price, or the legacy release never having been seeded on that machine. Each was
+reproduced over HTTP before the edit; all three converge on the same 403.
+
+**It was never a What-If defect.** Every accepted manifest declares
+`demo-tenant` too, so a `"demo"` principal fails identically with both flags
+off — `test_the_accepted_books_break_the_same_way_so_this_is_not_a_whatif_bug`
+is the assertion. The fix is therefore in generic V4 and is not gated on a
+flag. `current_release()` already follows the flags, so an enabled book
+resolves to the candidate release and a disabled one to the accepted release
+without `demo_tenant` naming either.
+
+**Still server-controlled.** The tenant is resolved ONCE, by `_demo_resolver`,
+at `create_app` time and captured in a closure — there is no per-request lookup
+for a query parameter, header, body, cookie, browser storage or model output to
+influence. `test_a_request_cannot_name_its_own_tenant`,
+`test_a_query_parameter_cannot_smuggle_a_tenant` and
+`test_the_tenant_is_resolved_once_and_not_per_request` hold that line, and
+`test_a_real_tenant_mismatch_is_still_refused` proves the fix was not "stop
+checking".
+
 ### The 25 added data files
 
-`--check` reports `17 changed, 0 removed, 25 added`. Eight are the audited set:
+`--check` reports `18 changed, 0 removed, 25 added`. Eight are the audited set:
 `context.py` (P3 and P5b both touched it — one file, one line of the report),
 `schema.py`, `domains.py`, `domain_resolver.py` and `worker.py` from P5b, and
 `contracts.py`, `execute_tool.py` and `routes.py` from B1. Nine are the H1 table
-above. The
+above. The eighteenth is `app.py`, the H2 table above. The
 additions are the two candidate release directories under
 `data/cockpit_v4_lake/`, which the protected glob covers by design — it
 reports a NEW file matching a protected pattern as drift, and that is the behaviour that would catch someone quietly

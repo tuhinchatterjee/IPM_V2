@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -50,6 +51,11 @@ sys.path.insert(0, str(ROOT))
 #: being tagged. Change it deliberately, in the same commit that changes what
 #: the UAT demonstrates.
 EXPECTED_TAG = "whatif-candidate-h1"
+
+#: The H2 remediation branch this preflight also serves. Until an H2
+#: candidate is frozen there is no H2 tag, so `--any-revision` is the
+#: documented way to run a pre-freeze UAT, and it says so in the output.
+H2_BRANCH = "claude/advanced-cockpit-whatif-h2-uat-fix"
 
 #: Each book's candidate release and the fingerprint it must carry. A release
 #: id is a name; the fingerprint is what two builds cannot share.
@@ -88,13 +94,62 @@ def revision(*, enforce: bool) -> list[str]:
     if not wanted:
         return [f"{BAD}the tag {EXPECTED_TAG} does not exist in this "
                 f"checkout, so there is no frozen candidate to run. Fetch "
-                f"the tag, or pass --any-revision to run a PRE-FREEZE UAT "
-                f"and say so in the evidence."]
+                f"the tag, or -- if you are running the remediation branch "
+                f"{H2_BRANCH}, which is deliberately NOT frozen -- pass "
+                f"--any-revision and say so in the evidence."]
     if head != wanted:
         return [f"{BAD}this checkout is at {head[:12]} and {EXPECTED_TAG} is "
                 f"{wanted[:12]}. Check out the tag, or pass --any-revision "
                 f"and say so in the evidence."]
     print(f"{OK}revision {head[:12]}, which is {EXPECTED_TAG}")
+    return []
+
+
+
+def required_python() -> tuple[int, int]:
+    """The interpreter floor, READ FROM `pyproject.toml` rather than pinned.
+
+    A version hardcoded here would drift away from the one the project
+    actually declares, and the drift would only show up on someone's Mac.
+    """
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    found = re.search(r'requires-python\s*=\s*"[^0-9]*([0-9]+)\.([0-9]+)',
+                      text)
+    if not found:
+        return (3, 12)
+    return (int(found.group(1)), int(found.group(2)))
+
+
+def python_version() -> list[str]:
+    """Refuse an interpreter older than the project's declared floor."""
+    want = required_python()
+    have = sys.version_info[:2]
+    if have < want:
+        return [f"{BAD}this interpreter is Python {have[0]}.{have[1]} and "
+                f"pyproject.toml requires >= {want[0]}.{want[1]}. Rebuild "
+                f"the candidate environment on it:\n"
+                f"    python{want[0]}.{want[1]} -m venv --system-site-packages "
+                f".venv-whatif\n"
+                f"    .venv-whatif/bin/pip install -r requirements-whatif.txt"]
+    print(f"{OK}python {have[0]}.{have[1]} (>= {want[0]}.{want[1]})")
+    return []
+
+
+def frontend(root: Path | None = None) -> list[str]:
+    """The UI must be installed BEFORE anything is started.
+
+    `npm run dev` resolves `next` from `frontend/node_modules/.bin`. Without
+    it the UI child dies with `sh: next: command not found` -- after the API
+    is already up, so the operator gets a half-started system and a browser
+    that will not load. H1 checked neither, and a clean Mac worktree hit it.
+    """
+    base = Path(root) if root is not None else ROOT
+    binary = base / "frontend" / "node_modules" / ".bin" / "next"
+    if not binary.exists():
+        return [f"{BAD}{binary} is missing, so the UI cannot start. "
+                f"Install the frontend dependencies first:\n"
+                f"    npm ci --prefix frontend"]
+    print(f"{OK}frontend dependencies present (node_modules/.bin/next)")
     return []
 
 
@@ -218,6 +273,8 @@ def main() -> int:
     problems: list[str] = []
     problems += revision(enforce=not args.any_revision)
     problems += interpreter()
+    problems += python_version()
+    problems += frontend()
     if not problems:
         # The data and model checks import the backend, which needs the
         # candidate interpreter to have been the one that got here.

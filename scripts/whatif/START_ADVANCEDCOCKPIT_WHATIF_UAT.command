@@ -32,7 +32,7 @@
 #      stub, which is the honest failure but is not a live UAT.
 #   6. Double-click.
 #
-# Ports are DISCOVERED, never taken: start_candidate.py walks upward from
+# Ports are DISCOVERED, never taken: start.py's pick_port walks upward from
 # 8424/5424 and steps over any port already held, reporting the holder. An
 # accepted Cockpit already running is not disturbed -- different interpreter,
 # different ports, different state database, and the What-If flags are set
@@ -66,7 +66,10 @@ if [ $status -ne 0 ]; then
   exit $status
 fi
 
-"$PY" scripts/whatif/start_candidate.py
+# H2: hand over to the launcher that uses the ESTABLISHED Cockpit V4
+# lifecycle. The H1 path ran `uvicorn backend.main:app`, a module that
+# has never existed here, and did not wait for health.
+"$PY" scripts/whatif/start_h2_uat.py --skip-preflight "$@"
 status=$?
 echo
 read -r -p "Press return to close this window. "

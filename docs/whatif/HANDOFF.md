@@ -64,7 +64,25 @@ back to the stub: `docs/whatif/LIVE_PROVIDER_UAT.md`,
 `scripts/whatif/live_uat.py`, `tests/cockpit_v4/browser/whatif.live.mjs`
 (L1–L8). Matrix row V01, marked BLOCKED — CREDENTIALS NOT AVAILABLE HERE.
 
-**Three measured UI defects were fixed in this round**, each authorised
+**H2 fixed the defect a real live-provider UAT found.** The local UAT
+principal's tenant came from `runtime.release_summary` — built from the LEGACY
+compatibility release — and fell back to the literal `"demo"` whenever
+`create_app`'s preflight failed. No published manifest declares `"demo"`, so
+every book refused with 403 `SECURITY_DENIED`, "holds no data for tenant
+'demo'", and the browser showed "Backend unavailable". It was never a What-If
+defect: the accepted books fail identically with both flags off. `app.py`'s
+`demo_tenant` now resolves the tenant from the governed V4 domain book being
+served, falling back to `lake.DEFAULT_TENANT`. Still resolved once, server-side,
+at `create_app` time. `tests/cockpit_v4/test_whatif_tenancy.py` holds it; 16 of
+its 32 tests fail on the unfixed H1 code.
+
+**H2 also replaced the UAT launcher.** `scripts/whatif/start_h2_uat.py` hands
+over to `scripts/cockpit_v4/start.py` rather than reimplementing a lifecycle,
+because the H1 launcher ran `uvicorn backend.main:app` — a module that has
+never existed here — and did not wait for health, so it printed the URLs as
+though the server were up.
+
+**Three measured UI defects were fixed in the round before**, each authorised
 explicitly and each with its own matrix row: **U01** a money amount displayed
 as a different amount (a Retail cohort read `SAR 2m → SAR 2m, change SAR 0m`);
 **U02** an active run described as `Stopped: ACCEPTED` for its whole duration;
@@ -83,7 +101,7 @@ Unchanged. This is the claim that matters most and it is checked three ways:
 | `v4-saudi-retail-20m-v5` fingerprint | `a1e797dcc73236b7…` — **unchanged** |
 | Full V4 + frontend regression, flags OFF | **4349 passed, 4 skipped, 0 failed** |
 | Accepted browser journeys, real Chromium | **76/76 passed** |
-| `protected_hashes.py --check` | 17 changed, **0 removed**, 25 added — every line explained |
+| `protected_hashes.py --check` | 18 changed, **0 removed**, 25 added — every line explained |
 
 **The protected core is NOT byte-identical.** Seventeen files differ, each
 recorded with its exact diff in `BASELINE_AND_EXTENSION_MAP.md`. Eight carry
@@ -273,7 +291,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python -m pytest -o addopts="" -q \
 python -m pytest -o addopts="" -q tests/cockpit_agentic       # 564 passed
 cd frontend && npm test && npx tsc --noEmit && cd ..          # 593 passed
 /root/.local/bin/ruff check backend/cockpit_v4 tests/cockpit_v4 scripts/whatif
-python3 scripts/whatif/protected_hashes.py --check    # 17 changed, 0 removed
+python3 scripts/whatif/protected_hashes.py --check    # 18 changed, 0 removed
 python3 scripts/whatif/build_matrix.py
 python3 scripts/whatif/build_sensitivities.py     # cards vs published release
 python3 scripts/cockpit_v4/browser_evidence.py    # 76/76, the ACCEPTED suite

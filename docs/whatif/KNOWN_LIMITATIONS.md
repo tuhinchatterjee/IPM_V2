@@ -291,6 +291,30 @@ browser; it just no longer takes the page with it.
 pins that precondition so the boundary is never removed on the assumption it
 was fixed upstream.
 
+## 16b. A failed preflight still serves, and says so only in /diagnostics
+
+`create_app` installs `runtime = None` when preflight fails and lets the app
+start anyway, so `/diagnostics` can report what is missing. That is deliberate
+and it is documented in the code. What it also does is let every analytical
+surface answer as though the deployment were configured.
+
+Until H2 that turned a configuration failure into an access refusal: the local
+demo principal fell back to a literal tenant no book declares, and the reader
+got 403 `SECURITY_DENIED`, "holds no data for tenant 'demo'", on every screen.
+H2 removed the literal, so identity no longer depends on preflight succeeding.
+
+**The deeper fix is not made.** A deployment whose price card is the shipped
+placeholder, or whose credential is absent, still comes up and still serves
+books; it simply no longer lies about why a request failed. Failing honestly at
+startup — refusing to bind the port, or serving a single explicit "this
+deployment is not configured" surface — would be the better behaviour, and it
+is a change to accepted startup semantics that this remediation was not
+authorised to make. `backend/cockpit_v4/app.py:138-160` is where it would go.
+
+Worth knowing while it stands: `config/cockpit_v4/price_card.json` ships as a
+placeholder (`REPLACE-WITH-YOUR-MODEL-ID`, no `verified_at`), so an operator
+who has not written their own price card has a failing preflight by default.
+
 ## 17. The offline explanation document is documentation, not a per-run answer
 
 `artifacts/whatif/<book>/explanation.json` carries gain-based importance and

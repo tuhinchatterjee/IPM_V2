@@ -63,24 +63,48 @@ result, the ledger reconciliation, the tool trace and a screenshot.
 
 ## How to run it on the Mac
 
+The H1 procedure did not work and the first live attempt proved it: the H1
+launcher ran `uvicorn backend.main:app`, a module that has never existed in
+this repository, and did not wait for health, so it printed the URLs as though
+the server were up. Use the H2 launcher.
+
 ```bash
 cd <REPO>
-git fetch --tags
-git checkout whatif-candidate-h1      # the frozen candidate the preflight pins to
+git fetch origin
+git checkout claude/advanced-cockpit-whatif-h2-uat-fix
 
-# 1. The credential, in the shell only. Never in a file, never in a .env.
+# 1. The candidate environment, on the interpreter pyproject.toml declares.
+python3.12 -m venv --system-site-packages .venv-whatif
+.venv-whatif/bin/pip install -r requirements-whatif.txt
+
+# 2. The frontend. Without this the UI dies with `next: command not found`
+#    AFTER the API is already up; the preflight now refuses instead.
+npm ci --prefix frontend
+
+# 3. The credential, in the shell only. Never in a file, never in a .env.
 export COCKPIT_ANTHROPIC_API_KEY='...'
 
-# 2. Preflight: revision, interpreter, both releases and their fingerprints,
-#    both emulators and their gate verdicts, credential PRESENT/MISSING.
-.venv-whatif/bin/python scripts/whatif/uat_preflight.py
+# 4. Start. The preflight gates it; start.py provides the lifecycle.
+#    --any-revision because H2 is not frozen yet and so has no tag.
+.venv-whatif/bin/python scripts/whatif/start_h2_uat.py --any-revision
 
-# 3. The live UAT. Refuses if the credential is absent; never uses the stub.
+# 5. Drive the eight conversations.
 .venv-whatif/bin/python scripts/whatif/live_uat.py
-
-# Or one journey at a time while reading the screen:
-.venv-whatif/bin/python scripts/whatif/live_uat.py --only 'L5|L6' --keep-up
 ```
+
+What the launcher pins, and why: `--release v4-saudi-20q-v1` is the LEGACY
+compatibility release, kept accepted on purpose because it is what
+`service.load_release` opens to build a healthy `Runtime`. It is not the book
+the browser reads — the books come from `domains.current_release()`, which
+follows the What-If flags to the candidate releases. The launcher takes ports
+8424/5424 and its own runtime directory `~/.creditprobe/cockpit_v4_whatif_uat`,
+so an accepted Cockpit can be running at the same time and keeps its own state
+database.
+
+If the price card is still the shipped placeholder, preflight fails and the app
+comes up with `runtime=None`. Since H2 that no longer breaks the books — but it
+does mean no paid request can be reserved, so write a real price card before a
+live run.
 
 Or double-click `START_ADVANCEDCOCKPIT_WHATIF_UAT.command` to bring the
 candidate up with the same preflight and drive it by hand.

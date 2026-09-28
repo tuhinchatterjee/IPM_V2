@@ -197,8 +197,14 @@ def main() -> int:
     print(f"  API          http://127.0.0.1:{api_port}")
     print(f"  UI           http://127.0.0.1:{ui_port}")
 
+    # `backend.main:app` was named here and has never existed in this
+    # repository: uvicorn exited with ModuleNotFoundError and, because
+    # nothing below waits for health, this script went on to print the URLs
+    # as though the server were up. The working entry point is the one the
+    # accepted launcher uses.
     api = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "backend.main:app",
+        [sys.executable, "-m", "uvicorn",
+         "backend.cockpit_v4.app:create_app", "--factory",
          "--host", "127.0.0.1", "--port", str(api_port)],
         cwd=str(ROOT), env=child, start_new_session=True)
 

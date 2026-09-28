@@ -97,17 +97,27 @@ def main() -> int:
     ui_log = (logs / "live-ui.log").open("w", encoding="utf-8")
     api_proc = ui_proc = None
 
-    # THE REAL APP, not the stub. `backend.main:app` resolves a real provider
-    # through `service.resolve_provider`, so the analyst here is a model.
+    # THE REAL APP, not the stub: `backend.cockpit_v4.app:create_app`
+    # resolves a real provider through `service.resolve_provider`, so the
+    # analyst here is a model. (This named `backend.main:app` until H2 -- a
+    # module that has never existed here, so the server never started.)
     child = {**os.environ,
              "COCKPIT_V4_WHATIF_CORPORATE": "1",
              "COCKPIT_V4_WHATIF_RETAIL": "1",
              "COCKPIT_AGENTIC_V3_NAMESPACE": "cockpit_v4",
-             "COCKPIT_V4_DB": str(ROOT / ".cockpit_v4_live_uat.db"),
+             # `COCKPIT_V4_DB` was set here and is read by NOTHING. The
+             # variable the backend actually reads is derived from the
+             # runtime directory, so this is what separates the state
+             # database from the accepted instance's.
+             "COCKPIT_V4_RUNTIME_DIR": str(
+                 Path.home() / ".creditprobe" / "cockpit_v4_live_uat"),
+             "COCKPIT_V4_LOCAL_DEMO_AUTH": "true",
+             "COCKPIT_AGENTIC_V4": "true",
              "PYTHONPATH": str(ROOT)}
     try:
         api_proc = subprocess.Popen(
-            [str(CANDIDATE_PYTHON), "-m", "uvicorn", "backend.main:app",
+            [str(CANDIDATE_PYTHON), "-m", "uvicorn",
+             "backend.cockpit_v4.app:create_app", "--factory",
              "--host", "127.0.0.1", "--port", str(api_port)],
             cwd=str(ROOT), env=child, stdout=api_log,
             stderr=subprocess.STDOUT, start_new_session=True)

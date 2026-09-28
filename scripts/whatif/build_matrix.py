@@ -99,6 +99,72 @@ ISOLATION: list[Row] = [
       "test_the_requirements_file_is_not_the_accepted_one",
       "test_every_pinned_library_is_pinned_exactly"],
      "The candidate sees the accepted environment; not the reverse."),
+    ("A13", "The local UAT identity is the governed book's tenant, never a "
+            "literal, even when preflight has failed.", COVERED,
+     ["test_a_failed_preflight_does_not_hand_a_book_the_literal_demo",
+      "test_the_literal_demo_is_gone_from_the_demo_principal",
+      "test_every_published_book_actually_declares_the_tenant_we_resolve_to",
+      "test_a_loopback_request_resolves_to_the_candidate_books_tenant",
+      "test_the_ecl_panel_answers_on_the_same_book",
+      "test_the_book_served_is_the_candidate_release_with_the_flag_on"],
+     "H2. A live-provider UAT on a Mac failed outright: every screen read "
+     "\"Backend unavailable\", and underneath /attention and /ecl were both "
+     "answering 403 SECURITY_DENIED with \"Release "
+     "'v4-whatif-corporate-20q-s1' holds no data for tenant 'demo'\". "
+     "`app.demo_tenant` read the tenant from `runtime.release_summary`, "
+     "which is built from the LEGACY compatibility release and is absent "
+     "whenever `create_app`'s preflight fails -- and the fallback was the "
+     "literal \"demo\", which NO published manifest declares. Reproduced "
+     "over HTTP from three independent triggers (absent credential, the "
+     "SHIPPED placeholder price card, an unseeded legacy release) before "
+     "anything was edited. The tenant now comes from the governed V4 domain "
+     "book itself, falling back to lake.DEFAULT_TENANT. 16 of these tests "
+     "fail on the unfixed H1 code, which is what makes them a regression "
+     "rather than a description."),
+    ("A14", "The tenant is server-controlled: nothing a request carries can "
+            "move it, and cross-book reads stay refused.", COVERED,
+     ["test_a_request_cannot_name_its_own_tenant",
+      "test_a_query_parameter_cannot_smuggle_a_tenant",
+      "test_the_tenant_is_resolved_once_and_not_per_request",
+      "test_the_demo_principal_is_still_loopback_only",
+      "test_one_book_never_answers_with_the_others_release",
+      "test_switching_corporate_to_retail_changes_the_release_not_the_tenant"],
+     "Resolved ONCE, by `_demo_resolver`, at create_app time and captured in "
+     "a closure -- there is no per-request lookup for a header, query "
+     "parameter, body, cookie, browser storage or model output to influence. "
+     "Switching Corporate to Retail changes the RELEASE and leaves the "
+     "authenticated tenant where it was: identity is not a function of the "
+     "page you are on. Still loopback-only; an off-host demo principal is an "
+     "unauthenticated deployment."),
+    ("A15", "A genuine tenant mismatch is still refused, with its reason.",
+     COVERED,
+     ["test_a_real_tenant_mismatch_is_still_refused",
+      "test_the_refusal_says_it_is_configuration_not_an_empty_portfolio",
+      "test_the_old_literal_would_still_be_refused_if_it_came_back"],
+     "The fix must not have been \"stop checking\". A principal the books "
+     "genuinely do not hold still gets 403 SECURITY_DENIED naming the tenant, "
+     "and the message still says this is a configuration mismatch rather "
+     "than an empty portfolio -- an empty feed would read as \"your "
+     "portfolio is fine\". The exact 403 the Mac saw is pinned by name, so a "
+     "reintroduced literal is caught."),
+    ("A16", "The candidate launchers start a module that exists, and refuse "
+            "before starting a UI they cannot run.", COVERED,
+     ["test_no_launcher_points_at_a_module_that_does_not_exist",
+      "test_every_launcher_that_starts_a_server_waits_for_health",
+      "test_the_preflight_refuses_when_the_frontend_is_not_installed",
+      "test_the_preflight_accepts_an_installed_frontend",
+      "test_the_preflight_requires_the_declared_python"],
+     "The same UAT found the H1 launcher could never have started a server: "
+     "it ran `uvicorn backend.main:app` and backend/main.py has never "
+     "existed here, and because it did not wait for health it printed the "
+     "URLs as though the server were up. `scripts/whatif/start_h2_uat.py` "
+     "hands over to the established `scripts/cockpit_v4/start.py` lifecycle "
+     "instead of reimplementing one, so it inherits the health wait, the pid "
+     "records, the port stepping that never kills a holder and the UI guard. "
+     "The preflight now also refuses an interpreter below the floor declared "
+     "in pyproject.toml (read, not hardcoded) and an uninstalled frontend, "
+     "with `npm ci --prefix frontend` as the remedy. The ACCEPTED launchers "
+     "under scripts/cockpit_v4/ are untouched."),
     ("A12", "Nothing a chat turn reaches imports the training or fitting "
             "code.", COVERED,
      ["test_nothing_a_chat_turn_reaches_imports_the_estimator",

@@ -26,6 +26,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.cockpit_v4 import config as config_mod
+from backend.cockpit_v4 import domains as dom_mod
+from backend.cockpit_v4 import lake as lake_mod
 from backend.cockpit_v4 import routes
 from backend.cockpit_v4.run_store import RunStore
 from backend.cockpit_v4.service import PreflightFailed, build_runtime
@@ -49,17 +51,61 @@ logger = logging.getLogger(__name__)
 #: The local demo profile carries `administrator`, because local UAT is
 #: where the governance record is READ. On a real deployment the roles come
 #: from the authenticated user and nothing here grants any.
-DEMO_PRINCIPAL = {"id": "v4-local-demo", "tenant": "demo", "name": "",
-                  "profile_label": "Local UAT", "demo": True,
+#: The `tenant` here is a LAST-RESORT default, not an identity. It is the
+#: governed `lake.DEFAULT_TENANT` rather than a literal, because a literal
+#: that no published book declares turns every request into an opaque 403
+#: (`catalog.py`: "holds no data for tenant ...") that reads like a
+#: permission problem when it is really a configuration one. `demo_tenant`
+#: below is what actually decides, and it reads the book being served.
+DEMO_PRINCIPAL = {"id": "v4-local-demo", "tenant": lake_mod.DEFAULT_TENANT,
+                  "name": "", "profile_label": "Local UAT", "demo": True,
                   "roles": ("administrator",)}
 
 
 def demo_tenant(runtime: Any, cfg: config_mod.V4Config) -> str:
-    """The synthetic release's own tenant, or the documented fallback."""
-    tenants = (getattr(runtime, "release_summary", None) or {}).get("tenants")
-    if isinstance(tenants, (list, tuple)) and tenants:
-        return str(tenants[0])
-    return str(DEMO_PRINCIPAL["tenant"])
+    """The tenant of the V4 domain book this deployment actually serves.
+
+    WHY THIS DOES NOT READ `runtime.release_summary` ANY MORE
+    --------------------------------------------------------
+    It used to, and that made the local UAT identity depend on something
+    that has nothing to do with the books the browser reads.
+    `release_summary` is built from `cfg.release_id` -- the LEGACY
+    compatibility release, opened through the V3-namespace store -- and
+    `create_app` deliberately leaves `runtime` as `None` whenever preflight
+    fails. Preflight fails for reasons that are nothing to do with identity:
+    no `COCKPIT_ANTHROPIC_API_KEY`, a price card that is still the shipped
+    placeholder, a model with no verified price, or that legacy release
+    simply never having been seeded on this machine.
+
+    The old fallback was then the literal `"demo"`, which NO published book
+    declares -- every manifest carries `lake.DEFAULT_TENANT`. So a
+    configuration failure was converted into `catalog.py`'s "Release ...
+    holds no data for tenant 'demo'", surfaced as 403 SECURITY_DENIED on
+    every book, and displayed as "Backend unavailable". A live UAT lost a
+    day to it. It is not a What-If defect: the accepted books fail
+    identically with both flags off.
+
+    So identity now comes from the governed V4 domain book itself -- the
+    thing actually being served -- and falls back to the governed default
+    that `lake.publish` stamps into every manifest. The literal is gone.
+
+    SERVER-CONTROLLED, and deliberately so: this is resolved ONCE, by
+    `_demo_resolver`, at `create_app` time. Nothing a request carries -- no
+    query parameter, header, body, cookie, browser storage or model output
+    -- can reach it. `current_release` already honours the What-If flags, so
+    an enabled book resolves to the candidate release and a disabled one to
+    the accepted release, without this function knowing either name.
+    """
+    for domain_id in (dom_mod.DEFAULT_DOMAIN, *dom_mod.DOMAIN_IDS):
+        try:
+            manifest = lake_mod.read_manifest(
+                dom_mod.current_release(domain_id))
+        except Exception:  # noqa: BLE001 - an unpublished book is not fatal
+            continue
+        tenants = manifest.get("tenants")
+        if isinstance(tenants, (list, tuple)) and tenants:
+            return str(tenants[0])
+    return str(lake_mod.DEFAULT_TENANT)
 
 
 def startup_sha() -> str:
