@@ -567,20 +567,25 @@ def test_a_cohort_that_moved_is_refused_before_any_arithmetic(
     assert caught.value.code == "SOURCE_VERSION_MISMATCH"
 
 
-def test_a_narrower_method_set_needs_its_own_approval(monkeypatch) -> None:
-    """Which methods run is inside the confirmation."""
+def test_a_method_chosen_after_confirmation_reuses_the_same_approval(
+        monkeypatch) -> None:
+    """v3.1 §5 / BASE06: the method is NOT inside the scenario confirmation.
+
+    This test asserted the opposite before the UAT-01 fix. Now: confirm once,
+    choose Delta only, and the SAME confirmed scenario runs Delta only.
+    """
     monkeypatch.setenv(FLAGS[dom.CORPORATE], "1")
     store = Store()
     made = run_bridge(dom.CORPORATE,
                       preview_parameters(methods=["delta", "ml"]),
                       store=store)
     digest = made.provenance["whatif_digest_to_confirm"]
-    with pytest.raises(ScenarioError) as caught:
-        run_bridge(dom.CORPORATE,
-                   {"operation": br.EXECUTE, "confirmation_digest": digest,
-                    "reply": "yes", "methods": ["delta"]},
-                   store=store, run_id="run-2")
-    assert caught.value.code == "CONFIRMATION_STALE"
+    ran = run_bridge(dom.CORPORATE,
+                     {"operation": br.EXECUTE, "confirmation_digest": digest,
+                      "reply": "yes", "methods": ["delta"]},
+                     store=store, run_id="run-2")
+    assert ran.provenance["whatif_methods_ran"] == ["delta"]
+    assert ran.provenance["whatif_confirmation_digest"] == digest
 
 
 def test_running_it_twice_is_one_result_reported_twice(monkeypatch) -> None:

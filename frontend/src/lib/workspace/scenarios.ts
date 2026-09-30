@@ -260,3 +260,18 @@ export const retireScenario = (id: string) => wsSend<ScenarioObject>(`/scenarios
 
 export const shareScenario = (id: string, to: string[], message: string) =>
   wsSend<{ shared: unknown[] }>(`/scenarios/${encodeURIComponent(id)}/share`, { to, message });
+
+export interface ScenarioResultRow {
+  object_id: string;
+  version: number;
+  created_at: number;
+  run_id: string;
+  scenario_version: number;
+  methods_ran: string[];
+  baseline_mode: string;
+  cohort: string;
+  changes: Record<string, string | null>;
+}
+
+export const listScenarioResults = (id: string) =>
+  wsGet<{ results: ScenarioResultRow[] }>(`/scenarios/${encodeURIComponent(id)}/results`);

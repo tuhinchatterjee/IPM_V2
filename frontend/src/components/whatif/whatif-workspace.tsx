@@ -26,6 +26,7 @@ import { ScenarioApplication } from "@/components/whatif/scenario-application";
 import { count, pct, sar } from "@/lib/viz/format";
 import { downloadGridCsv } from "@/lib/workspace/guided";
 import { listCohorts, readObject, workspaceCohortExportUrl, type Cohort, type DomainId, type Filter } from "@/lib/workspace/objects";
+import { readRun, type Run } from "@/lib/workspace/runs";
 import { listScenarios, readScenario, type ScenarioCard, type ScenarioObject } from "@/lib/workspace/scenarios";
 import {
   adoptThreadCohort,
@@ -66,6 +67,12 @@ export function WhatIfWorkspace() {
   const [error, setError] = React.useState("");
   const [panel, setPanel] = React.useState<"" | "save" | "share" | "cohorts" | "scenarios">("");
   const [applyKey, setApplyKey] = React.useState(0);
+  const [activeRun, setActiveRun] = React.useState<Run | null>(null);
+  const [entry] = React.useState<"whatif" | "library" | "cockpit" | "messages">(() => {
+    const from = params.get("from");
+    return from === "library" || from === "cockpit" || from === "messages" ? from : "whatif";
+  });
+  const [initialRunId, setInitialRunId] = React.useState(params.get("run") ?? "");
   const handledParams = React.useRef(false);
 
   const context = ctx.domain === domain ? ctx.value : null;
@@ -82,6 +89,24 @@ export function WhatIfWorkspace() {
     handledParams.current = true;
     const cohortId = params.get("cohort");
     const scenarioId = params.get("scenario");
+    const runId = params.get("run");
+    if (runId) {
+      // Reopening a run shows it exactly where it stopped: a confirmed run
+      // without a method reopens at METHOD SELECTION and never executes.
+      readRun(runId)
+        .then(async (r) => {
+          const sc = await readObject<ScenarioObject["body"]>(r.body.scenario_id, r.body.scenario_version);
+          setDomain(r.body.domain_id as DomainId);
+          if (r.body.cohort.object.cohort_id) {
+            setCohort((await readObject<Cohort["body"]>(r.body.cohort.object.cohort_id, r.body.cohort.object.version ?? undefined)) as Cohort);
+          }
+          setScenario(sc as ScenarioObject);
+        })
+        .catch((e: unknown) => {
+          setInitialRunId("");
+          setError(e instanceof Error ? e.message : String(e));
+        });
+    }
     if (cohortId) {
       readObject<Cohort["body"]>(cohortId)
         .then((c) => {
@@ -231,6 +256,7 @@ export function WhatIfWorkspace() {
       <ActiveStrip
         cohort={cohort}
         scenario={scenario}
+        run={activeRun}
         period={context?.period ?? ""}
         onClearCohort={() => {
           setCohort(null);
@@ -440,8 +466,15 @@ export function WhatIfWorkspace() {
         testId="whatif-grid"
       />
 
-      {cohort && scenario && (
-        <ScenarioApplication key={`${applyKey}-${cohort.object_id}-${scenario.object_id}-${scenario.version}`} cohort={cohort} scenario={scenario} />
+      {scenario && (
+        <ScenarioApplication
+          key={`${applyKey}-${cohort?.object_id ?? "scope"}-${scenario.object_id}-${scenario.version}`}
+          cohort={cohort}
+          scenario={scenario}
+          entry={entry}
+          initialRunId={initialRunId}
+          onRun={setActiveRun}
+        />
       )}
     </div>
   );
@@ -450,6 +483,7 @@ export function WhatIfWorkspace() {
 function ActiveStrip({
   cohort,
   scenario,
+  run,
   period,
   onClearCohort,
   onClearScenario,
@@ -458,6 +492,7 @@ function ActiveStrip({
 }: {
   cohort: Cohort | null;
   scenario: ScenarioObject | null;
+  run: Run | null;
   period: string;
   onClearCohort: () => void;
   onClearScenario: () => void;
@@ -500,13 +535,26 @@ function ActiveStrip({
           Load scenario
         </button>
       </div>
-      <div data-testid="whatif-strip-baseline">
+      <div data-testid="whatif-strip-baseline" data-mode={run?.body.baseline?.mode ?? ""}>
         <div className="text-text-muted">Baseline</div>
-        <div>Original reported baseline {period}</div>
+        {run?.body.baseline?.mode === "PRIOR_SCENARIO" ? (
+          <div>Layered on {run.body.chain.map((c) => c.name).join(" → ")}</div>
+        ) : run?.status === "WAITING_BASELINE_CHOICE" ? (
+          <div className="text-warning">Waiting for your choice</div>
+        ) : (
+          <div>Original reported baseline {period}</div>
+        )}
       </div>
-      <div data-testid="whatif-strip-method">
+      <div data-testid="whatif-strip-method" data-methods={(run?.body.methods_ran.length ? run.body.methods_ran : run?.body.methods_chosen ?? []).join(",")}>
         <div className="text-text-muted">Method</div>
-        <div>Not selected — chosen after the scenario is confirmed</div>
+        {run?.body.methods_ran.length ? (
+          <div>Ran: {run.body.methods_ran.join(", ")}</div>
+        ) : run?.body.methods_chosen.length ? (
+          <div>Chosen: {run.body.methods_chosen.join(", ")}</div>
+        ) : (
+          <div>Not selected — chosen after the scenario is confirmed</div>
+        )}
+        {run && <div className="text-text-muted">run {run.object_id} · {run.status}</div>}
       </div>
     </section>
   );

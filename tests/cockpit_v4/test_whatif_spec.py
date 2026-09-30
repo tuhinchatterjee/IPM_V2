@@ -99,18 +99,34 @@ def test_shock_order_does_not_change_the_hash_but_ordering_is_in_it() -> None:
     ("source", source(domain_id="retail")),
     ("cohort", cohort(membership_hash="b" * 64)),
     ("cohort", cohort(entity_count=411)),
-    ("methods", (sp.DELTA, sp.USER_DEFINED)),
-    ("delta_submode", sp.STRUCTURAL_EAD),
     ("stage_policy", "migrate"),
     ("overlay_policy", "scaled"),
     ("fx_policy", "stressed"),
     ("warnings", ("Stage 3 rows are ineligible for a PD shock",)),
     ("artifact_versions", {"rating_to_pd": "2.0.0"}),
-    ("user_assumption", {"kind": "relative", "value": "15"}),
 ])
 def test_anything_that_changes_the_answer_changes_the_hash(
         field_name, changed) -> None:
     assert draft().digest() != draft(**{field_name: changed}).digest()
+
+
+@pytest.mark.parametrize("field_name,changed", [
+    ("methods", (sp.DELTA, sp.USER_DEFINED)),
+    ("delta_submode", sp.STRUCTURAL_EAD),
+    ("user_assumption", {"kind": "relative", "value": "15"}),
+])
+def test_the_method_is_not_part_of_the_scenario_contract(field_name,
+                                                          changed) -> None:
+    """v3.1 §5 / BASE06: SCENARIO and METHOD are separate decisions.
+
+    Choosing or changing the method reuses the same confirmed scenario (same
+    contract digest), while the execution digest -- what one run ran --
+    records it. This test encoded the opposite before the UAT-01 fix.
+    """
+    base, other = draft(), draft(**{field_name: changed})
+    assert base.digest() == other.digest()
+    assert base.execution_digest() != other.execution_digest()
+    assert base.method_selection() != other.method_selection()
 
 
 def test_a_different_shock_value_changes_the_hash() -> None:
@@ -337,4 +353,6 @@ def test_the_defaults_are_the_conservative_ones() -> None:
     assert at.fx_policy == "constant"
     assert at.cohort.fixed is True
     assert at.delta_submode == sp.PROPORTIONAL
-    assert at.methods == (sp.DELTA,)
+    # No method is assumed (v3.1 §5.1, UAT-01): the reader chooses one.
+    assert at.methods == ()
+    assert at.method_resolved() is False

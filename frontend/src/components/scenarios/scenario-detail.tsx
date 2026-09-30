@@ -13,6 +13,7 @@ import { ArrowLeft, Archive, Copy, GitBranch, Link2, Loader2, MessageSquare, Pen
 
 import { PreviewPanel } from "@/components/scenarios/preview-panel";
 import { Badge } from "@/components/ui/badge";
+import { sarDelta } from "@/lib/viz/format";
 import { SEVERITY_TONE } from "@/lib/workspace/scenario-figures";
 import { addComment, listCohorts } from "@/lib/workspace/objects";
 import {
@@ -23,7 +24,9 @@ import {
   resolveOverlaps,
   retireScenario,
   reviseScenario,
+  listScenarioResults,
   shareScenario,
+  type ScenarioResultRow,
   type Preview,
   type Resolution,
   type ScenarioDetail as Detail,
@@ -143,11 +146,11 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             </Action>
           )}
           <Link
-            href={`/what-if?scenario=${encodeURIComponent(obj.object_id)}`}
+            href={`/what-if?scenario=${encodeURIComponent(obj.object_id)}&from=library`}
             className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast"
             data-testid="scenario-open-whatif"
           >
-            Open in What-If
+            Open in What-If (preview, confirm, choose method, run)
           </Link>
         </div>
         {panel === "rename" && (
@@ -202,6 +205,8 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
           resolveLabel={card.can_edit ? "Record composition policy (new version)" : "Clone and record these policies"}
         />
       )}
+
+      <ScenarioResults scenarioId={obj.object_id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-lg border border-border bg-surface p-3 text-xs" data-testid="scenario-assumptions">
@@ -287,6 +292,36 @@ function InlineForm({ label, initial, submit, onSubmit, testId }: { label: strin
         {submit}
       </button>
     </form>
+  );
+}
+
+function ScenarioResults({ scenarioId }: { scenarioId: string }) {
+  const [rows, setRows] = React.useState<ScenarioResultRow[] | null>(null);
+  React.useEffect(() => {
+    listScenarioResults(scenarioId)
+      .then((r) => setRows(r.results))
+      .catch(() => setRows([]));
+  }, [scenarioId]);
+  if (!rows) return null;
+  return (
+    <section className="rounded-lg border border-border bg-surface p-3 text-xs" data-testid="scenario-results" data-count={rows.length}>
+      <h3 className="mb-1 text-sm font-semibold">Results ({rows.length})</h3>
+      {!rows.length && <p className="text-text-muted">Not executed yet. Open it in What-If, confirm it and choose a method to run it.</p>}
+      <ul className="space-y-1">
+        {rows.map((r) => (
+          <li key={r.object_id} className="flex flex-wrap gap-2">
+            <Link href={`/what-if/result/${r.object_id}`} className="text-accent underline" data-testid="scenario-result-link">
+              {r.object_id}
+            </Link>
+            <span>v{r.scenario_version}</span>
+            <span>{r.methods_ran.join(" + ")}</span>
+            <span>{r.baseline_mode === "PRIOR_SCENARIO" ? "layered" : "original baseline"}</span>
+            <span className="tabular">{Object.entries(r.changes).map(([m, v]) => `${m} ${v === null ? "—" : sarDelta(Number(v))}`).join(" · ")}</span>
+            <span className="text-text-muted">{r.cohort}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

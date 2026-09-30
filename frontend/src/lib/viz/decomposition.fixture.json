@@ -1,0 +1,573 @@
+{
+ "source": "CORP-18 Combined sector + macro stress, Delta, engine output (no model call)",
+ "decomposition": {
+  "contract_version": "gw-decomposition-1.0.0",
+  "method": "delta",
+  "method_label": "Delta (proportional)",
+  "selected_equals_total": false,
+  "scopes": {
+   "selected": {
+    "scope": "selected",
+    "label": "504 facilities across 200 borrowers at 2026Q2, only the facilities that matched. Membership is fixed as at this period",
+    "opening": "327.290204",
+    "closing": "416.5919265455001831478501732",
+    "change": "89.3017225455001831478501732",
+    "change_pct": "27.2852",
+    "components": [
+     {
+      "id": "opening",
+      "label": "Opening ECL",
+      "kind": "total",
+      "definition": "Booked (reported) ECL of the scope before the movement.",
+      "order": 0,
+      "value": "327.290204",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": []
+     },
+     {
+      "id": "new_originations",
+      "label": "New originations",
+      "kind": "flow",
+      "definition": "ECL of exposures that entered the book between the periods.",
+      "order": 1,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "repayment_amortisation",
+      "label": "Repayment / amortisation",
+      "kind": "flow",
+      "definition": "ECL released as exposure was repaid or amortised.",
+      "order": 2,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "stage_1_to_2",
+      "label": "Stage 1 \u2192 2",
+      "kind": "flow",
+      "definition": "Change from exposures migrating Stage 1 to Stage 2 (SICR).",
+      "order": 3,
+      "value": null,
+      "status": "N/A",
+      "reason": "Stages are held at their reported values (stage policy 'frozen'), so no exposure migrates.",
+      "detail": []
+     },
+     {
+      "id": "stage_2_to_3",
+      "label": "Stage 2 \u2192 3",
+      "kind": "flow",
+      "definition": "Change from exposures migrating Stage 2 to Stage 3.",
+      "order": 4,
+      "value": null,
+      "status": "N/A",
+      "reason": "Stages are held at their reported values (stage policy 'frozen'), so no exposure migrates.",
+      "detail": []
+     },
+     {
+      "id": "cures",
+      "label": "Cures",
+      "kind": "flow",
+      "definition": "ECL released by exposures curing to a better stage.",
+      "order": 5,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "new_defaults",
+      "label": "New defaults",
+      "kind": "flow",
+      "definition": "Change from exposures newly defaulting.",
+      "order": 6,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "pd",
+      "label": "PD",
+      "kind": "driver",
+      "definition": "Effect of the probability-of-default moves.",
+      "order": 7,
+      "value": "32.99069517131198882082067783",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": [
+       {
+        "label": "c1 \u00b7 Construction PD +20% relative",
+        "value": "32.990695171311988820820677833333333333333333333333",
+        "fields": [
+         "c1 \u00b7 Construction PD +20% relative"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "lgd",
+      "label": "LGD",
+      "kind": "driver",
+      "definition": "Effect of the loss-given-default moves.",
+      "order": 8,
+      "value": "16.53877981857850563221371338",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": [
+       {
+        "label": "c2 \u00b7 Real Estate LGD +10% relative",
+        "value": "16.538779818578505632213713383333333333333333333333",
+        "fields": [
+         "c2 \u00b7 Real Estate LGD +10% relative"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "ccf_ead",
+      "label": "CCF / EAD / utilisation",
+      "kind": "driver",
+      "definition": "Effect of exposure moves: CCF, drawn balance, utilisation, EAD.",
+      "order": 9,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "collateral",
+      "label": "Collateral",
+      "kind": "driver",
+      "definition": "Effect of collateral value moves, via their governed LGD translation.",
+      "order": 10,
+      "value": null,
+      "status": "N/A",
+      "reason": "No collateral rule in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "rating_score",
+      "label": "Rating / score migration",
+      "kind": "driver",
+      "definition": "Effect of rating-notch or score-band moves via the governed masterscale / scorecards.",
+      "order": 11,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "macro",
+      "label": "Macro (MEV)",
+      "kind": "driver",
+      "definition": "Effect of macroeconomic moves via the governed sensitivity library.",
+      "order": 12,
+      "value": "39.77224755560968869481578198",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": [
+       {
+        "label": "c3 \u00b7 Real GDP growth -1.5 pp",
+        "value": "39.772247555609688694815781983333333333333333333333",
+        "fields": [
+         "c3 \u00b7 Real GDP growth -1.5 pp"
+        ],
+        "factors": [
+         {
+          "origin": "c3 \u00b7 Real GDP growth -1.5 pp",
+          "factor": "MEV01",
+          "field": "pd_pit_12m",
+          "pp": "0.211472",
+          "share": "1.0000"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "sector_segment",
+      "label": "Sector / segment rule",
+      "kind": "driver",
+      "definition": "Effect of a rule whose driver is a sector or segment selection rather than a parameter.",
+      "order": 13,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "management_overlay",
+      "label": "Management overlay / user-defined",
+      "kind": "driver",
+      "definition": "The reader's own stated impact (Method 3) or a management overlay.",
+      "order": 14,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "recoveries",
+      "label": "Recoveries / write-offs",
+      "kind": "flow",
+      "definition": "ECL released through recoveries and write-offs.",
+      "order": 15,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "unattributed_method_effect",
+      "label": "Method effect (not attributable)",
+      "kind": "driver",
+      "definition": "A method's total scenario effect that the method cannot split by driver (the ML emulator predicts the whole move).",
+      "order": 16,
+      "value": null,
+      "status": "N/A",
+      "reason": "Every movement is attributed to a driver.",
+      "detail": []
+     },
+     {
+      "id": "calibration_gap",
+      "label": "Calibration gap",
+      "kind": "driver",
+      "definition": "Difference between a method's own baseline and booked ECL; never hidden inside scenario effects (\u00a711).",
+      "order": 17,
+      "value": null,
+      "status": "N/A",
+      "reason": "This method starts from the booked baseline, so there is no calibration gap.",
+      "detail": []
+     },
+     {
+      "id": "residual",
+      "label": "Interaction / residual",
+      "kind": "driver",
+      "definition": "What the driver bars do not explain. Shown, never spread.",
+      "order": 18,
+      "value": "1E-26",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": []
+     },
+     {
+      "id": "closing",
+      "label": "Closing ECL",
+      "kind": "total",
+      "definition": "ECL of the scope after the movement.",
+      "order": 19,
+      "value": "416.5919265455001831478501732",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": []
+     }
+    ],
+    "residual": "1E-26",
+    "reconciles": true,
+    "identity": "opening + components + residual = closing",
+    "kpis": {
+     "opening": "327.290204",
+     "closing": "416.5919265455001831478501732",
+     "change": "89.3017225455001831478501732",
+     "change_pct": "27.2852",
+     "largest_driver": "Macro (MEV)",
+     "largest_driver_value": "39.77224755560968869481578198",
+     "stage_2_3_ead_share_pct": "0.4495",
+     "exposures": 504
+    }
+   },
+   "total": {
+    "scope": "total",
+    "label": "Total active book",
+    "opening": "1936.063962999998",
+    "closing": "2025.365685545498183147850173",
+    "change": "89.301722545500183147850173",
+    "change_pct": "4.6125",
+    "components": [
+     {
+      "id": "opening",
+      "label": "Opening ECL",
+      "kind": "total",
+      "definition": "Booked (reported) ECL of the scope before the movement.",
+      "order": 0,
+      "value": "1936.063962999998",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": []
+     },
+     {
+      "id": "new_originations",
+      "label": "New originations",
+      "kind": "flow",
+      "definition": "ECL of exposures that entered the book between the periods.",
+      "order": 1,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "repayment_amortisation",
+      "label": "Repayment / amortisation",
+      "kind": "flow",
+      "definition": "ECL released as exposure was repaid or amortised.",
+      "order": 2,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "stage_1_to_2",
+      "label": "Stage 1 \u2192 2",
+      "kind": "flow",
+      "definition": "Change from exposures migrating Stage 1 to Stage 2 (SICR).",
+      "order": 3,
+      "value": null,
+      "status": "N/A",
+      "reason": "Stages are held at their reported values (stage policy 'frozen'), so no exposure migrates.",
+      "detail": []
+     },
+     {
+      "id": "stage_2_to_3",
+      "label": "Stage 2 \u2192 3",
+      "kind": "flow",
+      "definition": "Change from exposures migrating Stage 2 to Stage 3.",
+      "order": 4,
+      "value": null,
+      "status": "N/A",
+      "reason": "Stages are held at their reported values (stage policy 'frozen'), so no exposure migrates.",
+      "detail": []
+     },
+     {
+      "id": "cures",
+      "label": "Cures",
+      "kind": "flow",
+      "definition": "ECL released by exposures curing to a better stage.",
+      "order": 5,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "new_defaults",
+      "label": "New defaults",
+      "kind": "flow",
+      "definition": "Change from exposures newly defaulting.",
+      "order": 6,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "pd",
+      "label": "PD",
+      "kind": "driver",
+      "definition": "Effect of the probability-of-default moves.",
+      "order": 7,
+      "value": "32.99069517131198882082067783",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": [
+       {
+        "label": "c1 \u00b7 Construction PD +20% relative",
+        "value": "32.990695171311988820820677833333333333333333333333",
+        "fields": [
+         "c1 \u00b7 Construction PD +20% relative"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "lgd",
+      "label": "LGD",
+      "kind": "driver",
+      "definition": "Effect of the loss-given-default moves.",
+      "order": 8,
+      "value": "16.53877981857850563221371338",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": [
+       {
+        "label": "c2 \u00b7 Real Estate LGD +10% relative",
+        "value": "16.538779818578505632213713383333333333333333333333",
+        "fields": [
+         "c2 \u00b7 Real Estate LGD +10% relative"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "ccf_ead",
+      "label": "CCF / EAD / utilisation",
+      "kind": "driver",
+      "definition": "Effect of exposure moves: CCF, drawn balance, utilisation, EAD.",
+      "order": 9,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "collateral",
+      "label": "Collateral",
+      "kind": "driver",
+      "definition": "Effect of collateral value moves, via their governed LGD translation.",
+      "order": 10,
+      "value": null,
+      "status": "N/A",
+      "reason": "No collateral rule in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "rating_score",
+      "label": "Rating / score migration",
+      "kind": "driver",
+      "definition": "Effect of rating-notch or score-band moves via the governed masterscale / scorecards.",
+      "order": 11,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "macro",
+      "label": "Macro (MEV)",
+      "kind": "driver",
+      "definition": "Effect of macroeconomic moves via the governed sensitivity library.",
+      "order": 12,
+      "value": "39.77224755560968869481578198",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": [
+       {
+        "label": "c3 \u00b7 Real GDP growth -1.5 pp",
+        "value": "39.772247555609688694815781983333333333333333333333",
+        "fields": [
+         "c3 \u00b7 Real GDP growth -1.5 pp"
+        ],
+        "factors": [
+         {
+          "origin": "c3 \u00b7 Real GDP growth -1.5 pp",
+          "factor": "MEV01",
+          "field": "pd_pit_12m",
+          "pp": "0.211472",
+          "share": "1.0000"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "sector_segment",
+      "label": "Sector / segment rule",
+      "kind": "driver",
+      "definition": "Effect of a rule whose driver is a sector or segment selection rather than a parameter.",
+      "order": 13,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "management_overlay",
+      "label": "Management overlay / user-defined",
+      "kind": "driver",
+      "definition": "The reader's own stated impact (Method 3) or a management overlay.",
+      "order": 14,
+      "value": null,
+      "status": "N/A",
+      "reason": "No rule of this kind in this scenario.",
+      "detail": []
+     },
+     {
+      "id": "recoveries",
+      "label": "Recoveries / write-offs",
+      "kind": "flow",
+      "definition": "ECL released through recoveries and write-offs.",
+      "order": 15,
+      "value": null,
+      "status": "N/A",
+      "reason": "A scenario revalues the frozen book at one period; movements BETWEEN periods (originations, repayments, cures, defaults, recoveries) are not part of it.",
+      "detail": []
+     },
+     {
+      "id": "unattributed_method_effect",
+      "label": "Method effect (not attributable)",
+      "kind": "driver",
+      "definition": "A method's total scenario effect that the method cannot split by driver (the ML emulator predicts the whole move).",
+      "order": 16,
+      "value": null,
+      "status": "N/A",
+      "reason": "Every movement is attributed to a driver.",
+      "detail": []
+     },
+     {
+      "id": "calibration_gap",
+      "label": "Calibration gap",
+      "kind": "driver",
+      "definition": "Difference between a method's own baseline and booked ECL; never hidden inside scenario effects (\u00a711).",
+      "order": 17,
+      "value": null,
+      "status": "N/A",
+      "reason": "This method starts from the booked baseline, so there is no calibration gap.",
+      "detail": []
+     },
+     {
+      "id": "residual",
+      "label": "Interaction / residual",
+      "kind": "driver",
+      "definition": "What the driver bars do not explain. Shown, never spread.",
+      "order": 18,
+      "value": "-1.9E-25",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": []
+     },
+     {
+      "id": "closing",
+      "label": "Closing ECL",
+      "kind": "total",
+      "definition": "ECL of the scope after the movement.",
+      "order": 19,
+      "value": "2025.365685545498183147850173",
+      "status": "MEASURED",
+      "reason": "",
+      "detail": []
+     }
+    ],
+    "residual": "-1.9E-25",
+    "reconciles": true,
+    "identity": "opening + components + residual = closing",
+    "kpis": {
+     "opening": "1936.063962999998",
+     "closing": "2025.365685545498183147850173",
+     "change": "89.301722545500183147850173",
+     "change_pct": "4.6125",
+     "largest_driver": "Macro (MEV)",
+     "largest_driver_value": "39.77224755560968869481578198",
+     "stage_2_3_ead_share_pct": null,
+     "exposures": 2996
+    }
+   }
+  },
+  "cross_scope": {
+   "selected_delta": "89.3017225455001831478501732",
+   "rest_of_book_delta": "0",
+   "total_delta": "89.301722545500183147850173",
+   "reconciles": true,
+   "identity": "selected delta + rest-of-book delta = total delta",
+   "selected_share_of_total_change_pct": "100.00",
+   "rest_of_book_reason": "The scenario is applied to the selected scope only; every exposure outside it keeps its booked ECL exactly, so the rest of the book contributes zero. No portfolio-wide stage, macro or overlay logic moves it.",
+   "tolerance": "0.0001"
+  }
+ }
+}

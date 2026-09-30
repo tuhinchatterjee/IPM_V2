@@ -210,7 +210,12 @@ class ScenarioSpec:
     source: SourceRef
     cohort: CohortRef
     shocks: tuple[Shock, ...] = ()
-    methods: tuple[str, ...] = (DELTA,)
+    #: THE METHOD IS NOT A DEFAULT (v3.1 §5.1, live-UAT UAT-01).
+    #:
+    #: Empty until the reader chooses. A confirmed scenario with no method
+    #: goes to METHOD_SELECTION and is not executed; nothing here, in the
+    #: bridge or in a request may fill it with Delta on the reader's behalf.
+    methods: tuple[str, ...] = ()
     delta_submode: str = PROPORTIONAL
     #: Section 12. Normalized, and the reader's statement kept verbatim.
     user_assumption: dict[str, Any] = field(default_factory=dict)
@@ -227,6 +232,17 @@ class ScenarioSpec:
     warnings: tuple[str, ...] = ()
     #: Mapping and model versions in force. Empty until P5/P7 supply them.
     artifact_versions: dict[str, str] = field(default_factory=dict)
+    #: BASELINE LINEAGE (§5.2). Empty means the original reported baseline;
+    #: a layered scenario records `{"mode": "PRIOR_SCENARIO",
+    #: "parent_scenario_id", "parent_contract_digest"}`. Part of the contract:
+    #: the same rules on a different baseline are a different scenario.
+    baseline: dict[str, Any] = field(default_factory=dict)
+    #: OVERLAPS THE READER RESOLVED, as `{"pair": [left, right], "composition":
+    #: "compound"}` over the two shocks' canonical keys. A pair declared here
+    #: is not a conflict: Delta applies both, compounding multiplicatively
+    #: (the product of their ratios on booked ECL -- Delta's documented
+    #: compounding rule). Part of the contract, because it changes the answer.
+    compositions: tuple[dict[str, Any], ...] = ()
 
     # -- identity, not arithmetic: excluded from the digest --
     name: str = ""
@@ -269,15 +285,20 @@ class ScenarioSpec:
             "shocks": sorted((s.canonical() for s in self.shocks),
                              key=lambda c: json.dumps(c, sort_keys=True)),
             "ordering": list(self.ordering()),
-            "methods": sorted(self.methods),
-            "delta_submode": self.delta_submode,
-            "user_assumption": _canonical(self.user_assumption),
             "stage_policy": self.stage_policy,
             "overlay_policy": self.overlay_policy,
             "fx_policy": self.fx_policy,
             "bounds_policy": _canonical(self.bounds_policy),
             "warnings": sorted(self.warnings),
             "artifact_versions": _canonical(self.artifact_versions),
+            # Only when layered, so a source-baseline scenario hashes exactly
+            # as it did before lineage existed.
+            **({"baseline": _canonical(self.baseline)} if self.baseline
+               else {}),
+            **({"compositions": sorted(
+                (_canonical(c) for c in self.compositions),
+                key=lambda c: json.dumps(c, sort_keys=True))}
+               if self.compositions else {}),
         }
 
     def ordering(self) -> tuple[str, ...]:
@@ -290,10 +311,36 @@ class ScenarioSpec:
         return tuple(f"{s.field_id}:{s.amount.operation}" for s in self.shocks)
 
     def digest(self) -> str:
-        """SHA-256 over the canonical form. The confirmation hash."""
+        """SHA-256 over the canonical form. The confirmation hash.
+
+        THE SCENARIO CONTRACT ONLY. Which method translates it into ECL is a
+        separate decision (v3.1 §5, §7.1): a confirmed scenario whose method
+        is chosen afterwards -- or changed after a run -- is the SAME
+        scenario, so choosing a method neither needs nor invalidates the
+        confirmation (BASE06). The method selection has its own record,
+        `method_selection()`, and `execution_digest()` identifies a run.
+        """
         blob = json.dumps(self.canonical(), sort_keys=True,
                           separators=(",", ":"), ensure_ascii=False)
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+    def method_selection(self) -> dict[str, Any]:
+        """The methodology decision, kept apart from the scenario contract."""
+        return {"methods": sorted(self.methods),
+                "delta_submode": self.delta_submode,
+                "user_assumption": _canonical(self.user_assumption)}
+
+    def execution_digest(self) -> str:
+        """Scenario contract AND method selection: what one execution ran."""
+        blob = json.dumps({"contract": self.digest(),
+                           "method": self.method_selection()},
+                          sort_keys=True, separators=(",", ":"),
+                          ensure_ascii=False)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+    def method_resolved(self) -> bool:
+        """Is the methodology decided? Execution requires it (§5.1)."""
+        return bool(self.methods)
 
     def is_confirmed(self) -> bool:
         """Does the recorded approval still describe what would run?
@@ -411,6 +458,11 @@ class ScenarioSpec:
         section 5.2 forbids.
         """
         seen = {_pair_key(left, right) for left, right in acknowledged}
+        for declared in self.compositions:
+            pair = declared.get("pair") or []
+            if len(pair) == 2:
+                seen.add(json.dumps(list(pair), sort_keys=True))
+                seen.add(json.dumps(list(reversed(pair)), sort_keys=True))
         pairs = tuple(p for p in self.conflicts()
                       if _pair_key(*p) not in seen)
         if not pairs:
@@ -448,9 +500,17 @@ def _may_overlap(left: dict[str, Any], right: dict[str, Any]) -> bool:
     if not left or not right:
         return True
     for key in left.keys() & right.keys():
-        if left[key] != right[key]:
+        a, b = _values(left[key]), _values(right[key])
+        if not a & b:
             return False
     return True
+
+
+def _values(value: Any) -> set[str]:
+    """A scope value as the set of values it admits: a list is IN."""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return {str(v) for v in value}
+    return {str(value)}
 
 
 def from_canonical(canonical: Mapping[str, Any], *, scenario_id: str,
@@ -458,7 +518,11 @@ def from_canonical(canonical: Mapping[str, Any], *, scenario_id: str,
                    confirmed_digest: str = "", cohort_id: str = "",
                    cohort_baseline_ead: str = "0",
                    cohort_baseline_ecl: str = "0",
-                   original_clauses: Sequence[str] = ()) -> ScenarioSpec:
+                   original_clauses: Sequence[str] = (),
+                   methods: Sequence[str] | None = None,
+                   delta_submode: str = "",
+                   user_assumption: Mapping[str, Any] | None = None
+                   ) -> ScenarioSpec:
     """Rebuild a spec from the canonical form a thread stored.
 
     WHY THIS EXISTS, AND WHY IT IS NOT A CONVENIENCE.
@@ -511,15 +575,25 @@ def from_canonical(canonical: Mapping[str, Any], *, scenario_id: str,
             baseline_ecl=str(cohort_baseline_ecl),
             fixed=bool(coh.get("fixed", True))),
         shocks=tuple(shocks),
-        methods=tuple(str(m) for m in (canonical.get("methods") or (DELTA,))),
-        delta_submode=str(canonical.get("delta_submode") or PROPORTIONAL),
-        user_assumption=dict(canonical.get("user_assumption") or {}),
+        # The method selection is stored beside the canonical form, not in it.
+        # A body written before the separation carried it inside; it is read
+        # from there only as a fallback, and never defaulted to Delta.
+        methods=tuple(str(m) for m in (
+            methods if methods is not None
+            else canonical.get("methods") or ())),
+        delta_submode=str(delta_submode or canonical.get("delta_submode")
+                          or PROPORTIONAL),
+        user_assumption=dict(user_assumption if user_assumption is not None
+                             else canonical.get("user_assumption") or {}),
         stage_policy=str(canonical.get("stage_policy") or "frozen"),
         overlay_policy=str(canonical.get("overlay_policy") or "fixed"),
         fx_policy=str(canonical.get("fx_policy") or "constant"),
         bounds_policy=dict(canonical.get("bounds_policy") or {}),
         warnings=tuple(str(w) for w in (canonical.get("warnings") or ())),
         artifact_versions=dict(canonical.get("artifact_versions") or {}),
+        baseline=dict(canonical.get("baseline") or {}),
+        compositions=tuple(dict(c) for c in (
+            canonical.get("compositions") or ())),
         name=str(name), state=str(state),
         original_clauses=tuple(str(c) for c in original_clauses),
         confirmed_digest=str(confirmed_digest))

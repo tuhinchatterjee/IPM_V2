@@ -138,6 +138,7 @@ def body(spec: sp.ScenarioSpec, *, domain_id: str, release_id: str,
         "original_clauses": list(spec.original_clauses),
         "methods": list(spec.methods),
         "delta_submode": spec.delta_submode,
+        "user_assumption": dict(spec.user_assumption),
         "warnings": list(spec.warnings),
         "artifact_versions": dict(spec.artifact_versions),
         "domain_id": domain_id,
@@ -276,6 +277,39 @@ def facts(stored: dict[str, Any], *, release_id: str,
             "baseline_ecl": stored.get("cohort_baseline_ecl", "0")}
         out["source"] = canonical.get("source", {})
         out["run_id"] = stored.get("run_id", "")
+    # THE METHOD DECISION (v3.1 §5.1). Stated as a fact of this thread, so an
+    # analyst resuming it knows a confirmed scenario is waiting for the
+    # reader's method choice and was NOT executed.
+    method_state = str(stored.get("method_state") or "")
+    if method_state:
+        out["method_state"] = method_state
+    if method_state in ("METHOD_SELECTION_REQUIRED", "METHOD_INPUT_REQUIRED",
+                        "METHOD_UNAVAILABLE", "NOT_CHOSEN"):
+        out["next_step"] = (
+            "The scenario is confirmed and NOT executed. The reader chooses "
+            "the method: Delta, the ML emulator (only where its gates pass), "
+            "a User-defined impact (with their stated assumption), or a "
+            "comparison. Then execute_scenario with this confirmation_digest "
+            "and those methods. Never choose on their behalf and never "
+            "substitute an unavailable method.")
+    history = [
+        {"scenario_id": h.get("scenario_id"), "name": h.get("name"),
+         "reporting_period": h.get("reporting_period")}
+        for h in (stored.get("history") or [])]
+    if stored.get("executed_run_id"):
+        history.append({"scenario_id": stored.get("scenario_id"),
+                        "name": stored.get("name"),
+                        "reporting_period": stored.get("reporting_period")})
+    if history:
+        out["executed_in_this_conversation"] = history
+        out["second_scenario_rule"] = (
+            "A new scenario here must say its baseline. If the reader did "
+            "not, ask: apply it to the original reported baseline, or on top "
+            "of one of the executed scenarios above? Then preview it with "
+            "baseline={\"mode\": \"SOURCE_BASELINE\"} or {\"mode\": "
+            "\"PRIOR_SCENARIO\", \"parent_scenario_id\": ...}.")
+    if stored.get("baseline"):
+        out["baseline"] = dict(stored["baseline"])
     if status == ACTIVE:
         out["confirmed_digest"] = stored.get("confirmed_digest", "")
     elif status == AWAITING_CONFIRMATION:

@@ -64,7 +64,16 @@ class Preview:
         return self.spec.digest()
 
     def question(self) -> str:
-        """Section 6.2's wording, with the reader's own methods named."""
+        """Section 6.2's wording, with the reader's own methods named.
+
+        With no method chosen the question confirms the SCENARIO only and
+        says so: confirmation is not execution, and the method is asked next
+        (v3.1 §5, §7.1). It never names a method the reader did not choose.
+        """
+        if not self.spec.methods:
+            return ("Confirm this scenario? Confirming does NOT run it: you "
+                    "then choose the method -- Delta, the ML emulator, a "
+                    "User-defined impact, or compare.")
         chosen = ", ".join(_method_label(m) for m in self.spec.methods)
         return f"Shall I execute this scenario using {chosen}?"
 
@@ -75,6 +84,10 @@ class Preview:
         are yes and no invites a reader who wanted one number different to
         click yes and fix it afterwards.
         """
+        if not self.spec.methods:
+            return ["Yes, confirm the scenario (choose the method next)",
+                    "Change an assumption",
+                    "Cancel this scenario"]
         chosen = ", ".join(_method_label(m) for m in self.spec.methods)
         return [f"Yes, run it with {chosen}",
                 "Change a method",

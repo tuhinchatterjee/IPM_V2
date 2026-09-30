@@ -13,8 +13,10 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
 import { PreviewPanel } from "@/components/scenarios/preview-panel";
+import { RunPanel } from "@/components/whatif/run-panel";
 import { count } from "@/lib/viz/format";
 import type { Cohort } from "@/lib/workspace/objects";
+import type { Run } from "@/lib/workspace/runs";
 import {
   bindScenario,
   previewScenario,
@@ -26,10 +28,15 @@ import {
 export function ScenarioApplication({
   cohort,
   scenario,
+  entry = "whatif",
+  initialRunId = "",
+  onRun,
 }: {
-  cohort: Cohort;
+  cohort: Cohort | null;
   scenario: ScenarioObject;
-  onScenario?: (s: ScenarioObject) => void;
+  entry?: "whatif" | "library" | "cockpit" | "messages";
+  initialRunId?: string;
+  onRun?: (run: Run | null) => void;
 }) {
   const [bound, setBound] = React.useState<ScenarioObject | null>(null);
   const [preview, setPreview] = React.useState<Preview | null>(null);
@@ -38,8 +45,9 @@ export function ScenarioApplication({
   React.useEffect(() => {
     let live = true;
     (async () => {
-      const already = scenario.body.scope.type === "cohort" && scenario.body.scope.cohort_id === cohort.object_id;
-      const target = already ? scenario : (await bindScenario(scenario.object_id, cohort.object_id)).scenario;
+      // No active cohort: the scenario runs on its own declared scope.
+      const already = !cohort || (scenario.body.scope.type === "cohort" && scenario.body.scope.cohort_id === cohort.object_id);
+      const target = already || !cohort ? scenario : (await bindScenario(scenario.object_id, cohort.object_id)).scenario;
       if (!live) return;
       setBound(target);
       const pv = await previewScenario(target.object_id, target.version);
@@ -48,7 +56,7 @@ export function ScenarioApplication({
     return () => {
       live = false;
     };
-  }, [cohort.object_id, scenario]);
+  }, [cohort, scenario]);
 
   async function resolve(resolutions: Parameters<typeof resolveOverlaps>[1]) {
     if (!bound) return;
@@ -60,9 +68,11 @@ export function ScenarioApplication({
   return (
     <section className="space-y-3 rounded-xl border border-accent bg-surface p-4" data-testid="whatif-application" data-scenario-id={bound?.object_id ?? ""}>
       <header className="flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold">Scenario applied to the active cohort</h2>
+        <h2 className="text-base font-semibold">{cohort ? "Scenario applied to the active cohort" : "Scenario on its own scope"}</h2>
         <span className="text-xs text-text-muted">
-          {scenario.body.name} on {cohort.body.name} ({count(cohort.body.counts.entities)} exposures, {cohort.object_id})
+          {cohort
+            ? `${scenario.body.name} on ${cohort.body.name} (${count(cohort.body.counts.entities)} exposures, ${cohort.object_id})`
+            : `${scenario.body.name} · ${scenario.body.scope.label ?? scenario.body.scope.type}`}
         </span>
         {bound && (
           <Link href={`/scenarios/${bound.object_id}`} className="ml-auto text-xs text-accent underline" data-testid="whatif-bound-scenario">
@@ -81,6 +91,7 @@ export function ScenarioApplication({
         </p>
       )}
       {preview && bound && <PreviewPanel preview={preview} definition={bound.body} onResolve={bound.owner_id !== "creditprobe-library" ? resolve : undefined} testId="whatif-preview" />}
+      {preview && bound && <RunPanel key={`${bound.object_id}-${bound.version}`} scenario={bound} cohort={cohort} entry={entry} initialRunId={initialRunId} onRun={onRun} />}
     </section>
   );
 }

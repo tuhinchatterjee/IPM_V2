@@ -59,16 +59,17 @@ from __future__ import annotations
 
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
 from backend.cockpit_v4.scenario import attribution as at
 from backend.cockpit_v4.scenario import cohort as ch
-from backend.cockpit_v4.scenario import cohort_refs
+from backend.cockpit_v4.scenario import cohort_refs, flags
+from backend.cockpit_v4.scenario import decomposition as dc
 from backend.cockpit_v4.scenario import delta as dl
 from backend.cockpit_v4.scenario import fields as fd
-from backend.cockpit_v4.scenario import flags
+from backend.cockpit_v4.scenario import layering as lay
 from backend.cockpit_v4.scenario import ledger as lg
 from backend.cockpit_v4.scenario import preview as pv
 from backend.cockpit_v4.scenario import reference_ecl as refecl
@@ -103,9 +104,24 @@ OPERATIONS: tuple[str, ...] = (PREVIEW, EXECUTE)
 #: did not happen.
 PREVIEW_KEYS = frozenset({
     "operation", "period", "cohort", "shocks", "methods", "delta_submode",
-    "user_assumption", "name", "clauses", "scenario_id"})
+    "user_assumption", "name", "clauses", "scenario_id",
+    # Baseline lineage of a second scenario (§5.2): SOURCE_BASELINE, or
+    # PRIOR_SCENARIO with the parent's scenario id.
+    "baseline"})
+
+#: A second scenario after an executed one, with no stated baseline (§5.2).
+BASELINE_CHOICE_REQUIRED = "BASELINE_CHOICE_REQUIRED"
 EXECUTE_KEYS = frozenset({
-    "operation", "confirmation_digest", "reply", "methods"})
+    "operation", "confirmation_digest", "reply", "methods",
+    # Method inputs travel with the METHOD decision, not the scenario: the
+    # reader may state them after confirming (METH09/METH10).
+    "user_assumption", "delta_submode"})
+
+#: The governed non-execution outcomes of `execute_scenario` (§5.1). Each is
+#: a result the reader is shown; none computes an ECL.
+METHOD_SELECTION_REQUIRED = "METHOD_SELECTION_REQUIRED"
+METHOD_UNAVAILABLE = "METHOD_UNAVAILABLE"
+METHOD_INPUT_REQUIRED = "METHOD_INPUT_REQUIRED"
 SHOCK_KEYS = frozenset({"field", "operation", "value", "where", "origin"})
 
 #: How many rules one scenario may carry, and how many rows one run may
@@ -168,6 +184,7 @@ class PreviewRequest:
     clauses: tuple[str, ...]
     period: str
     scenario_id: str
+    baseline: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -178,6 +195,8 @@ class ExecuteRequest:
     confirmation_digest: str
     reply: str
     methods: tuple[str, ...]
+    user_assumption: dict[str, Any] = field(default_factory=dict)
+    delta_submode: str = ""
 
 
 # ---- validation ---------------------------------------------------------
@@ -240,11 +259,23 @@ def _execute_request(parameters: Mapping[str, Any], *,
                   f"WHICH scenario is being run and is compared against the "
                   f"one the server stored.",
                   field_path=f"{path}.confirmation_digest")
+    assumption = parameters.get("user_assumption") or {}
+    if not isinstance(assumption, Mapping):
+        raise_for(CONFIRMATION_STALE,
+                  f"{path}.user_assumption must be an object.",
+                  field_path=f"{path}.user_assumption")
+    submode = str(parameters.get("delta_submode") or "")
+    if submode and submode not in sp.DELTA_SUBMODES:
+        raise_for(CONFIRMATION_STALE,
+                  f"{submode!r} is not a Delta submode. They are: "
+                  f"{', '.join(sp.DELTA_SUBMODES)}.",
+                  field_path=f"{path}.delta_submode")
     return ExecuteRequest(
         operation=EXECUTE, confirmation_digest=digest,
         reply=str(parameters.get("reply") or ""),
         methods=_methods(parameters.get("methods"), path=path,
-                         allow_empty=True))
+                         allow_empty=True),
+        user_assumption=dict(assumption), delta_submode=submode)
 
 
 def _preview_request(parameters: Mapping[str, Any], *, path: str,
@@ -300,15 +331,45 @@ def _preview_request(parameters: Mapping[str, Any], *, path: str,
         name=str(parameters.get("name") or "")[:120],
         clauses=tuple(str(c)[:400] for c in clauses),
         period=str(parameters.get("period") or ""),
-        scenario_id=str(parameters.get("scenario_id") or ""))
+        scenario_id=str(parameters.get("scenario_id") or ""),
+        baseline=_baseline(parameters.get("baseline"), path=path))
+
+
+def _baseline(raw: Any, *, path: str) -> dict[str, Any]:
+    """The stated lineage, or {} when the reader stated none."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise_for(CONFIRMATION_STALE, f"{path}.baseline must be an object.",
+                  field_path=f"{path}.baseline")
+    mode = str(raw.get("mode") or "")
+    if mode not in lay.MODES:
+        raise_for(CONFIRMATION_STALE,
+                  f"{path}.baseline.mode must be one of {lay.MODES}.",
+                  field_path=f"{path}.baseline.mode")
+    out: dict[str, Any] = {"mode": mode}
+    if mode == lay.PRIOR_SCENARIO:
+        parent = str(raw.get("parent_scenario_id") or "")
+        if not parent:
+            raise_for(CONFIRMATION_STALE,
+                      f"{path}.baseline names PRIOR_SCENARIO without the "
+                      f"parent_scenario_id to layer on.",
+                      field_path=f"{path}.baseline.parent_scenario_id")
+        out["parent_scenario_id"] = parent[:80]
+    return out
 
 
 def _methods(raw: Any, *, path: str,
-             allow_empty: bool = False) -> tuple[str, ...]:
+             allow_empty: bool = True) -> tuple[str, ...]:
+    """The methods the reader named -- or none.
+
+    THERE IS NO DEFAULT. This returned `(DELTA,)` for a request that named no
+    method, which is exactly how the live UAT ran a Delta-like calculation
+    the reader never chose (UAT-01). An unnamed method is an unresolved one,
+    and `execute_scenario` stops at METHOD_SELECTION until it is resolved.
+    """
     if raw is None:
-        if allow_empty:
-            return ()
-        return (sp.DELTA,)
+        return ()
     if isinstance(raw, (str, bytes)) or not isinstance(raw, Sequence):
         raise_for(CONFIRMATION_STALE,
                   f"{path}.methods must be a list.",
@@ -320,10 +381,9 @@ def _methods(raw: Any, *, path: str,
                   f"{unknown} are not methods this runtime has. They are: "
                   f"{', '.join(sp.METHODS)}.",
                   field_path=f"{path}.methods")
-    if not asked and not allow_empty:
+    if not asked and not allow_empty:  # pragma: no cover - kept for callers
         raise_for(METHOD_COVERAGE_GAP,
-                  f"{path}.methods is empty. A scenario with no method has "
-                  f"nothing to compute.", field_path=f"{path}.methods")
+                  f"{path}.methods is empty.", field_path=f"{path}.methods")
     # Deduplicated, order preserved: asking for Delta twice is one Delta.
     seen: list[str] = []
     for method in asked:
@@ -373,8 +433,18 @@ def _shock(raw: Any, *, domain_id: str, columns: Sequence[str],
                       f"relation, so a rule cannot be scoped by it. It has: "
                       f"{', '.join(sorted(columns))}.",
                       field_path=f"{path}.where")
-        scope[column] = sel.literal_value(
-            value, path=f"{path}.where.{column}")
+        if isinstance(value, (list, tuple)):
+            # A list scope is IN. Each value passes the same allowlist.
+            if not value or len(value) > sel.MAX_VALUES:
+                raise_for(CONFIRMATION_STALE,
+                          f"{path}.where.{column} lists {len(value)} values; "
+                          f"1 to {sel.MAX_VALUES} are allowed.",
+                          field_path=f"{path}.where.{column}")
+            scope[column] = [sel.literal_value(
+                v, path=f"{path}.where.{column}") for v in value]
+        else:
+            scope[column] = sel.literal_value(
+                value, path=f"{path}.where.{column}")
     return sp.Shock(field_id=field_id, amount=amount, where=scope,
                     origin=str(raw.get("origin") or "")[:400])
 
@@ -415,6 +485,28 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
     point -- a preview is a statement about what is about to be computed, and
     a preview that computed it would make the confirmation ceremonial.
     """
+    # SECOND SCENARIO: ORIGINAL BASELINE OR LAYERED? (§5.2, UAT-04/BASE01)
+    prior = _thread_scenario(store, run_id=run_id, tenant_id=tenant_id)
+    history = _executed_history(prior)
+    if history and not request.baseline:
+        return _baseline_question(history, domain_id=domain_id)
+    lineage: dict[str, Any] = {}
+    chain_bodies: list[dict[str, Any]] = []
+    if request.baseline.get("mode") == lay.PRIOR_SCENARIO:
+        parent = next((h for h in history if h["scenario_id"] ==
+                       request.baseline["parent_scenario_id"]), None)
+        if parent is None:
+            raise_for(CONFIRMATION_STALE,
+                      f"{request.baseline['parent_scenario_id']} is not an "
+                      f"executed scenario in this conversation. Executed "
+                      f"here: {[h['scenario_id'] for h in history] or 'none'}.",
+                      field_path="baseline.parent_scenario_id")
+        chain_bodies = list(parent.get("chain") or []) + [_chain_link(parent)]
+        lineage = {"mode": lay.PRIOR_SCENARIO,
+                   "parent_scenario_id": parent["scenario_id"],
+                   "parent_contract_digest": parent["confirmed_digest"]}
+    elif request.baseline.get("mode") == lay.SOURCE_BASELINE and history:
+        lineage = {}
     predicate = request.selection.predicate()
     selection = request.selection.selection
     described = request.selection.describe()
@@ -459,7 +551,7 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
             reporting_period=frozen.period),
         cohort=frozen.ref, shocks=request.shocks,
         methods=request.methods, delta_submode=request.delta_submode,
-        user_assumption=request.user_assumption,
+        user_assumption=request.user_assumption, baseline=lineage,
         name=request.name, original_clauses=request.clauses)
     graph = ru.compile_rules(draft)
     overlaps = ru.overlaps(draft)
@@ -469,9 +561,17 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
     clock.check("building the preview")
     _remember_spec(store, run_id=run_id, tenant_id=tenant_id,
                    release_id=release_id, spec=built.spec, frozen=frozen,
-                   headline=built.question())
+                   headline=built.question(), history=history,
+                   chain=chain_bodies)
     rows = _preview_rows(built, frozen=frozen, graph=graph,
                          overlaps=overlaps, release_id=release_id)
+    rows.append({MEASURE_KEY: "baseline:Lineage", "section": "baseline",
+                 "item": "Lineage",
+                 "detail": ("layered on the stressed result of "
+                            + lineage["parent_scenario_id"]) if lineage else
+                 "the original reported baseline",
+                 "value": lineage.get("mode", lay.SOURCE_BASELINE),
+                 "unit": "", "status": "stated"})
     return Produced(
         columns=list(rows[0].keys()) if rows else list(_PREVIEW_COLUMNS),
         rows=rows,
@@ -544,8 +644,7 @@ def _preview_rows(built: pv.Preview, *, frozen: ch.Frozen, graph: ru.Graph,
     for rule in graph.order():
         add("rules", rule.field_id, rule.origin or "",
             rule.amount.describe(),
-            status=("scoped to " + ", ".join(
-                f"{k}={v}" for k, v in sorted(rule.where.items())))
+            status=("scoped to " + _scope_label(rule.where))
             if rule.where else "every row in the cohort")
     add("rules", "Order applied",
         "rule order changes the answer, so it is part of the confirmation",
@@ -554,9 +653,13 @@ def _preview_rows(built: pv.Preview, *, frozen: ch.Frozen, graph: ru.Graph,
         add("overlaps", overlap.field_id, overlap.question(),
             " | ".join(overlap.options()),
             status=overlap.composition or "NEEDS A DECISION")
-    for method, state in _readiness(spec, release_id=release_id).items():
-        add("methods", rn.LABELS.get(method, method), "", method,
-            status=state)
+    chosen = set(spec.methods)
+    for method, state in availability(spec, release_id=release_id).items():
+        add("methods", rn.LABELS.get(method, method),
+            "chosen" if method in chosen else
+            ("not chosen" if chosen else
+             "choose after confirming — no method is assumed"),
+            method, status=state)
     add("policy", "Stages", "", spec.stage_policy)
     add("policy", "Overlay", "", spec.overlay_policy)
     add("policy", "FX", "", spec.fx_policy)
@@ -590,7 +693,10 @@ def _execute(request: ExecuteRequest, *, session: Any, scope: Any, store: Any,
         cohort_id=str(stored.get("cohort_id") or ""),
         cohort_baseline_ead=str(stored.get("cohort_baseline_ead") or "0"),
         cohort_baseline_ecl=str(stored.get("cohort_baseline_ecl") or "0"),
-        original_clauses=list(stored.get("original_clauses") or []))
+        original_clauses=list(stored.get("original_clauses") or []),
+        methods=list(stored.get("methods") or []),
+        delta_submode=str(stored.get("delta_submode") or ""),
+        user_assumption=dict(stored.get("user_assumption") or {}))
     offered = rebuilt.digest()
     if request.confirmation_digest != offered:
         raise_for(CONFIRMATION_STALE,
@@ -608,23 +714,23 @@ def _execute(request: ExecuteRequest, *, session: Any, scope: Any, store: Any,
     # `confirmed_digest == digest_now` comparison, which proves only that two
     # strings written at one moment still agree with each other.
     confirmed.require_confirmed()
-    if request.methods:
-        chosen = tuple(m for m in confirmed.methods if m in request.methods)
-        if not chosen:
-            raise_for(METHOD_COVERAGE_GAP,
-                      f"the approved scenario carries "
-                      f"{list(confirmed.methods)} and this run asked for "
-                      f"{list(request.methods)}. A method nobody approved is "
-                      f"not run, and narrowing to none leaves nothing to "
-                      f"compute.", field_path="methods")
-        if chosen != confirmed.methods:
-            # A narrowing is a different scenario and needs its own approval.
-            raise_for(CONFIRMATION_STALE,
-                      f"the reader approved {list(confirmed.methods)} and "
-                      f"this run asked for {list(chosen)}. Which methods run "
-                      f"is inside the confirmation, so a different set is a "
-                      f"new version with a new preview.",
-                      field_path="methods")
+    # THE METHOD GATE (§5.1, UAT-01). Confirmation approved the SCENARIO. The
+    # methodology is a separate decision: named at preview, or named now, or
+    # not yet -- and "not yet" is not executed.
+    chosen = request.methods or confirmed.methods
+    submode = request.delta_submode or confirmed.delta_submode
+    assumption = request.user_assumption or dict(confirmed.user_assumption)
+    confirmed = replace(confirmed, methods=tuple(chosen),
+                        delta_submode=submode, user_assumption=assumption)
+    gate = _method_gate(confirmed, release_id=release_id)
+    if gate is not None:
+        _remember_spec(store, run_id=run_id, tenant_id=tenant_id,
+                       release_id=release_id, spec=confirmed,
+                       frozen=_frozen_from_stored(stored, confirmed),
+                       headline=gate["headline"], method_state=gate["state"],
+                       history=stored.get("history") or [],
+                       chain=stored.get("chain") or [])
+        return _gate_result(confirmed, gate, release_id=release_id)
     rn.require_same_book(confirmed, release_id=release_id,
                          release_fingerprint=str(
                              getattr(scope, "release_fingerprint", "") or ""))
@@ -653,7 +759,8 @@ def _execute(request: ExecuteRequest, *, session: Any, scope: Any, store: Any,
                     # turns then sees one result reported twice rather than
                     # two results that happen to agree.
                     previous_run_id=str(
-                        stored.get("executed_run_id") or ""))
+                        stored.get("executed_run_id") or ""),
+                    stored=stored)
 
 
 #: Columns every scenario run reads, whatever it moves: the identity, the
@@ -679,27 +786,63 @@ GROUPINGS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
-             store: Any, run_id: str, tenant_id: str, release_id: str,
-             domain_id: str, frozen: ch.Frozen, clock: _Clock,
-             reply: str = "", previous_run_id: str = "") -> Produced:
-    """Every eligible method, against ONE contract, and the results composed.
+@dataclass
+class Computed:
+    """One confirmed scenario, executed -- everything a result is built from.
 
-    Section 12's requirement in one sentence: the same book, period, release,
-    cohort, revision, baseline and source versions for every method selected.
-    That is not enforced by discipline here -- it is enforced by there being
-    one `ScenarioSpec`, one `frozen` cohort and one set of `rows`, which every
-    method is handed. `run.execute` then refuses if any method's baseline
-    differs from another's, which is the check that would catch a future
-    method reading its own population.
+    The ONE execution object both entrances share: the Cockpit's
+    `execute_scenario` turns it into artifact rows, and the What-If
+    workspace turns it into a persisted Scenario Result. Neither computes
+    anything this does not.
     """
+
+    spec: sp.ScenarioSpec
+    frozen: ch.Frozen
+    plan: dl.Plan
+    rows: list[dict[str, Any]]
+    outcome: rn.Run
+    views: at.Views
+    summary: rs.Summary
+    ledgers: dict[str, lg.Ledger]
+    loaded: Any
+    unavailable: str
+    book_baseline: Decimal
+    book_rows: int
+    outside: Decimal
+
+
+def compute_core(confirmed: sp.ScenarioSpec, *, session: Any,
+                 domain_id: str, release_id: str, frozen: ch.Frozen,
+                 deadline_seconds: float = 120.0,
+                 rows_transform: Any = None,
+                 views: tuple[str, ...] = (at.ECONOMIC, at.MECHANISM),
+                 clock: Any = None,
+                 book_offset: Decimal = Decimal(0)) -> Computed:
+    """Every chosen method, against ONE contract. No store, no artifact.
+
+    `rows_transform`, when given, replaces the cohort's rows before any
+    method runs -- the hook a layered scenario uses to start from its
+    parent's stressed values rather than from the booked book (§5.2). It
+    never writes a source row.
+    """
+    clock = clock or _Clock(deadline_seconds * DEADLINE_SHARE)
     plan = dl.plan(confirmed)
     grain = ch.GRAIN[domain_id]
     rows = _cohort_rows(session, plan=plan, grain=grain, frozen=frozen,
-                        domain_id=domain_id)
+                        domain_id=domain_id,
+                        extra=getattr(rows_transform, "columns", ()))
+    if rows_transform is not None:
+        rows = rows_transform(rows)
     clock.check("reading the cohort")
     book_baseline, book_rows, outside = _book_totals(
         session, spec=confirmed, frozen=frozen)
+    if rows_transform is not None or book_offset:
+        # A layered child starts from the book its ancestors left: the book
+        # baseline carries their total change, and "outside the cohort" is
+        # that book less the cohort's (stressed) baseline -- the identity
+        # cohort + outside = book holds on the layered book exactly.
+        book_baseline = book_baseline + book_offset
+        outside = book_baseline - _total(rows, "ecl_sar_mn")
     clock.check("reading the book total")
     loaded, anchored, unavailable = _ml_inputs(
         confirmed, rows=rows, domain_id=domain_id, release_id=release_id,
@@ -712,21 +855,67 @@ def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
     clock.check("running the methods")
     ledgers = _ledgers(outcome, confirmed, rows=rows, plan=plan,
                        book_baseline=book_baseline)
-    views = _attribution(confirmed, rows=rows, plan=plan,
-                         baseline=_total(rows, "ecl_sar_mn"),
-                         headline=_delta_headline(outcome))
+    attributed = _attribution(confirmed, rows=rows, plan=plan,
+                              baseline=_total(rows, "ecl_sar_mn"),
+                              headline=_delta_headline(outcome), views=views)
     clock.check("attributing the movement")
     summary = _summary(confirmed, rows=rows, outcome=outcome, frozen=frozen,
                        book_baseline=book_baseline, book_rows=book_rows,
                        outside=outside, plan=plan)
+    return Computed(spec=confirmed, frozen=frozen, plan=plan, rows=rows,
+                    outcome=outcome, views=attributed, summary=summary,
+                    ledgers=ledgers, loaded=loaded, unavailable=unavailable,
+                    book_baseline=book_baseline, book_rows=book_rows,
+                    outside=outside)
+
+
+def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
+             store: Any, run_id: str, tenant_id: str, release_id: str,
+             domain_id: str, frozen: ch.Frozen, clock: _Clock,
+             reply: str = "", previous_run_id: str = "",
+             stored: Mapping[str, Any] | None = None) -> Produced:
+    """Every eligible method, against ONE contract, and the results composed.
+
+    Section 12's requirement in one sentence: the same book, period, release,
+    cohort, revision, baseline and source versions for every method selected.
+    That is not enforced by discipline here -- it is enforced by there being
+    one `ScenarioSpec`, one `frozen` cohort and one set of `rows`, which every
+    method is handed. `run.execute` then refuses if any method's baseline
+    differs from another's, which is the check that would catch a future
+    method reading its own population.
+    """
+    grain = ch.GRAIN[domain_id]
+    stored = dict(stored or {})
+    chain = _chain_from(stored, session=session, domain_id=domain_id)
+    # The book a layered scenario starts from is the book its ancestors left.
+    book_offset = sum((Decimal(str(c.get("delta_change") or 0))
+                       for c in stored.get("chain") or []), Decimal(0))
+    done = compute_core(confirmed, session=session, domain_id=domain_id,
+                        release_id=release_id, frozen=frozen, clock=clock,
+                        rows_transform=lay.transform(chain) if chain
+                        else None, book_offset=book_offset)
+    rows, outcome, views = done.rows, done.outcome, done.views
+    ledgers, summary, loaded = done.ledgers, done.summary, done.loaded
+    unavailable = done.unavailable
+    delta = outcome.outcomes.get(sp.DELTA)
+    decomposed = dc.from_computed(
+        done, component_of={}, selected_label=frozen.describe()[:120],
+        book_label="Total active book",
+        selected_equals_total=not frozen.predicate)
     _remember_spec(store, run_id=run_id, tenant_id=tenant_id,
                    release_id=release_id, spec=confirmed, frozen=frozen,
-                   headline=summary.headline(), executed=True)
+                   headline=summary.headline(), executed=True,
+                   history=stored.get("history") or [],
+                   chain=stored.get("chain") or [],
+                   delta_change=str(delta.change) if delta is not None
+                   and delta.change is not None else "",
+                   result=_result_record(done, decomposed, run_id=run_id))
     table = _result_rows(confirmed, outcome=outcome, summary=summary,
                          views=views, ledgers=ledgers, rows=rows,
                          frozen=frozen, domain_id=domain_id, loaded=loaded,
                          unavailable=unavailable, reply=reply,
                          previous_run_id=previous_run_id, run_id=run_id)
+    table += _decomposition_rows(decomposed)
     return Produced(
         columns=list(_RESULT_COLUMNS), rows=table,
         relations=(grain["relation"],),
@@ -744,12 +933,83 @@ def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
             "whatif_is_rerun": bool(previous_run_id
                                     and previous_run_id != run_id),
             "whatif_model_version": getattr(loaded, "model_version", ""),
+            "whatif_executed": True,
+            "whatif_baseline": dict(confirmed.baseline) or {
+                "mode": lay.SOURCE_BASELINE},
+            "whatif_execution_digest": confirmed.execution_digest(),
+            "whatif_decomposition": decomposed,
             "origin": "SYNTHETIC_DEMO"},
         warnings=list(outcome.notes))
 
 
+def _result_record(done: Computed, decomposed: Mapping[str, Any], *,
+                   run_id: str) -> dict[str, Any]:
+    """What an executed scenario published, compactly, for the thread."""
+    def outcome(o: rn.Outcome) -> dict[str, Any]:
+        change = o.change
+        pct = (change / o.baseline * 100) if change is not None and \
+            o.baseline else None
+        return {"method": o.method, "label": rn.LABELS.get(o.method, o.method),
+                "status": o.status, "ran": o.ran, "baseline": str(o.baseline),
+                "scenario": None if o.scenario is None else str(o.scenario),
+                "change": None if change is None else str(change),
+                "change_pct": None if pct is None else
+                str(pct.quantize(Decimal("0.0001"))),
+                "reason": o.reason, "limitations": list(o.limitations)}
+
+    out = done.outcome
+    return {"run_id": run_id,
+            "methods_ran": list(out.ran),
+            "methods_unavailable": {m: o.reason or o.status
+                                    for m, o in out.outcomes.items()
+                                    if not o.ran},
+            "results": {m: outcome(o) for m, o in out.outcomes.items()},
+            "decomposition": dict(decomposed),
+            "notes": list(out.notes),
+            "book": {"baseline": str(done.book_baseline),
+                     "outside_cohort": str(done.outside),
+                     "rows": done.book_rows},
+            "execution_digest": done.spec.execution_digest(),
+            "stage_policy": done.spec.stage_policy}
+
+
+def _decomposition_rows(decomposed: Mapping[str, Any]
+                        ) -> list[dict[str, Any]]:
+    """The universal decomposition as citable result rows, every scope and
+    every taxonomy component (N/A ones included, with the reason)."""
+    out: list[dict[str, Any]] = []
+    for method, d in decomposed.items():
+        for scope_name, s in d["scopes"].items():
+            for c in s["components"]:
+                row = {k: "" for k in _RESULT_COLUMNS}
+                row.update({
+                    "measure": f"decomposition:{scope_name}:{method}:"
+                               f"{c['id']}",
+                    "section": f"decomposition_{scope_name}",
+                    "view": scope_name, "method": method,
+                    "item": c["label"], "scope": s["label"][:120],
+                    "change_sar_mn": c["value"] or "",
+                    "unit": "SAR million", "status": c["status"],
+                    "note": c["reason"]})
+                out.append(row)
+        cross = d["cross_scope"]
+        row = {k: "" for k in _RESULT_COLUMNS}
+        row.update({"measure": f"decomposition:cross:{method}",
+                    "section": "decomposition_cross", "method": method,
+                    "item": "Selected + rest of book = total",
+                    "baseline_sar_mn": cross["selected_delta"],
+                    "scenario_sar_mn": cross["rest_of_book_delta"],
+                    "change_sar_mn": cross["total_delta"],
+                    "status": "RECONCILES" if cross["reconciles"]
+                    else "DOES NOT RECONCILE",
+                    "note": cross["rest_of_book_reason"]})
+        out.append(row)
+    return out
+
+
 def _cohort_rows(session: Any, *, plan: dl.Plan, grain: Mapping[str, str],
-                 frozen: ch.Frozen, domain_id: str) -> list[dict[str, Any]]:
+                 frozen: ch.Frozen, domain_id: str,
+                 extra: Sequence[str] = ()) -> list[dict[str, Any]]:
     """The cohort's rows, with exactly the columns this run reads.
 
     The predicate is `frozen.predicate`, which `selector` composed and
@@ -764,6 +1024,11 @@ def _cohort_rows(session: Any, *, plan: dl.Plan, grain: Mapping[str, str],
     for column in (*BASE_COLUMNS, *plan.fields(),
                    *GROUPINGS.get(domain_id, ()), "overlay_sar_mn",
                    "drawn_sar_mn", "undrawn_sar_mn", "balance_sar_mn", "ccf",
+                   # Read by the eligibility predicates (`fields.
+                   # sql_ineligibility`): a Retail LGD shock excludes
+                   # charged-off rows by `write_off_sar_mn > 0`, and the row
+                   # walk raised KeyError on the column it was never given.
+                   "write_off_sar_mn", *extra,
                    *[c for f in plan.factors for c, _ in f.scope]):
         if column in seen or column not in declared:
             continue
@@ -790,7 +1055,15 @@ def _cohort_rows(session: Any, *, plan: dl.Plan, grain: Mapping[str, str],
                   f"does not match the one that was approved.",
                   field_path="cohort",
                   approved=frozen.ref.entity_count, read=len(found))
-    return [{k: _as_decimal(v) for k, v in row.items()} for row in found]
+    out = [{k: _as_decimal(v) for k, v in row.items()} for row in found]
+    if "ccf" not in declared and "ccf" in (*plan.fields(), *extra):
+        # Corporate's CCF is DERIVED, not a column (`fields.ccf`): the row
+        # walk read `row["ccf"]` and raised KeyError on every CCF shock.
+        # Derived here exactly as `delta.baseline_ccf` defines it; None
+        # where undrawn is zero, which the eligibility predicate excludes.
+        for row in out:
+            row["ccf"] = dl.baseline_ccf(row)
+    return out
 
 
 def _as_decimal(value: Any) -> Any:
@@ -976,9 +1249,221 @@ def _readiness(spec: sp.ScenarioSpec, *, release_id: str) -> dict[str, str]:
     return pv.readiness(spec, release_id=release_id)
 
 
+def _thread_scenario(store: Any, *, run_id: str, tenant_id: str
+                     ) -> dict[str, Any] | None:
+    """The scenario body this thread holds, or None. Never raises."""
+    try:
+        record = store.get_run(run_id)
+        thread_id = str(getattr(record, "thread_id", "") or "")
+        seed = store.thread_context(thread_id, tenant_id=tenant_id) \
+            if thread_id else None
+    except Exception:  # noqa: BLE001 - a store without a run is a new thread
+        return None
+    return th.read(seed)
+
+
+_LINK_KEYS = ("scenario_id", "version", "name", "canonical",
+              "confirmed_digest", "cohort_predicate", "cohort_selection",
+              "reporting_period", "cohort_id", "cohort_baseline_ead",
+              "cohort_baseline_ecl", "methods", "executed_run_id",
+              "delta_change", "chain", "original_clauses")
+
+
+def _executed_history(prior: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Every scenario already EXECUTED in this conversation, oldest first."""
+    if not prior:
+        return []
+    out = [dict(h) for h in (prior.get("history") or [])]
+    if prior.get("executed_run_id") and not any(
+            h["scenario_id"] == prior["scenario_id"] for h in out):
+        out.append({k: prior.get(k) for k in _LINK_KEYS})
+    return out
+
+
+def _chain_link(entry: Mapping[str, Any]) -> dict[str, Any]:
+    return {k: entry.get(k) for k in _LINK_KEYS if k != "chain"}
+
+
+def _baseline_question(history: Sequence[Mapping[str, Any]], *,
+                       domain_id: str) -> Produced:
+    """Pause and ask: original baseline, or on top of which scenario?"""
+    last = history[-1]
+    period = last.get("reporting_period", "")
+    rows: list[dict[str, Any]] = []
+
+    def add(item: str, detail: str, value: Any, status: str) -> None:
+        rows.append({MEASURE_KEY: f"baseline:{item}", "section": "baseline",
+                     "item": item, "detail": detail, "value": value,
+                     "unit": "", "status": status})
+
+    add("Question", "Apply this new scenario to (A) the original reported "
+        f"baseline for {period}, or (B) on top of a scenario already run in "
+        "this conversation?", BASELINE_CHOICE_REQUIRED, "WAITING")
+    add("Option A", f"original reported baseline {period}",
+        lay.SOURCE_BASELINE, 'baseline={"mode": "SOURCE_BASELINE"}')
+    for h in reversed(history):
+        add(f"Option B: {h.get('name') or h['scenario_id']}",
+            f"layer on the stressed result of {h['scenario_id']}",
+            lay.PRIOR_SCENARIO,
+            'baseline={"mode": "PRIOR_SCENARIO", "parent_scenario_id": "'
+            + str(h["scenario_id"]) + '"}')
+    return Produced(
+        columns=list(_PREVIEW_COLUMNS), rows=rows,
+        relations=(ch.GRAIN[domain_id]["relation"],),
+        provenance={"whatif_operation": PREVIEW,
+                    "whatif_state": BASELINE_CHOICE_REQUIRED,
+                    "whatif_previewed": False,
+                    "whatif_executed_scenarios": [h["scenario_id"]
+                                                  for h in history],
+                    "origin": "SYNTHETIC_DEMO"},
+        warnings=["A scenario has already been executed in this "
+                  "conversation. The reader must choose the baseline; it is "
+                  "never assumed."])
+
+
+def _chain_from(stored: Mapping[str, Any], *, session: Any,
+                domain_id: str) -> list[lay.Ancestor]:
+    """The layered ancestors of a stored scenario, re-frozen and verified."""
+    out: list[lay.Ancestor] = []
+    grain = ch.GRAIN[domain_id]
+    for link in stored.get("chain") or []:
+        spec = sp.from_canonical(
+            link.get("canonical") or {}, scenario_id=link["scenario_id"],
+            version=int(link.get("version") or 1),
+            confirmed_digest=str(link.get("confirmed_digest") or ""),
+            methods=list(link.get("methods") or [sp.DELTA]))
+        where = f"{grain['period']} = '{link['reporting_period']}'"
+        if link.get("cohort_predicate"):
+            where += f" AND ({link['cohort_predicate']})"
+        if link.get("cohort_selection") == ch.BY_OWNER:
+            where = (f"{grain['period']} = '{link['reporting_period']}' AND "
+                     f"{grain['owner']} IN (SELECT {grain['owner']} FROM "
+                     f"{grain['relation']} WHERE {where})")
+        ids = ch._rows(session, f"SELECT {grain['key']} AS k FROM "
+                                f"{grain['relation']} WHERE {where}")
+        out.append(lay.Ancestor(spec=spec,
+                                members=frozenset(str(r["k"]) for r in ids),
+                                expected_digest=str(
+                                    link.get("confirmed_digest") or "")))
+    return out
+
+
+def availability(spec: sp.ScenarioSpec, *, release_id: str
+                 ) -> dict[str, str]:
+    """Every method's availability for this scenario, chosen or not.
+
+    ML from the emulator's own gates (never a constant); User-defined needs
+    the reader's assumption; Delta is always available for a Delta-able rule
+    set. Shown before the reader chooses (§7.1).
+    """
+    probe = replace(spec, methods=sp.METHODS)
+    out = pv.readiness(probe, release_id=release_id)
+    if not spec.user_assumption:
+        out[sp.USER_DEFINED] = "NEEDS_ASSUMPTION"
+    return out
+
+
+def _method_gate(spec: sp.ScenarioSpec, *, release_id: str
+                 ) -> dict[str, Any] | None:
+    """None when the chosen methods may run; otherwise the governed state.
+
+    * no method chosen -> METHOD_SELECTION_REQUIRED (not executed);
+    * User-defined chosen without its input -> METHOD_INPUT_REQUIRED;
+    * every chosen method unavailable (Retail ML while G4 fails) ->
+      METHOD_UNAVAILABLE, the scenario staying confirmed so another method
+      can be chosen without rebuilding it. Never a Delta fallback.
+    """
+    avail = availability(spec, release_id=release_id)
+    if not spec.method_resolved():
+        return {"state": METHOD_SELECTION_REQUIRED, "availability": avail,
+                "headline": ("Scenario confirmed — NOT executed. Choose how "
+                             "to translate it into ECL: Delta, the ML "
+                             "emulator, a User-defined impact, or compare.")}
+    if sp.USER_DEFINED in spec.methods and not spec.user_assumption:
+        return {"state": METHOD_INPUT_REQUIRED, "availability": avail,
+                "headline": ("Scenario confirmed — NOT executed. The "
+                             "User-defined method needs your impact "
+                             "assumption (a relative move, an absolute "
+                             "amount, a target total or a target rate). "
+                             "Nothing is guessed.")}
+    runnable = [m for m in spec.methods if avail.get(m) == "READY"]
+    if not runnable:
+        blocked = "; ".join(f"{rn.LABELS.get(m, m)}: {avail.get(m, '?')}"
+                            for m in spec.methods)
+        return {"state": METHOD_UNAVAILABLE, "availability": avail,
+                "headline": (f"Scenario confirmed — NOT executed. The chosen "
+                             f"method cannot run ({blocked}). No other "
+                             f"method is substituted; choose an available "
+                             f"one and the same confirmed scenario runs.")}
+    return None
+
+
+def _gate_result(spec: sp.ScenarioSpec, gate: dict[str, Any], *,
+                 release_id: str) -> Produced:
+    """A governed non-execution, as rows the reader is shown."""
+    rows: list[dict[str, Any]] = []
+
+    def add(section: str, item: str, **kw: Any) -> None:
+        row = {c: "" for c in _RESULT_COLUMNS}
+        row.update({"measure": f"{section}:{item}", "section": section,
+                    "item": item, **kw})
+        rows.append(row)
+
+    add("headline", "Status", status=gate["state"], note=gate["headline"])
+    add("headline", "Executed", status="NO",
+        note="No ECL was calculated. The scenario remains confirmed.")
+    for method in sp.METHODS:
+        add("method", rn.LABELS.get(method, method), method=method,
+            status=gate["availability"].get(method, ""),
+            note=("chosen" if method in spec.methods else "not chosen"))
+    add("method", "Compare methods", method="compare",
+        status="AVAILABLE" if sum(
+            1 for v in gate["availability"].values() if v == "READY") > 1
+        else "NOT ENOUGH METHODS AVAILABLE",
+        note="runs every chosen available method against the same "
+             "confirmed scenario, cohort and baseline")
+    add("confirmation", "Digest confirmed", status="CONFIRMED",
+        note=spec.confirmed_digest)
+    return Produced(
+        columns=list(_RESULT_COLUMNS), rows=rows,
+        relations=(ch.GRAIN[spec.source.domain_id]["relation"],),
+        provenance={
+            "whatif_operation": EXECUTE,
+            "whatif_state": gate["state"],
+            "whatif_executed": False,
+            "whatif_scenario_id": spec.scenario_id,
+            "whatif_scenario_version": spec.version,
+            "whatif_confirmation_digest": spec.confirmed_digest,
+            "whatif_methods_chosen": list(spec.methods),
+            "whatif_method_availability": dict(gate["availability"]),
+            "whatif_cohort_id": spec.cohort.cohort_id,
+            "whatif_membership_hash": spec.cohort.membership_hash,
+            "origin": "SYNTHETIC_DEMO"},
+        warnings=[gate["headline"]])
+
+
+def _frozen_from_stored(stored: Mapping[str, Any],
+                        spec: sp.ScenarioSpec) -> ch.Frozen:
+    """The frozen cohort as the thread stored it, for re-publishing."""
+    return ch.Frozen(
+        ref=spec.cohort, domain_id=spec.source.domain_id,
+        release_id=spec.source.release_id,
+        release_fingerprint=spec.source.release_fingerprint,
+        period=spec.source.reporting_period,
+        predicate=str(stored.get("cohort_predicate") or ""),
+        selection=str(stored.get("cohort_selection") or ch.BY_ROW),
+        owner_count=int(stored.get("cohort_owner_count") or 0),
+        described_as=str(stored.get("cohort_described_as") or ""))
+
+
 def _remember_spec(store: Any, *, run_id: str, tenant_id: str,
                    release_id: str, spec: sp.ScenarioSpec, frozen: ch.Frozen,
-                   headline: str = "", executed: bool = False) -> None:
+                   headline: str = "", executed: bool = False,
+                   method_state: str = "",
+                   history: Sequence[Mapping[str, Any]] = (),
+                   chain: Sequence[Mapping[str, Any]] = (),
+                   delta_change: str = "",
+                   result: Mapping[str, Any] | None = None) -> None:
     """Publish the scenario as the artifact `thread.remember` looks for.
 
     Published by the RUN, read by `worker.py` after the answer settles, and
@@ -1005,6 +1490,22 @@ def _remember_spec(store: Any, *, run_id: str, tenant_id: str,
         # execution made every first run report itself as a re-run of the
         # preview that produced it.
         stored["executed_run_id"] = run_id
+    stored["method_state"] = method_state or (
+        "EXECUTED" if executed else
+        "METHOD_CHOSEN" if spec.method_resolved() else "NOT_CHOSEN")
+    stored["method_selection"] = spec.method_selection()
+    # Lineage: every scenario already executed here, and the ancestors this
+    # one is layered on (verified by contract digest when it runs).
+    stored["history"] = [dict(h) for h in history]
+    stored["chain"] = [dict(c) for c in chain]
+    stored["baseline"] = dict(spec.baseline)
+    if delta_change:
+        stored["delta_change"] = delta_change
+    if result:
+        # The executed answer in the universal decomposition contract, so a
+        # workspace can open it as a governed Scenario Result (same Plotly
+        # view as a What-If run) without recomputing anything.
+        stored["last_result"] = dict(result)
     stored["cohort_predicate"] = frozen.predicate
     stored["cohort_selection"] = frozen.selection
     stored["cohort_described_as"] = frozen.described_as
@@ -1127,7 +1628,9 @@ def _coalition_value(spec: sp.ScenarioSpec,
 
 def _attribution(spec: sp.ScenarioSpec, *,
                  rows: Sequence[Mapping[str, Any]], plan: dl.Plan,
-                 baseline: Decimal, headline: Decimal) -> at.Views:
+                 baseline: Decimal, headline: Decimal,
+                 views: tuple[str, ...] = (at.ECONOMIC, at.MECHANISM)
+                 ) -> at.Views:
     """Both views of WHY the ECL moved, each reconciled to the same headline.
 
     Exact Shapley up to `EXACT_LIMIT` groups, seeded paired permutations
@@ -1135,8 +1638,9 @@ def _attribution(spec: sp.ScenarioSpec, *,
     The residual is shown as its own row by `Bridge.rows()` and is never
     spread across the drivers to make the arithmetic close.
     """
-    made: dict[str, at.Bridge | None] = {}
-    for view in (at.ECONOMIC, at.MECHANISM):
+    made: dict[str, at.Bridge | None] = {at.ECONOMIC: None,
+                                         at.MECHANISM: None}
+    for view in views:
         groups = _groups(spec, view)
         names = sorted(groups)
         if not names:

@@ -40,7 +40,8 @@ OTHER_PRINT = "af8a85c3fc6bad50" + "0" * 48
 def stored(spec: sp.ScenarioSpec | None = None, **over) -> dict:
     spec = spec or confirmed(
         source=source(release_id=RELEASE, release_fingerprint=PRINT),
-        name="Construction stress", original_clauses=("raise PD by 20%",))
+        name="Construction stress", original_clauses=("raise PD by 20%",),
+        methods=(sp.DELTA,))
     body = th.body(spec, domain_id="corporate", release_id=RELEASE,
                    release_fingerprint=PRINT, reporting_period="2026Q2",
                    run_id="run-1", headline="Construction stress")

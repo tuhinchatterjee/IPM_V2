@@ -19,8 +19,9 @@ test("VIZ14 the §10.2 semantic tokens are exactly the specification's", () => {
 test("driver identity is stable: unique ids, fixed order, colour by id", () => {
   const ids = DRIVERS.map((d) => d.id);
   assert.equal(new Set(ids).size, ids.length);
-  assert.equal(driverOrder("pd"), 0);
-  assert.ok(driverOrder("residual") === ids.length - 1);
+  assert.equal(driverOrder("opening"), 0);
+  assert.equal(driverOrder("closing"), ids.length - 1);
+  assert.ok(driverOrder("pd") < driverOrder("lgd") && driverOrder("lgd") < driverOrder("residual"));
   assert.equal(driverColor("pd"), SEMANTIC.pd);
   assert.equal(driverColor("unknown"), SEMANTIC.residual);
 });
@@ -28,4 +29,11 @@ test("driver identity is stable: unique ids, fixed order, colour by id", () => {
 test("increase and decrease are separable without hue (luminance differs)", () => {
   const diff = Math.abs(luminance(SEMANTIC.increase) - luminance(SEMANTIC.decrease));
   assert.ok(diff > 0.05, `luminance difference ${diff}`);
+});
+
+test("decomposition colours are varied: no two components share a colour", () => {
+  const colours = DRIVERS.map((d) => d.color.toLowerCase());
+  assert.equal(new Set(colours).size, colours.length);
+  const blues = colours.filter((c) => ["#2563eb", "#0ea5e9", "#0891b2"].includes(c));
+  assert.ok(blues.length <= 3, "not a wall of blue");
 });

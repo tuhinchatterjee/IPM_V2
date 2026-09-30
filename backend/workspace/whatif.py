@@ -225,7 +225,88 @@ def thread_cohort(who: dict[str, Any], thread_id: str) -> dict[str, Any]:
             "selection": stored.get("cohort_selection", ch.BY_ROW),
             "scenario_id": stored["scenario_id"], "state": stored["state"],
             "run_id": stored.get("run_id", ""),
+            "method_state": stored.get("method_state", ""),
+            "executed_run_id": stored.get("executed_run_id", ""),
+            "has_result": bool(stored.get("last_result")),
+            "methods_ran": (stored.get("last_result") or {}).get(
+                "methods_ran", []),
             "_predicate": stored["cohort_predicate"]}
+
+
+def adopt_thread_result(who: dict[str, Any], thread_id: str
+                        ) -> dict[str, Any]:
+    """The scenario a conversation EXECUTED, as a governed Scenario Result.
+
+    Nothing is recomputed: the thread holds the result its own run published
+    (the same universal decomposition, both scopes). Idempotent per run.
+    """
+    from backend.cockpit_v4.scenario import thread as th
+
+    principal = Principal.of(who)
+    found = thread_cohort(who, thread_id)
+    context = access.run_store().thread_context(thread_id,
+                                                tenant_id=principal.tenant)
+    stored = th.read(context) if context else None
+    result = (stored or {}).get("last_result")
+    if not found.get("has_cohort") or not result:
+        raise HTTPException(409, {
+            "error_code": "NOT_EXECUTED",
+            "message": "This conversation has not executed a scenario. A "
+                       "confirmed scenario runs only after a method is "
+                       "chosen."})
+    svc = service.objects()
+    for r in svc.list("scenario_result", principal,
+                      domain_id=stored["domain_id"]):
+        if r["body"].get("cockpit_run_id") == result["run_id"]:
+            return r
+    canonical = stored["canonical"]
+    cohort = {**canonical["cohort"],
+              "predicate": stored["cohort_predicate"],
+              "selection": stored.get("cohort_selection", ch.BY_ROW),
+              "period": stored["reporting_period"],
+              "owner_count": stored.get("cohort_owner_count"),
+              "described_as": stored.get("cohort_described_as", ""),
+              "description": stored.get("cohort_described_as", "")
+              or "Conversation cohort",
+              "object": {"cohort_id": "", "version": None,
+                         "name": stored.get("cohort_described_as", ""),
+                         "source": "conversation"}}
+    body = {
+        "scenario_id": stored["scenario_id"],
+        "scenario_version": stored.get("version", 1),
+        "scenario_name": stored.get("name") or "Conversation scenario",
+        "run_id": result["run_id"], "cockpit_run_id": result["run_id"],
+        "thread_id": thread_id, "session_id": thread_id, "entry": "cockpit",
+        "domain_id": stored["domain_id"], "release_id": stored["release_id"],
+        "period": stored["reporting_period"], "cohort": cohort,
+        "baseline": dict(stored.get("baseline") or {})
+        or {"mode": "SOURCE_BASELINE"},
+        "chain": [{k: c.get(k) for k in ("scenario_id", "name",
+                                         "executed_run_id", "delta_change")}
+                  for c in stored.get("chain") or []],
+        "contract_digest": stored.get("confirmed_digest", ""),
+        "execution_digest": result.get("execution_digest", ""),
+        "methods": {"chosen": [*result["methods_ran"],
+                               *result["methods_unavailable"]],
+                    "ran": result["methods_ran"],
+                    "unavailable": result["methods_unavailable"]},
+        "user_assumption": dict(stored.get("user_assumption") or {}),
+        "results": result["results"], "book": result["book"],
+        "decomposition": result["decomposition"], "stages": [],
+        "top_contributors": [], "notes": result.get("notes", []),
+        "stage_policy": result.get("stage_policy", "frozen"),
+        "evidence": "Executed in a Cockpit conversation by the engine; "
+                    "opened here without recomputation.",
+    }
+    book = access.book(who, stored["domain_id"])
+    return svc.create(
+        "scenario_result", principal, body,
+        title=f"Result: {body['scenario_name']}"[:160],
+        domain_id=stored["domain_id"], release_id=stored["release_id"],
+        fingerprint=book.fingerprint, period=stored["reporting_period"],
+        lineage={"origin": "conversation",
+                 "source": {"thread_id": thread_id,
+                            "run_id": result["run_id"]}})
 
 
 def adopt_thread_cohort(who: dict[str, Any], thread_id: str, *, name: str = ""

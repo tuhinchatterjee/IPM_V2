@@ -6,7 +6,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from backend.workspace import (exchange_api, grid_api, issues_api, metrics_api,
-                               objects_api, scenarios_api, whatif_api)
+                               objects_api, runs_api, scenarios_api,
+                               whatif_api)
 
 PREFIX = "/api/v1/cockpit-v4/workspace"
 
@@ -18,6 +19,7 @@ router.include_router(metrics_api.router)
 router.include_router(grid_api.router)
 router.include_router(scenarios_api.router)
 router.include_router(whatif_api.router)
+router.include_router(runs_api.router)
 
 # The workspace's saved cohorts become nameable by id in a scenario preview
 # (Cockpit or What-If), resolved and hash-verified by the engine.

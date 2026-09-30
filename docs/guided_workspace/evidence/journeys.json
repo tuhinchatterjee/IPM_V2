@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 18,
-  "total": 18,
+  "passed": 22,
+  "total": 22,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -393,6 +393,88 @@
       "thread_id": "th-d236d8ec763c4c3c80c3502d7fb6b2cb",
       "status": "PASS",
       "ms": 5887
+    },
+    {
+      "journey": "GW-P6-01",
+      "what": "UAT-01 in What-If: Construction 248 facilities / 100 borrowers, PD x1.20, LGD x1.10, stages fixed, CONFIRMED with NO method -> stops at METHOD SELECTION; nothing executed; then Delta runs and the dual-scope Plotly decomposition reconciles",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-01-method-selection.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-01-decomposition.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "entities": "248",
+      "owners": "100",
+      "headline": "Scenario confirmed — NOT executed. Choose how to translate it into ECL.",
+      "run_id": "wrun-5487ddc03e32",
+      "forced_execute_status": 409,
+      "reconciles": "true",
+      "components": 20,
+      "distinct_colours": 20,
+      "strip_method": "delta",
+      "status": "PASS",
+      "ms": 6339
+    },
+    {
+      "journey": "GW-P6-02",
+      "what": "Retail ML is visibly unavailable (G4) and refused without a Delta fallback; the same confirmed scenario then runs with Delta",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-02-ml-refused.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "ml_status": "UNAVAILABLE",
+      "ml_reason": "ML emulator validation gate failed: G4 (worst material-group WAPE): measured 0.343562 against a threshold of 0.15. Shown, never substituted.",
+      "gate": "chosen method cannot run (ML emulator: UNAVAILABLE); nothing is substituted",
+      "status": "PASS",
+      "ms": 4780
+    },
+    {
+      "journey": "GW-P6-03",
+      "what": "A second scenario asks ORIGINAL baseline or LAYER on the latest; A, then B layered on A, then C layered on A+B: lineage persists and the book starts where its ancestors left it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-03-baseline-question.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-03-abc.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "options_b": [
+        [
+          "SOURCE_BASELINE",
+          ""
+        ],
+        [
+          "PRIOR_SCENARIO",
+          "wrun-d7df1f9d3615"
+        ]
+      ],
+      "chain": [
+        "wrun-d7df1f9d3615",
+        "wrun-f584cb13e38e"
+      ],
+      "layered_book_baseline": "2098.468292313912139776727895",
+      "status": "PASS",
+      "ms": 10217
+    },
+    {
+      "journey": "GW-P6-04",
+      "what": "UAT-01 in the Cockpit conversation: preview with no method -> 'Yes, confirm the scenario' -> METHOD SELECTION, NOT executed -> Delta chosen as an ordinary turn -> the governed Plotly decomposition opens",
+      "prompts": [
+        "For the Construction borrowers, PD x1.20 and LGD x1.10, stages fixed.",
+        "Yes, confirm the scenario",
+        "Run the confirmed scenario with the Delta method."
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-04-method-selection.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-04-cockpit-decomposition.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-3067e197bdfa4b52969487240fa4b29e",
+      "preview_text": "One question firstNothing has been calculated. The rules below would apply to the 248 exposures of the cohort, frozen as coh-12ac83df854f. Confirming does NOT run it: you then choose the method.Apply these rules to the 248 exposures of the active cohort (coh-12ac83df854f)? Approve this scenario (a4c206fd654b)?Yes, confirm the scenarioNo, change somethingEvidenceart-80db63fbcde9484bScenario preview",
+      "method_state": "METHOD_SELECTION_REQUIRED",
+      "entities": 248,
+      "status": "PASS",
+      "ms": 13363
     }
   ]
 }

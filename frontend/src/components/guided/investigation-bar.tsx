@@ -22,9 +22,22 @@ import {
   type InvestigationState,
   type Suggestion,
 } from "@/lib/workspace/guided";
+import { ThreadWhatIf } from "@/components/guided/thread-whatif";
 import { cn } from "@/lib/utils";
 
-export function InvestigationBar({
+export function InvestigationBar(props: { threadId: string; busy: boolean; turnCount: number; onAsk: (question: string) => void }) {
+  // The What-If strip rides the same thread hook: a conversation that froze
+  // a cohort shows its scenario state whether or not it began as a guided
+  // investigation.
+  return (
+    <>
+      <ThreadWhatIf {...props} />
+      <InvestigationPath {...props} />
+    </>
+  );
+}
+
+function InvestigationPath({
   threadId,
   busy,
   turnCount,

@@ -816,6 +816,207 @@ async function p5Journeys() {
   });
 }
 
+
+// =========================================================================
+// P6 — Method gate, dual-scope decomposition, lineage
+// =========================================================================
+
+async function waitRunState(page, state, timeout = 120_000) {
+  await page.waitForFunction(
+    (want) => document.querySelector('[data-testid="whatif-run"]')?.getAttribute("data-state") === want,
+    state,
+    { timeout },
+  );
+}
+
+async function startScenarioRun(page, query) {
+  await openWhatIf(page, query);
+  await page.waitForSelector('[data-testid="whatif-run-start"]', { timeout: 120_000 });
+  await page.click('[data-testid="whatif-run-start"]');
+}
+
+async function confirmAndChoose(page, record, methods) {
+  await waitRunState(page, "SCENARIO_PREVIEW");
+  await page.click('[data-testid="whatif-run-confirm"]');
+  await waitRunState(page, "METHOD_SELECTION");
+  for (const m of methods) await page.check(`[data-testid="whatif-method-pick-${m}"]`);
+  await page.click('[data-testid="whatif-run-execute"]');
+}
+
+async function resultRendered(page) {
+  await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 180_000 });
+  await page.waitForSelector('[data-testid="whatif-waterfall-selected"][data-rendered="true"]', { timeout: 60_000 });
+  await page.waitForSelector('[data-testid="whatif-waterfall-total"][data-rendered="true"]', { timeout: 60_000 });
+}
+
+async function p6Journeys() {
+  await journey("GW-P6-01", "UAT-01 in What-If: Construction 248 facilities / 100 borrowers, PD x1.20, LGD x1.10, stages fixed, CONFIRMED with NO method -> stops at METHOD SELECTION; nothing executed; then Delta runs and the dual-scope Plotly decomposition reconciles", async (record) => {
+    const page = await open();
+    await startScenarioRun(page, "?scenario=scn-tpl-corp-02&from=library");
+    await waitRunState(page, "SCENARIO_PREVIEW");
+    const pop = page.locator('[data-testid="whatif-run-population"]');
+    record.entities = await pop.getAttribute("data-entities");
+    record.owners = await pop.getAttribute("data-owners");
+    assert.equal(record.entities, "248");
+    assert.equal(record.owners, "100");
+    assert.match(await page.textContent('[data-testid="whatif-run-preview"]'), /Stages frozen/);
+    await page.click('[data-testid="whatif-run-confirm"]');
+    await waitRunState(page, "METHOD_SELECTION");
+    record.headline = await page.textContent('[data-testid="whatif-method-headline"]');
+    assert.match(record.headline, /confirmed — NOT executed/);
+    for (const m of ["delta", "ml", "user_defined", "compare"]) await page.waitForSelector(`[data-testid="whatif-method-${m}"]`);
+    const picked = await page.$$eval('[data-testid^="whatif-method-pick-"]', (els) => els.filter((e) => e.checked).length);
+    assert.equal(picked, 0, "no method is preselected");
+    const runId = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    record.run_id = runId;
+    const forced = await api(`/whatif/runs/${runId}/execute`, { method: "POST" });
+    record.forced_execute_status = forced.status;
+    assert.equal(forced.status, 409, "a crafted execute without a method is refused");
+    const results = (await api(`/scenarios/scn-tpl-corp-02/results`)).body.results;
+    assert.equal(results.filter((r) => r.run_id === runId).length, 0, "nothing was executed");
+    await shot(page, record, "method-selection");
+    // Reopening the run keeps it at method selection.
+    await page.goto(`${UI}/what-if?run=${runId}`, { waitUntil: "domcontentloaded" });
+    await waitRunState(page, "METHOD_SELECTION");
+    await page.check('[data-testid="whatif-method-pick-delta"]');
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    const decomp = page.locator('[data-testid="whatif-decomposition"]');
+    record.reconciles = await decomp.getAttribute("data-reconciles");
+    assert.equal(record.reconciles, "true");
+    assert.equal(await page.getAttribute('[data-testid="whatif-cross-scope"]', "data-reconciles"), "true");
+    const rows = await page.$$eval('[data-testid="whatif-decomp-table"] tr[data-component]', (els) => els.map((e) => [e.dataset.component, e.dataset.status, e.dataset.selected]));
+    record.components = rows.length;
+    assert.equal(rows.length, 20, "every taxonomy component is listed");
+    const pd = rows.find((r) => r[0] === "pd");
+    const lgd = rows.find((r) => r[0] === "lgd");
+    assert.ok(Number(pd[2]) > 0 && Number(lgd[2]) > 0, "PD and LGD bars carry the movement");
+    // Same component, same colour and x in both scope charts.
+    const colours = await page.evaluate(() =>
+      ["selected", "total"].map((n) => {
+        const d = document.querySelector(`[data-testid="whatif-waterfall-${n}"]`)?.data?.[0];
+        return JSON.stringify([d?.x, d?.marker?.color]);
+      }),
+    );
+    assert.equal(colours[0], colours[1]);
+    record.distinct_colours = new Set(JSON.parse(colours[0])[1]).size;
+    assert.ok(record.distinct_colours >= 15, "varied colours, not one blue");
+    record.strip_method = await page.getAttribute('[data-testid="whatif-strip-method"]', "data-methods");
+    assert.equal(record.strip_method, "delta");
+    await shot(page, record, "decomposition");
+  });
+
+  await journey("GW-P6-02", "Retail ML is visibly unavailable (G4) and refused without a Delta fallback; the same confirmed scenario then runs with Delta", async (record) => {
+    const page = await open();
+    await startScenarioRun(page, "?domain=retail&scenario=scn-tpl-ret-01&from=library");
+    await waitRunState(page, "SCENARIO_PREVIEW");
+    await page.click('[data-testid="whatif-run-confirm"]');
+    await waitRunState(page, "METHOD_SELECTION");
+    record.ml_status = await page.getAttribute('[data-testid="whatif-method-ml"]', "data-status");
+    record.ml_reason = await page.textContent('[data-testid="whatif-method-reason-ml"]');
+    assert.equal(record.ml_status, "UNAVAILABLE");
+    assert.match(record.ml_reason, /G4/);
+    await page.check('[data-testid="whatif-method-pick-ml"]');
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "METHOD_UNAVAILABLE");
+    record.gate = await page.textContent('[data-testid="whatif-method-gate"]');
+    assert.match(record.gate, /nothing is substituted/);
+    assert.equal(await page.$('[data-testid="whatif-result"]'), null);
+    await shot(page, record, "ml-refused");
+    await page.uncheck('[data-testid="whatif-method-pick-ml"]');
+    await page.check('[data-testid="whatif-method-pick-delta"]');
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    assert.equal(await page.getAttribute('[data-testid="whatif-result"]', "data-methods-ran"), "delta");
+  });
+
+  await journey("GW-P6-03", "A second scenario asks ORIGINAL baseline or LAYER on the latest; A, then B layered on A, then C layered on A+B: lineage persists and the book starts where its ancestors left it", async (record) => {
+    const page = await open();
+    await startScenarioRun(page, "?scenario=scn-tpl-corp-01&from=library");
+    await confirmAndChoose(page, record, ["delta"]);
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    const runA = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    // B: another scenario in the same session -> the question, never assumed.
+    await page.goto(`${UI}/what-if?scenario=scn-tpl-corp-06`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-run-start"]', { timeout: 120_000 });
+    await page.click('[data-testid="whatif-run-start"]');
+    await waitRunState(page, "WAITING_BASELINE_CHOICE");
+    const options = await page.$$eval('[data-testid="whatif-baseline-option"]', (els) => els.map((e) => [e.dataset.mode, e.dataset.parent]));
+    record.options_b = options;
+    assert.deepEqual(options[0], ["SOURCE_BASELINE", ""]);
+    assert.ok(options.some((o) => o[1] === runA), "layer on A is offered");
+    await shot(page, record, "baseline-question");
+    await page.check(`[data-testid="whatif-baseline-option"][data-parent="${runA}"]`);
+    await page.click('[data-testid="whatif-baseline-choose"]');
+    await confirmAndChoose(page, record, ["delta"]);
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    const runB = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    assert.equal(await page.getAttribute('[data-testid="whatif-result-baseline"]', "data-mode"), "PRIOR_SCENARIO");
+    // C on A+B.
+    await page.goto(`${UI}/what-if?scenario=scn-tpl-corp-05`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-run-start"]', { timeout: 120_000 });
+    await page.click('[data-testid="whatif-run-start"]');
+    await waitRunState(page, "WAITING_BASELINE_CHOICE");
+    await page.check(`[data-testid="whatif-baseline-option"][data-parent="${runB}"]`);
+    await page.click('[data-testid="whatif-baseline-choose"]');
+    await confirmAndChoose(page, record, ["delta"]);
+    await waitRunState(page, "EXECUTED", 240_000);
+    await resultRendered(page);
+    const runC = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    const c = (await api(`/whatif/runs/${runC}`)).body;
+    record.chain = c.body.chain.map((l) => l.executed_run_id);
+    assert.deepEqual(record.chain, [runA, runB]);
+    const result = (await api(`/objects/${c.body.result_id}`)).body.body;
+    record.layered_book_baseline = result.book.baseline;
+    assert.equal(result.decomposition.delta.cross_scope.reconciles, true);
+    await shot(page, record, "abc");
+  });
+
+  await journey("GW-P6-04", "UAT-01 in the Cockpit conversation: preview with no method -> 'Yes, confirm the scenario' -> METHOD SELECTION, NOT executed -> Delta chosen as an ordinary turn -> the governed Plotly decomposition opens", async (record) => {
+    const page = await open();
+    await askFromHome(page, record, "For the Construction borrowers, PD x1.20 and LGD x1.10, stages fixed.");
+    await page.waitForFunction(() => {
+      const all = document.querySelectorAll('[data-testid="v4-turn-assistant"]');
+      return /Nothing has been calculated/.test(all[all.length - 1]?.textContent ?? "");
+    }, null, { timeout: 60_000 });
+    const shown = await page.locator('[data-testid="v4-turn-assistant"]').last().textContent();
+    record.preview_text = shown.slice(0, 400);
+    assert.match(shown, /Nothing has been calculated/);
+    assert.match(shown, /confirm the scenario/i);
+    let turnsNow = await turns(page);
+    await page.fill('[data-testid="v4-composer-input"]', "Yes, confirm the scenario");
+    record.prompts.push("Yes, confirm the scenario");
+    await page.click('[data-testid="v4-composer-send"]');
+    await settle(page, turnsNow);
+    await page.waitForFunction(() => document.querySelector('[data-testid="thread-whatif"]')?.getAttribute("data-method-state") === "METHOD_SELECTION_REQUIRED", null, { timeout: 60_000 });
+    const state = (await api(`/whatif/threads/${record.thread_id}/cohort`)).body;
+    record.method_state = state.method_state;
+    record.entities = state.entities;
+    assert.equal(state.entities, 248);
+    assert.equal(state.has_result, false, "confirmed, NOT executed");
+    await shot(page, record, "method-selection");
+    turnsNow = await turns(page);
+    await page.click('[data-testid="thread-whatif-method-delta"]');
+    record.prompts.push("Run the confirmed scenario with the Delta method.");
+    await settle(page, turnsNow);
+    await page.waitForFunction(() => document.querySelector('[data-testid="thread-whatif"]')?.getAttribute("data-has-result") === "true", null, { timeout: 60_000 });
+    await page.click('[data-testid="thread-whatif-open-result"]');
+    await page.waitForURL(/\/what-if\/result\/res-/, { timeout: 60_000 });
+    await resultRendered(page);
+    assert.equal(await page.getAttribute('[data-testid="whatif-decomposition"]', "data-reconciles"), "true");
+    assert.equal(await page.getAttribute('[data-testid="whatif-result"]', "data-methods-ran"), "delta");
+    await shot(page, record, "cockpit-decomposition");
+    // Back to the conversation that executed it: a live link, not a dead one.
+    await page.click('[data-testid="whatif-result-open-thread"]');
+    await page.waitForURL(new RegExp(`/cockpit/thread/${record.thread_id}`), { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 60_000 });
+  });
+}
+
 // =========================================================================
 
 async function main() {
@@ -825,6 +1026,7 @@ async function main() {
     await p3Journeys();
     await p4Journeys();
     await p5Journeys();
+    await p6Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

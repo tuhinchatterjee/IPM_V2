@@ -60,6 +60,10 @@ export interface ThreadCohort {
   described_as?: string;
   scenario_id?: string;
   state?: string;
+  method_state?: string;
+  executed_run_id?: string;
+  has_result?: boolean;
+  methods_ran?: string[];
 }
 
 export const readWhatIfContext = (domain: DomainId) => wsGet<WhatIfContext>(`/whatif/context?domain=${domain}`);
@@ -77,6 +81,9 @@ export const readThreadCohort = (threadId: string) => wsGet<ThreadCohort>(`/what
 
 export const adoptThreadCohort = (threadId: string, name = "") =>
   wsSend<Cohort>(`/whatif/threads/${encodeURIComponent(threadId)}/adopt-cohort`, { name });
+
+export const adoptThreadResult = (threadId: string) =>
+  wsSend<{ object_id: string; version: number }>(`/whatif/threads/${encodeURIComponent(threadId)}/adopt-result`, {});
 
 export const askContext = (cohortId: string, scenarioId: string) =>
   wsSend<Record<string, unknown>>("/whatif/ask-context", { cohort_id: cohortId, scenario_id: scenarioId });

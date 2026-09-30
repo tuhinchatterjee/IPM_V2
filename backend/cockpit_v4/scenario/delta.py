@@ -257,7 +257,7 @@ def plan(spec: sp.ScenarioSpec, *,
             storage=entry.storage,
             # Sorted, so two plans built from one spec carry the scope in one
             # order and a note or a digest over them cannot differ by it.
-            scope=tuple(sorted((str(k), v)
+            scope=tuple(sorted((str(k), _scope_value(v))
                                for k, v in (shock.where or {}).items()))))
 
     if unhandled and not structural:
@@ -373,6 +373,14 @@ def baseline_ccf(row: dict[str, Any]) -> Decimal | None:
 
 # ---- the small amount of interpretation this module does ---------------
 
+def _scope_value(value: Any) -> Any:
+    """A list scope value becomes a frozenset of strings: IN, with O(1)
+    membership for the row walk and a stable sorted rendering for SQL."""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return frozenset(str(v) for v in value)
+    return value
+
+
 def _in_scope(scope: Sequence[tuple[str, Any]],
               row: dict[str, Any]) -> bool:
     """Is this row inside the scope the reader gave one rule?
@@ -392,7 +400,10 @@ def _in_scope(scope: Sequence[tuple[str, Any]],
     for column, value in scope:
         if column not in row:
             return False
-        if str(row[column]) != str(value):
+        if isinstance(value, frozenset):
+            if str(row[column]) not in value:
+                return False
+        elif str(row[column]) != str(value):
             return False
     return True
 

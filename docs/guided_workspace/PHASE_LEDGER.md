@@ -237,7 +237,104 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS (execution of an applied scenario is P6's gate)
 
 ## P6 — Method selection, ECL execution, universal Plotly decomposition
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Method gate (engine, both entrances).** SCENARIO and METHOD are separate decisions.
+    `ScenarioSpec.methods` defaults to `()`; the method is no longer part of the scenario
+    contract (`canonical()`), so choosing or changing it reuses the same confirmation.
+    `bridge.execute_scenario` with no chosen method returns `METHOD_SELECTION_REQUIRED`
+    ("Scenario confirmed — NOT executed"), offers Delta / ML / User-defined / Compare with
+    availability, and computes nothing. User-defined without input → `METHOD_INPUT_REQUIRED`;
+    every chosen method unavailable → `METHOD_UNAVAILABLE`; no ML→Delta fallback, no Delta
+    default anywhere (parser, preview, thread, workspace).
+  * **What-If runs** (`backend/workspace/runs.py`, `runs_api.py`, object kind `run`):
+    `WAITING_BASELINE_CHOICE → SCENARIO_PREVIEW → SCENARIO_CONFIRMED → METHOD_SELECTION →
+    [METHOD_INPUT_REQUIRED | METHOD_UNAVAILABLE] → READY_TO_EXECUTE → EXECUTED`, every
+    transition a new object version with a state log. Execution rebuilds the engine contract
+    from the pinned scenario version + re-frozen cohort and refuses unless it hashes to the
+    confirmed digest; results persist as `scenario_result` objects. "Same scenario, another
+    method" derives a new run at METHOD_SELECTION on the same confirmed contract (BASE06).
+  * **One engine.** `scenario_engine.build` turns any Scenario Definition + governed cohort into
+    ONE engine `ScenarioSpec` (parameter/utilisation shocks; macro and collateral via the
+    governed sensitivity translation, macro merged as the §7.2 linear sum; rating and score via
+    masterscale / scorecard PD ratios; member-list scoping; explicit overlap policies —
+    compound declared to the engine, priority/max/min partition rows, additive merged). Runs
+    execute through `bridge.compute_core`, the same object the Cockpit uses: the UAT scenario's
+    Delta change is equal on both entrances to 1e-6 and the membership hashes are identical.
+    All 36 seeded templates build; the 6 whose components have no governed translation for a
+    method (e.g. RET-05 delinquency, RET-08 vehicle collateral, CORP-16 overlay) show that method
+    `BLOCKED` by name and remain runnable under User-defined.
+  * **Lineage.** A second run in a What-If session (or a second preview in a Cockpit thread) asks
+    "original reported baseline, or layered on which executed scenario?" and never assumes.
+    Layering reuses `scenario.layering` (overlay chain on copies of the rows, digest-verified
+    ancestors, book offset); A, B, A+B, A+B+C persist their chain. Layering on a parent run
+    that has no Delta row state is refused with the reason.
+  * **Universal decomposition** (`scenario/decomposition.py`, contract `gw-decomposition-1.0.0`):
+    20-component taxonomy (Opening, New originations, Repayment, Stage 1→2, Stage 2→3, Cures,
+    New defaults, PD, LGD, CCF/EAD/utilisation, Collateral, Rating/score, Macro, Sector/segment,
+    Management overlay/user-defined, Recoveries, Method effect (not attributable), Calibration
+    gap, Residual, Closing). Every result carries selected scope AND total book from one
+    execution; `opening + components + residual = closing` per scope and
+    `selected Δ + rest-of-book Δ = total Δ` are checked before publication and re-checked in the
+    browser from the published strings. Components not measured are `N/A` with the reason.
+  * **Plotly contract** (`frontend/src/lib/viz/decomposition.ts`, `components/whatif/result-view.tsx`):
+    per-component colour (20 distinct; palette ids/labels pinned to the server taxonomy by
+    `test_gw_decomposition_palette.py`), selected and total bridges on one scale with identical
+    x order and colours, click-to-highlight across both charts and the table, compact toggle for
+    N/A bars, cut axis labelled "Axis does not start at zero" when movement is small against
+    the level, KPI strips, cross-scope identity strip, method comparison, stage before/after,
+    largest contributors; every chart with View data / CSV / PNG / SVG; the table beneath lists
+    all 20 components for both scopes.
+  * **Entrances.** What-If (Run panel under the applied scenario; `?run=` reopens a run where it
+    stopped, a confirmed run reopens at METHOD SELECTION); Scenario Library ("Open in What-If
+    (preview, confirm, choose method, run)", results list per scenario, `/what-if/result/[id]`);
+    Cockpit (thread strip shows "confirmed — NOT executed" with the four methods as ordinary
+    turns; an executed thread opens as a governed Scenario Result without recomputation,
+    `POST /whatif/threads/{id}/adopt-result`, idempotent per run). Messages entrance is P7.
+* **Engine defects found and fixed (all present before this round):**
+  * Corporate CCF is DERIVED; the cohort read never supplied it, so every CCF shock raised
+    `KeyError('ccf')` (Cockpit included). Derived per row as `delta.baseline_ccf` defines it.
+  * Retail LGD Delta raised `KeyError('write_off_sar_mn')` (eligibility predicate column not read).
+  * Whole-book ledger rejected float noise (`outside_cohort < 0` → `< -CURRENCY`).
+* **Accepted tests changed (they encoded UAT-01):** `test_whatif_spec.py` (method no longer in
+  the contract; default `methods == ()`), `test_whatif_preview.py` (explicit methods; new
+  no-method test), `test_whatif_thread_context.py` (stored spec names its method),
+  `test_whatif_bridge.py` (the "narrowing after confirmation" refusal replaced by
+  `test_a_method_chosen_after_confirmation_reuses_the_same_approval`). `palette.test.ts` (P3)
+  updated for the full taxonomy order.
+* **P4 findings preserved:** RET-07 / CORP-03 collateral `SIGN_REVIEW` (LGD moves down when
+  collateral falls) survives into the run preview and the persisted result notes, shown in red;
+  the collateral bar is negative and is not corrected. Retail ML: `UNAVAILABLE — G4 0.343562 >
+  0.15` on every surface; refused when chosen.
+* **Tests:**
+  * `test_gw_method_gate.py` 16 (13 passed + 3 ML-runtime skips on the accepted interpreter;
+    16/16 on `.venv-whatif`) — includes the exact UAT reproduction (Construction, 248 facilities,
+    100 borrowers, PD ×1.20, LGD ×1.10, stages frozen, confirmed, no method → not executed).
+  * `test_gw_runs.py` 19/19 (workspace UAT, empty choice, parity with the Cockpit, dual-scope
+    identities, Retail ML refusal + compare, UD input, BLOCKED components, SIGN_REVIEW, CCF,
+    baseline question, A/B/A+B/A+B+C, refused layering, rerun, stale confirmation, owner-only,
+    listing, Cockpit result adoption).
+  * `test_gw_decomposition.py` 15/15; `test_gw_decomposition_palette.py` 2/2.
+  * Frontend `decomposition.test.ts` DEC01–DEC08 on a real engine decomposition (CORP-18);
+    `npm test` 633/633; `tsc` clean; eslint: 0 problems in new code (15 pre-existing in
+    protected `components/cockpit-v4/*`, `thread-view.tsx` unchanged at 2 errors / 3 warnings).
+  * Mutation proofs: (a) reinstating `_methods(None) → (DELTA,)` fails 6 gate tests;
+    (b) making workspace confirm fall through to Delta fails both workspace UAT tests;
+    (c) removing the CCF derivation fails `test_ccf_runs_on_the_derived_conversion_factor`.
+  * Regression: `tests/cockpit_v4 -k "whatif or gw_"` accepted interpreter **1153 passed,
+    3 failed (the 3 baseline env-bound), 5 skipped**; `.venv-whatif` GW + bridge + ml
+    **157 passed, 8 failed (exactly the 8 baseline-known)**.
+  * Browser (MODEL MOCK scripted analyst, real UI/API/stores/books) `GW-P6-01` (What-If UAT →
+    METHOD SELECTION, crafted execute 409, reopen, Delta, reconciled dual-scope Plotly with 20
+    components and ≥15 distinct colours), `GW-P6-02` (Retail ML refused, then Delta),
+    `GW-P6-03` (baseline question; A → B on A → C on A+B, chain persisted), `GW-P6-04` (Cockpit
+    UAT → METHOD SELECTION → Delta as an ordinary turn → governed decomposition → back to the
+    thread) — **4/4**.
+* **Protected files:** none added; check still 5 changed vs H2, all mapped (the Cockpit strip
+  rides the existing P3 `InvestigationBar` hook, an unprotected component).
+* **Open for P13:** accepted What-If browser journeys that preview a second scenario in one
+  thread now meet the baseline question (BASE01) — to be re-run and, where they encode the
+  old silent-baseline behaviour, recorded like the accepted unit tests above.
+* **Status:** PASS
 
 ## P7 — Composition, branching, lineage and collaboration
 * **Status:** NOT STARTED

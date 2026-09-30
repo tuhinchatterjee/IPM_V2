@@ -222,7 +222,8 @@ def test_c13_all_three_without_a_custom_rule_asks_for_that_rule(
 def test_the_delta_submode_is_shown(frozen) -> None:
     """Oracle O05 turns on the two submodes giving different answers, so a
     reader confirming one is entitled to see which."""
-    listed = build(frozen, delta_submode=sp.STRUCTURAL_EAD).body["methods"]
+    listed = build(frozen, methods=(sp.DELTA,),
+                   delta_submode=sp.STRUCTURAL_EAD).body["methods"]
     assert listed[0]["submode"] == sp.STRUCTURAL_EAD
 
 
@@ -297,12 +298,25 @@ def test_the_options_let_a_reader_change_their_mind(frozen) -> None:
 def test_the_preview_travels_as_an_ordinary_clarification(frozen) -> None:
     """No new disposition, no new route: the existing round trip carries it,
     and `context.build` already projects the reply back."""
-    payload = build(frozen).as_clarification()
+    payload = build(frozen, methods=(sp.DELTA,)).as_clarification()
     assert payload["disposition"] == "clarification"
     assert payload["clarification_question"].startswith("Shall I execute")
     assert len(payload["clarification_options"]) == 4
     assert payload["whatif_digest"] == build(frozen).digest()
     assert payload["narrative"]
+
+
+def test_a_preview_with_no_method_confirms_the_scenario_only(frozen) -> None:
+    """METH03: with no method chosen, the question confirms the SCENARIO and
+    says in so many words that confirming does not run it; no method is
+    named on the reader's behalf."""
+    payload = build(frozen).as_clarification()
+    question = payload["clarification_question"]
+    assert question.startswith("Confirm this scenario")
+    assert "does NOT run it" in question
+    assert "Shall I execute" not in question
+    assert all("Delta" not in o or "choose" in o.lower() or "method" in
+               o.lower() for o in payload["clarification_options"])
 
 
 def test_the_narrative_reads_in_the_order_a_reader_needs(frozen) -> None:

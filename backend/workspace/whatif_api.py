@@ -96,6 +96,13 @@ async def adopt_cohort(thread_id: str, body: AdoptBody,
     return whatif.adopt_thread_cohort(who, thread_id, name=body.name)
 
 
+@router.post("/whatif/threads/{thread_id}/adopt-result", status_code=201)
+async def adopt_result(thread_id: str,
+                       who: dict[str, Any] = Depends(v4routes.principal)
+                       ) -> dict[str, Any]:
+    return whatif.adopt_thread_result(who, thread_id)
+
+
 @router.post("/whatif/ask-context")
 async def ask_context(body: AskContext,
                       who: dict[str, Any] = Depends(v4routes.principal)

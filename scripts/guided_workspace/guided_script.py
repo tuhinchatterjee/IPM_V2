@@ -35,6 +35,17 @@ ACTIVE_COHORT = re.compile(
 
 SCENARIO_WORDS = re.compile(r"\b(increase|stress|raise|shock)\b|%")
 
+#: The live-UAT reproduction (UAT-01), typed exactly: Construction, PD x1.20,
+#: LGD x1.10, stages fixed, and NO method named.
+UAT_PREVIEW = re.compile(r"pd\s*x\s*1\.20")
+CONFIRM_ONLY = re.compile(r"\bconfirm the scenario\b")
+METHOD_TURN = re.compile(r"run the confirmed scenario with (?:the )?"
+                         r"(delta|ml emulator|a user-defined impact|delta and "
+                         r"the ml emulator)")
+METHODS_FOR = {"delta": ["delta"], "ml emulator": ["ml"],
+               "a user-defined impact": ["user_defined"],
+               "delta and the ml emulator": ["delta", "ml"]}
+
 GUIDED = re.compile(
     r"^(which|show|what changed|check whether|how does|compare pd|why|"
     r"what is driving|list the|where is)\b")
@@ -103,6 +114,15 @@ class GuidedProvider:
                  allow_retry=True, effort="", tool_choice=None,
                  output_config=None):
         question = self.base._question(messages)
+        q = question.strip().lower()
+        if UAT_PREVIEW.search(q):
+            return self._uat_preview(messages, question)
+        if CONFIRM_ONLY.search(q):
+            return self._confirm_only(messages, system, question)
+        chosen = METHOD_TURN.search(q)
+        if chosen:
+            return self._run_with(messages, system, question,
+                                  METHODS_FOR[chosen.group(1)])
         cohort_ref = active_cohort(messages, system)
         if cohort_ref and SCENARIO_WORDS.search(question) and not any(
                 w in question for w in ("yes", "run it", "confirm")):
@@ -114,9 +134,8 @@ class GuidedProvider:
                 role=role, timeout=timeout, allow_retry=allow_retry,
                 effort=effort, tool_choice=tool_choice,
                 output_config=output_config)
-        from conftest import ScriptedResult, final, intent, tool_call
-
         import whatif_stub_server as base_mod
+        from conftest import ScriptedResult, final, intent, tool_call
 
         turn = sum(1 for m in messages if m.get("role") == "assistant")
         time.sleep(0.3)
@@ -177,11 +196,105 @@ class GuidedProvider:
             "tu-wi-cohort")])
 
 
-def _clarify(messages, question: str) -> Any:
-    """The preview, published as a clarification the reader confirms."""
-    from conftest import ScriptedResult, final, intent, tool_call
+    # -- UAT-01, scripted: preview with no method, confirm, THEN choose -----
 
+    @staticmethod
+    def _step(parameters: dict[str, Any], purpose: str) -> dict[str, Any]:
+        return {"step_id": "s1", "language": "whatif_scenario",
+                "code": purpose, "parameters": parameters,
+                "purpose": purpose, "input_artifact_ids": None,
+                "depends_on_step_ids": None}
+
+    def _submit(self, question: str, step: dict[str, Any], tag: str) -> Any:
+        from conftest import ScriptedResult, intent, tool_call
+
+        return ScriptedResult(tool_calls=[tool_call(
+            "execute_analysis",
+            {"intent": intent("DATA_ANALYSIS", "COCKPIT", understood=question),
+             "objective": step["purpose"], "subquestions": [question[:200]],
+             "metadata_receipt_ids": None, "fields_required": None,
+             "expected_output_grain": "one row per measure",
+             "expected_units": {}, "steps": [step],
+             "repair_of_submission_id": None}, tag)])
+
+    def _uat_preview(self, messages, question: str):
+        turn = sum(1 for m in messages if m.get("role") == "assistant")
+        time.sleep(0.3)
+        if turn > 0:
+            return _clarify(messages, question, method_free=True)
+        return self._submit(question, self._step({
+            "operation": "preview_scenario",
+            "cohort": {"filters": [{"column": "sector", "operator": "=",
+                                    "value": "Construction"}]},
+            "shocks": [{"field": "pd_pit_12m", "operation": "multiply",
+                        "value": "1.20", "origin": "PD x1.20"},
+                       {"field": "lgd_pct", "operation": "multiply",
+                        "value": "1.10", "origin": "LGD x1.10"}],
+            "clauses": [question[:400]]},
+            "preview the scenario; no method is assumed"), "tu-uat-preview")
+
+    def _confirm_only(self, messages, system, question: str):
+        import whatif_stub_server as base_mod
+        from conftest import ScriptedResult, final, intent, tool_call
+
+        turn = sum(1 for m in messages if m.get("role") == "assistant")
+        time.sleep(0.3)
+        if turn == 0:
+            return self._submit(question, self._step({
+                "operation": "execute_scenario",
+                "confirmation_digest": base_mod._stored_digest(messages,
+                                                               system),
+                "reply": "yes"}, "confirm the scenario the reader approved"),
+                "tu-uat-confirm")
+        step = base_mod._step_of(messages)
+        return ScriptedResult(tool_calls=[tool_call(
+            "finalize_response",
+            final(intent=intent("DATA_ANALYSIS", "COCKPIT",
+                                understood=question),
+                  disposition="clarification",
+                  narrative=("Scenario confirmed — NOT executed. No ECL was "
+                             "calculated: the scenario and the method are "
+                             "separate decisions, and no method was chosen."),
+                  clarification_question=("Which method should translate "
+                                          "the confirmed scenario into ECL: "
+                                          "Delta, the ML emulator, a "
+                                          "User-defined impact, or compare "
+                                          "them?"),
+                  clarification_options=["Delta", "ML emulator",
+                                         "User-defined", "Compare methods"],
+                  tables=[{"title": "Method selection",
+                           "artifact_id": str(step.get("artifact_id") or ""),
+                           "columns": ["section", "item", "method", "status",
+                                       "note"]}]),
+            "tu-uat-method")])
+
+    def _run_with(self, messages, system, question: str, methods: list[str]):
+        import whatif_stub_server as base_mod
+
+        turn = sum(1 for m in messages if m.get("role") == "assistant")
+        time.sleep(0.3)
+        if turn == 0:
+            return self._submit(question, self._step({
+                "operation": "execute_scenario",
+                "confirmation_digest": base_mod._stored_digest(messages,
+                                                               system),
+                "reply": "yes", "methods": methods},
+                f"run the confirmed scenario with {', '.join(methods)}"),
+                "tu-uat-run")
+        from conftest import ScriptedResult, final, intent, tool_call
+
+        return ScriptedResult(tool_calls=[tool_call(
+            "finalize_response",
+            base_mod.answer_body(base_mod._step_of(messages),
+                                 question=question, charts=True,
+                                 intent_of=intent, final_of=final),
+            "tu-uat-answer")])
+
+
+def _clarify(messages, question: str, method_free: bool = False) -> Any:
+    """The preview, published as a clarification the reader confirms."""
     import whatif_stub_server as base_mod
+    from conftest import ScriptedResult, final, intent, tool_call
 
     step = base_mod._step_of(messages)
     rows = base_mod._rows_from(messages)
@@ -193,13 +306,19 @@ def _clarify(messages, question: str) -> Any:
         final(intent=intent("DATA_ANALYSIS", "COCKPIT", understood=question),
               disposition="clarification",
               narrative=(f"Nothing has been calculated. The rules below would "
-                         f"apply to the {n} exposures of the active What-If "
-                         f"cohort, frozen as {cohort}."),
+                         f"apply to the {n} exposures of the "
+                         f"{'cohort' if method_free else 'active What-If cohort'}"
+                         f", frozen as {cohort}."
+                         + (" Confirming does NOT run it: you then choose "
+                            "the method." if method_free else "")),
               clarification_question=(f"Apply these rules to the {n} "
                                       f"exposures of the active cohort "
                                       f"({cohort})? Approve this scenario "
                                       f"({digest[:12]})?"),
-              clarification_options=["Yes, run it", "No, change something"],
+              clarification_options=(["Yes, confirm the scenario",
+                                      "No, change something"]
+                                     if method_free else
+                                     ["Yes, run it", "No, change something"]),
               tables=[{"title": "Scenario preview",
                        "artifact_id": str(step.get("artifact_id") or ""),
                        "columns": ["section", "item", "detail", "value",

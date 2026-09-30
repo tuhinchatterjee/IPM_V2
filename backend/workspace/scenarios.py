@@ -297,6 +297,26 @@ def bind(svc: ObjectService, who: dict[str, Any], object_id: str,
     return {"scenario": obj, "cohort_check": check}
 
 
+def results(svc: ObjectService, who: dict[str, Any], object_id: str
+            ) -> list[dict[str, Any]]:
+    """Persisted results of this scenario (any version), newest first."""
+    principal = Principal.of(who)
+    svc.get(object_id, principal)
+    out = []
+    for r in svc.list("scenario_result", principal):
+        b = r["body"]
+        if b.get("scenario_id") != object_id:
+            continue
+        out.append({**svc.summary(r), "run_id": b.get("run_id", ""),
+                    "scenario_version": b.get("scenario_version"),
+                    "methods_ran": b["methods"]["ran"],
+                    "baseline_mode": b["baseline"].get("mode", ""),
+                    "cohort": b["cohort"].get("description", ""),
+                    "changes": {m: v.get("change") for m, v in
+                                b["results"].items() if v.get("ran")}})
+    return sorted(out, key=lambda x: -x["created_at"])
+
+
 def retire(svc: ObjectService, who: dict[str, Any], object_id: str
            ) -> dict[str, Any]:
     principal = Principal.of(who)

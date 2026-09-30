@@ -40,6 +40,7 @@ KINDS: dict[str, str] = {
     "metric": "met",
     "alert": "alr",
     "issue": "iss",
+    "run": "wrun",
 }
 
 #: Fields the body of each kind must carry. Checked on every write, so a
@@ -65,6 +66,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "alert": ("rule_id", "rule_version", "lens_id", "lens_version",
               "observed", "threshold", "state", "severity"),
     "issue": ("title", "severity", "evidence"),
+    "run": ("scenario_id", "scenario_version", "scenario_name", "domain_id",
+            "session_id", "cohort", "state", "methods_chosen", "state_log"),
 }
 
 #: Status vocabularies, per kind. A status outside these is refused.
@@ -76,6 +79,9 @@ STATUSES: dict[str, tuple[str, ...]] = {
     "alert": ("NEW", "ACTIVE", "WORSENING", "ACKNOWLEDGED", "RESOLVED",
               "SUPPRESSED"),
     "lens": ("ACTIVE", "DRAFT", "ARCHIVED"),
+    "run": ("WAITING_BASELINE_CHOICE", "SCENARIO_PREVIEW",
+            "SCENARIO_CONFIRMED", "METHOD_SELECTION", "METHOD_INPUT_REQUIRED",
+            "METHOD_UNAVAILABLE", "READY_TO_EXECUTE", "EXECUTED"),
 }
 
 ADMIN_ROLES = frozenset({"administrator"})

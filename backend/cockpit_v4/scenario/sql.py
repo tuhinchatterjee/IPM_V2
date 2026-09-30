@@ -166,7 +166,9 @@ def scope_sql(factor: dl.Factor) -> str:
     if not factor.scope:
         return ""
     return " AND ".join(
-        sel.Filter(column=c, operator="=", values=(v,)).sql()
+        (sel.Filter(column=c, operator="in", values=tuple(sorted(v))).sql()
+         if isinstance(v, frozenset) else
+         sel.Filter(column=c, operator="=", values=(v,)).sql())
         for c, v in factor.scope)
 
 

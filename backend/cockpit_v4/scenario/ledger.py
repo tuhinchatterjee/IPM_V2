@@ -242,7 +242,9 @@ class Ledger:
     def _check_book_identity(self) -> None:
         if self.book_baseline == 0:
             return
-        if self.outside_cohort < 0:
+        # A whole-book cohort summed in Decimal and the book summed by the
+        # engine differ by float noise (~1e-9); only a real excess refuses.
+        if self.outside_cohort < -CURRENCY:
             raise_for(RECONCILIATION_FAILED,
                       f"the cohort's baseline of {self.baseline} exceeds the "
                       f"book's {self.book_baseline}. One of the two was "

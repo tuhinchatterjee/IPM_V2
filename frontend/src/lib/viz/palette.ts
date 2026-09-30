@@ -34,42 +34,66 @@ export const SEMANTIC = {
 export type SemanticToken = keyof typeof SEMANTIC;
 
 /**
- * The universal ECL decomposition driver taxonomy: stable id, label, order
- * and colour. Every bridge in the product -- historical movement, What-If on
- * a customer, a cohort or the whole book, comparisons, reopen, export -- is
- * drawn from this list, so the same driver has the same identity everywhere.
- * The server (`backend/workspace/decomposition.py`) owns the same list and a
- * test pins the two together.
+ * The universal ECL decomposition taxonomy: stable id, label, order and
+ * colour. Every decomposition in the product -- a scenario's selected scope
+ * and total book, a method comparison, a reopened or shared result, an
+ * export -- is drawn from this list, so the same component has the same
+ * identity everywhere. The server owns the same ids in the same order
+ * (`backend/cockpit_v4/scenario/decomposition.py` TAXONOMY) and
+ * `tests/cockpit_v4/test_gw_decomposition_palette.py` pins the two together.
+ *
+ * Colours are deliberately varied (not one blue): each driver family keeps
+ * its §10.2 token, and the between-period flows get their own hues.
  */
 export const DRIVERS = [
-  { id: "pd", label: "PD", token: "pd" },
-  { id: "lgd", label: "LGD", token: "lgd" },
-  { id: "ccf_ead", label: "CCF / EAD", token: "ccf" },
-  { id: "rating_score", label: "Rating / score", token: "rating" },
-  { id: "stage", label: "Stage / SICR", token: "stage" },
-  { id: "macro", label: "Macro (MEV)", token: "macro" },
-  { id: "sector_segment", label: "Sector / segment", token: "sector" },
-  { id: "user_defined", label: "User-defined / overlay", token: "userDefined" },
-  { id: "new_business", label: "New business", token: "ccf" },
-  { id: "exits", label: "Exits / repayments", token: "decrease" },
-  { id: "calibration_gap", label: "Calibration gap", token: "calibration" },
-  { id: "residual", label: "Interaction / residual", token: "residual" },
-] as const satisfies readonly { id: string; label: string; token: SemanticToken }[];
+  { id: "opening", label: "Opening ECL", color: SEMANTIC.baseline },
+  { id: "new_originations", label: "New originations", color: "#0891B2" },
+  { id: "repayment_amortisation", label: "Repayment / amortisation", color: "#65A30D" },
+  { id: "stage_1_to_2", label: "Stage 1 → 2", color: SEMANTIC.stage },
+  { id: "stage_2_to_3", label: "Stage 2 → 3", color: "#BE185D" },
+  { id: "cures", label: "Cures", color: SEMANTIC.decrease },
+  { id: "new_defaults", label: "New defaults", color: "#DC2626" },
+  { id: "pd", label: "PD", color: SEMANTIC.pd },
+  { id: "lgd", label: "LGD", color: SEMANTIC.lgd },
+  { id: "ccf_ead", label: "CCF / EAD / utilisation", color: SEMANTIC.ccf },
+  { id: "collateral", label: "Collateral", color: "#B45309" },
+  { id: "rating_score", label: "Rating / score migration", color: SEMANTIC.rating },
+  { id: "macro", label: "Macro (MEV)", color: SEMANTIC.macro },
+  { id: "sector_segment", label: "Sector / segment rule", color: SEMANTIC.sector },
+  { id: "management_overlay", label: "Management overlay / user-defined", color: SEMANTIC.userDefined },
+  { id: "recoveries", label: "Recoveries / write-offs", color: "#4D7C0F" },
+  { id: "unattributed_method_effect", label: "Method effect (not attributable)", color: SEMANTIC.selected },
+  { id: "calibration_gap", label: "Calibration gap", color: SEMANTIC.calibration },
+  { id: "residual", label: "Interaction / residual", color: SEMANTIC.residual },
+  { id: "closing", label: "Closing ECL", color: "#334155" },
+] as const satisfies readonly { id: string; label: string; color: string }[];
 
 export type DriverId = (typeof DRIVERS)[number]["id"];
 
+/** Older driver names still used by some callers, mapped to the taxonomy. */
+const ALIASES: Record<string, DriverId> = {
+  stage: "stage_1_to_2",
+  user_defined: "management_overlay",
+  new_business: "new_originations",
+  exits: "repayment_amortisation",
+};
+
+function driver(id: string) {
+  const key = ALIASES[id] ?? id;
+  return DRIVERS.find((d) => d.id === key);
+}
+
 export function driverColor(id: string): string {
-  const found = DRIVERS.find((d) => d.id === id);
-  return SEMANTIC[(found?.token ?? "residual") as SemanticToken];
+  return driver(id)?.color ?? SEMANTIC.residual;
 }
 
 export function driverLabel(id: string): string {
-  return DRIVERS.find((d) => d.id === id)?.label ?? id;
+  return driver(id)?.label ?? id;
 }
 
 export function driverOrder(id: string): number {
-  const index = DRIVERS.findIndex((d) => d.id === id);
-  return index < 0 ? DRIVERS.length : index;
+  const found = driver(id);
+  return found ? DRIVERS.indexOf(found) : DRIVERS.length;
 }
 
 /** Stage colours: calm → alarming, legible without colour via labels. */

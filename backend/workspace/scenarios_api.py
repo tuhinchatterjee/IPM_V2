@@ -86,6 +86,13 @@ async def scenario_meta(who: dict[str, Any] = Depends(v4routes.principal)
             "library_version": lib.LIBRARY_VERSION}
 
 
+@router.get("/scenarios/{object_id}/results")
+async def scenario_results(object_id: str,
+                           who: dict[str, Any] = Depends(v4routes.principal)
+                           ) -> dict[str, Any]:
+    return {"results": scenarios.results(service.objects(), who, object_id)}
+
+
 @router.get("/scenarios/{object_id}")
 async def read_scenario(object_id: str, version: int | None = None,
                         who: dict[str, Any] = Depends(v4routes.principal)
