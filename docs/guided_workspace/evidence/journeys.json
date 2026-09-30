@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 30,
-  "total": 30,
+  "passed": 33,
+  "total": 33,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -60,6 +60,52 @@
       ],
       "status": "PASS",
       "ms": 1268
+    },
+    {
+      "journey": "GW-P10-01",
+      "what": "Monitoring Centre first launch: live breaches and labelled historical replay; an alert shows rule/Lens/metric versions and history; Open Lens restores the triggering period and population; acknowledging needs a note; Investigate opens Cockpit",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-01-alert.png",
+        "docs/guided_workspace/evidence/journeys/GW-P10-01-lens-at-trigger.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "active": "9",
+      "lens_state": "Active statecorporate 2026Q2 (latest)Lens scope: corporate: sector ∈ Construction, Real Estatecorporate: sector ∈ Construction, Real Estatereset to latest, unfiltered",
+      "status": "PASS",
+      "ms": 6114
+    },
+    {
+      "journey": "GW-P10-02",
+      "what": "Follow a Lens → its refresh raises a breach → an Inbox card from Monitoring with Open Lens / Investigate / What-If → What-If opens with the alert's population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-02-inbox-alert.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Refreshed: No material change since the previous refresh. · 1 alert(s) raised — see Monitoring Centre",
+      "actions": [
+        "message-action-open",
+        "message-action-open_monitoring",
+        "message-action-investigate",
+        "message-action-whatif",
+        "message-action-comment"
+      ],
+      "status": "PASS",
+      "ms": 6268
+    },
+    {
+      "journey": "GW-P10-03",
+      "what": "The scheduler's step on demand: due Lenses refresh (idempotent on unchanged releases) and the refresh-health table shows cadence, last success and what is due",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-03-health.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Scheduler step: 1 Lens(es) refreshed, 0 failed, 22 not due.",
+      "health_rows": 23,
+      "status": "PASS",
+      "ms": 1166
     },
     {
       "journey": "GW-P3-01-CORP",

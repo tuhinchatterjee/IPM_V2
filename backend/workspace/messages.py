@@ -109,6 +109,14 @@ def _actions(obj: dict[str, Any], *, recipient: bool) -> list[dict[str, str]]:
     elif kind == "comparison":
         add("open", "Open comparison", f"/what-if/compare/{oid}")
         add("save", "Save a copy")
+    elif kind == "alert":
+        add("open", "Open Lens at the trigger",
+            f"/lenses/{b['lens_id']}?alert={oid}")
+        add("open_monitoring", "Open in Monitoring Centre",
+            f"/monitoring?alert={oid}")
+        if b.get("alert_type") == "breach":
+            add("investigate", "Investigate in Cockpit")
+            add("whatif", "What-If on this population")
     elif kind == "lens":
         add("open", "Open Lens", f"/lenses/{oid}")
         add("save", "Save my own copy")
@@ -119,7 +127,8 @@ def _actions(obj: dict[str, Any], *, recipient: bool) -> list[dict[str, str]]:
     add("comment", "Comment")
     if not recipient:
         out = [a for a in out if a["action"] in ("open", "comment",
-                                                 "open_thread")]
+                                                 "open_thread",
+                                                 "open_monitoring")]
     return out
 
 
@@ -234,9 +243,25 @@ def investigate(svc: ObjectService, who_raw: dict[str, Any], share_id: str
                 ) -> dict[str, Any]:
     p = Principal.of(who_raw)
     _row, obj = _shared(svc, p, share_id)
+    if obj["kind"] == "alert":
+        from backend.workspace import monitoring
+
+        return monitoring.investigate(svc, who_raw, obj["object_id"])
     if obj["kind"] != "cohort":
         _refuse(422, "NOT_A_COHORT", "only a cohort is investigated.")
     return whatif.investigate(who_raw, obj["object_id"])
+
+
+def whatif_population(svc: ObjectService, who_raw: dict[str, Any],
+                      share_id: str) -> dict[str, Any]:
+    """An alert's population as a governed cohort for What-If."""
+    from backend.workspace import monitoring
+
+    p = Principal.of(who_raw)
+    _row, obj = _shared(svc, p, share_id)
+    if obj["kind"] != "alert":
+        _refuse(422, "NOT_AN_ALERT", "only an alert carries a population.")
+    return monitoring.cohort_for(svc, who_raw, obj["object_id"])
 
 
 def comment(svc: ObjectService, who_raw: dict[str, Any], share_id: str,

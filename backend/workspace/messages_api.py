@@ -95,6 +95,13 @@ async def investigate(share_id: str,
     return messages.investigate(service.objects(), who, share_id)
 
 
+@router.post("/messages/{share_id}/whatif", status_code=201)
+async def whatif_population(share_id: str,
+                            who: dict[str, Any] = Depends(v4routes.principal)
+                            ) -> dict[str, Any]:
+    return messages.whatif_population(service.objects(), who, share_id)
+
+
 @router.post("/messages/{share_id}/comments", status_code=201)
 async def comment(share_id: str, body: CommentBody,
                   who: dict[str, Any] = Depends(v4routes.principal)

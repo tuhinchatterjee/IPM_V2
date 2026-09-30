@@ -358,7 +358,9 @@ function GuidedLens({ params }: { params: Promise<{ lensId: string }> }) {
   const { lensId } = React.use(params);
   return (
     <main className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-10">
-      <GuidedLensView lensId={lensId} />
+      <React.Suspense fallback={null}>
+        <GuidedLensView lensId={lensId} />
+      </React.Suspense>
     </main>
   );
 }

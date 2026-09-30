@@ -38,6 +38,13 @@ export interface ShareCard {
   items?: string[];
   method?: string;
   persona?: string;
+  alert_type?: string;
+  severity?: string;
+  lens_name?: string;
+  metric_id?: string;
+  observed?: number | null;
+  threshold?: number | null;
+  comparison?: string;
   refresh?: string;
   attachments?: { object_id: string; kind: string; version: number }[];
 }
@@ -58,7 +65,7 @@ export interface MessageItem {
 }
 
 export interface MessageAction {
-  action: "open" | "run" | "rerun_latest" | "duplicate" | "save" | "compare" | "investigate" | "comment" | "open_thread";
+  action: "open" | "run" | "rerun_latest" | "duplicate" | "save" | "compare" | "investigate" | "comment" | "open_thread" | "open_monitoring" | "whatif";
   label: string;
   href: string;
 }
@@ -93,6 +100,7 @@ export const saveFromMessage = (id: string) => act<GovernedObject>(id, "save");
 export const compareFromMessage = (id: string, withResultIds: string[]) =>
   act<GovernedObject>(id, "compare", { with_result_ids: withResultIds });
 export const investigateFromMessage = (id: string) => act<{ thread_id: string }>(id, "investigate");
+export const whatifFromMessage = (id: string) => act<GovernedObject>(id, "whatif");
 export const commentOnMessage = (id: string, body: string) => act<{ comment_id: string }>(id, "comments", { body });
 
 export const listMyResults = (domain: string) =>

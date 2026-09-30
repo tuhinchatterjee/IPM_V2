@@ -81,7 +81,12 @@ async def render(object_id: str, body: RenderBody,
 async def refresh(object_id: str,
                   who: dict[str, Any] = Depends(v4routes.principal)
                   ) -> dict[str, Any]:
-    return lenses.refresh(service.objects(), who, object_id)
+    from backend.workspace import monitoring
+
+    svc = service.objects()
+    obs = lenses.refresh(svc, who, object_id)
+    alerts = monitoring.after_refresh(svc, who, object_id, obs)
+    return {**obs, "alerts": alerts}
 
 
 @router.get("/lenses/{object_id}/observations")

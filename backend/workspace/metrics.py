@@ -461,15 +461,30 @@ def _ev_calibration_gap(book, metric, *, period, filters):
 
 def _ev_active_breaches(book, metric, *, period, filters):
     from backend.workspace import service
+    from backend.workspace.objects import can_read
 
     try:
         alerts = service.store().latest_of_kind("alert",
                                                 tenant_id=book.tenant_id)
     except Exception:  # noqa: BLE001
         alerts = []
-    n = sum(1 for a in alerts if a["status"] in ("NEW", "ACTIVE", "WORSENING")
-            and a["domain_id"] in (book.domain_id, "both"))
-    return {"value": n, "numerator": n, "denominator": None, "rows": n}
+    viewer = VIEWER.get()
+    live = [a for a in alerts
+            if a["status"] in ("NEW", "ACTIVE", "WORSENING")
+            and a["body"].get("alert_type") == "breach"
+            and not a["body"].get("demo_historical")
+            and a["domain_id"] in (book.domain_id, "both")
+            and (can_read(a, viewer) if viewer is not None else
+                 (a.get("permissions") or {}).get("visibility") == "tenant")]
+    by_lens: dict[str, int] = {}
+    for a in live:
+        name = a["body"].get("lens_name") or a["body"].get("lens_id", "")
+        by_lens[name] = by_lens.get(name, 0) + 1
+    n = len(live)
+    return {"value": n, "numerator": n, "denominator": None, "rows": n,
+            "groups": [{"dimension": k, "value": v}
+                       for k, v in sorted(by_lens.items(),
+                                          key=lambda kv: -kv[1])]}
 
 
 def _ev_material_changes(book, metric, *, period, filters):

@@ -123,7 +123,7 @@ export interface Observation {
 }
 
 export interface RenderedLens {
-  lens: LensCard & { body: LensSpec; lineage: Record<string, unknown>; permissions: Record<string, unknown>; can_edit: boolean };
+  lens: LensCard & { body: LensSpec; lineage: Record<string, unknown>; permissions: Record<string, unknown>; can_edit: boolean; following: boolean };
   books: Record<string, { period: string; periods: string[]; latest_period: string; release_id: string; fingerprint: string }>;
   cross_filters: (Filter & { domain?: string })[];
   visuals: RenderedVisual[];
@@ -145,7 +145,8 @@ export const listLenses = (q = "") => wsGet<{ lenses: LensCard[]; total: number;
 export const renderLens = (id: string, body: { periods?: Record<string, string>; cross_filters?: (Filter & { domain?: string })[]; version?: number } = {}) =>
   wsSend<RenderedLens>(`/lenses/${encodeURIComponent(id)}/render`, body);
 
-export const refreshLens = (id: string) => wsSend<Observation & { idempotent?: boolean }>(`/lenses/${encodeURIComponent(id)}/refresh`, {});
+export const refreshLens = (id: string) =>
+  wsSend<Observation & { idempotent?: boolean; alerts?: { created: string[]; worsened: string[]; resolved: string[]; delivered: number } }>(`/lenses/${encodeURIComponent(id)}/refresh`, {});
 
 export const lensObservations = (id: string) => wsGet<{ observations: Observation[] }>(`/lenses/${encodeURIComponent(id)}/observations`);
 
@@ -156,3 +157,5 @@ export const saveLens = (spec: LensSpec, source?: Record<string, unknown>) => ws
 
 export const reviseLens = (id: string, changes: Partial<LensSpec>, reason: string) =>
   wsSend<GovernedObject<LensSpec>>(`/lenses/${encodeURIComponent(id)}/revise`, { changes, reason });
+
+export const followLens = (id: string, on: boolean) => wsSend<{ following: boolean; followers: string[] }>(`/lenses/${encodeURIComponent(id)}/follow`, { on });

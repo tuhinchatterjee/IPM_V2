@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Mail,
+  Siren,
   Ruler,
   BarChart3,
   Bot,
@@ -128,7 +129,7 @@ export const NAV_GROUPS: NavGroup[] = [
 const GUIDED = process.env.NEXT_PUBLIC_GUIDED_WORKSPACE === "1";
 
 /** Items that exist only with the Guided Risk Workspace on. */
-const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab", "/messages", "/metrics"]);
+const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab", "/messages", "/metrics", "/monitoring"]);
 
 const ALL_NAV_ITEMS: NavItem[] = [
   {
@@ -216,6 +217,17 @@ const ALL_NAV_ITEMS: NavItem[] = [
     demo: "optional",
     demoNote:
       "Real and seeded with one published Lens. Shown if time allows; not on the twenty-minute path.",
+  },
+  {
+    href: "/monitoring",
+    label: "Monitoring Centre",
+    description:
+      "Breaches and material changes from saved Lenses and their governed rules: new, active, worsening, acknowledged and resolved alerts with their full history, one click from the Lens at the trigger, a Cockpit investigation or a What-If.",
+    icon: Siren,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "optional",
   },
   {
     href: "/early-warning",

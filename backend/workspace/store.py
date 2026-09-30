@@ -130,6 +130,14 @@ CREATE INDEX IF NOT EXISTS alert_events_alert ON alert_events(tenant_id, alert_i
 CREATE TRIGGER IF NOT EXISTS alert_events_no_update BEFORE UPDATE ON alert_events
     BEGIN SELECT RAISE(ABORT, 'alert history is append-only'); END;
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+    tenant_id  TEXT NOT NULL,
+    object_id  TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (tenant_id, object_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
@@ -403,6 +411,36 @@ class WorkspaceStore:
                 "SELECT * FROM alert_events WHERE tenant_id=? AND alert_id=? "
                 "ORDER BY at", (tenant_id, alert_id)).fetchall()
         return [dict(r) for r in rows]
+
+    # ---- subscriptions (who follows a Lens's deliveries) ---------------------
+
+    def subscribe(self, *, tenant_id: str, object_id: str, user_id: str,
+                  on: bool = True) -> None:
+        with self._lock:
+            if on:
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO subscriptions VALUES (?,?,?,?)",
+                    (tenant_id, object_id, user_id, time.time()))
+            else:
+                self._conn.execute(
+                    "DELETE FROM subscriptions WHERE tenant_id=? AND "
+                    "object_id=? AND user_id=?",
+                    (tenant_id, object_id, user_id))
+
+    def subscribers(self, object_id: str, *, tenant_id: str) -> list[str]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT user_id FROM subscriptions WHERE tenant_id=? AND "
+                "object_id=? ORDER BY created_at", (tenant_id, object_id)
+            ).fetchall()
+        return [str(r["user_id"]) for r in rows]
+
+    def tenants_with(self, kind: str) -> list[str]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT DISTINCT tenant_id FROM objects WHERE kind=?",
+                (kind,)).fetchall()
+        return [str(r["tenant_id"]) for r in rows]
 
     # ---- meta ----------------------------------------------------------------
 

@@ -185,7 +185,10 @@ def test_refresh_records_an_immutable_observation_with_what_changed(client,
     assert first["body"]["what_changed"].startswith("First observation")
     assert any(b["breached"] for b in first["body"]["breaches"])
     second = client.post(f"{P}/lenses/lens-01/refresh").json()
-    assert second["body"]["material_changes"] == []
+    # The books did not move. Only the platform metric M048 (active breach
+    # count) may, because the first refresh raised alerts.
+    moved = {c["metric_id"] for c in second["body"]["material_changes"]}
+    assert moved <= {"M048"}, moved
     assert second["body"]["previous_observation"] == first["observation_id"]
     same = lenses.refresh(svc, WHO, "lens-01", trigger="on_publication")
     assert same.get("idempotent") is True

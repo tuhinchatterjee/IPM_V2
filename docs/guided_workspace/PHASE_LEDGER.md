@@ -504,7 +504,59 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P10 — Monitoring Centre, refresh, breaches, Inbox
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Scheduling** (`backend/workspace/monitoring.py`): `tick(now)` refreshes every Lens that is
+    due — daily / weekly / monthly by elapsed time, `on_publication` when a book's release
+    fingerprint changed, `on_result` when a scenario result appeared, `continuous` every tick,
+    `manual` never; a failed refresh is retried after 5 minutes. The loop is a daemon thread in
+    the V4 runtime's own worker/supervisor model (`serve_forever` + poll interval), started once
+    when `COCKPIT_V4_MONITORING_SCHEDULER=1` (off in tests; the launchers turn it on);
+    "Refresh due Lenses now" runs the same step on demand. No second orchestration architecture.
+  * **Alerts:** each SUCCEEDED observation's breach rules drive one governed `alert` per dedup key
+    (Lens + rule + book) carrying rule id/version, Lens id/version, metric id/version and unit,
+    observed, prior, threshold, comparison, window, release/fingerprint, period(s), affected
+    population (the Lens scope), first/last seen and every observation id. NEW → ACTIVE (persists)
+    → WORSENING (moves further past the threshold) → RESOLVED (no longer breaches); readers
+    ACKNOWLEDGE / RESOLVE (note required) / assign / comment / reopen; SUPPRESS is an
+    administrator's decision. Every transition is an append-only event (actor, note, observed);
+    acting never changes source data. Material changes are `change` events; a failed refresh is a
+    `refresh_failure` alert, resolved by the next successful refresh.
+  * **Delivery:** new breaches, worsening, material changes and failed refreshes reach the Inbox
+    (Messages) of the Lens owner, followers ("Follow" on every Lens) and named recipients, from
+    `creditprobe-monitoring`, with Open Lens at the trigger / Open in Monitoring Centre /
+    Investigate in Cockpit / What-If on the population / Comment. A rule's cooldown suppresses
+    repeats; worsening is always delivered.
+  * **Honesty:** a refresh whose book is unavailable records a FAILED observation ("nothing below
+    is current; last successful observation at …"), raises an operational alert, marks the Lens
+    STALE in the refresh-health table and shows a banner on the Lens; values are never presented
+    as current from a failed refresh.
+  * **First launch:** a HISTORICAL REPLAY (demo) of six seeded Lenses' rules over the previous
+    published periods — closed records, labelled, never counted as live (M048 excludes them) —
+    plus a live round over all 20 library Lenses on the published synthetic books.
+  * **UI** `/monitoring` (nav "Monitoring Centre", flag-gated): views New today / Active /
+    Worsening / Acknowledged / Resolved / Material changes / Assigned to me / Historical replay /
+    All; filters by severity, Lens, book; Plotly by severity and by Lens (click to filter) with
+    View data / CSV / PNG / SVG; alert panel with versions, movement-aware observed-vs-threshold
+    in the metric's unit, population, status history and actions; Lens refresh-health table.
+    Lenses open at an alert's triggering period and population with a banner.
+  * M048 now counts live breach alerts the viewer can open, grouped by Lens.
+* **Tests:** `test_gw_monitoring.py` 26/26 — exact threshold comparisons (12 cases); first launch
+  (live + labelled history, seeded once); one alert per dedup key NEW → ACTIVE; worsening
+  delivered through a running cooldown and recovery resolves; cooldown suppresses a duplicate;
+  the full state machine (note required, invalid transition 409, suppress needs admin, assign /
+  mine view, comment, reopen, historical alerts immutable); actions do not touch source data;
+  follower Inbox card with Open / Investigate / What-If / Monitoring actions and working
+  handoffs; opening an alert restores the Lens at its period and population; a failed refresh
+  is recorded, alerted, delivered, shown stale and resolved by the next success; deterministic
+  replay of a scheduled tick (no duplicate observations or alerts); cadence rules; M048; filters;
+  the scheduler thread runs ticks when enabled and starts once. Mutation proofs: removing the
+  dedup lookup fails the persistence and worsening tests; delivering worsening under cooldown
+  fails the worsening test (strengthened after the first mutation survived).
+  `test_gw_lenses.py` updated: a second refresh may move only the platform metric M048.
+  All GW backend suites **248 passed, 3 skipped**; `npm test` 642/642; `tsc` clean; eslint 0 in
+  new code. Browser `GW-P10-01`, `GW-P10-02`, `GW-P10-03` — **3/3**.
+* **Protected files:** none added (still 5).
+* **Status:** PASS
 
 ## P11 — Product-wide reactive Plotly platform
 * **Status:** NOT STARTED

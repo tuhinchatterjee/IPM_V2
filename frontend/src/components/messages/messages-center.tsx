@@ -21,6 +21,7 @@ import {
   duplicateFromMessage,
   hrefFor,
   investigateFromMessage,
+  whatifFromMessage,
   listMyResults,
   readInbox,
   readMessage,
@@ -39,6 +40,7 @@ const KIND_LABEL: Record<string, string> = {
   comparison: "Scenario comparison",
   run: "What-If run",
   lens: "Lens (live dashboard)",
+  alert: "Monitoring alert",
 };
 
 function when(ts: number): string {
@@ -188,6 +190,11 @@ function ObjectSummary({ card }: { card: ShareCard }) {
           {count(card.entities ?? 0)} exposures · {card.description} · membership {card.membership_hash?.slice(0, 16)}
         </div>
       )}
+      {k === "alert" && (
+        <div data-testid="message-alert">
+          {String(card.alert_type ?? "")} · {String(card.severity ?? "")} · {String(card.lens_name ?? "")} · {card.metric_id ?? ""} observed {String(card.observed ?? "—")} {String(card.comparison ?? "")} {String(card.threshold ?? "")} · {String(card.period ?? "")}
+        </div>
+      )}
       {k === "lens" && (
         <div>
           {card.persona} · {card.refresh} refresh · {card.description}
@@ -260,6 +267,9 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
       } else if (a.action === "save") {
         const obj = await saveFromMessage(shareId);
         setNote({ text: `Saved to your workspace as ${obj.object_id}.`, href: hrefFor(obj) });
+      } else if (a.action === "whatif") {
+        const c = await whatifFromMessage(shareId);
+        router.push(`/what-if?cohort=${c.object_id}`);
       } else if (a.action === "investigate") {
         const t = await investigateFromMessage(shareId);
         router.push(`/cockpit/thread/${t.thread_id}`);

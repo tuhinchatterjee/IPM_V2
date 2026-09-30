@@ -13,15 +13,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Bell, BellOff, Loader2, RefreshCw, X } from "lucide-react";
 
 import { ChartCard } from "@/components/viz/chart-card";
 import { PlotlyChart } from "@/components/viz/plotly-chart";
 import { ShareButton } from "@/components/workspace/share-button";
 import { formatValue } from "@/lib/workspace/metric-figures";
 import { breakdownFigure, clickFilter, groupsFigure, kpiTile, sparkFigure, topOwnersFigure, trendFigure } from "@/lib/workspace/lens-figures";
-import { refreshLens, renderLens, reviseLens, type RenderedLens, type RenderedVisual } from "@/lib/workspace/lenses";
+import { followLens, refreshLens, renderLens, reviseLens, type RenderedLens, type RenderedVisual } from "@/lib/workspace/lenses";
+import { readAlert } from "@/lib/workspace/monitoring";
 import type { Filter } from "@/lib/workspace/objects";
 import { investigateCohort, saveSelection } from "@/lib/workspace/whatif";
 
@@ -50,6 +51,28 @@ export function LensView({ lensId }: { lensId: string }) {
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState("");
   const [cadence, setCadence] = React.useState("");
+  const [trigger, setTrigger] = React.useState("");
+  const params = useSearchParams();
+  const alertId = params.get("alert") ?? "";
+
+  // Opened from an alert: restore the Lens at the triggering period and
+  // population, and say so.
+  React.useEffect(() => {
+    if (!alertId) return;
+    let live = true;
+    readAlert(alertId)
+      .then((d) => {
+        if (!live) return;
+        setPeriods(d.open_lens.periods ?? {});
+        setCross((d.open_lens.filters ?? []) as Cross[]);
+        const b = d.alert.body as Record<string, unknown>;
+        setTrigger(`Opened at alert ${d.alert.object_id} (${d.alert.status}): ${String(b.rule_name || b.alert_type)} · ${String(b.domain_id || "")} ${String(b.period || "")}`);
+      })
+      .catch((e: unknown) => live && setError(errorText(e)));
+    return () => {
+      live = false;
+    };
+  }, [alertId]);
 
   React.useEffect(() => {
     let live = true;
@@ -222,7 +245,8 @@ export function LensView({ lensId }: { lensId: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy} onClick={() => void go(async () => {
             const o = await refreshLens(lens.object_id);
-            setNote(`Refreshed: ${o.body.what_changed}`);
+            const created = o.alerts?.created?.length ?? 0;
+            setNote(`Refreshed: ${o.body.what_changed}${created ? ` · ${created} alert(s) raised — see Monitoring Centre` : ""}`);
             setData(await renderLens(lens.object_id, { periods, cross_filters: cross }));
           })} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="lens-refresh">
             <RefreshCw className="h-4 w-4" /> Refresh
@@ -234,9 +258,28 @@ export function LensView({ lensId }: { lensId: string }) {
           }} className="rounded-md border border-border px-3 py-1.5 text-sm" data-testid="lens-edit">
             {lens.can_edit && lens.owner_id !== "creditprobe-library" ? "Edit" : "Customise (my copy)"}
           </button>
+          <button type="button" disabled={busy} onClick={() => void go(async () => {
+            await followLens(lens.object_id, !lens.following);
+            setData(await renderLens(lens.object_id, { periods, cross_filters: cross }));
+          })} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="lens-follow" data-following={String(lens.following)}>
+            {lens.following ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />} {lens.following ? "Following" : "Follow"}
+          </button>
           <ShareButton objectId={lens.object_id} testId="lens-share" />
         </div>
       </header>
+      {trigger && (
+        <p className="rounded-lg border border-warning bg-surface p-2 text-xs" data-testid="lens-alert-banner">
+          {trigger}{" "}
+          <Link href={`/monitoring?alert=${alertId}`} className="text-accent underline">
+            back to the alert
+          </Link>
+        </p>
+      )}
+      {obs?.status === "FAILED" && (
+        <p role="alert" className="rounded-lg border border-negative p-2 text-xs text-negative" data-testid="lens-stale">
+          The last refresh FAILED ({new Date(obs.finished_at * 1000).toLocaleString()}): {obs.body.what_changed} The figures below are evaluated live now; the refresh record is not current.
+        </p>
+      )}
 
       {editing && (
         <form

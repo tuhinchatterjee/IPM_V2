@@ -372,7 +372,9 @@ def _rendered(svc, who, lens, spec, books, visuals, *, periods, cross,
     return {"lens": {**card(svc, lens), "body": spec,
                      "lineage": lens["lineage"],
                      "permissions": lens["permissions"],
-                     "can_edit": can_edit(lens, Principal.of(who))},
+                     "can_edit": can_edit(lens, Principal.of(who)),
+                     "following": Principal.of(who).id in
+                     svc.store.subscribers(oid, tenant_id=lens["tenant_id"])},
             "books": {d: {"period": grid.view(b, (periods or {}).get(d, "")
                                               ).period,
                           "periods": b.periods[-12:],
@@ -435,7 +437,32 @@ def refresh(svc: ObjectService, who: dict[str, Any], oid: str, *,
     lens = svc.get(oid, principal)
     spec = lens["body"]
     started = time.time()
-    books = {d: access.book(who, d) for d in spec["domain_scope"]}
+    prev = next((o for o in svc.store.observations(
+        oid, tenant_id=principal.tenant, limit=20)
+        if o["status"] == "SUCCEEDED"), None)
+    try:
+        books = {d: access.book(who, d) for d in spec["domain_scope"]}
+    except HTTPException as exc:
+        # A failed refresh is an operational event, recorded as FAILED --
+        # never a silent reuse of the previous values as if current.
+        return svc.store.add_observation({
+            "tenant_id": principal.tenant, "lens_id": oid,
+            "lens_version": lens["version"], "trigger": trigger,
+            "status": "FAILED", "started_at": started,
+            "finished_at": time.time(),
+            "body": {"values": {}, "material_changes": [], "breaches": [],
+                     "what_changed": "Refresh FAILED: the governed book is "
+                                     "not available. Nothing below is "
+                                     "current; the last successful "
+                                     "observation is "
+                                     + (time.strftime("%Y-%m-%d %H:%M UTC",
+                                                      time.gmtime(
+                                                          prev["finished_at"]))
+                                        if prev else "none") + ".",
+                     "fingerprints": {}, "errors": [str(exc.detail)],
+                     "previous_observation": (prev or {}).get(
+                         "observation_id")},
+            "error": str(exc.detail)[:2000]})
     prev = next((o for o in svc.store.observations(
         oid, tenant_id=principal.tenant, limit=20)
         if o["status"] == "SUCCEEDED"), None)

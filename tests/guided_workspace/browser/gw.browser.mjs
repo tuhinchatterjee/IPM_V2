@@ -1353,6 +1353,101 @@ async function p9Journeys() {
   });
 }
 
+
+// =========================================================================
+// P10 — Monitoring Centre
+// =========================================================================
+
+async function p10Journeys() {
+  await journey("GW-P10-01", "Monitoring Centre first launch: live breaches and labelled historical replay; an alert shows rule/Lens/metric versions and history; Open Lens restores the triggering period and population; acknowledging needs a note; Investigate opens Cockpit", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/monitoring`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="monitoring-list"]')?.getAttribute("data-count") || 0) > 0, null, { timeout: 180_000 });
+    const nav = await page.textContent("nav, aside");
+    assert.ok(nav.includes("Monitoring Centre"));
+    // The stub store persists between evidence runs: reopen the target alert
+    // if an earlier run acknowledged or resolved it.
+    const sector = (await api("/monitoring?view=all&lens=lens-15")).body.alerts.find((a) => a.rule_id === "R15-1" && !a.demo_historical);
+    if (sector && !["NEW", "ACTIVE", "WORSENING"].includes(sector.state)) {
+      await api(`/monitoring/alerts/${sector.alert_id}/reopen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ note: "GW-P10-01 rerun" }) });
+      await page.reload();
+      await page.waitForSelector('[data-testid="monitoring-alert"]', { timeout: 60_000 });
+    }
+    record.active = await page.getAttribute('[data-testid="monitoring-list"]', "data-count");
+    await page.click('[data-testid="monitoring-view-history"]');
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="monitoring-alert"]')].length > 0 && [...document.querySelectorAll('[data-testid="monitoring-alert"]')].every((r) => r.dataset.historical === "true"), null, { timeout: 60_000 });
+    assert.match(await page.textContent('[data-testid="monitoring-list"]'), /HISTORICAL · demo/);
+    await page.click('[data-testid="monitoring-view-active"]');
+    await page.waitForSelector('[data-testid="monitoring-alert"][data-type="breach"][data-historical="false"]', { timeout: 60_000 });
+    const target = page.locator('[data-testid="monitoring-alert"][data-type="breach"]', { hasText: "Sector Watch" }).first();
+    await target.click();
+    await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 60_000 });
+    const panel = await page.textContent('[data-testid="alert-panel"]');
+    assert.match(panel, /R15-1 v\d/);
+    assert.match(panel, /M064 v1/);
+    assert.match(panel, /Status history/);
+    await shot(page, record, "alert");
+    await page.click('[data-testid="alert-acknowledge"]');
+    await page.waitForSelector('[data-testid="alert-error"]', { timeout: 30_000 });
+    await page.fill('[data-testid="alert-note"]', "GW-P10-01 reviewing with the sector team");
+    await page.click('[data-testid="alert-acknowledge"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="alert-panel"]')?.getAttribute("data-state") === "ACKNOWLEDGED", null, { timeout: 60_000 });
+    await page.click('[data-testid="alert-open-lens"]');
+    await page.waitForURL(/\/lenses\/lens-15\?alert=alr-/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="lens-alert-banner"]', { timeout: 120_000 });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="lens-state"]')?.getAttribute("data-cross")) >= 1, null, { timeout: 60_000 });
+    record.lens_state = await page.textContent('[data-testid="lens-state"]');
+    assert.match(record.lens_state, /Construction/);
+    await shot(page, record, "lens-at-trigger");
+    await page.goBack();
+    await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 60_000 });
+    await page.click('[data-testid="alert-investigate"]');
+    await page.waitForURL(/\/cockpit\/thread\/th-/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 60_000 });
+  });
+
+  await journey("GW-P10-02", "Follow a Lens → its refresh raises a breach → an Inbox card from Monitoring with Open Lens / Investigate / What-If → What-If opens with the alert's population", async (record) => {
+    const page = await open();
+    // Close LENS-03's open alerts so this refresh raises fresh ones.
+    const open_ = (await api("/monitoring?view=all&lens=lens-03")).body.alerts.filter((a) => ["NEW", "ACTIVE", "WORSENING", "ACKNOWLEDGED"].includes(a.state) && !a.demo_historical);
+    for (const a of open_) await api(`/monitoring/alerts/${a.alert_id}/resolve`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ note: "GW-P10-02 reset" }) });
+    await openLens(page, "lens-03");
+    if ((await page.getAttribute('[data-testid="lens-follow"]', "data-following")) !== "true") {
+      await page.click('[data-testid="lens-follow"]');
+      await page.waitForFunction(() => document.querySelector('[data-testid="lens-follow"]')?.getAttribute("data-following") === "true", null, { timeout: 60_000 });
+    }
+    await page.click('[data-testid="lens-refresh"]');
+    await page.waitForSelector('[data-testid="lens-note"]', { timeout: 60_000 });
+    record.note = await page.textContent('[data-testid="lens-note"]');
+    assert.match(record.note, /alert\(s\) raised/);
+    await page.goto(`${UI}/messages`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="message-item"][data-kind="alert"]', { timeout: 60_000 });
+    await page.click('[data-testid="message-item"][data-kind="alert"] >> nth=0');
+    await page.waitForSelector('[data-testid="message-alert"]', { timeout: 60_000 });
+    const actions = await page.$$eval('[data-testid="message-actions"] button', (els) => els.map((e) => e.dataset.testid));
+    record.actions = actions;
+    for (const a of ["open", "open_monitoring", "investigate", "whatif", "comment"]) assert.ok(actions.includes(`message-action-${a}`), a);
+    await shot(page, record, "inbox-alert");
+    await page.click('[data-testid="message-action-whatif"]');
+    await page.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 60_000 });
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+  });
+
+  await journey("GW-P10-03", "The scheduler's step on demand: due Lenses refresh (idempotent on unchanged releases) and the refresh-health table shows cadence, last success and what is due", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/monitoring`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="monitoring-health-row"]', { timeout: 180_000 });
+    await page.click('[data-testid="monitoring-tick"]');
+    await page.waitForSelector('[data-testid="monitoring-note"]', { timeout: 120_000 });
+    record.note = await page.textContent('[data-testid="monitoring-note"]');
+    assert.match(record.note, /Lens\(es\) refreshed/);
+    const rows = await page.$$eval('[data-testid="monitoring-health-row"]', (els) => els.map((e) => [e.dataset.lensId, e.dataset.stale]));
+    record.health_rows = rows.length;
+    assert.ok(rows.length >= 18 && rows.every((r) => r[1] === "false"));
+    await shot(page, record, "health");
+  });
+}
+
 // =========================================================================
 
 async function main() {
@@ -1366,6 +1461,7 @@ async function main() {
     await p7Journeys();
     await p8Journeys();
     await p9Journeys();
+    await p10Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();
