@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 8,
-  "total": 8,
+  "passed": 12,
+  "total": 12,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -18,12 +18,12 @@
         "docs/guided_workspace/evidence/journeys/GW-P1-01-growth.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-a53059d78a5443808946600e1b2baa6a",
-      "run_id": "run-2ef2951be11347b08128913f4dc1cbf0",
-      "export": "llm_exchange_run-2ef2951be11347b08128913f4dc1cbf0.zip",
+      "thread_id": "th-70fb11f329d141339e51d1755447fa7c",
+      "run_id": "run-7311a9b2227548dcb4e8ca265e562246",
+      "export": "llm_exchange_run-7311a9b2227548dcb4e8ca265e562246.zip",
       "calls_recorded": 2,
       "status": "PASS",
-      "ms": 8905
+      "ms": 9238
     },
     {
       "journey": "GW-P1-02",
@@ -33,12 +33,12 @@
       ],
       "screenshots": [],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-c57dc3365689449282d33076f8445dc4",
-      "run_id": "run-df20d8a367e047c7ba31e145d40c1098",
-      "exchanges_before": 22,
-      "exchanges_after": 22,
+      "thread_id": "th-dcce5ec38d674c2c9fec68c1196287d1",
+      "run_id": "run-47a996b3407743d28cf65715c5bff2fe",
+      "exchanges_before": 30,
+      "exchanges_after": 30,
       "status": "PASS",
-      "ms": 3191
+      "ms": 3449
     },
     {
       "journey": "GW-P1-03",
@@ -59,7 +59,7 @@
         }
       ],
       "status": "PASS",
-      "ms": 1009
+      "ms": 1108
     },
     {
       "journey": "GW-P3-01-CORP",
@@ -79,7 +79,7 @@
         "Education: 15.66% of EAD is on the watchlist (book 7.63%)"
       ],
       "status": "PASS",
-      "ms": 1052
+      "ms": 1089
     },
     {
       "journey": "GW-P3-01-RET",
@@ -99,7 +99,7 @@
         "Personal Finance: 1,011 customers with PD up 20% or more this month"
       ],
       "status": "PASS",
-      "ms": 5018
+      "ms": 5133
     },
     {
       "journey": "GW-P3-02",
@@ -115,7 +115,7 @@
       ],
       "model": "MODEL MOCK (scripted analyst)",
       "issue_id": "iss-db4929b9bd19",
-      "thread_id": "th-b5ae9e59fda84684835f3120c36a1297",
+      "thread_id": "th-71c7641f82ba4b079deb60c766002adf",
       "path": [
         [
           "Issue",
@@ -164,7 +164,7 @@
           "type": "compare_period"
         }
       ],
-      "investigation_id": "inv-623fb5abea84",
+      "investigation_id": "inv-05e209a410e0",
       "clicks_recorded": [
         {
           "suggestion_id": "nbq-8b9e927a5874",
@@ -180,11 +180,11 @@
             ]
           },
           "run_id": "",
-          "at": 1790778657.7803626
+          "at": 1790780160.9238796
         }
       ],
       "status": "PASS",
-      "ms": 5045
+      "ms": 5254
     },
     {
       "journey": "GW-P3-03",
@@ -202,7 +202,7 @@
       "rows_after": 130,
       "clicked": "Sub-sector: Food Service",
       "status": "PASS",
-      "ms": 4356
+      "ms": 4451
     },
     {
       "journey": "GW-P3-04",
@@ -213,13 +213,96 @@
         "docs/guided_workspace/evidence/journeys/GW-P3-04-thread.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "note": "Saved 286 exposures as cohort coh-8f5c41e5470c.",
-      "cohort_id": "coh-8f5c41e5470c",
+      "note": "Saved 286 exposures as cohort coh-002ebee7a9d4.",
+      "cohort_id": "coh-002ebee7a9d4",
       "cohort_entities": 286,
-      "thread_id": "th-2f3d620624e747919f6c0a54dfe4a5d8",
+      "thread_id": "th-fc3b5216f0c04d72a693361a27ea75aa",
       "thread_domain": "retail",
       "status": "PASS",
-      "ms": 3559
+      "ms": 3664
+    },
+    {
+      "journey": "GW-P4-01",
+      "what": "Scenario Library opens populated: >=36 templates, 18 per book, searchable, every card previews without calculating",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-library.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-detail.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-retail-ml-unavailable.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "total": 41,
+      "retail_cards": 19,
+      "retail_ml": "UNAVAILABLE",
+      "status": "PASS",
+      "ms": 4943
+    },
+    {
+      "journey": "GW-P4-02",
+      "what": "Create A (sector PD/LGD) and B (macro) without executing; combine A+B -> overlap matrix -> explicit policy -> C saved; A and B unchanged",
+      "prompts": [
+        "builder: GW sector stress 1790780176666",
+        "builder: GW macro downside 1790780180603"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-02-overlap-matrix.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-02-combined.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "a": {
+        "id": "scn-51f3b090bc11",
+        "readiness": "READY_FOR_CONFIRMATION"
+      },
+      "b": {
+        "id": "scn-a4f4f85893b5",
+        "readiness": "READY_FOR_CONFIRMATION"
+      },
+      "overlaps_needing_policy": 2,
+      "c": "scn-584f5a3f527f",
+      "c_readiness": "READY_FOR_CONFIRMATION",
+      "status": "PASS",
+      "ms": 8368
+    },
+    {
+      "journey": "GW-P4-03",
+      "what": "A seeded conflict template is blocked; choosing policies records them on YOUR copy and leaves the template untouched",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-03-blocked-template.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-03-resolved-copy.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "copy": "scn-d23d588c636e",
+      "status": "PASS",
+      "ms": 3907
+    },
+    {
+      "journey": "GW-P4-04",
+      "what": "Rename makes a new version; Share sends the reference and version, not data",
+      "prompts": [
+        "builder: GW share me 1790780188933"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-04-shared.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Shared v2 with 1 recipient(s). They receive the reference, never the data.",
+      "versions": [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          "renamed"
+        ],
+        [
+          3,
+          "shared with colleague"
+        ]
+      ],
+      "status": "PASS",
+      "ms": 3930
     }
   ]
 }

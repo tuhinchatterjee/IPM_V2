@@ -413,12 +413,201 @@ async function p3Journeys() {
 }
 
 // =========================================================================
+// P4 — Scenario Library
+// =========================================================================
+
+async function libraryCards(page) {
+  await page.waitForSelector('[data-testid="scenario-count"]', { timeout: 120_000 });
+  return Number(await page.getAttribute('[data-testid="scenario-count"]', "data-total"));
+}
+
+async function openLibrary(page) {
+  await page.goto(`${UI}/scenarios`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="scenario-library"]', { timeout: 120_000 });
+  return libraryCards(page);
+}
+
+async function waitPreview(page, testId = "scenario-preview") {
+  await page.waitForSelector(`[data-testid="${testId}"]`, { timeout: 120_000 });
+  return page.getAttribute(`[data-testid="${testId}"]`, "data-readiness");
+}
+
+async function build(page, record, { name, domain = "corporate", filter, components }) {
+  await page.goto(`${UI}/scenarios/new?domain=${domain}`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="scenario-builder"]', { timeout: 120_000 });
+  await page.fill('[data-testid="builder-name"]', name);
+  if (filter) {
+    await page.click('[data-testid="builder-scope-filters"]');
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="builder-filter-column"] option').length > 5, null, { timeout: 60_000 });
+    await page.selectOption('[data-testid="builder-filter-column"]', filter.column);
+    await page.fill('[data-testid="builder-filter-value"]', filter.value);
+  }
+  // Replace the default component with the requested ones.
+  await page.click('[data-testid="builder-component"] button[aria-label="Remove component"]');
+  for (const c of components) {
+    await page.click(`[data-testid="builder-add-${c.kind}"]`);
+    const row = page.locator('[data-testid="builder-component"]').last();
+    if (c.field) await row.locator('[data-testid="builder-component-field"]').selectOption(c.field);
+    if (c.factor) await row.locator('[data-testid="builder-component-factor"]').fill(c.factor);
+    if (c.operation) await row.locator("select").nth(c.kind === "parameter" ? 1 : 0).selectOption(c.operation);
+    await row.locator('[data-testid="builder-component-value"]').fill(c.value);
+  }
+  record.prompts.push(`builder: ${name}`);
+  await page.click('[data-testid="builder-preview"]');
+  const readiness = await waitPreview(page, "builder-preview-panel");
+  await page.click('[data-testid="builder-save-saved"]');
+  await page.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 });
+  const id = await page.getAttribute('[data-testid="scenario-detail"]', "data-object-id");
+  return { id, readiness };
+}
+
+async function p4Journeys() {
+  await journey("GW-P4-01", "Scenario Library opens populated: >=36 templates, 18 per book, searchable, every card previews without calculating", async (record) => {
+    const page = await open();
+    const total = await openLibrary(page);
+    record.total = total;
+    assert.ok(total >= 36, "at least 36 scenarios on first launch");
+    const text = await page.textContent('[data-testid="scenario-count"]');
+    assert.match(text, /Corporate 1[8-9]|Corporate [2-9]\d/);
+    assert.match(text, /Retail 1[8-9]|Retail [2-9]\d/);
+    await shot(page, record, "library");
+    await page.click('[data-testid="scenario-domain-retail"]');
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="scenario-card"]')].every((c) => c.getAttribute("data-domain") === "retail"), null, { timeout: 60_000 });
+    record.retail_cards = await page.locator('[data-testid="scenario-card"]').count();
+    assert.ok(record.retail_cards >= 18);
+    await page.click('[data-testid="scenario-domain-all"]');
+    await page.fill('[data-testid="scenario-search"]', "hospitality");
+    await page.press('[data-testid="scenario-search"]', "Enter");
+    await page.waitForFunction(() => document.querySelector('[data-testid="scenario-count"]')?.getAttribute("data-total") === "1", null, { timeout: 60_000 });
+    const hit = await page.getAttribute('[data-testid="scenario-card"]', "data-template-id");
+    assert.equal(hit, "CORP-12");
+    await page.click('[data-testid="scenario-open"]');
+    await waitPreview(page);
+    const statement = await page.textContent('[data-testid="scenario-not-calculated"]');
+    assert.match(statement, /Nothing has been calculated/);
+    assert.ok(await page.isVisible('[data-testid="scenario-component-matrix"]'));
+    assert.ok(await page.isVisible('[data-testid="scenario-equation"]') && (await page.isVisible('[data-testid="scenario-contract"]')));
+    await page.waitForSelector('[data-testid="scenario-stage-mix"][data-rendered="true"]', { timeout: 60_000 });
+    await shot(page, record, "detail");
+    // A Retail template: ML is shown and unavailable, never substituted.
+    const ret = (await api(`/scenarios?domain=retail&q=RET-01`)).body.scenarios[0];
+    await page.goto(`${UI}/scenarios/${ret.object_id}`, { waitUntil: "domcontentloaded" });
+    await waitPreview(page);
+    const ml = await page.getAttribute('[data-testid="scenario-method-ml"]', "data-status");
+    record.retail_ml = ml;
+    assert.equal(ml, "UNAVAILABLE");
+    assert.match(await page.textContent('[data-testid="scenario-method-ml"]'), /G4/);
+    await shot(page, record, "retail-ml-unavailable");
+  });
+
+  await journey("GW-P4-02", "Create A (sector PD/LGD) and B (macro) without executing; combine A+B -> overlap matrix -> explicit policy -> C saved; A and B unchanged", async (record) => {
+    const page = await open();
+    const a = await build(page, record, {
+      name: `GW sector stress ${Date.now()}`,
+      filter: { column: "sector", value: "Construction" },
+      components: [
+        { kind: "parameter", field: "pd_pit_12m", operation: "relative_pct", value: "20" },
+        { kind: "parameter", field: "lgd_pct", operation: "relative_pct", value: "10" },
+      ],
+    });
+    const b = await build(page, record, {
+      name: `GW macro downside ${Date.now()}`,
+      components: [{ kind: "macro", factor: "MEV01", operation: "percentage_points", value: "-1.5" }],
+    });
+    record.a = a;
+    record.b = b;
+    const before = {
+      a: (await api(`/objects/${a.id}/history`)).body,
+      b: (await api(`/objects/${b.id}/history`)).body,
+    };
+    assert.equal((await api(`/objects/${a.id}`)).body.status, "SAVED");
+    const results = (await api(`/scenarios?owner=mine`)).body.scenarios.filter((c) => c.results > 0);
+    assert.equal(results.length, 0, "saving executed nothing");
+
+    await openLibrary(page);
+    await page.click('[data-testid="scenario-owner-mine"]');
+    for (const id of [a.id, b.id]) {
+      await page.waitForSelector(`[data-object-id="${id}"] [data-testid="scenario-select"]`, { timeout: 60_000 });
+      await page.check(`[data-object-id="${id}"] [data-testid="scenario-select"]`);
+    }
+    await page.click('[data-testid="scenario-combine"]');
+    const readiness = await waitPreview(page, "scenario-combine-preview");
+    assert.equal(readiness, "BLOCKED", "overlapping PD/LGD rules block until a policy is chosen");
+    const pending = await page.locator('[data-testid="overlap-policy-select"]').count();
+    record.overlaps_needing_policy = pending;
+    assert.ok(pending >= 1);
+    await shot(page, record, "overlap-matrix");
+    const selects = page.locator('[data-testid="overlap-policy-select"]');
+    for (let i = 0; i < pending; i += 1) await selects.nth(i).selectOption("compound");
+    await page.click('[data-testid="overlap-resolve"]');
+    await page.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 });
+    const c = await page.getAttribute('[data-testid="scenario-detail"]', "data-object-id");
+    record.c = c;
+    assert.notEqual(c, a.id);
+    const r = await waitPreview(page);
+    record.c_readiness = r;
+    assert.notEqual(r, "BLOCKED");
+    const lineage = await page.textContent('[data-testid="scenario-lineage"]');
+    assert.ok(lineage.includes("GW sector stress") && lineage.includes("GW macro downside"), "C names its parents");
+    await shot(page, record, "combined");
+    const after = {
+      a: (await api(`/objects/${a.id}/history`)).body,
+      b: (await api(`/objects/${b.id}/history`)).body,
+    };
+    assert.deepEqual(after, before, "the source scenarios were not modified");
+  });
+
+  await journey("GW-P4-03", "A seeded conflict template is blocked; choosing policies records them on YOUR copy and leaves the template untouched", async (record) => {
+    const tpl = (await api(`/scenarios?domain=retail&q=RET-18`)).body.scenarios[0];
+    const page = await open();
+    await page.goto(`${UI}/scenarios/${tpl.object_id}`, { waitUntil: "domcontentloaded" });
+    assert.equal(await waitPreview(page), "BLOCKED");
+    assert.ok(await page.isVisible('[data-testid="scenario-blocking"]'));
+    await page.selectOption('[data-testid="overlap-policy-select"]', "max");
+    await shot(page, record, "blocked-template");
+    await page.click('[data-testid="overlap-resolve"]');
+    await page.waitForFunction((id) => document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id") !== id, tpl.object_id, { timeout: 120_000 });
+    const copy = await page.getAttribute('[data-testid="scenario-detail"]', "data-object-id");
+    record.copy = copy;
+    assert.notEqual(await waitPreview(page), "BLOCKED");
+    const again = (await api(`/scenarios/${tpl.object_id}`)).body;
+    assert.equal(again.scenario.version, 1);
+    assert.equal(again.scenario.status, "TEMPLATE");
+    await shot(page, record, "resolved-copy");
+  });
+
+  await journey("GW-P4-04", "Rename makes a new version; Share sends the reference and version, not data", async (record) => {
+    const page = await open();
+    const made = await build(page, record, {
+      name: `GW share me ${Date.now()}`,
+      components: [{ kind: "parameter", field: "pd_pit_12m", operation: "relative_pct", value: "15" }],
+    });
+    await page.click('[data-testid="scenario-action-rename"]');
+    await page.fill('[data-testid="scenario-rename-input"]', "GW renamed scenario");
+    await page.click('[data-testid="scenario-rename-submit"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-version") === "2", null, { timeout: 60_000 });
+    await page.click('[data-testid="scenario-action-share"]');
+    await page.fill('[data-testid="scenario-share-input"]', "colleague");
+    await page.click('[data-testid="scenario-share-submit"]');
+    await page.waitForSelector('[data-testid="scenario-note"]', { timeout: 60_000 });
+    record.note = await page.textContent('[data-testid="scenario-note"]');
+    assert.match(record.note, /reference, never the data/);
+    const versions = (await api(`/objects/${made.id}/history`)).body.versions;
+    record.versions = versions.map((v) => [v.version, v.lineage?.reason]);
+    assert.ok(versions.length >= 3, "rename and share each made a version; the original stays");
+    assert.ok(versions[0].title.startsWith("GW share me"), "version 1 keeps its original name");
+    await shot(page, record, "shared");
+  });
+}
+
+// =========================================================================
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
   try {
     await p1Journeys();
     await p3Journeys();
+    await p4Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

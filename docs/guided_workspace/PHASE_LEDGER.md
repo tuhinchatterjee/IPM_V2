@@ -140,7 +140,54 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P4 — Scenario Library foundation
-* **Status:** NOT STARTED
+
+* **Entry check:** P3 exit gate proven (17 backend, 7 figure unit tests, browser GW-P3 5/5).
+* **Requirements:** §43 P4, §44 (≥36 templates, 18 per book, ≥6 combined/macro, every
+  card opens a real preview), §30.1–30.3 (scenario independent of execution and method,
+  component library, composition with component + overlap matrix and explicit policy),
+  §6.1–6.4 (units never confused; governed macro/rating/score translation), SC-01..SC-07,
+  SC-10, MSG-01/02.
+* **Files inspected:** `backend/cockpit_v4/scenario/{spec,units,fields,delta,preview}.py`,
+  `scenario/mappings/{ratings,scores,stages,sectors}.py`, `scenario/sensitivity/artifact.py`,
+  `scenario/ml/infer.py`; candidate relations `whatif_*_{sensitivity,mev_registry,macro_*,rating_map,score_map}`.
+* **Files added:** backend `backend/workspace/{scenario_seed,scenario_library,scenarios,scenarios_api}.py`
+  (router mounted in `api.py`); frontend `lib/workspace/{scenarios,scenario-figures}.ts`,
+  `components/scenarios/{preview-panel,scenario-library,scenario-detail,scenario-builder,guided-off}.tsx`,
+  routes `/scenarios`, `/scenarios/new`, `/scenarios/[scenarioId]`; nav item "Scenario Library".
+* **Design:** templates are ordinary `scenario` objects seeded per tenant, idempotently
+  (`gw-scenario-seed-1.0.0`), owned by the library, tenant-visible and read-only (clone to
+  change). Components are typed (parameter, utilisation, rating, score, delinquency, macro,
+  collateral, overlay) and checked against the book's own field dictionary and operation
+  vocabulary. Translation uses only governed artefacts: MEV sensitivities through
+  `sensitivity.artifact.translate` (SUPPORTED_ESTIMATE only; DIAGNOSTIC_ONLY listed as not
+  applied; ABSENT factors unsupported; bps↔pp and relative↔native conversions stated),
+  the rating masterscale by `grade_rank`, and the product scorecards by band (behavioural
+  and application never substituted). No governed mapping → NEEDS_USER_MAPPING, never a
+  guess. Overlaps are detected per variable family on the actual intersecting population;
+  macro-with-macro is the governed §7.2 linear sum; every other overlap blocks until an
+  explicit policy (compound / additive where valid / max / min / priority) is recorded.
+  Combining creates a NEW definition whose components carry their source object, version and
+  scope; sources are never written. ML availability is read from the emulator's gates
+  (Retail G4 0.3436 > 0.15 → UNAVAILABLE, shown with the reason). The preview never
+  calculates ECL and no definition selects a method.
+* **Measured:** 36 templates (18 CORP, 18 RET; 11 tagged macro/combined); all 36 preview on
+  the candidate books in 0.05–0.5 s each. Seeded readiness: 27 READY_FOR_CONFIRMATION,
+  5 READY_WITH_USER_DEFINED_INPUTS, 4 BLOCKED by design (CORP-18 and RET-18 need the
+  composition choice §44 requires; RET-02 carries the unsupported Retail CCF rule; none
+  hidden). RET-07 flags SIGN_REVIEW: the governed MEV09 slope lowers LGD when property
+  prices fall on this synthetic history; shown, not corrected.
+* **Protected changes:** none.
+* **Tests:**
+  * `tests/cockpit_v4/test_gw_scenarios.py` — 37 passed (gw backend total 109).
+  * `frontend/src/lib/workspace/scenario-figures.test.ts` — 7 passed (SCN01–SCN07);
+    `npm test` 619/619; `tsc` clean; eslint clean on new code.
+  * Browser (MODEL MOCK not involved: no model call) `GW-P4-01`..`GW-P4-04` — 4/4; full
+    suite 12/12.
+* **Limitations:** execution of a definition is P6 (METHOD_SELECTION, dual-scope
+  decomposition); Messages inbox/thread UI for shared scenarios is P7 (shares are stored
+  now as object reference + version cards); delinquency, vehicle collateral and
+  application-score components need a user-defined impact because no governed mapping exists.
+* **Status:** PASS
 
 ## P5 — What-If Analysis workspace and cohort explorer
 * **Status:** NOT STARTED

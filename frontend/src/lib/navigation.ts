@@ -11,6 +11,7 @@ import {
   Gauge,
   GitBranch,
   LayoutGrid,
+  Library,
   ListChecks,
   Network,
   Radar,
@@ -241,6 +242,17 @@ export const NAV_ITEMS: NavItem[] = [
     description:
       "Named, versioned management scenarios applied to the portfolio, with comparison.",
     icon: FlaskConical,
+    status: "live",
+    phase: "",
+    group: "Intelligence",
+    demo: "optional",
+  },
+  {
+    href: "/scenarios",
+    label: "Scenario Library",
+    description:
+      "Governed scenario definitions for both books: 36 seeded templates, your own drafts and combined scenarios, each previewed against the live book without calculating anything until a method is chosen.",
+    icon: Library,
     status: "live",
     phase: "",
     group: "Intelligence",
