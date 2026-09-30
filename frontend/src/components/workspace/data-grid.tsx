@@ -297,6 +297,8 @@ export interface DataGridProps {
   compact?: boolean;
   /** Bump to force a re-query (e.g. after clearing selection upstream). */
   refreshKey?: number;
+  /** Bump to clear the selection from outside (the page's Clear button). */
+  selectionResetKey?: number;
 }
 
 export function DataGrid({
@@ -310,6 +312,7 @@ export function DataGrid({
   testId = "data-grid",
   compact = false,
   refreshKey = 0,
+  selectionResetKey = 0,
 }: DataGridProps) {
   const [schema, setSchema] = React.useState<GridSchema | null>(null);
   const [filters, setFilters] = React.useState<Filter[]>(initialFilters);
@@ -328,6 +331,11 @@ export function DataGrid({
   // one stale frame first.
   const filterKey = JSON.stringify(initialFilters);
   const [shownFor, setShownFor] = React.useState({ domain, filterKey });
+  const [resetFor, setResetFor] = React.useState(selectionResetKey);
+  if (resetFor !== selectionResetKey) {
+    setResetFor(selectionResetKey);
+    setSelection({ mode: "none", ids: [], filters: [], count: 0 });
+  }
   if (shownFor.domain !== domain || shownFor.filterKey !== filterKey) {
     if (shownFor.domain !== domain) {
       setSchema(null);
@@ -347,7 +355,13 @@ export function DataGrid({
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [domain]);
 
-  const effective = React.useMemo(() => [...lockedFilters, ...filters], [lockedFilters, filters]);
+  // Keyed by CONTENT: a parent that re-renders with an equal (but new) locked
+  // filter array must not restart -- and abort -- the page query.
+  const lockedKey = JSON.stringify(lockedFilters);
+  const effective = React.useMemo(
+    () => [...(JSON.parse(lockedKey) as Filter[]), ...filters],
+    [lockedKey, filters],
+  );
 
   React.useEffect(() => {
     if (!schema) return;

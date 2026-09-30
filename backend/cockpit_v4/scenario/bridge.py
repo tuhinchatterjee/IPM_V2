@@ -65,6 +65,7 @@ from typing import Any
 
 from backend.cockpit_v4.scenario import attribution as at
 from backend.cockpit_v4.scenario import cohort as ch
+from backend.cockpit_v4.scenario import cohort_refs
 from backend.cockpit_v4.scenario import delta as dl
 from backend.cockpit_v4.scenario import fields as fd
 from backend.cockpit_v4.scenario import flags
@@ -82,6 +83,7 @@ from backend.cockpit_v4.scenario import units as un
 from backend.cockpit_v4.scenario.errors import (
     BUDGET_EXCEEDED,
     CALCULATION_FAILED,
+    COHORT_UNRESOLVED,
     CONFIRMATION_STALE,
     METHOD_COVERAGE_GAP,
     PARAMETER_OUT_OF_RANGE,
@@ -413,13 +415,39 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
     point -- a preview is a statement about what is about to be computed, and
     a preview that computed it would make the confirmation ceremonial.
     """
+    predicate = request.selection.predicate()
+    selection = request.selection.selection
+    described = request.selection.describe()
+    period = request.period
+    saved: dict[str, Any] = {}
+    if request.selection.cohort_ref:
+        # A saved governed cohort: its own server-written predicate, period
+        # and selection mode, verified by membership hash below.
+        saved = cohort_refs.resolve(
+            request.selection.cohort_ref, domain_id=domain_id,
+            tenant_id=_tenant_of(scope), release_id=release_id)
+        predicate = str(saved["predicate"])
+        selection = str(saved["selection"])
+        period = str(saved["period"])
+        described = str(saved.get("described_as") or described)
     frozen = ch.freeze(
         session=session,
         scope=_scope_for(scope, domain_id=domain_id, release_id=release_id),
-        predicate=request.selection.predicate(),
-        period=request.period,
-        selection=request.selection.selection,
-        described_as=request.selection.describe())
+        predicate=predicate,
+        period=period,
+        selection=selection,
+        described_as=described)
+    if saved and frozen.ref.membership_hash != saved["membership_hash"]:
+        raise_for(COHORT_UNRESOLVED,
+                  f"the saved cohort {request.selection.cohort_ref} was "
+                  f"frozen with {saved.get('entity_count', '?')} exposures "
+                  f"(membership {str(saved['membership_hash'])[:12]}) and "
+                  f"now resolves to {frozen.ref.entity_count} (membership "
+                  f"{frozen.ref.membership_hash[:12]}). Its rows moved, so it "
+                  f"was not used: refresh the cohort to a new version first.",
+                  field_path="cohort.cohort_id",
+                  saved=saved["membership_hash"],
+                  resolved=frozen.ref.membership_hash)
     clock.check("freezing the cohort")
     _bound_cohort(frozen)
     draft = sp.ScenarioSpec(
@@ -456,6 +484,7 @@ def _preview(request: PreviewRequest, *, session: Any, scope: Any,
             "whatif_cohort_id": frozen.ref.cohort_id,
             "whatif_membership_hash": frozen.ref.membership_hash,
             "whatif_reporting_period": frozen.period,
+            "whatif_governed_cohort_id": request.selection.cohort_ref,
             "origin": "SYNTHETIC_DEMO"},
         warnings=list(built.spec.warnings))
 

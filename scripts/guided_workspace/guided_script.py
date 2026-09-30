@@ -29,6 +29,12 @@ PLAN: dict[str, dict[str, str]] = {
                "period": "reporting_month"},
 }
 
+#: A What-If question carries the active cohort by reference in `ui_filters`.
+ACTIVE_COHORT = re.compile(
+    r'active_cohort\W+(?:[^{}]*?)cohort_id\W+(coh-[0-9a-f]{12})')
+
+SCENARIO_WORDS = re.compile(r"\b(increase|stress|raise|shock)\b|%")
+
 GUIDED = re.compile(
     r"^(which|show|what changed|check whether|how does|compare pd|why|"
     r"what is driving|list the|where is)\b")
@@ -61,6 +67,28 @@ def investigation_sql(domain: str) -> str:
             f"ORDER BY ecl_sar_mn DESC")
 
 
+def active_cohort(messages: list[dict[str, Any]], system: Any = None) -> str:
+    blob = json.dumps({"m": messages, "s": system}, default=str)
+    found = ACTIVE_COHORT.search(blob.replace('\\"', '"'))
+    return found.group(1) if found else ""
+
+
+def shocks_from(question: str) -> list[dict[str, Any]]:
+    """The two rule shapes the browser journeys ask for, typed exactly."""
+    q = question.lower()
+    out = []
+    pd = re.search(r"pd[^0-9]*(\d+)\s*%", q)
+    lgd = re.search(r"lgd[^0-9]*(\d+)\s*%", q)
+    if pd:
+        out.append({"field": "pd_pit_12m", "operation": "relative_pct",
+                    "value": pd.group(1), "origin": f"PD +{pd.group(1)}%"})
+    if lgd:
+        out.append({"field": "lgd_pct", "operation": "relative_pct",
+                    "value": lgd.group(1), "origin": f"LGD +{lgd.group(1)}%"})
+    return out or [{"field": "pd_pit_12m", "operation": "relative_pct",
+                    "value": "20", "origin": "PD +20%"}]
+
+
 class GuidedProvider:
     """Delegates to `base` for everything but a guided investigation turn."""
 
@@ -75,6 +103,10 @@ class GuidedProvider:
                  allow_retry=True, effort="", tool_choice=None,
                  output_config=None):
         question = self.base._question(messages)
+        cohort_ref = active_cohort(messages, system)
+        if cohort_ref and SCENARIO_WORDS.search(question) and not any(
+                w in question for w in ("yes", "run it", "confirm")):
+            return self._preview_on_cohort(messages, question, cohort_ref)
         if not is_guided(question):
             return self.base.converse(
                 system=system, messages=messages, tools=tools,
@@ -113,6 +145,66 @@ class GuidedProvider:
                                 dimension="dimension", intent_of=intent,
                                 final_of=final),
             "tu-guided-answer")])
+
+    def _preview_on_cohort(self, messages, question: str, cohort_ref: str):
+        from conftest import ScriptedResult, intent, tool_call
+
+        turn = sum(1 for m in messages if m.get("role") == "assistant")
+        time.sleep(0.3)
+        if turn > 0:
+            return _clarify(messages, question)
+        return ScriptedResult(tool_calls=[tool_call(
+            "execute_analysis",
+            {"intent": intent("DATA_ANALYSIS", "COCKPIT", understood=question),
+             "objective": "preview this scenario on the active cohort",
+             "subquestions": [question[:200]],
+             "metadata_receipt_ids": None, "fields_required": None,
+             "expected_output_grain": "one row per measure",
+             "expected_units": {},
+             "steps": [{"step_id": "s1", "language": "whatif_scenario",
+                        "code": "Preview: the rules asked for, over the "
+                                "active What-If cohort named by id.",
+                        "parameters": {
+                            "operation": "preview_scenario",
+                            "cohort": {"cohort_id": cohort_ref},
+                            "shocks": shocks_from(question),
+                            "methods": ["delta"],
+                            "clauses": [question[:400]]},
+                        "purpose": "preview the scenario before anything runs",
+                        "input_artifact_ids": None,
+                        "depends_on_step_ids": None}],
+             "repair_of_submission_id": None},
+            "tu-wi-cohort")])
+
+
+def _clarify(messages, question: str) -> Any:
+    """The preview, published as a clarification the reader confirms."""
+    from conftest import ScriptedResult, final, intent, tool_call
+
+    import whatif_stub_server as base_mod
+
+    step = base_mod._step_of(messages)
+    rows = base_mod._rows_from(messages)
+    digest = base_mod._value(rows, "confirmation", "Digest to approve")
+    cohort = base_mod._value(rows, "cohort", "Cohort id")
+    n = base_mod._value(rows, "cohort", "Exposures selected")
+    return ScriptedResult(tool_calls=[tool_call(
+        "finalize_response",
+        final(intent=intent("DATA_ANALYSIS", "COCKPIT", understood=question),
+              disposition="clarification",
+              narrative=(f"Nothing has been calculated. The rules below would "
+                         f"apply to the {n} exposures of the active What-If "
+                         f"cohort, frozen as {cohort}."),
+              clarification_question=(f"Apply these rules to the {n} "
+                                      f"exposures of the active cohort "
+                                      f"({cohort})? Approve this scenario "
+                                      f"({digest[:12]})?"),
+              clarification_options=["Yes, run it", "No, change something"],
+              tables=[{"title": "Scenario preview",
+                       "artifact_id": str(step.get("artifact_id") or ""),
+                       "columns": ["section", "item", "detail", "value",
+                                   "unit", "status"]}]),
+        "tu-wi-preview")])
 
 
 def install(app: Any) -> GuidedProvider:

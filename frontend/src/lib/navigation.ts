@@ -122,7 +122,13 @@ export const NAV_GROUPS: NavGroup[] = [
   "Admin",
 ];
 
-export const NAV_ITEMS: NavItem[] = [
+/** The Guided Risk Workspace flag, read at build time like every NEXT_PUBLIC_*. */
+const GUIDED = process.env.NEXT_PUBLIC_GUIDED_WORKSPACE === "1";
+
+/** Items that exist only with the Guided Risk Workspace on. */
+const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab"]);
+
+const ALL_NAV_ITEMS: NavItem[] = [
   {
     href: "/",
     label: "Cockpit",
@@ -236,17 +242,32 @@ export const NAV_ITEMS: NavItem[] = [
     demoNote:
       "Manual and on-publication triggers run. Scheduled ones are not wired to a scheduler, so do not promise scheduling.",
   },
-  {
-    href: "/stress",
-    label: "Stress Testing",
-    description:
-      "Named, versioned management scenarios applied to the portfolio, with comparison.",
-    icon: FlaskConical,
-    status: "live",
-    phase: "",
-    group: "Intelligence",
-    demo: "optional",
-  },
+  // With the Guided Risk Workspace on, "Stress Testing" becomes the What-If
+  // Analysis workbench (§8: one label, the old route redirects). With it
+  // off, the accepted page and label are exactly as before.
+  GUIDED
+    ? {
+        href: "/what-if",
+        label: "What-If Analysis",
+        description:
+          "See the latest-period book, select the population, load or describe a scenario, choose a method and compare results — the same scenario engine as the Cockpit.",
+        icon: FlaskConical,
+        status: "live",
+        phase: "",
+        group: "Intelligence",
+        demo: "optional",
+      }
+    : {
+        href: "/stress",
+        label: "Stress Testing",
+        description:
+          "Named, versioned management scenarios applied to the portfolio, with comparison.",
+        icon: FlaskConical,
+        status: "live",
+        phase: "",
+        group: "Intelligence",
+        demo: "optional",
+      },
   {
     href: "/scenarios",
     label: "Scenario Library",
@@ -406,6 +427,8 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "admin",
   },
 ];
+
+export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter((item) => GUIDED || !GUIDED_ONLY.has(item.href));
 
 export const STATUS_LABEL: Record<CapabilityStatus, string> = {
   live: "Live",

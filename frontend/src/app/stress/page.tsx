@@ -26,6 +26,8 @@ import { money, percent } from "@/lib/format";
 import { useAnalysis, useAsync } from "@/lib/hooks";
 import type { Row } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { guidedEnabled } from "@/lib/workspace/guided";
+import { useRouter } from "next/navigation";
 
 /**
  * Stress Testing.
@@ -69,7 +71,7 @@ const PRESETS = [
   },
 ];
 
-export default function StressPage() {
+function StressPage() {
   const [tab, setTab] = React.useState("library");
   const [scenario, setScenario] = React.useState("moderate");
   const [sector, setSector] = React.useState("");
@@ -507,3 +509,25 @@ export default function StressPage() {
 }
 
 export { cn };
+
+
+/**
+ * With the Guided Risk Workspace on, Stress Testing IS What-If Analysis: the
+ * old route redirects so bookmarks keep working (§8, GRID02). With it off,
+ * the accepted page renders unchanged.
+ */
+export default function StressRoute() {
+  return guidedEnabled() ? <RedirectToWhatIf /> : <StressPage />;
+}
+
+function RedirectToWhatIf() {
+  const router = useRouter();
+  React.useEffect(() => {
+    router.replace(`/what-if${window.location.search}`);
+  }, [router]);
+  return (
+    <p className="p-6 text-sm text-text-muted" data-testid="stress-redirect">
+      Stress Testing is now What-If Analysis — opening it…
+    </p>
+  );
+}

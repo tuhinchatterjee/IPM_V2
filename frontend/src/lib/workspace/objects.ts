@@ -4,7 +4,7 @@
  * module; edits make new versions; duplicates and compositions keep lineage.
  */
 
-import { qs, wsGet, wsSend } from "@/lib/workspace/client";
+import { qs, workspaceUrl, wsGet, wsSend } from "@/lib/workspace/client";
 
 export type DomainId = "corporate" | "retail";
 
@@ -139,4 +139,9 @@ export function objectHref(kind: string, id: string, extra: Record<string, strin
     default:
       return `/messages${qs({ object: id })}`;
   }
+}
+
+/** Where a saved cohort's CSV export is served (release/fingerprint/predicate in its header). */
+export function workspaceCohortExportUrl(id: string): string {
+  return workspaceUrl(`/cohorts/${encodeURIComponent(id)}/export`);
 }

@@ -190,7 +190,51 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P5 — What-If Analysis workspace and cohort explorer
-* **Status:** NOT STARTED
+
+* **Entry check:** P4 exit gate proven (37 backend, 7 unit, browser GW-P4 4/4).
+* **Requirements:** §43 P5, §8 (workbench composition, grid, filters, selection, export),
+  §8.3 grid fields, §10.1 interaction, §29 (one cohort across modules), §30 (one engine,
+  two entrances), GRID01–GRID21, SCEN13, SCEN15, CO-01/03, PV-02/03/06, SEC01/SEC04.
+* **Files inspected:** `scenario/{bridge,selector,cohort,thread,delta,rules,sql,spec}.py`,
+  `cockpit_v4/{context,routes,run_store}.py` (the `ui_filters` channel, thread context),
+  `components/cockpit-v4/{client,thread-view,cockpit-v4-home}.tsx`, `app/stress/page.tsx`.
+* **Files changed / added:**
+  * engine (unprotected): `scenario/cohort_refs.py` (new resolver hook); `scenario/selector.py`
+    (`{"cohort_id": ...}` selection); `scenario/bridge.py` (preview resolves a named cohort and
+    refuses unless the frozen membership hash equals the saved one).
+  * workspace: `whatif.py`, `whatif_api.py`, `sharing.py` (new); `cohorts.py` (stored engine
+    predicate, `adopt`, `resolve_stored`, `engine_resolver`); `api.py` (mounts + registers).
+  * frontend: `app/what-if/page.tsx`, `components/whatif/{whatif-workspace,portfolio-explorer,
+    scenario-application}.tsx`, `lib/workspace/{whatif,whatif-filters}.ts`; `app/stress/page.tsx`
+    redirects to `/what-if` when the guided flag is on; nav label "What-If Analysis" replaces
+    "Stress Testing" (flag-gated; flags-off nav unchanged); `data-grid.tsx` gained
+    `selectionResetKey` and content-keyed locked filters (fixes a query abort loop found here).
+  * harness: `guided_script.py` answers a What-If scenario question by naming the active cohort.
+* **Design:** the population is always a governed cohort. A question typed on the page is an
+  ordinary Cockpit run whose `ui_filters` carry the active cohort by reference (existing
+  channel, no orchestration change); the analyst's `preview_scenario` names it as
+  `{"cohort_id": ...}` and the engine freezes that cohort's server-written predicate and
+  verifies the membership hash. The reverse route adopts a conversation's frozen cohort as a
+  governed cohort only if the hash is identical. Charts and grid share one filter state
+  (server `/grid/group`); click toggles a category filter, box/lasso sets several. Apply
+  Scenario binds the loaded Scenario Definition to the cohort (template untouched) and
+  previews it; execution is P6.
+* **Measured:** Corporate grid 2,996 facilities at 2026Q2; Retail 6,702 accounts at 2026-08;
+  Construction click → 248 facilities / 100 borrowers; box-select of two sectors → 496; manual
+  5-row selection → conversation cohort 5 entities with membership hash identical to the saved
+  cohort (GW-P5-04 records both hashes); adopted cohort hash identical; a joined-column cohort
+  (rating B/B+ in Construction) bound by reference with identical hash.
+* **Protected changes:** none (the embedded conversation reuses `CockpitV4Thread` unmodified).
+* **Tests:**
+  * `tests/cockpit_v4/test_gw_whatif.py` — 20 passed (gw backend total 129).
+  * Mutation: disabling the bridge's membership-hash check makes
+    `test_a_named_cohort_whose_rows_moved_is_refused` fail; restored, it passes.
+  * Engine regression: `pytest tests/cockpit_v4 -k "whatif and not gw_"` — 973 passed, 3 failed
+    (the three environment-bound baseline failures recorded at P0), 2 skipped.
+  * `frontend/src/lib/workspace/whatif-filters.test.ts` — 5 passed (WIF01–WIF05); `npm test`
+    624/624; `tsc` clean; eslint clean on new code.
+  * Browser `GW-P5-01`..`GW-P5-06` — 6/6; full suite 18/18.
+* **Status:** PASS (execution of an applied scenario is P6's gate)
 
 ## P6 — Method selection, ECL execution, universal Plotly decomposition
 * **Status:** NOT STARTED

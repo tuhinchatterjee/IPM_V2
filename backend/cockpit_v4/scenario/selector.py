@@ -118,12 +118,18 @@ class Selection:
     domain_id: str
     filters: tuple[Filter, ...]
     selection: str = ch.BY_ROW
+    #: A saved governed cohort named by id (`cohort_refs`). When set, the
+    #: population is the cohort's own stored predicate, resolved and
+    #: hash-verified server-side; `filters` is empty.
+    cohort_ref: str = ""
 
     def predicate(self) -> str:
         """The inside of one `AND`-joined group, or `""` for the whole book."""
         return " AND ".join(f"({f.sql()})" for f in self.filters)
 
     def describe(self) -> str:
+        if self.cohort_ref:
+            return f"the saved cohort {self.cohort_ref}"
         if not self.filters:
             return "every exposure in the book at this period"
         joined = "; ".join(f.describe() for f in self.filters)
@@ -164,6 +170,25 @@ def parse(raw: Any, *, domain_id: str, path: str = "cohort") -> Selection:
         raise_for(COHORT_UNRESOLVED,
                   f"{path} must be an object describing which exposures to "
                   f"stress.", field_path=path)
+    if "cohort_id" in raw:
+        # A saved governed cohort, by id. Nothing else may ride with it: the
+        # population is the cohort's, so a filter beside it would be a second
+        # population in the same request.
+        extra = set(raw) - {"cohort_id"}
+        if extra:
+            raise_for(COHORT_UNRESOLVED,
+                      f"{path} names a saved cohort and also carries "
+                      f"{sorted(extra)}. A saved cohort is the whole "
+                      f"population; narrow it by saving a new cohort.",
+                      field_path=path)
+        from backend.cockpit_v4.scenario import cohort_refs
+
+        ref = str(raw.get("cohort_id") or "")
+        if not cohort_refs.COHORT_ID.match(ref):
+            raise_for(COHORT_UNRESOLVED,
+                      f"{path}.cohort_id {ref!r} is not a governed cohort id.",
+                      field_path=f"{path}.cohort_id")
+        return Selection(domain_id=domain_id, filters=(), cohort_ref=ref)
     unknown = set(raw) - {"filters", "selection"}
     if unknown:
         raise_for(COHORT_UNRESOLVED,

@@ -601,6 +601,222 @@ async function p4Journeys() {
 }
 
 // =========================================================================
+// P5 — What-If Analysis workspace
+// =========================================================================
+
+async function openWhatIf(page, query = "") {
+  await page.goto(`${UI}/what-if${query}`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="whatif-workspace"]', { timeout: 120_000 });
+  await gridTotal(page);
+}
+
+async function gridTotal(page, testId = "whatif-grid") {
+  await page.waitForFunction(
+    (id) => Number(document.querySelector(`[data-testid="${id}"]`)?.getAttribute("data-total") || 0) > 0,
+    testId,
+    { timeout: 120_000 },
+  );
+  return Number(await page.getAttribute(`[data-testid="${testId}"]`, "data-total"));
+}
+
+/** Click the Plotly bar whose category is `label`, with a real mouse. */
+async function clickBar(page, chartTestId, label) {
+  const chart = `[data-testid="${chartTestId}"]`;
+  await page.waitForSelector(`${chart}[data-rendered="true"]`, { timeout: 60_000 });
+  const index = await page.evaluate(
+    ([sel, want]) => (document.querySelector(sel)?.data?.[0]?.x ?? []).map(String).indexOf(want),
+    [chart, label],
+  );
+  assert.ok(index >= 0, `${label} is a bar of ${chartTestId}`);
+  await page.locator(chart).scrollIntoViewIfNeeded();
+  const box = await page.locator(`${chart} g.point path`).nth(index).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(250);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+async function waitSelectionEntities(page, n) {
+  await page.waitForFunction(
+    (want) => document.querySelector('[data-testid="whatif-selection-summary"]')?.getAttribute("data-entities") === String(want),
+    n,
+    { timeout: 60_000 },
+  );
+}
+
+async function p5Journeys() {
+  await journey("GW-P5-01", "What-If Analysis replaces Stress Testing; /stress redirects; Ask box on top; book toggle changes period and grain; Retail ML visibly unavailable", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/stress?from=bookmark`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL(/\/what-if\?from=bookmark/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="whatif-workspace"]', { timeout: 120_000 });
+    const nav = await page.textContent("nav, aside");
+    record.nav_has_whatif = nav.includes("What-If Analysis");
+    record.nav_has_stress = nav.includes("Stress Testing");
+    assert.ok(record.nav_has_whatif && !record.nav_has_stress, "one label, What-If Analysis");
+    const askY = (await page.locator('[data-testid="whatif-ask-box"]').boundingBox()).y;
+    const gridY = (await page.locator('[data-testid="whatif-grid"]').boundingBox()).y;
+    assert.ok(askY < gridY, "the Ask box is above the grid");
+    record.corporate_total = await gridTotal(page);
+    assert.equal(record.corporate_total, 2996);
+    assert.match(await page.textContent('[data-testid="whatif-book"]'), /quarter 2026Q2/);
+    await shot(page, record, "corporate");
+    await page.click('[data-testid="ws-domain-retail"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "6702", null, { timeout: 120_000 });
+    assert.match(await page.textContent('[data-testid="whatif-book"]'), /month 2026-08/);
+    assert.equal(await page.getAttribute('[data-testid="whatif-method-ml"]', "data-status"), "UNAVAILABLE");
+    assert.match(await page.textContent('[data-testid="whatif-ml-unavailable"]'), /G4/);
+    await shot(page, record, "retail");
+  });
+
+  await journey("GW-P5-02", "Explorer click cross-filters the grid; box/lasso selects several; select-all-filtered binds the complete cohort; saved cohort reconciles", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    await clickBar(page, "whatif-chart-dimension", "Construction");
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "248", null, { timeout: 60_000 });
+    record.after_click = 248;
+    const chips = await page.$$eval('[data-testid="whatif-grid"] [data-testid="grid-filter-chip"]', (c) => c.map((x) => x.textContent));
+    record.filter_chips = chips;
+    assert.ok(chips.some((c) => c.includes("Construction")), "the click became a grid filter");
+    // Click again: the filter clears (toggle).
+    await clickBar(page, "whatif-chart-dimension", "Construction");
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "2996", null, { timeout: 60_000 });
+    // Box-select the first two bars.
+    const chart = '[data-testid="whatif-chart-dimension"]';
+    const b0 = await page.locator(`${chart} g.point path`).nth(0).boundingBox();
+    const b1 = await page.locator(`${chart} g.point path`).nth(1).boundingBox();
+    // A box from above the tallest of the two bars down to the axis.
+    await page.mouse.move(b0.x - 4, Math.min(b0.y, b1.y) - 8);
+    await page.mouse.down();
+    await page.mouse.move(b1.x + b1.width + 4, b0.y + b0.height - 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForFunction(() => {
+      const t = Number(document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") || 0);
+      return t > 0 && t < 2996;
+    }, null, { timeout: 60_000 });
+    const boxed = await page.$$eval('[data-testid="whatif-grid"] [data-testid="grid-filter-chip"]', (c) => c.map((x) => x.textContent));
+    record.box_select_chips = boxed;
+    record.after_box = Number(await page.getAttribute('[data-testid="whatif-grid"]', "data-total"));
+    assert.ok(boxed.some((c) => c.split(",").length === 2), "two categories from one box selection");
+    await shot(page, record, "box-select");
+    // Back to Construction only, then select everything the filter matches.
+    await page.goto(`${UI}/what-if`, { waitUntil: "domcontentloaded" });
+    await gridTotal(page);
+    await clickBar(page, "whatif-chart-dimension", "Construction");
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "248", null, { timeout: 60_000 });
+    await page.click('[data-testid="whatif-grid-select-all-filtered"]');
+    await waitSelectionEntities(page, 248);
+    const text = await page.textContent('[data-testid="whatif-selection-summary"]');
+    record.summary = text;
+    assert.match(text, /248 facilities/);
+    assert.match(text, /100 borrowers/);
+    await page.click('[data-testid="whatif-save-cohort"]');
+    await page.fill('[data-testid="whatif-save-form-input"]', "GW Construction (grid)");
+    await page.click('[data-testid="whatif-save-form-submit"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 60_000 });
+    const cohortId = await page.getAttribute('[data-testid="whatif-strip-cohort"]', "data-cohort-id");
+    record.cohort_id = cohortId;
+    const cohort = (await api(`/objects/${cohortId}`)).body;
+    assert.equal(cohort.body.counts.entities, 248);
+    assert.equal(cohort.body.member_ids.length, 248, "the whole filtered cohort, not the page");
+    await shot(page, record, "saved");
+  });
+
+  await journey("GW-P5-03", "One row, several rows, clear selection", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    await page.locator('[data-testid="whatif-grid"] [data-testid="grid-row"] input[type="checkbox"]').first().check();
+    await waitSelectionEntities(page, 1);
+    for (let i = 1; i < 4; i += 1) await page.locator('[data-testid="whatif-grid"] [data-testid="grid-row"] input[type="checkbox"]').nth(i).check();
+    await waitSelectionEntities(page, 4);
+    record.summary = await page.textContent('[data-testid="whatif-selection-summary"]');
+    await page.click('[data-testid="whatif-clear"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-selection"]')?.getAttribute("data-mode") === "none", null, { timeout: 30_000 });
+    assert.equal(await page.locator('[data-testid="whatif-grid"] [data-testid="grid-row"] input[type="checkbox"]:checked').count(), 0);
+  });
+
+  await journey("GW-P5-04", "Manual selection -> Ask -> the conversation binds the SAME governed cohort; adopting it returns the identical contract", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    for (let i = 0; i < 5; i += 1) await page.locator('[data-testid="whatif-grid"] [data-testid="grid-row"] input[type="checkbox"]').nth(i).check();
+    await waitSelectionEntities(page, 5);
+    const question = "Increase PD by 20% and LGD by 10% for this selection";
+    record.prompts.push(question);
+    await page.fill('[data-testid="whatif-ask-input"]', question);
+    await page.click('[data-testid="whatif-ask"]');
+    await page.waitForSelector('[data-testid="whatif-conversation"]', { timeout: 90_000 });
+    const cohortId = await page.getAttribute('[data-testid="whatif-strip-cohort"]', "data-cohort-id");
+    record.manual_cohort = cohortId;
+    assert.ok(cohortId, "the manual selection was frozen before the question ran");
+    await settle(page, 0);
+    record.thread_id = await page.getAttribute('[data-testid="whatif-conversation"]', "data-thread-id");
+    const conversational = (await api(`/whatif/threads/${record.thread_id}/cohort`)).body;
+    const manual = (await api(`/objects/${cohortId}`)).body;
+    record.conversation_membership = conversational.membership_hash;
+    record.manual_membership = manual.body.membership_hash;
+    assert.equal(conversational.has_cohort, true);
+    assert.equal(conversational.entities, 5);
+    assert.equal(conversational.membership_hash, manual.body.membership_hash, "one cohort contract, two routes");
+    await shot(page, record, "conversation");
+    await page.click('[data-testid="whatif-adopt-cohort"]');
+    await page.waitForSelector('[data-testid="whatif-note"]', { timeout: 60_000 });
+    const adoptedId = await page.getAttribute('[data-testid="whatif-strip-cohort"]', "data-cohort-id");
+    const adopted = (await api(`/objects/${adoptedId}`)).body;
+    record.adopted = adoptedId;
+    assert.equal(adopted.body.membership_hash, manual.body.membership_hash);
+    assert.equal(adopted.body.source.kind, "conversation");
+  });
+
+  await journey("GW-P5-05", "Load a scenario from the library and Apply it to the active cohort: bound, previewed, not calculated; Scenario Library 'Open in What-If' lands here with the same object", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    await clickBar(page, "whatif-chart-dimension", "Construction");
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "248", null, { timeout: 60_000 });
+    await page.click('[data-testid="whatif-grid-select-all-filtered"]');
+    await waitSelectionEntities(page, 248);
+    await page.click('[data-testid="whatif-load-scenario"]');
+    await page.fill('[data-testid="whatif-scenario-filter"]', "CORP-02");
+    await page.click('[data-testid="whatif-scenario-pick"][data-template-id="CORP-02"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id"), null, { timeout: 60_000 });
+    await page.click('[data-testid="whatif-apply"]');
+    await page.waitForSelector('[data-testid="whatif-preview"]', { timeout: 120_000 });
+    const statement = await page.textContent('[data-testid="whatif-preview"] [data-testid="scenario-not-calculated"]');
+    assert.match(statement, /Nothing has been calculated/);
+    const kpis = await page.textContent('[data-testid="whatif-preview"] [data-testid="scenario-scope-kpis"]');
+    record.kpis = kpis;
+    assert.match(kpis, /248/);
+    const boundId = await page.getAttribute('[data-testid="whatif-application"]', "data-scenario-id");
+    const bound = (await api(`/scenarios/${boundId}`)).body.scenario;
+    record.bound = `${boundId} v${bound.version}`;
+    assert.equal(bound.body.scope.type, "cohort");
+    const template = (await api(`/scenarios/scn-tpl-corp-02`)).body.scenario;
+    assert.equal(template.version, 1, "the library template was not changed");
+    await shot(page, record, "applied");
+    // The Scenario Library's handoff opens the SAME object here.
+    await page.goto(`${UI}/scenarios/${boundId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="scenario-open-whatif"]', { timeout: 60_000 });
+    await page.click('[data-testid="scenario-open-whatif"]');
+    await page.waitForSelector('[data-testid="whatif-workspace"]', { timeout: 120_000 });
+    await page.waitForFunction((id) => document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id") === id, boundId, { timeout: 60_000 });
+  });
+
+  await journey("GW-P5-06", "Investigate in Cockpit from a What-If selection opens a thread seeded with the exact cohort", async (record) => {
+    const page = await open();
+    await openWhatIf(page, "?domain=retail");
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "6702", null, { timeout: 120_000 });
+    await clickBar(page, "whatif-chart-dimension", "Credit Card");
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "1772", null, { timeout: 60_000 });
+    await page.click('[data-testid="whatif-grid-select-all-filtered"]');
+    await waitSelectionEntities(page, 1772);
+    await page.click('[data-testid="whatif-investigate"]');
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 90_000 });
+    record.thread_id = /\/thread\/([A-Za-z0-9-]+)/.exec(page.url())?.[1];
+    const thread = await v4(`/threads/${record.thread_id}`);
+    assert.equal(thread?.domain_id ?? thread?.thread?.domain_id, "retail");
+    await shot(page, record, "thread");
+  });
+}
+
+// =========================================================================
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
@@ -608,6 +824,7 @@ async function main() {
     await p1Journeys();
     await p3Journeys();
     await p4Journeys();
+    await p5Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();
