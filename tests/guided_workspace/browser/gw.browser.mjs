@@ -472,7 +472,11 @@ async function p4Journeys() {
     assert.match(text, /Retail 1[8-9]|Retail [2-9]\d/);
     await shot(page, record, "library");
     await page.click('[data-testid="scenario-domain-retail"]');
-    await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="scenario-card"]')].every((c) => c.getAttribute("data-domain") === "retail"), null, { timeout: 60_000 });
+    // Non-empty AND all retail: an empty list mid-refetch satisfies every().
+    await page.waitForFunction(() => {
+      const cards = [...document.querySelectorAll('[data-testid="scenario-card"]')];
+      return cards.length > 0 && cards.every((c) => c.getAttribute("data-domain") === "retail");
+    }, null, { timeout: 60_000 });
     record.retail_cards = await page.locator('[data-testid="scenario-card"]').count();
     assert.ok(record.retail_cards >= 18);
     await page.click('[data-testid="scenario-domain-all"]');
