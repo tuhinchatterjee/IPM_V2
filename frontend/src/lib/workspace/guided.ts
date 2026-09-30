@@ -226,6 +226,18 @@ export const gridGroup = (domain: DomainId, dimension: string, filters: Filter[]
     { domain, dimension, filters },
   );
 
+/** Two-dimension aggregate for heatmaps and stage flows (server-side,
+ * capped; the totals let the chart prove it reconciles to the book). */
+export const gridGroup2 = (domain: DomainId, x: string, y: string, filters: Filter[]) =>
+  wsSend<{
+    x: string;
+    y: string;
+    period: string;
+    truncated: boolean;
+    cells: { x: string | number | null; y: string | number | null; n: number; ead_sar_mn: number | null; ecl_sar_mn: number | null }[];
+    total: { n: number; ead_sar_mn: number | null; ecl_sar_mn: number | null };
+  }>("/grid/group2", { domain, x, y, filters });
+
 export async function downloadGridCsv(domain: DomainId, filters: Filter[]): Promise<void> {
   const response = await fetch(workspaceUrl("/grid/export"), {
     method: "POST",

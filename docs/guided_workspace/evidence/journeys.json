@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 33,
-  "total": 33,
+  "passed": 38,
+  "total": 38,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -70,10 +70,10 @@
         "docs/guided_workspace/evidence/journeys/GW-P10-01-lens-at-trigger.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "active": "9",
+      "active": "11",
       "lens_state": "Active statecorporate 2026Q2 (latest)Lens scope: corporate: sector ∈ Construction, Real Estatecorporate: sector ∈ Construction, Real Estatereset to latest, unfiltered",
       "status": "PASS",
-      "ms": 6114
+      "ms": 5759
     },
     {
       "journey": "GW-P10-02",
@@ -92,7 +92,7 @@
         "message-action-comment"
       ],
       "status": "PASS",
-      "ms": 6268
+      "ms": 4108
     },
     {
       "journey": "GW-P10-03",
@@ -102,10 +102,129 @@
         "docs/guided_workspace/evidence/journeys/GW-P10-03-health.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "note": "Scheduler step: 1 Lens(es) refreshed, 0 failed, 22 not due.",
-      "health_rows": 23,
+      "note": "Scheduler step: 4 Lens(es) refreshed, 0 failed, 21 not due.",
+      "health_rows": 25,
       "status": "PASS",
-      "ms": 1166
+      "ms": 2437
+    },
+    {
+      "journey": "GW-P11-01",
+      "what": "What-If heatmap and stage-migration Sankey: server-aggregated (small payload), reconcile to the filtered book, a flow click and a heatmap cell (via the keyboard on its data row) filter the grid; the same key again clears it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-matrices.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-flow-filtered.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-keyboard-cell.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "heatmap_reconciles": "true",
+      "sankey_reconciles": "true",
+      "group2_payload_bytes": [
+        604,
+        9150,
+        604,
+        9150,
+        8971,
+        604,
+        9150,
+        604,
+        9150,
+        552,
+        9150,
+        604
+      ],
+      "flow_chips": [
+        "Prior stage: 1",
+        "Stage: 1"
+      ],
+      "after_flow": 2976,
+      "keyboard_row": [
+        "Construction",
+        "B",
+        "15"
+      ],
+      "after_keyboard": 15,
+      "status": "PASS",
+      "ms": 5748
+    },
+    {
+      "journey": "GW-P11-02",
+      "what": "The shared chart contract on one screen: role=img labels, hover shows units, legend isolate is visual only (no refetch, totals unchanged), drag-zoom and mode-bar reset, CSV carries release/fingerprint/period/filters, PNG downloads",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-02-contract.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "charts_on_screen": 4,
+      "hover": "Sector UtilitiesSAR 196m · 249 exposuresraw 195.515767 SAR million",
+      "step": "reset",
+      "api_calls_on_legend_toggle": 0,
+      "hidden_after_rerender": 1,
+      "zoomed_range": [
+        1.8777089783281733,
+        6.670278637770898
+      ],
+      "csv_header": [
+        "# release: v4-whatif-corporate-20q-s1",
+        "# fingerprint: 3b101bd41465fbe15f89d0d9563026e0f7f2e8081e9e778a90eebe553e01fce5",
+        "# period: 2026Q2",
+        "# filters: {\"applied\":[]}",
+        "# values are raw governed values; money is SAR million unless a column says otherwise"
+      ],
+      "csv_rows": 95,
+      "cells_drawn": 95,
+      "png": "ead-by-sector-rating.png",
+      "status": "PASS",
+      "ms": 5851
+    },
+    {
+      "journey": "GW-P11-03",
+      "what": "An executed Delta result adds the segment Pareto (cumulative share ends at 100%) and the per-exposure change distribution, each with its exact data",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-03-pareto.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-e22d8af4587f",
+      "pareto_last_cumulative_pct": 100,
+      "distribution_rows": 13,
+      "status": "PASS",
+      "ms": 2847
+    },
+    {
+      "journey": "GW-P11-04",
+      "what": "Early Warning: clicking a warning reason cross-filters the bands, segments and underlying grid on the server; the keyboard does the same from the data row; Save cohort carries the reason",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-04-reason.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-04-keyboard.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "severe_all": 286,
+      "reason": "Weak behaviour score band (D/E)",
+      "severe_tripping_reason": 284,
+      "cohort": [
+        "coh-0137fb143bd4",
+        284,
+        "EWS critical/high · Weak behaviour score band (D/E)"
+      ],
+      "keyboard_reason": "Persistent minimum payment (payment ratio < 35%)",
+      "status": "PASS",
+      "ms": 7020
+    },
+    {
+      "journey": "GW-P11-05",
+      "what": "Legacy Recharts routes are not reachable as live charts with the guided flag on: /lenses/cro opens the governed Plotly CRO Lens, /stress opens What-If",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-05-cro-lens.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "cro_lens": "/lenses/lens-01?from=bookmark",
+      "recharts_on_page": 0,
+      "stress": "/what-if",
+      "status": "PASS",
+      "ms": 3252
     },
     {
       "journey": "GW-P3-01-CORP",
@@ -125,7 +244,7 @@
         "Education: 15.66% of EAD is on the watchlist (book 7.63%)"
       ],
       "status": "PASS",
-      "ms": 2654
+      "ms": 2504
     },
     {
       "journey": "GW-P3-01-RET",
@@ -145,7 +264,7 @@
         "Personal Finance: 1,011 customers with PD up 20% or more this month"
       ],
       "status": "PASS",
-      "ms": 5785
+      "ms": 5096
     },
     {
       "journey": "GW-P3-02",
@@ -161,7 +280,7 @@
       ],
       "model": "MODEL MOCK (scripted analyst)",
       "issue_id": "iss-db4929b9bd19",
-      "thread_id": "th-1ff300160a7146d1b4e897fd4a880efe",
+      "thread_id": "th-dd5a9723bdb843edb2645911e8c75a58",
       "path": [
         [
           "Issue",
@@ -210,7 +329,7 @@
           "type": "compare_period"
         }
       ],
-      "investigation_id": "inv-ffdd0a6b9295",
+      "investigation_id": "inv-91ec11d45834",
       "clicks_recorded": [
         {
           "suggestion_id": "nbq-8b9e927a5874",
@@ -226,11 +345,11 @@
             ]
           },
           "run_id": "",
-          "at": 1790782579.7933762
+          "at": 1790793580.4577913
         }
       ],
       "status": "PASS",
-      "ms": 5724
+      "ms": 5737
     },
     {
       "journey": "GW-P3-03",
@@ -248,7 +367,7 @@
       "rows_after": 130,
       "clicked": "Sub-sector: Food Service",
       "status": "PASS",
-      "ms": 5057
+      "ms": 3620
     },
     {
       "journey": "GW-P3-04",
@@ -259,13 +378,13 @@
         "docs/guided_workspace/evidence/journeys/GW-P3-04-thread.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "note": "Saved 286 exposures as cohort coh-ca0bec57d048.",
-      "cohort_id": "coh-ca0bec57d048",
+      "note": "Saved 286 exposures as cohort coh-853fd18ab21d.",
+      "cohort_id": "coh-853fd18ab21d",
       "cohort_entities": 286,
-      "thread_id": "th-cb468f34f960404ab5c65ed22fd9024e",
+      "thread_id": "th-5222a394fc134945af3abca4decd33c6",
       "thread_domain": "retail",
       "status": "PASS",
-      "ms": 4821
+      "ms": 3706
     },
     {
       "journey": "GW-P4-01",
@@ -363,7 +482,7 @@
       "nav_has_stress": false,
       "corporate_total": 2996,
       "status": "PASS",
-      "ms": 4467
+      "ms": 4003
     },
     {
       "journey": "GW-P5-02",
@@ -383,9 +502,9 @@
       ],
       "after_box": 496,
       "summary": "248 facilities100 borrowersEAD SAR 23.3bnBooked ECL SAR 171m8.83% of book ECLStage 1: 247 · 2: 12026Q2",
-      "cohort_id": "coh-c2c9629f0765",
+      "cohort_id": "coh-e03e6ba8881c",
       "status": "PASS",
-      "ms": 9916
+      "ms": 9497
     },
     {
       "journey": "GW-P5-03",
@@ -395,7 +514,7 @@
       "model": "MODEL MOCK (scripted analyst)",
       "summary": "4 facilities4 borrowersEAD SAR 597mBooked ECL SAR 46.7m2.41% of book ECLStage 2: 42026Q2",
       "status": "PASS",
-      "ms": 5057
+      "ms": 4435
     },
     {
       "journey": "GW-P5-04",
@@ -407,13 +526,13 @@
         "docs/guided_workspace/evidence/journeys/GW-P5-04-conversation.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "manual_cohort": "coh-1b69bc9184f2",
-      "thread_id": "th-6f37166db4fa4f7ebf99e0cfa4861f11",
+      "manual_cohort": "coh-18997342106d",
+      "thread_id": "th-14bfb6436dd34751af24f1787e46595a",
       "conversation_membership": "44ba01654b31e70c23510743ecdc8a6bed35f22920b4366a23f4f4ff8960247e",
       "manual_membership": "44ba01654b31e70c23510743ecdc8a6bed35f22920b4366a23f4f4ff8960247e",
-      "adopted": "coh-4111e883cf0a",
+      "adopted": "coh-54c0154762a4",
       "status": "PASS",
-      "ms": 6496
+      "ms": 6689
     },
     {
       "journey": "GW-P5-05",
@@ -423,10 +542,10 @@
         "docs/guided_workspace/evidence/journeys/GW-P5-05-applied.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "kpis": "ScopeCohort: What-If selection · 2026-09-30 15:37Exposures248of 2,996Owners100EADSAR 23.3bn8.25% of bookBooked ECLSAR 171m8.83% of bookStage policyfrozenStages held at their reported values.",
-      "bound": "scn-43bcaad63888 v1",
+      "kpis": "ScopeCohort: What-If selection · 2026-09-30 18:20Exposures248of 2,996Owners100EADSAR 23.3bn8.25% of bookBooked ECLSAR 171m8.83% of bookStage policyfrozenStages held at their reported values.",
+      "bound": "scn-403d109cc8c3 v1",
       "status": "PASS",
-      "ms": 7379
+      "ms": 7058
     },
     {
       "journey": "GW-P5-06",
@@ -436,9 +555,9 @@
         "docs/guided_workspace/evidence/journeys/GW-P5-06-thread.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-d236d8ec763c4c3c80c3502d7fb6b2cb",
+      "thread_id": "th-c1261b38bea54d29ad4c5d11d223192d",
       "status": "PASS",
-      "ms": 5887
+      "ms": 5573
     },
     {
       "journey": "GW-P6-01",
@@ -452,14 +571,14 @@
       "entities": "248",
       "owners": "100",
       "headline": "Scenario confirmed — NOT executed. Choose how to translate it into ECL.",
-      "run_id": "wrun-5487ddc03e32",
+      "run_id": "wrun-51786ddd641d",
       "forced_execute_status": 409,
       "reconciles": "true",
       "components": 20,
       "distinct_colours": 20,
       "strip_method": "delta",
       "status": "PASS",
-      "ms": 6339
+      "ms": 6263
     },
     {
       "journey": "GW-P6-02",
@@ -473,7 +592,7 @@
       "ml_reason": "ML emulator validation gate failed: G4 (worst material-group WAPE): measured 0.343562 against a threshold of 0.15. Shown, never substituted.",
       "gate": "chosen method cannot run (ML emulator: UNAVAILABLE); nothing is substituted",
       "status": "PASS",
-      "ms": 4780
+      "ms": 4616
     },
     {
       "journey": "GW-P6-03",
@@ -491,16 +610,16 @@
         ],
         [
           "PRIOR_SCENARIO",
-          "wrun-d7df1f9d3615"
+          "wrun-d749b8b872b6"
         ]
       ],
       "chain": [
-        "wrun-d7df1f9d3615",
-        "wrun-f584cb13e38e"
+        "wrun-d749b8b872b6",
+        "wrun-f9de78720f75"
       ],
       "layered_book_baseline": "2098.468292313912139776727895",
       "status": "PASS",
-      "ms": 10217
+      "ms": 10996
     },
     {
       "journey": "GW-P6-04",
@@ -515,12 +634,12 @@
         "docs/guided_workspace/evidence/journeys/GW-P6-04-cockpit-decomposition.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-3067e197bdfa4b52969487240fa4b29e",
-      "preview_text": "One question firstNothing has been calculated. The rules below would apply to the 248 exposures of the cohort, frozen as coh-12ac83df854f. Confirming does NOT run it: you then choose the method.Apply these rules to the 248 exposures of the active cohort (coh-12ac83df854f)? Approve this scenario (a4c206fd654b)?Yes, confirm the scenarioNo, change somethingEvidenceart-80db63fbcde9484bScenario preview",
+      "thread_id": "th-b68bbbe2e67342ba868c2468ef509209",
+      "preview_text": "One question firstNothing has been calculated. The rules below would apply to the 248 exposures of the cohort, frozen as coh-12ac83df854f. Confirming does NOT run it: you then choose the method.Apply these rules to the 248 exposures of the active cohort (coh-12ac83df854f)? Approve this scenario (a4c206fd654b)?Yes, confirm the scenarioNo, change somethingEvidenceart-a4095ae9df874eedScenario preview",
       "method_state": "METHOD_SELECTION_REQUIRED",
       "entities": 248,
       "status": "PASS",
-      "ms": 13363
+      "ms": 11801
     },
     {
       "journey": "GW-P7-01",
@@ -552,7 +671,7 @@
         "mode": "run"
       },
       "status": "PASS",
-      "ms": 5929
+      "ms": 6240
     },
     {
       "journey": "GW-P7-02",
@@ -562,10 +681,10 @@
         "docs/guided_workspace/evidence/journeys/GW-P7-02-comparison.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "my_result": "res-963e1813dad8",
+      "my_result": "res-36c59c611d49",
       "items": "2",
       "status": "PASS",
-      "ms": 7948
+      "ms": 6739
     },
     {
       "journey": "GW-P7-03",
@@ -575,10 +694,10 @@
         "docs/guided_workspace/evidence/journeys/GW-P7-03-tree.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "variant_parent": "wrun-52494861a959",
-      "b_parent": "wrun-52494861a959",
+      "variant_parent": "wrun-ccc4aeaeb848",
+      "b_parent": "wrun-ccc4aeaeb848",
       "status": "PASS",
-      "ms": 10779
+      "ms": 10669
     },
     {
       "journey": "GW-P7-04",
@@ -590,7 +709,7 @@
       "model": "MODEL MOCK (scripted analyst)",
       "membership": "2c9ddb012037896bf3e6e72473902d12c8e8dc0c4ec7e7952c1e995da6f43f38",
       "status": "PASS",
-      "ms": 2325
+      "ms": 2010
     },
     {
       "journey": "GW-P8-01",
@@ -604,7 +723,7 @@
       "corporate_raw": "0.003948820034308134",
       "drill_total": "248",
       "status": "PASS",
-      "ms": 3603
+      "ms": 3882
     },
     {
       "journey": "GW-P9-01",
@@ -616,7 +735,7 @@
         "docs/guided_workspace/evidence/journeys/GW-P9-01-cross-filtered.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "total": 21,
+      "total": 23,
       "kpis": [
         [
           "M001",
@@ -641,9 +760,9 @@
       ],
       "cross_filtered_rows": "248",
       "moved_to": "2024Q3",
-      "refresh_note": "Refreshed: No material change since the previous refresh.",
+      "refresh_note": "Refreshed: No material change since the previous refresh. · 2 alert(s) raised — see Monitoring Centre",
       "status": "PASS",
-      "ms": 8680
+      "ms": 6925
     },
     {
       "journey": "GW-P9-02",
@@ -656,9 +775,9 @@
       ],
       "model": "MODEL MOCK (scripted analyst)",
       "preview": "6 KPIs · 3 charts · 1 tables · 8 governed metrics · 1 breach rules · refresh Weekly",
-      "saved": "lens-4bfc756446a7",
+      "saved": "lens-2405f7c186f7",
       "status": "PASS",
-      "ms": 4678
+      "ms": 4528
     },
     {
       "journey": "GW-P9-03",
@@ -669,13 +788,13 @@
       "screenshots": [],
       "model": "MODEL MOCK (scripted analyst)",
       "selection": "Temporary cohort: corporate · sector ∈ Utilities, EducationSaveInvestigateWhat-Ifclear",
-      "thread_id": "th-ae0e991472304c42a19db8523d9e7570",
+      "thread_id": "th-f3ae0e2351944b48a9e0eddf545b15e9",
       "source": {
         "kind": "cockpit",
-        "thread_id": "th-ae0e991472304c42a19db8523d9e7570"
+        "thread_id": "th-f3ae0e2351944b48a9e0eddf545b15e9"
       },
       "status": "PASS",
-      "ms": 13546
+      "ms": 6504
     }
   ]
 }

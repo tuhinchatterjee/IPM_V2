@@ -29,6 +29,11 @@ export interface DataColumn {
 export interface ChartData {
   columns: DataColumn[];
   rows: Record<string, unknown>[];
+  /** The keyboard (and click) equivalent of clicking the chart mark a row
+   * was drawn as: Enter or Space on a focused row does what the click does. */
+  onRowActivate?: (row: Record<string, unknown>) => void;
+  /** Accessible description of what activating a row does. */
+  activateLabel?: string;
 }
 
 export interface ChartContext {
@@ -170,7 +175,24 @@ export function DataTable({ table, testId, maxRows = 200 }: { table: ChartData; 
         </thead>
         <tbody>
           {table.rows.slice(0, maxRows).map((row, i) => (
-            <tr key={i} className="border-t border-border">
+            <tr
+              key={i}
+              className={cn("border-t border-border", table.onRowActivate && "cursor-pointer hover:bg-surface-hover focus:bg-accent-muted focus:outline-none")}
+              tabIndex={table.onRowActivate ? 0 : undefined}
+              aria-label={table.onRowActivate ? `${table.activateLabel ?? "Filter to"} ${String(row[table.columns[0]?.key] ?? "")}` : undefined}
+              data-activatable={table.onRowActivate ? "true" : undefined}
+              onClick={table.onRowActivate ? () => table.onRowActivate?.(row) : undefined}
+              onKeyDown={
+                table.onRowActivate
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        table.onRowActivate?.(row);
+                      }
+                    }
+                  : undefined
+              }
+            >
               {table.columns.map((c) => (
                 <td
                   key={c.key}

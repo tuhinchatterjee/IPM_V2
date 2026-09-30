@@ -607,6 +607,58 @@ def _calibration_gap(o: Any) -> str | None:
     return str(Decimal(str(raw)) - Decimal(str(observed)))
 
 
+#: Edges (percent) of the per-exposure change distribution.
+DIST_EDGES = (-100, -50, -20, -10, -5, 0, 5, 10, 20, 30, 50, 100, 1_000_000)
+
+
+def _pareto(rows: list[dict[str, Any]], plan: dl.Plan, domain_id: str
+            ) -> list[dict[str, Any]]:
+    """Delta change by segment, largest first, with the cumulative share
+    (the top-contributor Pareto). Reconciles to the selected-scope change."""
+    col = "sector" if domain_id == "corporate" else "product"
+    by: dict[str, Decimal] = {}
+    for r in rows:
+        res = dl.scale_row(plan, dict(r))
+        change = res.scenario_ecl - res.baseline_ecl
+        key = str(r.get(col) or "(none)")
+        by[key] = by.get(key, Decimal(0)) + change
+    total = sum(by.values(), Decimal(0))
+    out, running = [], Decimal(0)
+    for key, change in sorted(by.items(), key=lambda kv: -abs(kv[1])):
+        running += change
+        out.append({"group": key, "dimension": col, "change": str(change),
+                    "cumulative_share": None if not total else
+                    str((running / total).quantize(Decimal("0.0001")))})
+    return out
+
+
+def _distribution(rows: list[dict[str, Any]], plan: dl.Plan
+                  ) -> list[dict[str, Any]]:
+    """How the per-exposure ECL change is distributed (percent of each
+    exposure's own booked ECL), with the EAD in each band."""
+    bins = [{"lo": lo, "hi": hi, "n": 0, "ead": Decimal(0)}
+            for lo, hi in zip(DIST_EDGES[:-1], DIST_EDGES[1:], strict=True)]
+    unaffected = {"n": 0, "ead": Decimal(0)}
+    for r in rows:
+        res = dl.scale_row(plan, dict(r))
+        ead = Decimal(str(r.get("ead_sar_mn") or 0))
+        if res.disposition != dl.SCALED or not res.baseline_ecl:
+            unaffected["n"] += 1
+            unaffected["ead"] += ead
+            continue
+        pct = (res.scenario_ecl / res.baseline_ecl - 1) * 100
+        for b in bins:
+            if b["lo"] <= pct < b["hi"]:
+                b["n"] += 1
+                b["ead"] += ead
+                break
+    return [{"label": f"{b['lo']}% to {b['hi']}%" if b["hi"] < 1_000_000
+             else f"≥ {b['lo']}%", "lo": b["lo"], "hi": b["hi"],
+             "n": b["n"], "ead": str(b["ead"])} for b in bins] + [
+        {"label": "not moved by the scenario", "lo": None, "hi": None,
+         "n": unaffected["n"], "ead": str(unaffected["ead"])}]
+
+
 def _outcome(o: rn.Outcome) -> dict[str, Any]:
     change = o.change
     pct = (change / o.baseline * 100) if change is not None and o.baseline \
@@ -704,6 +756,10 @@ def execute(svc: ObjectService, who_raw: dict[str, Any], run_id: str
         if sp.DELTA in ran else [],
         "top_contributors": _top_contributors(done.rows, done.plan,
                                               book.domain_id)
+        if sp.DELTA in ran else [],
+        "pareto": _pareto(done.rows, done.plan, book.domain_id)
+        if sp.DELTA in ran else [],
+        "change_distribution": _distribution(done.rows, done.plan)
         if sp.DELTA in ran else [],
         "notes": [*b["preview"]["notes"], *done.outcome.notes],
         "stage_policy": spec.stage_policy,

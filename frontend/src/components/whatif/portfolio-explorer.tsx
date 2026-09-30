@@ -12,10 +12,11 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 
 import { ChartCard } from "@/components/viz/chart-card";
+import { heatmap, reconcile, stageSankey, type Cell } from "@/lib/viz/advanced";
 import { categoryBars, stageMix } from "@/lib/viz/figures";
-import { gridGroup } from "@/lib/workspace/guided";
+import { gridGroup, gridGroup2 } from "@/lib/workspace/guided";
 import type { DomainId, Filter } from "@/lib/workspace/objects";
-import { EXPLORER_DIMENSIONS, selectedValues, setFilterValues, toggleFilterValue } from "@/lib/workspace/whatif";
+import { EXPLORER_DIMENSIONS, EXPLORER_MATRICES, cellFilter, selectedValues, setFilterValues, toggleFilterValue } from "@/lib/workspace/whatif";
 
 type Group = { value: string | number | null; n: number; ead_sar_mn: number; ecl_sar_mn: number };
 
@@ -135,6 +136,135 @@ export function PortfolioExplorer({
           }}
         />
       </div>
+      <ExplorerMatrices domain={domain} filters={filters} onFilters={onFilters} context={context} />
     </section>
+  );
+}
+
+type Matrix = { cells: Cell[]; total: { n: number; ead_sar_mn: number | null }; truncated: boolean };
+
+/**
+ * The two-dimension views: a heatmap (sector × rating / product × score band)
+ * and the prior → current stage flow. Each ignores its OWN columns' filters
+ * so the whole matrix stays visible; a cell or link click narrows the shared
+ * filter state to it, and the keyboard does the same from the data table.
+ */
+function ExplorerMatrices({
+  domain,
+  filters,
+  onFilters,
+  context,
+}: {
+  domain: DomainId;
+  filters: Filter[];
+  onFilters: (next: Filter[]) => void;
+  context: { releaseId: string; fingerprint: string; period: string };
+}) {
+  const m = EXPLORER_MATRICES[domain];
+  const [measure, setMeasure] = React.useState<"ead_sar_mn" | "ecl_sar_mn">("ead_sar_mn");
+  const heatOthers = React.useMemo(() => filters.filter((f) => f.column !== m.x && f.column !== m.y), [filters, m.x, m.y]);
+  const flowOthers = React.useMemo(() => filters.filter((f) => f.column !== "prior_stage" && f.column !== "stage"), [filters]);
+  const key = JSON.stringify({ domain, heatOthers, flowOthers });
+  const [loaded, setLoaded] = React.useState<{ key: string; heat: Matrix | null; flow: Matrix | null; error: string }>({
+    key: "",
+    heat: null,
+    flow: null,
+    error: "",
+  });
+
+  React.useEffect(() => {
+    let live = true;
+    Promise.all([gridGroup2(domain, m.x, m.y, heatOthers), gridGroup2(domain, "prior_stage", "stage", flowOthers)])
+      .then(([heat, flow]) => live && setLoaded({ key, heat, flow, error: "" }))
+      .catch((e: unknown) => live && setLoaded({ key, heat: null, flow: null, error: e instanceof Error ? e.message : String(e) }));
+    return () => {
+      live = false;
+    };
+  }, [domain, m.x, m.y, heatOthers, flowOthers, key]);
+
+  const { heat, flow } = loaded;
+  const heatFig = React.useMemo(() => heatmap(heat?.cells ?? [], measure, { x: m.xLabel, y: m.yLabel }), [heat, measure, m.xLabel, m.yLabel]);
+  const flowFig = React.useMemo(() => stageSankey(flow?.cells ?? [], "ead_sar_mn"), [flow]);
+  const flowCheck = flow ? reconcile(flow.cells, flow.total) : null;
+  const heatCheck = heat ? reconcile(heat.cells, heat.total) : null;
+  const pickHeat = (x: unknown, y: unknown) =>
+    onFilters(cellFilter(filters, [
+      { column: m.x, value: x as string },
+      { column: m.y, value: y as string },
+    ]));
+  const pickFlow = (prior: unknown, current: unknown) =>
+    onFilters(cellFilter(filters, [
+      { column: "prior_stage", value: prior as string },
+      { column: "stage", value: current as string },
+    ]));
+  const cellColumns = (xLabel: string, yLabel: string) => [
+    { key: "x", label: xLabel },
+    { key: "y", label: yLabel },
+    { key: "n", label: "Exposures", align: "right" as const },
+    { key: "ead_sar_mn", label: "EAD (SAR m, raw)", align: "right" as const },
+    { key: "ecl_sar_mn", label: "Booked ECL (SAR m, raw)", align: "right" as const },
+  ];
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-2" data-testid="whatif-matrices">
+      {loaded.error && <p className="text-xs text-negative lg:col-span-2">{loaded.error}</p>}
+      <ChartCard
+        title={`${measure === "ecl_sar_mn" ? "Booked ECL" : "EAD"} by ${m.xLabel.toLowerCase()} × ${m.yLabel.toLowerCase()}`}
+        subtitle={`${context.period} · click a cell (or press Enter on a row of its data) to filter to it; again to clear`}
+        data={heatFig.data}
+        layout={heatFig.layout}
+        height={340}
+        testId="whatif-chart-heatmap"
+        actions={
+          <select value={measure} onChange={(e) => setMeasure(e.target.value as typeof measure)} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Heatmap measure">
+            <option value="ead_sar_mn">EAD</option>
+            <option value="ecl_sar_mn">Booked ECL</option>
+          </select>
+        }
+        context={{ releaseId: context.releaseId, fingerprint: context.fingerprint, period: context.period, filters: { applied: heatOthers } }}
+        onPointClick={(p) => pickHeat(p.x, p.y)}
+        table={{
+          columns: cellColumns(m.xLabel, m.yLabel),
+          rows: (heat?.cells ?? []) as unknown as Record<string, unknown>[],
+          onRowActivate: (row) => pickHeat(row.x ?? "(none)", row.y ?? "(none)"),
+          activateLabel: `Filter to ${m.xLabel.toLowerCase()} and ${m.yLabel.toLowerCase()}`,
+        }}
+        footer={
+          heatCheck && (
+            <p className="mt-1 text-[11px] text-text-muted" data-testid="whatif-heatmap-reconcile" data-ok={String(heatCheck.ok)}>
+              {heat?.cells.length} cells · {heatCheck.n.toLocaleString()} exposures {heatCheck.ok ? "reconcile to" : "DO NOT reconcile to"} the filtered book
+              {heat?.truncated ? " (truncated: narrow the filter)" : ""}.
+            </p>
+          )
+        }
+      />
+      <ChartCard
+        title="Stage migration, prior → current quarter"
+        subtitle="EAD; click a flow (or press Enter on a row of its data) to filter to it"
+        data={flowFig.data}
+        layout={flowFig.layout}
+        height={340}
+        testId="whatif-chart-sankey"
+        context={{ releaseId: context.releaseId, fingerprint: context.fingerprint, period: context.period, filters: { applied: flowOthers } }}
+        onPointClick={(p) => {
+          const c = p.customdata;
+          if (Array.isArray(c) && c.length >= 2) pickFlow(c[0], c[1]);
+        }}
+        table={{
+          columns: cellColumns("Prior stage", "Current stage"),
+          rows: (flow?.cells ?? []) as unknown as Record<string, unknown>[],
+          onRowActivate: (row) => pickFlow(row.x ?? "(none)", row.y),
+          activateLabel: "Filter to the migration",
+        }}
+        footer={
+          flowCheck && (
+            <p className="mt-1 text-[11px] text-text-muted" data-testid="whatif-sankey-reconcile" data-ok={String(flowCheck.ok)}>
+              Flows sum to {flowCheck.n.toLocaleString()} exposures, EAD {flowCheck.ead.toFixed(1)} SAR m:{" "}
+              {flowCheck.ok ? "reconciles to" : "DOES NOT reconcile to"} the filtered book.
+            </p>
+          )
+        }
+      />
+    </div>
   );
 }

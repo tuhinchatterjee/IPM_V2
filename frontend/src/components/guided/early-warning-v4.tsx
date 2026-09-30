@@ -5,6 +5,12 @@
  * over the book the Cockpit is serving. Every card can freeze its EXACT
  * population as a governed cohort, export it, or open a Cockpit investigation
  * on it -- the same cohort id then travels to What-If and Lenses.
+ *
+ * A warning reason is a cross-filter (§27): clicking a rule in "Why
+ * exposures are warned" -- or pressing Enter on its data row -- narrows the
+ * bands, the segment cards, the underlying grid and every cohort /
+ * investigation / What-If handoff to exposures tripping that rule. The server
+ * applies it; the reasons chart itself stays whole so any rule can be chosen.
  */
 
 import * as React from "react";
@@ -13,11 +19,12 @@ import { Download, Loader2, Save, Search } from "lucide-react";
 
 import { DomainSwitchPlain } from "@/components/guided/domain-toggle";
 import { ChartCard } from "@/components/viz/chart-card";
+import { DataGrid } from "@/components/workspace/data-grid";
 import { trend } from "@/lib/viz/figures";
 import { count, sar } from "@/lib/viz/format";
 import { SEVERITY_COLORS, SEMANTIC } from "@/lib/viz/palette";
 import { workspaceUrl, wsGet, wsSend } from "@/lib/workspace/client";
-import type { DomainId } from "@/lib/workspace/objects";
+import type { DomainId, Filter } from "@/lib/workspace/objects";
 
 interface EwFeed {
   domain_id: DomainId;
@@ -32,6 +39,8 @@ interface EwFeed {
   top: Record<string, string | number | null>[];
   severe_total: number;
   severe_ead_trend: { period: string; value: number | null }[];
+  reason: string;
+  filters: Filter[];
 }
 
 const BANDS = ["critical", "high", "moderate", "low"] as const;
@@ -39,20 +48,37 @@ const BANDS = ["critical", "high", "moderate", "low"] as const;
 export function EarlyWarningV4() {
   const router = useRouter();
   const [domain, setDomain] = React.useState<DomainId>("retail");
-  const [loaded, setLoaded] = React.useState<{ domain: DomainId; feed: EwFeed | null }>({ domain: "retail", feed: null });
-  const feed = loaded.domain === domain ? loaded.feed : null;
+  const [reason, setReason] = React.useState("");
+  const [loaded, setLoaded] = React.useState<{ key: string; feed: EwFeed | null }>({ key: "", feed: null });
+  const key = `${domain}|${reason}`;
+  const feed = loaded.key === key ? loaded.feed : null;
+  const gridLocked = React.useMemo<Filter[]>(
+    () => [{ column: "ews_band", op: "in", values: ["critical", "high"] }, ...(feed?.filters ?? [])],
+    [feed],
+  );
   const [error, setError] = React.useState("");
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
-    wsGet<EwFeed>(`/early-warning?domain=${domain}`)
-      .then((f) => setLoaded({ domain, feed: f }))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [domain]);
+    let live = true;
+    wsGet<EwFeed>(`/early-warning?domain=${domain}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`)
+      .then((f) => live && setLoaded({ key, feed: f }))
+      .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      live = false;
+    };
+  }, [domain, reason, key]);
+
+  function changeDomain(next: DomainId) {
+    setReason("");
+    setDomain(next);
+  }
+
+  const toggleReason = (r: string) => setReason((current) => (current === r ? "" : r));
 
   async function saveCohort(segment = "", bands: string[] = ["critical", "high"]) {
-    const c = await wsSend<{ object_id: string; body: { counts: { entities: number } } }>("/early-warning/cohort", { domain, segment, bands });
+    const c = await wsSend<{ object_id: string; body: { counts: { entities: number } } }>("/early-warning/cohort", { domain, segment, bands, reason });
     setNote(`Saved ${count(c.body.counts.entities)} exposures as cohort ${c.object_id}.`);
     return c;
   }
@@ -72,7 +98,7 @@ export function EarlyWarningV4() {
   async function investigate(segment = "") {
     setBusy(true);
     try {
-      const out = await wsSend<{ thread_id: string }>("/early-warning/investigate", { domain, segment, bands: ["critical", "high"] });
+      const out = await wsSend<{ thread_id: string }>("/early-warning/investigate", { domain, segment, bands: ["critical", "high"], reason });
       router.push(`/cockpit/thread/${out.thread_id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -91,7 +117,7 @@ export function EarlyWarningV4() {
     <div className="space-y-5" data-testid="early-warning-v4">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-text-primary">Early Warning</h1>
-        <DomainSwitchPlain value={domain} onChange={setDomain} />
+        <DomainSwitchPlain value={domain} onChange={changeDomain} />
         {feed && (
           <span className="text-xs text-text-muted">
             {feed.release_id} · {feed.period} · rule set {feed.ruleset} · no model call
@@ -104,6 +130,15 @@ export function EarlyWarningV4() {
         </p>
       ) : (
         <>
+          {reason && (
+            <p className="flex flex-wrap items-center gap-2 rounded-md border border-accent bg-accent-muted px-3 py-2 text-xs" data-testid="ew-reason-filter" data-reason={reason}>
+              Showing exposures that trip <span className="font-semibold">{reason}</span> — bands, segments, the grid and every
+              Save / Investigate / What-If below use this filter.
+              <button type="button" onClick={() => setReason("")} className="text-accent underline" data-testid="ew-reason-clear">
+                Clear
+              </button>
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {BANDS.map((band) => {
               const row = feed.bands.find((b) => b.value === band);
@@ -122,7 +157,7 @@ export function EarlyWarningV4() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void investigate()} className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast" data-testid="ew-investigate">
-              <Search className="h-4 w-4" /> Investigate high/critical in Cockpit
+              <Search className="h-4 w-4" /> Investigate high/critical{reason ? " (this rule)" : ""} in Cockpit
             </button>
             <button type="button" onClick={() => void saveCohort()} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-save-cohort">
               <Save className="h-4 w-4" /> Save high/critical cohort
@@ -148,11 +183,34 @@ export function EarlyWarningV4() {
             )}
             <ChartCard
               title="Why exposures are warned"
-              subtitle="Rules tripped (an exposure can trip several)"
-              data={[{ type: "bar", orientation: "h", y: feed.reasons.map((r) => r.reason).reverse(), x: feed.reasons.map((r) => r.n).reverse(), marker: { color: SEMANTIC.stage }, hovertemplate: "%{y}: %{x:,} exposures<extra></extra>" }]}
+              subtitle="Rules tripped (an exposure can trip several). Click a rule to filter the page to it; again to clear."
+              data={[
+                {
+                  type: "bar",
+                  orientation: "h",
+                  y: feed.reasons.map((r) => r.reason).reverse(),
+                  x: feed.reasons.map((r) => r.n).reverse(),
+                  customdata: feed.reasons.map((r) => [r.reason, sar(r.ead)]).reverse(),
+                  marker: {
+                    color: feed.reasons.map((r) => (reason && r.reason !== reason ? `${SEMANTIC.stage}55` : SEMANTIC.stage)).reverse(),
+                    line: { color: feed.reasons.map((r) => (r.reason === reason ? SEMANTIC.increase : "rgba(0,0,0,0)")).reverse(), width: 2 },
+                  },
+                  hovertemplate: "%{y}: %{x:,} exposures · EAD %{customdata[1]}<extra></extra>",
+                },
+              ]}
               layout={{ margin: { l: 280, r: 20, t: 10, b: 40 }, xaxis: { title: { text: "Exposures" } } }}
               testId="ew-reasons"
-              table={{ columns: [{ key: "reason", label: "Rule" }, { key: "n", label: "Exposures", align: "right" }, { key: "ead", label: "EAD (SAR million)", align: "right" }], rows: feed.reasons as unknown as Record<string, unknown>[] }}
+              context={{ releaseId: feed.release_id, period: feed.period, source: `EWS rule set ${feed.ruleset}` }}
+              onPointClick={(p) => {
+                const r = Array.isArray(p.customdata) ? String(p.customdata[0]) : String(p.y ?? "");
+                if (r) toggleReason(r);
+              }}
+              table={{
+                columns: [{ key: "reason", label: "Rule" }, { key: "n", label: "Exposures", align: "right" }, { key: "ead", label: "EAD (SAR million)", align: "right" }],
+                rows: feed.reasons as unknown as Record<string, unknown>[],
+                onRowActivate: (row) => toggleReason(String(row.reason)),
+                activateLabel: "Filter the page to the rule",
+              }}
             />
           </div>
           <section>
@@ -195,6 +253,18 @@ export function EarlyWarningV4() {
                 );
               })}
             </div>
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold">
+              High/critical exposures{reason ? <span className="font-normal text-text-muted"> tripping {reason}</span> : null}
+            </h2>
+            <DataGrid
+              key={key}
+              domain={domain}
+              lockedFilters={gridLocked}
+              testId="ew-grid"
+              compact
+            />
           </section>
           <section className="rounded-lg border border-border bg-surface p-3 text-xs">
             <h2 className="mb-1 text-sm font-semibold">Rule set {feed.ruleset}</h2>

@@ -559,7 +559,73 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P11 — Product-wide reactive Plotly platform
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Inventory** `docs/guided_workspace/CHART_INVENTORY.md`: 66 analytical charts.
+    * **Plotly on the shared contract: 31.**
+    * **Recharts: 12**, all legacy.
+    * **Hand SVG: 5.**
+    * **CSS/div: 18.**
+    * Each row carries a migrated or not-applicable rationale. The Recharts and CSS/div legacy charts are gated as follows:
+      * `/lenses/[id]` swaps to the Plotly `LensView` when guided is on.
+      * `/stress` redirects to `/what-if`.
+      * `/lenses/cro` now redirects to the governed Plotly Lens `lens-01`.
+      * Everything else is on flag-off or unrevised lab pages.
+  * **Locked by `chart-inventory.test.ts` INV01–06.** It fails in any of these cases:
+    * Recharts spreads beyond `components/analytics/charts.tsx` and its 5 legacy consumers.
+    * Another chart library appears.
+    * Plotly loads outside `plotly-chart.tsx`.
+    * A Plotly chart bypasses `ChartCard` (other than the 2 sparkline files).
+    * A chart file is missing from the inventory.
+  * **Remaining chart types (§27):**
+    * **Server-side aggregation:** `grid.grouped2` and `POST /grid/group2` aggregate two governed dimensions. They are capped at 400 cells, flag truncation, return totals, and refuse any column outside the view.
+    * **What-If explorer:** heatmap (sector × rating / product × score band; VIZ12) and a stage-migration Sankey (prior → current; VIZ08). Both reconcile on screen (`data-ok`), and a cell or flow click filters the shared state.
+    * **Executed results:** Pareto of Delta change by segment with cumulative share (VIZ10), and the per-exposure change distribution (VIZ11), which accounts for unmoved exposures.
+  * **Shared behaviour in the one wrapper:**
+    * Default `uirevision` keeps a legend-hidden series, and any zoom, across re-renders with fresh figures. This was found by the P11-02 journey.
+    * `ChartData.onRowActivate` is the keyboard equivalent of a chart click: Enter or Space on a focused data row.
+    * These charts gained click-to-drill: issue-detail drivers, issue-detail stage mix, and the Early Warning reasons chart.
+  * **Early Warning reason cross-filter:**
+    * **UI:** a rule click (or its data row) narrows the bands, segments, top list and a new underlying grid.
+    * **Handoffs:** Save / Investigate / Export / What-If carry the reason.
+    * **Filter safety:** the reason must be a label of the domain's own rule set. The filter matches its safe leading token, because the predicate layer (deliberately unchanged) refuses `<`, `>`, `=` and `%`, and it fails closed (422 AMBIGUOUS) if that token would match two rules.
+    * **Removed:** the dead `reason_rule` field.
+    * **Bug found and fixed:** the reasons loop variable shadowed the `reason` parameter.
+* **Tests:**
+  * **Backend:**
+    * `test_gw_charts.py` (new) passes 10/10:
+      * flows and heatmap reconcile to the book and to the selection summary;
+      * retail shape;
+      * unknown or injected dimension → 422;
+      * the cell cap truncates and says so;
+      * the HTTP aggregate stays under 40 kB with no row keys;
+      * a reason cross-filters bands, segments, the cohort and investigate;
+      * every rule of both books filters exactly (5 labels returned 422 before the token fix);
+      * unknown reason → 422;
+      * an ambiguous token → 422.
+    * `test_gw_runs.py`: Pareto and distribution reconcile to the selected change.
+  * **Mutation proofs (8):**
+    * `grid.py` (3, all killed): cells ignore the filter; truncation hidden; column check removed.
+    * `issues_api.py` (4, all killed): bands ignore the reason; cohort drops the reason; ambiguity guard removed (killed only after the synthetic-label test was added); free-text reason accepted.
+    * `plotly-chart.tsx`: removing `uirevision` fails GW-P11-02.
+    * `chart-card.tsx`: disabling the row key handler fails GW-P11-01.
+    * `chart-inventory.test.ts`: a stray Recharts import plus an undeclared `PlotlyChart` fails INV01, INV04 and INV05.
+  * **Frontend:** `npm test` 653/653 (VIZ08/10/11/12, WIF06, INV01–06 new); `tsc` clean; eslint 0 in new or changed code (the 15 remaining are pre-existing, in protected `cockpit-v4/*`).
+  * **GW backend suites:** 259 passed, 3 skipped.
+* **Browser** GW-P11-01..05 pass 5/5:
+  * **Payload:** `/grid/group2` payloads measured at 381–9,150 B.
+  * **Legend:** isolate makes 0 API calls and leaves the total unchanged; the series stays hidden after a re-render.
+  * **Zoom:** drag-zoom, then mode-bar reset.
+  * **Sankey:** a flow click filters the grid to that flow's count.
+  * **Heatmap:** Enter on a cell row filters; Space clears.
+  * **Export:** the CSV has release, fingerprint, period and filters, and rows equal the drawn cells (95 = 95); PNG downloads.
+  * **Early Warning:** the reason filters the page, and the saved cohort is exactly the filtered population.
+  * **Legacy routes:** `/lenses/cro` renders `lens-01` with 0 Recharts wrappers.
+* **Cross-phase browser rerun** (P3, P5–P11 after the wrapper change): P5/P6/P11 13/13, then P3/P7/P8/P9/P10/P11 21/21.
+* **Documented limits:**
+  * The protected Cockpit thread renderer (`cockpit-v4/visuals.tsx` and `chart-frame.tsx`: 4 SVG and 7 CSS chart kinds) is **not migrated**. Doing so edits protected core, which the round's rules reserve for explicit approval. It already has tooltip, zoom, legend, data table and PNG. Every chart this round adds to a thread is Plotly. This is an open decision for the user.
+  * On a click-to-filter chart, Plotly's double-click reset also registers the first click. The mode-bar "Reset axes" control is the unambiguous route, and the journey uses it.
+* **Protected files:** none added (still 5).
+* **Status:** PASS
 
 ## P12 — Trace, exports, governance, reproducibility
 * **Status:** NOT STARTED

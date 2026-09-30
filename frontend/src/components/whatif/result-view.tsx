@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { ChartCard, type ChartData } from "@/components/viz/chart-card";
 import { ShareButton } from "@/components/workspace/share-button";
+import { distribution, pareto } from "@/lib/viz/advanced";
 import { contributions } from "@/lib/viz/figures";
 import { componentTable, identities, kpis, methodComparison, plotted, sharedScale, stageBeforeAfter, waterfall, type Decomposition, type DecompositionScope } from "@/lib/viz/decomposition";
 import { count, sar, sarDelta } from "@/lib/viz/format";
@@ -171,6 +172,42 @@ export function ResultView({ result, actions }: { result: ScenarioResult; action
                 { key: "change", label: "Change", align: "right" },
               ],
               rows: b.top_contributors as unknown as Record<string, unknown>[],
+            }}
+          />
+        )}
+        {(b.pareto?.length ?? 0) > 0 && (
+          <ChartCard
+            title={`Delta change by ${b.pareto?.[0]?.dimension === "product" ? "product" : "sector"}, largest first`}
+            subtitle="Bars: change in SAR; line: cumulative share of the selected-scope change"
+            testId="whatif-result-pareto"
+            context={context}
+            {...pareto(b.pareto ?? [])}
+            height={320}
+            table={{
+              columns: [
+                { key: "group", label: "Segment" },
+                { key: "change", label: "ECL change (SAR m, raw)", align: "right" },
+                { key: "cumulative_share", label: "Cumulative share", align: "right" },
+              ],
+              rows: (b.pareto ?? []) as unknown as Record<string, unknown>[],
+            }}
+          />
+        )}
+        {(b.change_distribution?.length ?? 0) > 0 && (
+          <ChartCard
+            title="How the change is spread across exposures"
+            subtitle="Exposures by the change in their own ECL (Delta); unmoved exposures are in the table"
+            testId="whatif-result-distribution"
+            context={context}
+            {...distribution(b.change_distribution ?? [])}
+            height={300}
+            table={{
+              columns: [
+                { key: "label", label: "Band" },
+                { key: "n", label: "Exposures", align: "right" },
+                { key: "ead", label: "EAD (SAR m, raw)", align: "right" },
+              ],
+              rows: (b.change_distribution ?? []) as unknown as Record<string, unknown>[],
             }}
           />
         )}

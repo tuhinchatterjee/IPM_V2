@@ -76,6 +76,24 @@ async def grid_group(body: GridGroup,
                                    filters=body.filters, period=body.period)}
 
 
+class GridGroup2(BaseModel):
+    domain: str = Field(default="corporate", max_length=20)
+    x: str = Field(max_length=60)
+    y: str = Field(max_length=60)
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    period: str = Field(default="", max_length=12)
+
+
+@router.post("/grid/group2")
+async def grid_group2(body: GridGroup2,
+                      who: dict[str, Any] = Depends(v4routes.principal)
+                      ) -> dict[str, Any]:
+    """Two-dimension aggregate: heatmaps and stage-migration flows."""
+    book = access.book(who, body.domain)
+    return grid.grouped2(book, x=body.x, y=body.y, filters=body.filters,
+                         period=body.period)
+
+
 def export_csv(book: access.Book, *, filters: Any, period: str = "",
                title: str = "filtered latest-period data",
                extra_meta: dict[str, Any] | None = None) -> bytes:

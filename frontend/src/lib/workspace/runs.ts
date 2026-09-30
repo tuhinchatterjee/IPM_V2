@@ -122,6 +122,10 @@ export interface ResultBody {
   decomposition: Record<string, Decomposition>;
   stages: StageRow[];
   top_contributors: { entity_id: string; owner_id: string; group: string; stage: string; ecl_before: string; ecl_after: string; change: string }[];
+  /** Delta change by segment, largest first (absent on pre-P11 results). */
+  pareto?: { group: string; dimension: string; change: string; cumulative_share: string | null }[];
+  /** Per-exposure change bands (absent on pre-P11 results). */
+  change_distribution?: { label: string; lo: number | null; hi: number | null; n: number; ead: string }[];
   notes: string[];
   stage_policy: string;
   evidence: string;

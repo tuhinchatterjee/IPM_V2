@@ -91,4 +91,4 @@ export const askContext = (cohortId: string, scenarioId: string) =>
 export const shareObject = (objectId: string, to: string[], message = "", version?: number) =>
   wsSend<{ shared: unknown[]; object: Record<string, unknown> }>("/share", { object_id: objectId, to, message, version });
 
-export { EXPLORER_DIMENSIONS, selectedValues, setFilterValues, toggleFilterValue } from "./whatif-filters";
+export { EXPLORER_DIMENSIONS, EXPLORER_MATRICES, cellFilter, selectedValues, setFilterValues, toggleFilterValue } from "./whatif-filters";

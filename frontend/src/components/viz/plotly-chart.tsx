@@ -76,6 +76,11 @@ export function themedLayout(layout: Record<string, unknown> = {}): Record<strin
     xaxis: { gridcolor: grid, zerolinecolor: grid, automargin: true },
     yaxis: { gridcolor: grid, zerolinecolor: grid, automargin: true },
     transition: { duration: 250, easing: "cubic-in-out" },
+    // A re-render with fresh figure objects must not undo what the reader
+    // did: a series hidden from the legend, a zoom. Plotly keeps user-driven
+    // UI state while `uirevision` is unchanged; a chart that WANTS a reset
+    // on new data passes its own value.
+    uirevision: "reader",
   };
   const merged: Record<string, unknown> = { ...base, ...layout };
   for (const axis of ["xaxis", "yaxis"]) {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { EXPLORER_DIMENSIONS, selectedValues, setFilterValues, toggleFilterValue } from "./whatif-filters.ts";
+import { EXPLORER_DIMENSIONS, EXPLORER_MATRICES, cellFilter, selectedValues, setFilterValues, toggleFilterValue } from "./whatif-filters.ts";
 import type { Filter } from "./objects.ts";
 
 test("WIF01 a chart click adds its value as an `in` filter, a second click removes it", () => {
@@ -40,4 +40,27 @@ test("WIF05 each book offers its own governed dimensions, never the other's", ()
   const retail = EXPLORER_DIMENSIONS.retail.map((d) => d.key);
   assert.ok(corp.includes("sector") && corp.includes("rating_current") && !corp.includes("product"));
   assert.ok(retail.includes("product") && retail.includes("score_band") && !retail.includes("sector"));
+});
+
+test("WIF06 a heatmap cell or flow link narrows to both coordinates; the same click clears them", () => {
+  const start: Filter[] = [{ column: "region", op: "in", values: ["Central"] }];
+  const one = cellFilter(start, [
+    { column: "sector", value: "Construction" },
+    { column: "rating_current", value: "B" },
+  ]);
+  assert.deepEqual(selectedValues(one, "sector"), ["Construction"]);
+  assert.deepEqual(selectedValues(one, "rating_current"), ["B"]);
+  assert.deepEqual(selectedValues(one, "region"), ["Central"]);
+  assert.deepEqual(cellFilter(one, [
+    { column: "sector", value: "Construction" },
+    { column: "rating_current", value: "B" },
+  ]), start);
+  // Stage columns stay numeric; a new exposure's "(none)" prior is not a value.
+  const flow = cellFilter([], [
+    { column: "prior_stage", value: "(none)" },
+    { column: "stage", value: "2" },
+  ]);
+  assert.deepEqual(flow, [{ column: "stage", op: "in", values: [2] }]);
+  assert.equal(EXPLORER_MATRICES.corporate.x, "sector");
+  assert.equal(EXPLORER_MATRICES.retail.y, "score_band");
 });

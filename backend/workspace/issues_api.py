@@ -271,33 +271,79 @@ __all__ = ["PATH_STEPS", "router"]
 EW_BANDS = ("critical", "high", "moderate", "low")
 
 
+def _reason_token(label: str) -> str:
+    """The longest leading part of a rule label the predicate layer will
+    write into a query (it refuses `<`, `>`, `=`, `%` and never escapes)."""
+    from backend.workspace import predicates
+
+    token = ""
+    for ch in label:
+        if not predicates.SAFE_TEXT.match(ch):
+            break
+        token += ch
+    return token.rstrip(" (")
+
+
+def _reason_filter(book, reason: str) -> list[dict[str, Any]]:
+    """A warning reason as a governed predicate. Only a label of the
+    domain's own rule set is accepted (no free text reaches the query). The
+    filter matches the label's safe leading token, and only when that token
+    identifies exactly ONE rule of the set -- otherwise it refuses rather
+    than over-match."""
+    from backend.workspace import ews
+
+    if not reason:
+        return []
+    labels = [r["label"] for r in ews.describe(book.domain_id)]
+    if reason not in labels:
+        raise HTTPException(422, {"error_code": "UNKNOWN_EWS_REASON",
+                                  "message": f"{reason!r} is not a rule of "
+                                             f"{ews.RULESET_VERSION}; they "
+                                             f"are {labels}."})
+    token = _reason_token(reason)
+    if not token or sum(token.lower() in x.lower() for x in labels) != 1:
+        raise HTTPException(422, {"error_code": "AMBIGUOUS_EWS_REASON",
+                                  "message": f"{reason!r} cannot be filtered "
+                                             f"exactly on this book."})
+    return [{"column": "ews_reasons", "op": "contains", "value": token}]
+
+
 @router.get("/early-warning")
 async def early_warning(domain: str = Query("retail"),
+                        reason: str = Query("", max_length=120),
                         who: dict[str, Any] = Depends(v4routes.principal)
                         ) -> dict[str, Any]:
-    """Governed EWS rule set over the book in use: bands, reasons, segments."""
+    """Governed EWS rule set over the book in use: bands, reasons, segments.
+
+    `reason` cross-filters the bands, segments and severe list to exposures
+    tripping that rule; the reasons chart itself ignores it (so every rule
+    stays visible and selectable), as a chart ignores its own filter.
+    """
     from backend.workspace import ews, grid
 
     book = access.book(who, domain)
+    by_reason = _reason_filter(book, reason)
     segment = "sector" if book.domain_id == "corporate" else "product"
-    bands = grid.grouped(book, dimension="ews_band")
+    bands = grid.grouped(book, dimension="ews_band", filters=by_reason)
     by_segment = []
-    for value in [r["value"] for r in grid.grouped(book, dimension=segment)]:
+    for value in [r["value"] for r in grid.grouped(book, dimension=segment,
+                                                   filters=by_reason)]:
         rows = grid.grouped(book, dimension="ews_band", filters=[
-            {"column": segment, "op": "eq", "value": value}])
+            {"column": segment, "op": "eq", "value": value}, *by_reason])
         by_segment.append({"segment": value, "bands": rows})
     warned = grid.rows_for(book, filters=[{"column": "ews_band", "op": "in",
                                            "values": list(EW_BANDS)}],
                            columns=["ews_reasons", "ead_sar_mn"])[2]
     reasons: dict[str, dict[str, float]] = {}
     for row in warned:
-        for reason in str(row.get("ews_reasons") or "").split("; "):
-            if reason:
-                slot = reasons.setdefault(reason, {"n": 0, "ead": 0.0})
+        for tripped in str(row.get("ews_reasons") or "").split("; "):
+            if tripped:
+                slot = reasons.setdefault(tripped, {"n": 0, "ead": 0.0})
                 slot["n"] += 1
                 slot["ead"] += float(row.get("ead_sar_mn") or 0)
     top = grid.query(book, filters=[{"column": "ews_band", "op": "in",
-                                     "values": ["critical", "high"]}],
+                                     "values": ["critical", "high"]},
+                                    *by_reason],
                      sort="ews_score", limit=25)
     trend = metrics.series(book, "M063", periods=8)
     return {"domain_id": book.domain_id, "release_id": book.release_id,
@@ -308,14 +354,15 @@ async def early_warning(domain: str = Query("retail"),
             "reasons": sorted(({"reason": k, **v} for k, v in reasons.items()),
                               key=lambda r: -r["n"]),
             "top": top["rows"], "severe_total": top["total"],
-            "severe_ead_trend": trend["points"], "model_calls": 0}
+            "severe_ead_trend": trend["points"], "reason": reason,
+            "filters": by_reason, "model_calls": 0}
 
 
 class EarlyWarningCohort(BaseModel):
     domain: str = Field(default="retail", max_length=20)
     bands: list[str] = Field(default_factory=lambda: ["critical", "high"])
     segment: str = Field(default="", max_length=80)
-    reason_rule: str = Field(default="", max_length=40)
+    reason: str = Field(default="", max_length=120)
 
 
 def _ew_filters(book, body: EarlyWarningCohort) -> list[dict[str, Any]]:
@@ -325,7 +372,7 @@ def _ew_filters(book, body: EarlyWarningCohort) -> list[dict[str, Any]]:
     if body.segment:
         dim = "sector" if book.domain_id == "corporate" else "product"
         filters.append({"column": dim, "op": "eq", "value": body.segment})
-    return filters
+    return filters + _reason_filter(book, body.reason)
 
 
 @router.post("/early-warning/cohort")
@@ -335,7 +382,8 @@ async def early_warning_cohort(body: EarlyWarningCohort,
     book = access.book(who, body.domain)
     filters = _ew_filters(book, body)
     label = f"EWS {'/'.join(filters[0]['values'])}" + (
-        f" · {body.segment}" if body.segment else "")
+        f" · {body.segment}" if body.segment else "") + (
+        f" · {body.reason}" if body.reason else "")
     return cohorts.freeze(book, service.objects(), service.principal(who),
                           name=label, filters=filters,
                           source={"kind": "early_warning",
@@ -351,7 +399,8 @@ async def early_warning_investigate(body: EarlyWarningCohort,
     principal = service.principal(who)
     filters = _ew_filters(book, body)
     label = f"Early warning: {'/'.join(filters[0]['values'])} band" + (
-        f" in {body.segment}" if body.segment else "")
+        f" in {body.segment}" if body.segment else "") + (
+        f" tripping '{body.reason}'" if body.reason else "")
     cohort = cohorts.freeze(book, service.objects(), principal, name=label,
                             filters=filters,
                             source={"kind": "early_warning", "label": label,

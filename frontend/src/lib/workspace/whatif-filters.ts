@@ -51,3 +51,31 @@ export function selectedValues(filters: Filter[], column: string): (string | num
   const f = filters.find((x) => x.column === column && x.op === "in");
   return (f?.values ?? []) as (string | number)[];
 }
+
+/** The two-dimension views per book: a heatmap and a stage-migration flow. */
+export const EXPLORER_MATRICES: Record<DomainId, { x: string; xLabel: string; y: string; yLabel: string }> = {
+  corporate: { x: "sector", xLabel: "Sector", y: "rating_current", yLabel: "Rating" },
+  retail: { x: "product", xLabel: "Product", y: "score_band", yLabel: "Score band" },
+};
+
+const NUMERIC_COLUMNS = new Set(["stage", "prior_stage"]);
+
+/**
+ * A heatmap cell or a flow link narrows to BOTH of its coordinates; the same
+ * click again (already narrowed to exactly that cell) clears them. A
+ * "(none)" coordinate -- a new exposure with no prior stage -- is not a
+ * filterable value and leaves that column alone.
+ */
+export function cellFilter(
+  filters: Filter[],
+  cell: { column: string; value: string | number | null }[],
+): Filter[] {
+  const coords = cell
+    .filter((c) => c.value !== null && c.value !== undefined && c.value !== "(none)")
+    .map((c) => ({ column: c.column, value: NUMERIC_COLUMNS.has(c.column) ? Number(c.value) : String(c.value) }));
+  const already = coords.length > 0 && coords.every((c) => {
+    const v = selectedValues(filters, c.column);
+    return v.length === 1 && String(v[0]) === String(c.value);
+  });
+  return coords.reduce((acc, c) => setFilterValues(acc, c.column, already ? [] : [c.value]), filters);
+}

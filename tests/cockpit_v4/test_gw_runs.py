@@ -450,3 +450,17 @@ def test_a_cockpit_execution_opens_as_the_same_governed_result(client, svc,
     dc.check(body["decomposition"]["delta"])
     again = client.post(f"{P}/whatif/threads/{thread_id}/adopt-result").json()
     assert again["object_id"] == adopted.json()["object_id"], "idempotent"
+
+
+def test_pareto_and_distribution_reconcile_to_the_selected_change(client,
+                                                                   svc):
+    """VIZ10 / VIZ11 data: the Pareto sums to the selected-scope Delta
+    change and ends at 100%; the distribution counts every exposure once."""
+    scenarios.ensure_seeded(svc, WHO)
+    _run, result = full_run(client, scenarios.template_object_id("CORP-18"))
+    b = result["body"]
+    sel = D(b["decomposition"]["delta"]["scopes"]["selected"]["change"])
+    assert abs(sum(D(p["change"]) for p in b["pareto"]) - sel) <= D("1e-6")
+    assert D(b["pareto"][-1]["cumulative_share"]) == D("1.0000")
+    assert sum(x["n"] for x in b["change_distribution"]) == \
+        b["cohort"]["entity_count"]

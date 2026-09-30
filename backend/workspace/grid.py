@@ -406,6 +406,39 @@ def grouped(book: Book, *, dimension: str, filters: Any = None,
     return [{k: _num(x) for k, x in r.items()} for r in rows]
 
 
-__all__ = ["CORPORATE", "Column", "EWS_COLUMNS", "RETAIL", "SPEC", "View",
-           "distinct", "grouped", "query", "rows_for", "schema", "summary",
-           "view"]
+#: Most cells a two-dimension aggregate returns (a heatmap, a flow chart).
+CELLS_MAX = 400
+
+
+def grouped2(book: Book, *, x: str, y: str, filters: Any = None,
+             period: str = "") -> dict[str, Any]:
+    """Aggregates over TWO governed dimensions (heatmaps, stage flows).
+
+    Server-side, capped at `CELLS_MAX` cells; the rows never leave the
+    server. Totals are returned so the chart can prove it reconciles.
+    """
+    v = view(book, period)
+    for dim in (x, y):
+        if dim not in v.keys:
+            raise HTTPException(422, {"error_code": "INVALID_FILTER",
+                                      "message": f"{dim!r} is not a grid "
+                                                 f"column."})
+    where, params, checked = _where(v, filters)
+    cells = book.rows(
+        f"SELECT {x} AS x, {y} AS y, COUNT(*) AS n, SUM(ead_sar_mn) AS "
+        f"ead_sar_mn, SUM(ecl_sar_mn) AS ecl_sar_mn FROM ({v.sql}) g "
+        f"{where} GROUP BY 1, 2 ORDER BY 1, 2 LIMIT {CELLS_MAX + 1}", params)
+    total = book.rows(
+        f"SELECT COUNT(*) AS n, SUM(ead_sar_mn) AS ead_sar_mn, "
+        f"SUM(ecl_sar_mn) AS ecl_sar_mn FROM ({v.sql}) g {where}", params)[0]
+    return {"x": x, "y": y, "period": v.period,
+            "release_id": book.release_id, "fingerprint": book.fingerprint,
+            "filters": checked, "truncated": len(cells) > CELLS_MAX,
+            "cells": [{k: _num(val) for k, val in c.items()}
+                      for c in cells[:CELLS_MAX]],
+            "total": {k: _num(val) for k, val in total.items()}}
+
+
+__all__ = ["CELLS_MAX", "CORPORATE", "Column", "EWS_COLUMNS", "RETAIL",
+           "SPEC", "View", "distinct", "grouped", "grouped2", "query",
+           "rows_for", "schema", "summary", "view"]

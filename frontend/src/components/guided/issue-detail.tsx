@@ -152,16 +152,30 @@ export function IssueDetail({ issueId }: { issueId: string }) {
             const label = Array.isArray(p.customdata) ? String(p.customdata[0]) : String(p.y ?? "");
             setDrill([{ column: issue.evidence.breakdown_dimension, op: "in", values: [label] }]);
           }}
-          table={{ columns: [{ key: "label", label: issue.evidence.breakdown_dimension }, { key: "value", label: "Value (raw)", align: "right" }, { key: "display", label: "Display" }], rows: issue.evidence.breakdown as unknown as Record<string, unknown>[] }}
+          table={{
+            columns: [{ key: "label", label: issue.evidence.breakdown_dimension }, { key: "value", label: "Value (raw)", align: "right" }, { key: "display", label: "Display" }],
+            rows: issue.evidence.breakdown as unknown as Record<string, unknown>[],
+            onRowActivate: (row) => setDrill([{ column: issue.evidence.breakdown_dimension, op: "in", values: [String(row.label)] }]),
+            activateLabel: "Show the rows for",
+          }}
         />
         <ChartCard
           title="Stage mix of the affected population"
-          subtitle="EAD by IFRS 9 stage"
+          subtitle="EAD by IFRS 9 stage; click a stage to show those rows below"
           data={mixFig.data}
           layout={mixFig.layout}
           height={140}
           testId="issue-stage-mix"
-          table={{ columns: [{ key: "stage", label: "Stage" }, { key: "n", label: "Exposures", align: "right" }, { key: "ead", label: "EAD (SAR million)", align: "right" }, { key: "ecl", label: "ECL (SAR million)", align: "right" }], rows: issue.evidence.stage_mix as unknown as Record<string, unknown>[] }}
+          onPointClick={(p) => {
+            const stage = Number(String(p.data?.name ?? "").replace(/\D/g, ""));
+            if (stage) setDrill([{ column: "stage", op: "in", values: [stage] }]);
+          }}
+          table={{
+            columns: [{ key: "stage", label: "Stage" }, { key: "n", label: "Exposures", align: "right" }, { key: "ead", label: "EAD (SAR million)", align: "right" }, { key: "ecl", label: "ECL (SAR million)", align: "right" }],
+            rows: issue.evidence.stage_mix as unknown as Record<string, unknown>[],
+            onRowActivate: (row) => setDrill([{ column: "stage", op: "in", values: [Number(row.stage)] }]),
+            activateLabel: "Show the rows for stage",
+          }}
         />
       </div>
 

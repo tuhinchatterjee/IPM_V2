@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { ArrowRight, GitBranch, Printer } from "lucide-react";
 
@@ -23,6 +24,7 @@ import { byUnit, money, percent } from "@/lib/format";
 import { useAnalysis } from "@/lib/hooks";
 import { fromLens, linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
+import { guidedEnabled } from "@/lib/workspace/guided";
 
 /**
  * CRO Portfolio Lens.
@@ -58,7 +60,29 @@ function moved(value: number | null, up = "risen", down = "fallen", flat = "held
   return flat;
 }
 
-export default function CroLensPage() {
+/**
+ * With the Guided Risk Workspace on, the CRO lens IS the seeded governed
+ * Lens LENS-01 "CRO Executive Overview" (Plotly, refreshable, followable);
+ * the old route redirects so bookmarks keep working. With it off, the
+ * accepted page renders unchanged.
+ */
+export default function CroLensRoute() {
+  return guidedEnabled() ? <RedirectToGovernedLens /> : <CroLensPage />;
+}
+
+function RedirectToGovernedLens() {
+  const router = useRouter();
+  React.useEffect(() => {
+    router.replace(`/lenses/lens-01${window.location.search}`);
+  }, [router]);
+  return (
+    <p className="p-6 text-sm text-text-muted" data-testid="cro-lens-redirect">
+      The CRO lens is now the governed CRO Executive Overview Lens — opening it…
+    </p>
+  );
+}
+
+function CroLensPage() {
   const summary = useAnalysis("portfolio_summary", {
     params: { period: "latest", compare_period: "previous" },
   });

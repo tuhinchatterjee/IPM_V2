@@ -1449,6 +1449,236 @@ async function p10Journeys() {
 }
 
 // =========================================================================
+// P11 — Product-wide Plotly contract
+// =========================================================================
+
+async function gridIs(page, n) {
+  await page.waitForFunction((want) => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === String(want), n, { timeout: 60_000 });
+}
+
+async function p11Journeys() {
+  await journey("GW-P11-01", "What-If heatmap and stage-migration Sankey: server-aggregated (small payload), reconcile to the filtered book, a flow click and a heatmap cell (via the keyboard on its data row) filter the grid; the same key again clears it", async (record) => {
+    const page = await open();
+    const sizes = [];
+    page.on("response", async (r) => {
+      if (r.url().includes("/grid/group2")) {
+        try {
+          sizes.push((await r.body()).length);
+        } catch {
+          /* navigated away */
+        }
+      }
+    });
+    await openWhatIf(page);
+    await page.waitForSelector('[data-testid="whatif-chart-heatmap"][data-rendered="true"]', { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="whatif-chart-sankey"][data-rendered="true"]', { timeout: 60_000 });
+    record.heatmap_reconciles = await page.getAttribute('[data-testid="whatif-heatmap-reconcile"]', "data-ok");
+    record.sankey_reconciles = await page.getAttribute('[data-testid="whatif-sankey-reconcile"]', "data-ok");
+    assert.equal(record.heatmap_reconciles, "true");
+    assert.equal(record.sankey_reconciles, "true");
+    assert.match(await page.textContent('[data-testid="whatif-sankey-reconcile"]'), /2,996 exposures/);
+    record.group2_payload_bytes = sizes;
+    assert.ok(sizes.length >= 2 && Math.max(...sizes) < 40_000, `aggregates only, never the book: ${sizes}`);
+    await page.locator('[data-testid="whatif-chart-sankey-card"]').scrollIntoViewIfNeeded();
+    await shot(page, record, "matrices");
+    // A real mouse click on a flow whose centre is its own path.
+    const target = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('[data-testid="whatif-chart-sankey"] path.sankey-link'));
+      for (const link of links) {
+        const b = link.getBoundingClientRect();
+        const cx = b.x + b.width / 2;
+        const cy = b.y + b.height / 2;
+        if (b.width > 20 && document.elementFromPoint(cx, cy) === link) return { cx, cy };
+      }
+      return null;
+    });
+    assert.ok(target, "a clickable flow");
+    await page.mouse.move(target.cx, target.cy);
+    await page.waitForTimeout(250);
+    await page.mouse.click(target.cx, target.cy);
+    await page.waitForFunction(() => {
+      const t = Number(document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") || 0);
+      return t > 0 && t < 2996;
+    }, null, { timeout: 60_000 });
+    const chips = await page.$$eval('[data-testid="whatif-grid"] [data-testid="grid-filter-chip"]', (c) => c.map((x) => x.textContent));
+    record.flow_chips = chips;
+    record.after_flow = Number(await page.getAttribute('[data-testid="whatif-grid"]', "data-total"));
+    const flowRows = await page.evaluate(() => document.querySelector('[data-testid="whatif-chart-sankey"]').data[0].link.customdata.map((c) => c.slice(0, 3)));
+    assert.ok(flowRows.some((c) => Number(String(c[2]).replace(/,/g, "")) === record.after_flow), "grid = the clicked flow's exposures");
+    assert.ok(chips.some((c) => /stage/i.test(c)), "the flow became a stage filter");
+    await shot(page, record, "flow-filtered");
+    // Clear, then the keyboard route on the heatmap's data table.
+    await page.locator('[data-testid="whatif-grid"] button', { hasText: "Clear all filters" }).click();
+    await gridIs(page, 2996);
+    await page.click('[data-testid="whatif-chart-heatmap-view-data"]');
+    const row = page.locator('[data-testid="whatif-chart-heatmap-table"] tr[data-activatable="true"]').first();
+    const cells = await row.locator("td").allTextContents();
+    record.keyboard_row = cells.slice(0, 3);
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await gridIs(page, Number(cells[2]));
+    record.after_keyboard = Number(cells[2]);
+    await shot(page, record, "keyboard-cell");
+    await row.focus();
+    await page.keyboard.press(" ");
+    await gridIs(page, 2996);
+  });
+
+  await journey("GW-P11-02", "The shared chart contract on one screen: role=img labels, hover shows units, legend isolate is visual only (no refetch, totals unchanged), drag-zoom and mode-bar reset, CSV carries release/fingerprint/period/filters, PNG downloads", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    await page.waitForSelector('[data-testid="whatif-chart-stage"][data-rendered="true"]', { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="whatif-chart-heatmap"][data-rendered="true"]', { timeout: 60_000 });
+    const labels = await page.$$eval('[data-plotly="true"]', (els) => els.map((e) => [e.getAttribute("role"), e.getAttribute("aria-label") ?? ""]));
+    record.charts_on_screen = labels.length;
+    assert.ok(labels.length >= 4 && labels.every(([r, l]) => r === "img" && l.length > 10), "every chart is a labelled image");
+    // Hover: the tooltip names the unit.
+    const box = await page.locator('[data-testid="whatif-chart-dimension"] g.point path').first().boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForSelector('[data-testid="whatif-chart-dimension"] .hoverlayer .hovertext', { timeout: 10_000 });
+    record.hover = (await page.textContent('[data-testid="whatif-chart-dimension"] .hoverlayer')).slice(0, 160);
+    assert.match(record.hover, /SAR|exposures/);
+    // Legend isolate: visual only.
+    const before = page.calls.length;
+    const total = await page.getAttribute('[data-testid="whatif-grid"]', "data-total");
+    record.step = "legend";
+    await page.locator('[data-testid="whatif-chart-stage"] g.legend rect.legendtoggle').first().click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-chart-stage"]').data.some((t) => t.visible === "legendonly"), null, { timeout: 10_000 });
+    await page.waitForTimeout(500);
+    record.api_calls_on_legend_toggle = page.calls.length - before;
+    assert.equal(record.api_calls_on_legend_toggle, 0, "hiding a series refetches nothing");
+    assert.equal(await page.getAttribute('[data-testid="whatif-grid"]', "data-total"), total, "and changes no total");
+    // It survives a re-render with fresh figure objects (uirevision).
+    await page.selectOption('[data-testid="whatif-chart-dimension-card"] ~ * select, select[aria-label="Measure"]', "ead_sar_mn");
+    await page.waitForTimeout(1200);
+    record.hidden_after_rerender = await page.evaluate(() => document.querySelector('[data-testid="whatif-chart-stage"]').data.filter((t) => t.visible === "legendonly").length);
+    assert.equal(record.hidden_after_rerender, 1, "the hidden series stays hidden across a re-render");
+    // Zoom and reset on the heatmap (not a population chart, so drag = zoom).
+    record.step = "zoom";
+    const heat = await page.locator('[data-testid="whatif-chart-heatmap"] .nsewdrag').first().boundingBox();
+    await page.mouse.move(heat.x + heat.width * 0.2, heat.y + heat.height * 0.2);
+    await page.mouse.down();
+    await page.mouse.move(heat.x + heat.width * 0.6, heat.y + heat.height * 0.6, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-chart-heatmap"]')._fullLayout.xaxis.autorange === false, null, { timeout: 10_000 });
+    record.zoomed_range = await page.evaluate(() => document.querySelector('[data-testid="whatif-chart-heatmap"]')._fullLayout.xaxis.range);
+    record.step = "reset";
+    // Reset through the mode bar (a double-click on a click-to-filter chart
+    // would also register as a cell click).
+    await page.mouse.move(heat.x + heat.width / 2, heat.y + 10);
+    await page.locator('[data-testid="whatif-chart-heatmap"] .modebar-btn[data-title="Reset axes"]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-chart-heatmap"]')._fullLayout.xaxis.autorange === true, null, { timeout: 10_000 });
+    assert.equal(await page.getAttribute('[data-testid="whatif-grid"]', "data-total"), total, "zoom filters nothing");
+    // CSV: the governed context travels with the numbers.
+    const [csv] = await Promise.all([page.waitForEvent("download", { timeout: 30_000 }), page.click('[data-testid="whatif-chart-heatmap-csv"]')]);
+    const text = fs.readFileSync(await csv.path(), "utf8");
+    record.csv_header = text.split("\n").filter((l) => l.startsWith("#"));
+    for (const k of ["# release:", "# fingerprint:", "# period:"]) assert.ok(text.includes(k), k);
+    const dataLines = text.split("\n").filter((l) => l && !l.startsWith("#")).length - 1;
+    const cellsDrawn = await page.evaluate(() => document.querySelector('[data-testid="whatif-chart-heatmap"]').data[0].z.flat().filter((v) => v !== null).length);
+    record.csv_rows = dataLines;
+    record.cells_drawn = cellsDrawn;
+    assert.equal(dataLines, cellsDrawn, "the CSV is exactly what is drawn");
+    const [png] = await Promise.all([page.waitForEvent("download", { timeout: 60_000 }), page.locator('[data-testid="whatif-chart-heatmap-card"] button', { hasText: "PNG" }).click()]);
+    record.png = png.suggestedFilename();
+    assert.match(record.png, /\.png$/);
+    await shot(page, record, "contract");
+  });
+
+  await journey("GW-P11-03", "An executed Delta result adds the segment Pareto (cumulative share ends at 100%) and the per-exposure change distribution, each with its exact data", async (record) => {
+    const done = await apiRun("scn-tpl-corp-01", `gw-p11-03-${Date.now()}`);
+    const result = done.result?.object_id;
+    record.result_id = result;
+    assert.ok(result, `a result: ${JSON.stringify(done).slice(0, 200)}`);
+    const page = await open();
+    await page.goto(`${UI}/what-if/result/${result}`, { waitUntil: "domcontentloaded" });
+    await resultRendered(page);
+    await page.waitForSelector('[data-testid="whatif-result-pareto"][data-rendered="true"]', { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="whatif-result-distribution"][data-rendered="true"]', { timeout: 60_000 });
+    const cum = await page.evaluate(() => document.querySelector('[data-testid="whatif-result-pareto"]').data[1].y);
+    record.pareto_last_cumulative_pct = cum[cum.length - 1];
+    assert.ok(Math.abs(cum[cum.length - 1] - 100) < 0.05, "the cumulative share closes at 100%");
+    await page.click('[data-testid="whatif-result-distribution-view-data"]');
+    const rows = await page.$$eval('[data-testid="whatif-result-distribution-table"] tbody tr', (els) => els.map((e) => Array.from(e.children).map((c) => c.textContent)));
+    record.distribution_rows = rows.length;
+    assert.ok(rows.some((r) => /not moved/.test(r[0])), "unmoved exposures are accounted for in the data");
+    await page.locator('[data-testid="whatif-result-pareto-card"]').scrollIntoViewIfNeeded();
+    await shot(page, record, "pareto");
+  });
+}
+
+async function p11bJourneys() {
+  await journey("GW-P11-04", "Early Warning: clicking a warning reason cross-filters the bands, segments and underlying grid on the server; the keyboard does the same from the data row; Save cohort carries the reason", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/early-warning`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="ew-reasons"][data-rendered="true"]', { timeout: 120_000 });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="ew-grid"]')?.getAttribute("data-total") || 0) > 0, null, { timeout: 120_000 });
+    const whole = Number(await page.getAttribute('[data-testid="ew-grid"]', "data-total"));
+    record.severe_all = whole;
+    const feed = (await api("/early-warning?domain=retail")).body;
+    // A rule that narrows the severe population (some rules are tripped by
+    // every high/critical exposure), clicked with a real mouse; bars are
+    // drawn reversed, so rule i is bar (len - 1 - i).
+    let pick = -1;
+    for (let i = 0; i < feed.reasons.length && pick < 0; i += 1) {
+      const f = (await api(`/early-warning?domain=retail&reason=${encodeURIComponent(feed.reasons[i].reason)}`)).body;
+      const n = f.bands.filter((b) => ["critical", "high"].includes(b.value)).reduce((a, b) => a + b.n, 0);
+      if (n > 0 && n < whole) pick = i;
+    }
+    assert.ok(pick >= 0, "a rule that narrows the severe population");
+    const top = feed.reasons[pick];
+    const bars = page.locator('[data-testid="ew-reasons"] g.point path');
+    const box = await bars.nth(feed.reasons.length - 1 - pick).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(250);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForSelector(`[data-testid="ew-reason-filter"]`, { timeout: 60_000 });
+    record.reason = await page.getAttribute('[data-testid="ew-reason-filter"]', "data-reason");
+    assert.equal(record.reason, top.reason);
+    const filtered = (await api(`/early-warning?domain=retail&reason=${encodeURIComponent(top.reason)}`)).body;
+    const severe = filtered.bands.filter((b) => ["critical", "high"].includes(b.value)).reduce((a, b) => a + b.n, 0);
+    await page.waitForFunction((n) => document.querySelector('[data-testid="ew-grid"]')?.getAttribute("data-total") === String(n), severe, { timeout: 60_000 });
+    record.severe_tripping_reason = severe;
+    assert.ok(severe < whole, "the grid narrowed to the reason");
+    const critical = Number((await page.textContent('[data-testid="ew-band-critical"] .text-lg')).replace(/,/g, ""));
+    assert.equal(critical, filtered.bands.find((b) => b.value === "critical")?.n ?? 0, "the band tiles follow the reason");
+    await shot(page, record, "reason");
+    await page.click('[data-testid="ew-save-cohort"]');
+    await page.waitForSelector('[data-testid="ew-note"]', { timeout: 60_000 });
+    const cohortId = /\b(coh[-_][0-9A-Za-z_-]+)/.exec(await page.textContent('[data-testid="ew-note"]'))?.[1];
+    const cohort = (await api(`/objects/${cohortId}`)).body;
+    record.cohort = [cohortId, cohort.body.counts.entities, cohort.body.name];
+    assert.equal(cohort.body.counts.entities, severe, "the saved cohort is the filtered population");
+    assert.ok(cohort.body.name.includes(top.reason));
+    // Clear, then the keyboard route: Enter on the second rule's data row.
+    await page.click('[data-testid="ew-reason-clear"]');
+    await page.waitForFunction((n) => document.querySelector('[data-testid="ew-grid"]')?.getAttribute("data-total") === String(n), whole, { timeout: 60_000 });
+    await page.click('[data-testid="ew-reasons-view-data"]');
+    const other = pick === 0 ? 1 : 0;
+    const row = page.locator('[data-testid="ew-reasons-table"] tr[data-activatable="true"]').nth(other);
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await page.waitForFunction((want) => document.querySelector('[data-testid="ew-reason-filter"]')?.getAttribute("data-reason") === want, feed.reasons[other].reason, { timeout: 60_000 });
+    record.keyboard_reason = feed.reasons[other].reason;
+    await shot(page, record, "keyboard");
+  });
+
+  await journey("GW-P11-05", "Legacy Recharts routes are not reachable as live charts with the guided flag on: /lenses/cro opens the governed Plotly CRO Lens, /stress opens What-If", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/lenses/cro?from=bookmark`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL(/\/lenses\/lens-01\?from=bookmark/, { timeout: 60_000 });
+    await page.waitForSelector('[data-plotly="true"][data-rendered="true"]', { timeout: 120_000 });
+    record.cro_lens = page.url().replace(UI, "");
+    record.recharts_on_page = await page.locator(".recharts-wrapper").count();
+    assert.equal(record.recharts_on_page, 0);
+    await shot(page, record, "cro-lens");
+    await page.goto(`${UI}/stress`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL(/\/what-if/, { timeout: 60_000 });
+    record.stress = page.url().replace(UI, "");
+  });
+}
+
+// =========================================================================
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
@@ -1462,6 +1692,8 @@ async function main() {
     await p8Journeys();
     await p9Journeys();
     await p10Journeys();
+    await p11Journeys();
+    await p11bJourneys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();
