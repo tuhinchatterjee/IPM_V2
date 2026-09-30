@@ -10,7 +10,9 @@ disk; nothing a browser, a model or a question can do.
 
 Approval keys: opus_spend (paid Opus calls, capped per comparison group),
 remote_inference (approved remote endpoints; Compare never provisions GPUs),
-deep_diagnostics (bounded controlled replays). Model downloads and runtime
+deep_diagnostics (bounded controlled replays), license:<profile-id> (the
+operator has reviewed a model licence that pin_and_probe_models.py marked
+LICENSE_REVIEW_REQUIRED). Model downloads and runtime
 installation are NOT approvals here: they are done by the user, outside the
 lab, and then proven by probe.py.
 """
@@ -33,7 +35,7 @@ KEYS = ("opus_spend", "remote_inference", "deep_diagnostics")
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("action", choices=("grant", "revoke", "list"))
-    ap.add_argument("key", nargs="?", choices=KEYS)
+    ap.add_argument("key", nargs="?")
     ap.add_argument("--cap-usd", type=float)
     ap.add_argument("--note", default="")
     ap.add_argument("--runtime-dir", default=os.environ.get(
@@ -48,6 +50,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if not args.key:
         ap.error("a key is required")
+    if args.key not in KEYS and not (args.key.startswith("license:") and
+                                     len(args.key) > len("license:")):
+        ap.error(f"unknown key {args.key}; use one of {KEYS} or "
+                 f"license:<profile-id>")
     if args.action == "grant":
         if args.key in ("opus_spend", "remote_inference") and \
                 not args.cap_usd:

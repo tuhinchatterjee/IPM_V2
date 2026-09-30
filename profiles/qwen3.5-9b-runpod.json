@@ -4,11 +4,11 @@
  "role": "candidate",
  "family": "Qwen",
  "registry_id": "Qwen/Qwen3.5-9B",
- "identity_source": "lab registry (master prompt v2.1); exact revision to pin on the pod",
+ "identity_source": "resolved and pinned on the pod by pin_and_probe_models.py",
  "route": "openai_compat",
  "status": "NOT_INSTALLED",
- "status_reason": "Served by vLLM on the RunPod A40; needs a pinned revision and a passing probe.",
- "recovery": "On the pod: scripts/model_lab/verify_checkpoints.py --profile qwen3.5-9b-runpod; record artifact.revision; scripts/model_lab/runpod/serve.sh qwen3.5-9b-runpod; scripts/model_lab/probe.py --profile qwen3.5-9b-runpod",
+ "status_reason": "Needs a pinned revision, a fit check and a passing probe on the pod.",
+ "recovery": "On the pod: scripts/model_lab/runpod/pin_and_probe_models.py --profile qwen3.5-9b-runpod --probe",
  "parameters_total": "9B",
  "endpoint": {
   "class": "local_loopback",
@@ -48,29 +48,36 @@
   "verified_at": "2026-09-30",
   "source": "lab local-inference policy"
  },
- "licence": "UNVERIFIED - read the model card before activation",
+ "licence": "UNDETERMINED until pinned",
  "provenance_status": "UNVERIFIED",
  "artifact": {
   "kind": "hf_repository",
+  "source": {
+   "repository": "Qwen/Qwen3.5-9B"
+  },
   "repository": "Qwen/Qwen3.5-9B",
   "revision": null,
   "revision_required": true,
-  "search_term": null,
-  "weights_gb_bf16_estimate": 19,
-  "fits_a40_48gb": true
+  "pin_status": "UNPINNED",
+  "license_status": "UNDETERMINED",
+  "quantization": null,
+  "weights_gb_bf16_estimate": 19
  },
  "runpod": {
   "server": "vllm",
   "served_model_name": "Qwen/Qwen3.5-9B",
   "max_model_len": 32768,
   "suggested_tool_call_parser": "hermes",
-  "parser_status": "UNQUALIFIED until probe.py passes",
+  "suggested_reasoning_parser": "qwen3",
+  "parser_status": "UNQUALIFIED until the probe passes",
   "extra_args": [
    "--reasoning-parser",
    "qwen3"
   ],
   "host": "127.0.0.1",
-  "port": 8000
+  "port": 8000,
+  "fit": null,
+  "resource_status": "FIT_NOT_COMPUTED"
  },
  "observed_probes": []
 }

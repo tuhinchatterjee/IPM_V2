@@ -17,10 +17,10 @@ read -r REPO REV CTX PARSER EXTRA < <("$PY" - "$PID" <<'EOF'
 import json, sys
 p = json.load(open(f"profiles/{sys.argv[1]}.json"))
 a, r = p.get("artifact") or {}, p.get("runpod") or {}
-if p.get("status") in ("DISCOVERED", "BLOCKED_RESOURCE", "DISABLED"):
+if p.get("status") in ("DISCOVERED", "BLOCKED_RESOURCE", "DISABLED", "PIN_BLOCKED"):
     sys.exit(f"refusing: {sys.argv[1]} is {p['status']}: {p.get('status_reason')}")
 if not a.get("repository") or not a.get("revision"):
-    sys.exit("refusing: no pinned repository@revision (verify_checkpoints.py --pin)")
+    sys.exit("refusing: no pinned repository@revision (runpod/pin_and_probe_models.py)")
 if not r.get("suggested_tool_call_parser"):
     sys.exit("refusing: no tool-call parser qualified for this family")
 print(a["repository"], a["revision"], p["context_tokens"],

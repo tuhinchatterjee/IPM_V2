@@ -4,11 +4,11 @@
  "role": "candidate",
  "family": "gpt-oss",
  "registry_id": "openai/gpt-oss-20b",
- "identity_source": "lab registry (master prompt v2.1); exact revision to pin on the pod",
+ "identity_source": "resolved and pinned on the pod by pin_and_probe_models.py",
  "route": "openai_compat",
  "status": "NOT_INSTALLED",
- "status_reason": "publisher MXFP4 weights (~14 GB)",
- "recovery": "On the pod: scripts/model_lab/verify_checkpoints.py --profile gpt-oss-20b-runpod; record artifact.revision; scripts/model_lab/runpod/serve.sh gpt-oss-20b-runpod; scripts/model_lab/probe.py --profile gpt-oss-20b-runpod",
+ "status_reason": "publisher MXFP4 weights",
+ "recovery": "On the pod: scripts/model_lab/runpod/pin_and_probe_models.py --profile gpt-oss-20b-runpod --probe",
  "parameters_total": "21B (MoE)",
  "endpoint": {
   "class": "local_loopback",
@@ -21,7 +21,7 @@
  "max_output_tokens": 8192,
  "limitations": [
   "Different artifact from any Ollama/Mac profile; never substituted for it.",
-  "publisher MXFP4 weights (~14 GB)"
+  "publisher MXFP4 weights"
  ],
  "allowed_modes": [
   "E2E_BASELINE",
@@ -49,26 +49,33 @@
   "verified_at": "2026-09-30",
   "source": "lab local-inference policy"
  },
- "licence": "UNVERIFIED - read the model card before activation",
+ "licence": "UNDETERMINED until pinned",
  "provenance_status": "UNVERIFIED",
  "artifact": {
   "kind": "hf_repository",
+  "source": {
+   "repository": "openai/gpt-oss-20b"
+  },
   "repository": "openai/gpt-oss-20b",
   "revision": null,
   "revision_required": true,
-  "search_term": null,
-  "weights_gb_bf16_estimate": 14,
-  "fits_a40_48gb": true
+  "pin_status": "UNPINNED",
+  "license_status": "UNDETERMINED",
+  "quantization": null,
+  "weights_gb_bf16_estimate": 14
  },
  "runpod": {
   "server": "vllm",
   "served_model_name": "openai/gpt-oss-20b",
   "max_model_len": 32768,
   "suggested_tool_call_parser": "openai",
-  "parser_status": "UNQUALIFIED until probe.py passes",
+  "suggested_reasoning_parser": null,
+  "parser_status": "UNQUALIFIED until the probe passes",
   "extra_args": [],
   "host": "127.0.0.1",
-  "port": 8000
+  "port": 8000,
+  "fit": null,
+  "resource_status": "FIT_NOT_COMPUTED"
  },
  "observed_probes": []
 }

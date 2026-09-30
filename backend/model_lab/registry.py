@@ -31,9 +31,11 @@ READY_DIAGNOSTIC_ONLY = "READY_DIAGNOSTIC_ONLY"
 INCOMPATIBLE_PROTOCOL = "INCOMPATIBLE_PROTOCOL"
 BLOCKED_RESOURCE = "BLOCKED_RESOURCE"
 DISABLED = "DISABLED"
+PIN_BLOCKED = "PIN_BLOCKED"
+PROBE_FAILED = "PROBE_FAILED"
 STATUSES = (DISCOVERED, NEEDS_APPROVAL, NOT_INSTALLED, PROBING, READY_E2E,
             READY_DIAGNOSTIC_ONLY, INCOMPATIBLE_PROTOCOL, BLOCKED_RESOURCE,
-            DISABLED)
+            DISABLED, PIN_BLOCKED, PROBE_FAILED)
 RUNNABLE = (READY_E2E,)
 
 ROLE_COMPARATOR = "comparator"
@@ -217,12 +219,30 @@ def readiness(profile: Profile, *, approvals: dict[str, Any],
             reasons.append(f"approval '{approval_key}' has not been granted "
                            f"(scripts/model_lab/approve.py)")
     art = raw.get("artifact") or {}
+    rp = raw.get("runpod") or {}
+    if art.get("pin_status") == "PIN_BLOCKED":
+        return Readiness(profile.profile_id, "PIN_BLOCKED",
+                         [art.get("pin_reason") or "exact identity could "
+                          "not be verified"], raw.get("recovery") or "",
+                         checks)
+    if rp.get("resource_status") == "RESOURCE_BLOCKED_A40":
+        return Readiness(profile.profile_id, BLOCKED_RESOURCE,
+                         [f"RESOURCE_BLOCKED_A40: "
+                          f"{(rp.get('fit') or {}).get('summary') or raw.get('status_reason')}"],
+                         raw.get("recovery") or "", checks)
+    if art.get("license_status") == "LICENSE_REVIEW_REQUIRED" and \
+            f"license:{profile.profile_id}" not in (approvals or {}):
+        reasons.append(f"LICENSE_REVIEW_REQUIRED ({art.get('license')!r}): "
+                       f"review the terms, then scripts/model_lab/approve.py "
+                       f"grant license:{profile.profile_id}")
+        checks["license"] = {"status": "LICENSE_REVIEW_REQUIRED",
+                             "license": art.get("license")}
     if art.get("revision_required") and not art.get("revision"):
         # A served checkpoint must be pinned to an exact repository revision
         # before it can run: nothing is ever substituted silently.
         reasons.append(f"exact checkpoint revision not pinned for "
                        f"{profile.registry_id} (run scripts/model_lab/"
-                       f"verify_checkpoints.py and record artifact.revision)")
+                       f"runpod/pin_and_probe_models.py on the pod)")
     probes = probes or {}
     probe = probes.get(profile.profile_id)
     if raw.get("requires_probe"):
@@ -261,6 +281,8 @@ def readiness(profile: Profile, *, approvals: dict[str, Any],
                              "try another runtime/parser route", checks)
     if reasons:
         if approval_key and not (approvals or {}).get(approval_key):
+            status = NEEDS_APPROVAL
+        elif "license" in checks:
             status = NEEDS_APPROVAL
         elif key_env and not env.get(key_env):
             status = NEEDS_APPROVAL

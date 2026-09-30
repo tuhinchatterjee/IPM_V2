@@ -1,8 +1,8 @@
-# RunPod A40 deployment (Model Lab with full Model I/O Trace)
+# RunPod A40 deployment (Model Lab, full Model I/O Trace, suite v2)
 
-**Status: PREPARED.** No model has been served or called.
+**Status: PREPARED.** No benchmark question has been sent to any model.
 
-## Build the bundle (on a clean checkout of this branch)
+## Build the bundle (clean checkout of this branch)
 
 ```bash
 .venv/bin/python scripts/model_lab/runpod/build_bundle.py
@@ -15,59 +15,52 @@ This writes `artifacts/model_comparison/deployment/` (gitignored):
 - `DEPLOYMENT_MANIFEST.json`
 - `checksums.sha256`
 
-**Contents are derived.** An audit-hook closure run does the following and records every repository file it imports or opens:
-
-- starts the lab app;
-- runs an offline fixture comparison with export and trace;
-- imports the seeding code.
-
-The backend packages it touched are shipped whole. Other backend applications are not shipped.
-
-**Also shipped:** the frontend (a single Next.js app), `scripts/model_lab`, `scripts/cockpit_v4` (seeding), `tests/model_lab`, `profiles`, `launchers`, `docs/model_comparison`, `config/cockpit_v4`, `requirements.txt` and `pyproject.toml`.
+**How contents are chosen.** The bundle is derived from an audit-hook closure run plus the static imports of every shipped backend package. Bytes come from `HEAD`.
 
 **Excluded:** `.git`, `.venv`, `node_modules`, `.env*`, credentials, model weights, the generated lake (the pod re-seeds it) and runtime state.
 
-**Build safeguards:**
-- A secret scan fails the build on key-like content.
-- The builder refuses to run with uncommitted lab-owned changes; bytes come from `HEAD`.
-- It unpacks the zip and runs the git-free protected-manifest check before finishing.
+**Build checks:**
+- a secret scan;
+- a git-free protected-manifest check of the extracted bundle.
 
 ## On the pod
 
 ```bash
-cd /workspace && bash RUNPOD_BOOTSTRAP.sh --with-vllm
+cd /workspace && bash RUNPOD_BOOTSTRAP.sh          # --skip-probe to defer weight downloads
 ```
 
-1. Checks for an NVIDIA GPU (A40 expected) and a writable `/workspace` with free space.
-2. Verifies the checksums, unpacks to `/workspace/creditprobe-model-lab`, and re-verifies every file against the manifest.
-3. Installs Python 3.12 dependencies (uv), Node 22, `npm ci` and Playwright Chromium.
-4. Seeds and verifies the deterministic synthetic releases.
-5. Runs `protected_manifest.py --check-bundle`, which confirms the frozen files it carries are byte-identical to `245c50e`.
-6. Runs an offline fixture smoke test: trace, neutrality and saved reference.
-7. Prints the benchmark plan as a dry run, reports checkpoint lookups and optionally installs vLLM into `/workspace/vllm-venv`.
-8. Starts the lab on 127.0.0.1. Reach it through an SSH tunnel.
+1. Checks for the A40 GPU and a writable `/workspace`, verifies checksums, unpacks, and re-verifies every file.
+2. Installs Python 3.12 (uv), Node 22, `npm ci` and Playwright.
+3. Seeds and verifies the synthetic releases.
+4. Runs the protected-manifest check (`--check-bundle`).
+5. Runs the offline fixture smoke test: trace, neutrality, saved reference, ASSISTED_V1, oracles and suite runner.
+6. **Prepares the suite.** It materialises the independent oracle artifacts to `<runtime>/oracles/lab-oracle-suite-1/`: one JSON per question plus `ORACLE_MANIFEST.json` with the code hash and the snapshot id.
+7. Installs vLLM into `/workspace/vllm-venv`.
+8. **Pins checkpoints and checks A40 fit** (`pin_and_probe_models.py`): metadata only, no weights.
+9. **Probes each model** (`--probe`) that is pinned, licence-clear and fits the A40. Each is served with vLLM from its pinned revision, which downloads that checkpoint, and gets the harmless dummy-tool probe. The result is `READY_E2E` or `PROBE_FAILED` with the exact failure, and the next model follows.
+10. Prints the suite plan, starts the lab on 127.0.0.1, and stops at **READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET**.
 
-## Suite (`profiles/_runpod_suite.json`)
+## Gates (nothing is substituted or run silently)
 
-**Models and lanes.** 11 analyst models × 2 lanes × 15 questions. Julia-1 and Saaras V4 are excluded from the analyst benchmark.
-
-**Model profiles.** Each model has a `*-runpod` profile. A vLLM-served Hugging Face checkpoint is a different artifact from any Ollama tag, so nothing is substituted.
-
-| State | Models | Condition to become runnable |
+| Gate | Status when it fails | How to clear it |
 |---|---|---|
-| **NOT_INSTALLED** | Known repository | Runnable only after (a) the exact revision is pinned with `verify_checkpoints.py --pin`, and (b) `probe.py` passes on the served endpoint. |
-| **DISCOVERED** | MiniCPM5-2B, LFM2.5-VL-3B, Ornith-1.5-9B | Never runnable as-is. The exact repositories could not be verified from the build environment (no Hugging Face access); pin one explicitly on the pod. |
-| **BLOCKED_RESOURCE** | Qwen3.8-27B | bf16 weights of about 55 GB exceed 48 GB. A quantised checkpoint is a different artifact and must be registered separately. |
+| Exact identity | `PIN_BLOCKED` (no unique official match, unreachable, no immutable sha) | Operator names the repository with `--repo <id>=<Org/Repo>` and re-pins |
+| Immutable revision | not runnable (`NOT_INSTALLED`, "not pinned") | Pinning records the commit sha; "main" or "latest" is never used |
+| Licence | `LICENSE_REVIEW_REQUIRED`, which shows as `NEEDS_APPROVAL` | Review the terms, then `approve.py grant license:<profile-id>` |
+| A40 fit | `RESOURCE_BLOCKED_A40` (weights + KV cache at the served context + 3 GB overhead > 90 % of 48 GB) | Only a separately registered quantised variant, e.g. `qwen3.8-27b-runpod--awq-4bit`, with its own pin |
+| Tool calling | `PROBE_FAILED` (no parser, forced tool use, round trip, stop mapping, identity) | Fix the parser or template per the model card, then re-probe |
 
-**Tool-call parsers** are suggestions until the probe qualifies them. Gemma's is not set, so `serve.sh` refuses to serve it.
+A blocked model is skipped with its reason, and the suite continues.
 
-**Lanes:**
-- **FROZEN_BASELINE** is the unchanged frozen engine.
-- **ASSISTED_V1 is BLOCKED.** No assistance packet or delivery mechanism has been specified or approved, so running it would silently equal the baseline.
+## Run and report
 
-**Questions:**
-- Q01 has the independent oracle and the saved Opus reference `cmp-f364d8b6901a`.
-- Q02–Q14 need oracles; until then they are scored by frozen validation, claim binding and human review.
-- Q15 is review-only by design (an under-specified question).
+```bash
+.venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir /workspace/lab-runtime --run --confirm-model-calls --serve
+.venv/bin/python scripts/model_lab/suite_report.py --runtime-dir /workspace/lab-runtime
+```
 
-**Runner.** `benchmark_suite.py` plans by default. `--run` requires `--confirm-model-calls` and tracing on, runs exactly one ready model at a time, and refuses ASSISTED_V1.
+- **Model order:** smallest first.
+- **Per model:** re-probe, FROZEN_BASELINE Q01, then Q02–Q15, then ASSISTED_V1 Q01–Q15.
+- **Checkpointing:** after every question, and a re-run resumes.
+- **Evidence per result:** each is exported with its Full Model I/O Trace; the VRAM peak is sampled.
+- **Report:** covers every model (variant, parameters, quantisation, exact revision, licence status, runtime, context, VRAM peak) and every cell. Each cell has the answer, S1–S4, independent correctness, Opus agreement for Q01, the trace, tables and charts, and for ASSISTED_V1 the packet hash and the stage-by-stage change against the baseline. No overall winner is declared.

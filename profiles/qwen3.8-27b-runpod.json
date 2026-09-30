@@ -4,11 +4,11 @@
  "role": "candidate",
  "family": "Qwen",
  "registry_id": "Qwen/Qwen3.8-27B",
- "identity_source": "lab registry (master prompt v2.1); exact revision to pin on the pod",
+ "identity_source": "resolved and pinned on the pod by pin_and_probe_models.py",
  "route": "openai_compat",
  "status": "BLOCKED_RESOURCE",
- "status_reason": "bf16 weights ~55 GB exceed the A40's 48 GB; a quantised checkpoint would be a different artifact and must be registered separately",
- "recovery": "On the pod: scripts/model_lab/verify_checkpoints.py --profile qwen3.8-27b-runpod; record artifact.revision; scripts/model_lab/runpod/serve.sh qwen3.8-27b-runpod; scripts/model_lab/probe.py --profile qwen3.8-27b-runpod",
+ "status_reason": "RESOURCE_BLOCKED_A40: bf16 weights ~55 GB exceed 48 GB",
+ "recovery": "On the pod: scripts/model_lab/runpod/pin_and_probe_models.py --profile qwen3.8-27b-runpod --probe",
  "parameters_total": "27B",
  "endpoint": {
   "class": "local_loopback",
@@ -21,7 +21,7 @@
  "max_output_tokens": 8192,
  "limitations": [
   "Different artifact from any Ollama/Mac profile; never substituted for it.",
-  "bf16 weights ~55 GB exceed the A40's 48 GB; a quantised checkpoint would be a different artifact and must be registered separately"
+  "RESOURCE_BLOCKED_A40: bf16 weights ~55 GB exceed 48 GB"
  ],
  "allowed_modes": [
   "E2E_BASELINE",
@@ -49,29 +49,36 @@
   "verified_at": "2026-09-30",
   "source": "lab local-inference policy"
  },
- "licence": "UNVERIFIED - read the model card before activation",
+ "licence": "UNDETERMINED until pinned",
  "provenance_status": "UNVERIFIED",
  "artifact": {
   "kind": "hf_repository",
+  "source": {
+   "repository": "Qwen/Qwen3.8-27B"
+  },
   "repository": "Qwen/Qwen3.8-27B",
   "revision": null,
   "revision_required": true,
-  "search_term": null,
-  "weights_gb_bf16_estimate": 55,
-  "fits_a40_48gb": false
+  "pin_status": "UNPINNED",
+  "license_status": "UNDETERMINED",
+  "quantization": null,
+  "weights_gb_bf16_estimate": 55
  },
  "runpod": {
   "server": "vllm",
   "served_model_name": "Qwen/Qwen3.8-27B",
   "max_model_len": 32768,
   "suggested_tool_call_parser": "hermes",
-  "parser_status": "UNQUALIFIED until probe.py passes",
+  "suggested_reasoning_parser": "qwen3",
+  "parser_status": "UNQUALIFIED until the probe passes",
   "extra_args": [
    "--reasoning-parser",
    "qwen3"
   ],
   "host": "127.0.0.1",
-  "port": 8000
+  "port": 8000,
+  "fit": null,
+  "resource_status": "RESOURCE_BLOCKED_A40"
  },
  "observed_probes": []
 }

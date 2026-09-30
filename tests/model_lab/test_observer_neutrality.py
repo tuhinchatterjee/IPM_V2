@@ -40,9 +40,23 @@ class Recorder:
 _CLOCK = re.compile(r'(\\"[a-z_]*_(?:seconds|ms)\\": )[0-9.]+')
 
 
+#: Engine arithmetic, not telemetry: the frozen executor's DuckDB SUM was
+#: once observed to differ in the last floating-point bit between two runs
+#: of the same fixture inside one full-suite run (830809.330000001 vs its
+#: neighbour); it did not reproduce in 12 runs under load or 3 full suites.
+#: The observer and the trace never compute or rewrite these numbers, so
+#: they are compared at 6 decimals -- far below any material difference.
+_FLOAT = re.compile(r"-?\d+\.\d+")
+
+
+def _six(m: re.Match) -> str:
+    return f"{float(m.group(0)):.6f}".rstrip("0").rstrip(".")
+
+
 def _norm(obj: Any) -> str:
     text = _IDS.sub(lambda m: f"{m.group(1)}-X",
                     json.dumps(obj, sort_keys=True))
+    text = _FLOAT.sub(_six, text)
     return _CLOCK.sub(lambda m: m.group(1) + "T", text)
 
 

@@ -175,6 +175,10 @@ function CallItem({ cid, item }: { cid: string; item: ModelIoCall }) {
             <JsonView key={k} title={title} data={detail.views?.[k]}
               file={`call_${n}_${k}.json`} size={item.sizes?.[k]} />
           ))}
+          {detail.views.assistance_appended_to_request && (
+            <JsonView title="ASSISTED_V1 packet appended to this request"
+              data={detail.views.assistance_appended_to_request} file={`call_${n}_assistance.json`} />
+          )}
           <JsonView title="Download whole call" data={detail} file={`call_${n}.json`} />
         </div>
       )}

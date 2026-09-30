@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
 # CreditProbe Model Lab — RunPod A40 bootstrap (full Model I/O Trace).
 #
-#   bash RUNPOD_BOOTSTRAP.sh [--skip-browser] [--with-vllm] [--no-start]
+#   bash RUNPOD_BOOTSTRAP.sh [--skip-browser] [--skip-probe] [--skip-vllm] [--no-start]
 #
 # Run from the directory holding CreditProbe_Model_Lab_RunPod_FullTrace.zip,
 # checksums.sha256 and DEPLOYMENT_MANIFEST.json. It verifies the GPU and
 # /workspace, unpacks and installs the lab, seeds the deterministic synthetic
 # data, runs the protected-manifest check and an offline fixture smoke test,
-# starts the lab services on 127.0.0.1, and prepares the benchmark runner.
+# materialises the independent oracle artifacts, installs vLLM, PINS every
+# suite checkpoint to an immutable revision with an A40 fit preflight,
+# PROBES each pinned, licence-clear, fitting model with the harmless dummy
+# tool (this downloads those checkpoints), starts the lab on 127.0.0.1 and
+# prints the suite plan.
 #
-# It performs NO model inference and downloads NO model weights. Serving a
-# model (scripts/model_lab/runpod/serve.sh) and running the suite
-# (scripts/model_lab/benchmark_suite.py --run --confirm-model-calls) are
-# separate, deliberate operator steps.
+# It sends NO benchmark question to any model. Running the suite
+# (scripts/model_lab/benchmark_suite.py --run --confirm-model-calls --serve)
+# is a separate, deliberate operator step.
 set -euo pipefail
 
-SKIP_BROWSER=0; WITH_VLLM=0; START=1
+SKIP_BROWSER=0; WITH_VLLM=1; START=1; PROBE=1
 for a in "$@"; do
   case "$a" in
     --skip-browser) SKIP_BROWSER=1 ;;
     --with-vllm) WITH_VLLM=1 ;;
+    --skip-vllm) WITH_VLLM=0 ;;
+    --skip-probe) PROBE=0 ;;
     --no-start) START=0 ;;
     *) echo "unknown option $a"; exit 2 ;;
   esac
@@ -91,22 +96,49 @@ echo "== 6. Protected manifest (frozen AdvancedCockpit unchanged)"
 echo "== 7. Offline fixture smoke test (no model)"
 .venv/bin/python -m pytest -q -p no:cacheprovider \
   tests/model_lab/test_model_io_trace.py tests/model_lab/test_observer_neutrality.py \
-  tests/model_lab/test_saved_reference.py || die "fixture smoke test failed"
-ok "fixture smoke test passed (full Model I/O Trace on)"
+  tests/model_lab/test_saved_reference.py tests/model_lab/test_assisted_lane.py \
+  tests/model_lab/test_benchmark_oracles.py tests/model_lab/test_runpod_suite.py \
+  || die "fixture smoke test failed"
+ok "fixture smoke test passed (full Model I/O Trace, oracles, ASSISTED_V1, suite runner)"
 
-echo "== 8. Benchmark runner (plan only)"
+echo "== 8. Suite preparation: independent oracle artifacts"
 mkdir -p "$RUNTIME"
-.venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir "$RUNTIME"
-.venv/bin/python scripts/model_lab/verify_checkpoints.py || echo "  WARN checkpoint lookup failed (network?)"
-if [ "$WITH_VLLM" = 1 ]; then
-  python3 -m venv "$WS/vllm-venv" && "$WS/vllm-venv/bin/pip" install -q vllm
-  ok "vLLM installed in $WS/vllm-venv (no model served)"
+.venv/bin/python -c "
+import sys; from pathlib import Path
+from backend.model_lab import benchmark_oracles as bo
+out = Path(sys.argv[1]) / 'oracles' / bo.ORACLE_SUITE_VERSION
+h = bo.materialize(out)
+print(f'  {len(h)} oracle artifacts -> {out}; snapshot {bo.snapshot_id()}')
+" "$RUNTIME"
+ok "oracles materialised (evaluation-side only; never sent to a model)"
+
+echo "== 9. vLLM runtime"
+if [ "$WITH_VLLM" = 1 ] || [ "$PROBE" = 1 ]; then
+  [ -x "$WS/vllm-venv/bin/vllm" ] || { python3 -m venv "$WS/vllm-venv" && "$WS/vllm-venv/bin/pip" install -q vllm; }
+  ok "vLLM $("$WS/vllm-venv/bin/python" -c 'import vllm; print(vllm.__version__)' 2>/dev/null) in $WS/vllm-venv"
 else
-  echo "  vLLM not installed (pass --with-vllm); serve.sh expects $WS/vllm-venv/bin/vllm"
+  echo "  vLLM not installed (--skip-vllm); serve.sh expects $WS/vllm-venv/bin/vllm"
 fi
 
+echo "== 10. Checkpoint pin + A40 fit preflight (metadata only, no weights)"
+.venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir "$RUNTIME" \
+  || echo "  WARN pinning reported errors; see $RUNTIME/pins/ROSTER.json"
+
+if [ "$PROBE" = 1 ]; then
+  echo "== 11. Capability probe: pinned, licence-clear, fitting models only"
+  echo "   downloads each such checkpoint into $WS/hf; dummy tool only; no benchmark question"
+  .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir "$RUNTIME" --probe \
+    || echo "  WARN probe step reported errors; see $RUNTIME/pins/ROSTER.json"
+else
+  echo "== 11. Probe deferred (--skip-probe). Run before the benchmark:"
+  echo "   .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --probe"
+fi
+
+echo "== 12. Suite plan (no model call)"
+.venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir "$RUNTIME"
+
 if [ "$START" = 1 ]; then
-  echo "== 9. Start Model Lab services (127.0.0.1 only)"
+  echo "== 13. Start Model Lab services (127.0.0.1 only)"
   MODEL_LAB_RUNTIME_DIR="$RUNTIME" MODEL_LAB_PYTHON=.venv/bin/python \
     ./launchers/START_MODEL_LAB.command --runtime-dir "$RUNTIME"
   echo "  From your machine: ssh -L 5424:127.0.0.1:5424 -L 8424:127.0.0.1:8424 <pod-ssh>"
@@ -115,10 +147,13 @@ fi
 
 cat <<EOF
 
-READY — no model has been called.
-Next, one model at a time:
-  1. .venv/bin/python scripts/model_lab/verify_checkpoints.py --pin <profile>=<repo>@<sha>
-  2. scripts/model_lab/runpod/serve.sh <profile>            (downloads that checkpoint)
-  3. LAB_VLLM_OPENAI_URL=http://127.0.0.1:8000/v1 .venv/bin/python scripts/model_lab/probe.py --profile <profile> --runtime-dir $RUNTIME
-  4. .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir $RUNTIME --model <profile> --lane FROZEN_BASELINE --run --confirm-model-calls
+READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET
+  roster:    $RUNTIME/pins/ROSTER.json
+  licences:  review each LICENSE_REVIEW_REQUIRED model's terms, then
+             .venv/bin/python scripts/model_lab/approve.py grant license:<profile-id> --runtime-dir $RUNTIME
+  identities: for a PIN_BLOCKED model, name the official repository and re-pin:
+             .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --profile <id> --repo <id>=<Org/Repo> --probe
+  run (explicit; every qualified model, smallest first, checkpointed, resumable):
+             .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir $RUNTIME --run --confirm-model-calls --serve
+  report:    .venv/bin/python scripts/model_lab/suite_report.py --runtime-dir $RUNTIME
 EOF

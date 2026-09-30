@@ -4,11 +4,11 @@
  "role": "candidate",
  "family": "Gemma",
  "registry_id": "google/gemma-4-12B-it",
- "identity_source": "lab registry (master prompt v2.1); exact revision to pin on the pod",
+ "identity_source": "resolved and pinned on the pod by pin_and_probe_models.py",
  "route": "openai_compat",
  "status": "NOT_INSTALLED",
  "status_reason": "tool-call parser for this family unqualified",
- "recovery": "On the pod: scripts/model_lab/verify_checkpoints.py --profile gemma-4-12b-runpod; record artifact.revision; scripts/model_lab/runpod/serve.sh gemma-4-12b-runpod; scripts/model_lab/probe.py --profile gemma-4-12b-runpod",
+ "recovery": "On the pod: scripts/model_lab/runpod/pin_and_probe_models.py --profile gemma-4-12b-runpod --probe",
  "parameters_total": "12B",
  "endpoint": {
   "class": "local_loopback",
@@ -49,26 +49,33 @@
   "verified_at": "2026-09-30",
   "source": "lab local-inference policy"
  },
- "licence": "UNVERIFIED - read the model card before activation",
+ "licence": "UNDETERMINED until pinned",
  "provenance_status": "UNVERIFIED",
  "artifact": {
   "kind": "hf_repository",
+  "source": {
+   "repository": "google/gemma-4-12B-it"
+  },
   "repository": "google/gemma-4-12B-it",
   "revision": null,
   "revision_required": true,
-  "search_term": null,
-  "weights_gb_bf16_estimate": 25,
-  "fits_a40_48gb": true
+  "pin_status": "UNPINNED",
+  "license_status": "UNDETERMINED",
+  "quantization": null,
+  "weights_gb_bf16_estimate": 25
  },
  "runpod": {
   "server": "vllm",
   "served_model_name": "google/gemma-4-12B-it",
   "max_model_len": 32768,
   "suggested_tool_call_parser": null,
-  "parser_status": "UNQUALIFIED until probe.py passes",
+  "suggested_reasoning_parser": null,
+  "parser_status": "UNQUALIFIED until the probe passes",
   "extra_args": [],
   "host": "127.0.0.1",
-  "port": 8000
+  "port": 8000,
+  "fit": null,
+  "resource_status": "FIT_NOT_COMPUTED"
  },
  "observed_probes": []
 }

@@ -1,27 +1,27 @@
 {
- "profile_id": "fin-r1-7b-runpod",
- "display_name": "Fin-R1 7B (RunPod A40, vLLM)",
+ "profile_id": "qwen3.8-27b-runpod--awq-4bit",
+ "display_name": "Qwen3.8-27B — AWQ-4BIT (RunPod A40, vLLM)",
  "role": "candidate",
- "family": "Fin-R1",
- "registry_id": "SUFE-AIFLM-Lab/Fin-R1",
+ "family": "Qwen",
+ "registry_id": "UNPINNED:Qwen3.8-27B — AWQ-4BIT (RunPod A40, vLLM)",
  "identity_source": "resolved and pinned on the pod by pin_and_probe_models.py",
  "route": "openai_compat",
- "status": "NOT_INSTALLED",
- "status_reason": "diagnostic-only until the mandatory controls pass",
- "recovery": "On the pod: scripts/model_lab/runpod/pin_and_probe_models.py --profile fin-r1-7b-runpod --probe",
- "parameters_total": "7B",
+ "status": "DISCOVERED",
+ "status_reason": "quantised artifact not yet verified: resolved on the pod from the publisher only",
+ "recovery": "On the pod: scripts/model_lab/runpod/pin_and_probe_models.py --profile qwen3.8-27b-runpod--awq-4bit --probe",
+ "parameters_total": "27B",
  "endpoint": {
   "class": "local_loopback",
   "base_url_env": "LAB_VLLM_OPENAI_URL",
   "base_url_default": "http://127.0.0.1:8000/v1",
-  "model": "SUFE-AIFLM-Lab/Fin-R1",
+  "model": "UNPINNED:Qwen3.8-27B — AWQ-4BIT (RunPod A40, vLLM)",
   "api_key_env": null
  },
  "context_tokens": 32768,
  "max_output_tokens": 8192,
  "limitations": [
   "Different artifact from any Ollama/Mac profile; never substituted for it.",
-  "diagnostic-only until the mandatory controls pass"
+  "Quantised deployment variant (awq-4bit) of qwen3.8-27b-runpod: results are for this variant, not the bf16 base."
  ],
  "allowed_modes": [
   "E2E_BASELINE",
@@ -54,28 +54,38 @@
  "artifact": {
   "kind": "hf_repository",
   "source": {
-   "repository": "SUFE-AIFLM-Lab/Fin-R1"
+   "org": "Qwen",
+   "name_pattern": "^Qwen3\\.8-27B-AWQ$"
   },
-  "repository": "SUFE-AIFLM-Lab/Fin-R1",
+  "repository": null,
   "revision": null,
   "revision_required": true,
   "pin_status": "UNPINNED",
   "license_status": "UNDETERMINED",
-  "quantization": null,
-  "weights_gb_bf16_estimate": 16
+  "quantization": "awq-4bit",
+  "weights_gb_bf16_estimate": null,
+  "weights_gb_estimate": 15
  },
  "runpod": {
   "server": "vllm",
-  "served_model_name": "SUFE-AIFLM-Lab/Fin-R1",
+  "served_model_name": null,
   "max_model_len": 32768,
   "suggested_tool_call_parser": "hermes",
-  "suggested_reasoning_parser": null,
+  "suggested_reasoning_parser": "qwen3",
   "parser_status": "UNQUALIFIED until the probe passes",
-  "extra_args": [],
+  "extra_args": [
+   "--quantization",
+   "awq",
+   "--reasoning-parser",
+   "qwen3"
+  ],
   "host": "127.0.0.1",
   "port": 8000,
   "fit": null,
   "resource_status": "FIT_NOT_COMPUTED"
  },
- "observed_probes": []
+ "observed_probes": [],
+ "parent_profile_id": "qwen3.8-27b-runpod",
+ "variant_kind": "quantized_deployment",
+ "variant_note": "the bf16 checkpoint does not fit the A40; a 4-bit AWQ artifact from the publisher is a separate deployment variant of the same base model, and is used only if its identity is verified on the pod"
 }
