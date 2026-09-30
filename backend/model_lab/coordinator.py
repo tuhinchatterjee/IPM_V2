@@ -65,7 +65,7 @@ MODES = ("E2E_BASELINE", "OBSERVED_STAGE_EVIDENCE",
          "CONTROLLED_CHECKPOINT_REPLAY", "PARAMETER/CONTEXT_ABLATION",
          "TRAINING_READINESS")
 DEPLOYMENTS = ("mac_sequential", "remote_parallel", "fixture",
-               "same_model_hardware_diagnostic")
+               "same_model_hardware_diagnostic", "runpod_a40_sequential")
 #: The frozen per-run ceiling a child can spend at most (analytical deep).
 #: Reserved per paid child before dispatch; reconciled to actual after.
 PER_CHILD_RESERVE_USD = 3.00

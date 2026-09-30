@@ -162,12 +162,64 @@ def check(manifest: dict) -> list[dict]:
     return diffs
 
 
+BUNDLE_MANIFEST = ROOT / "DEPLOYMENT_MANIFEST.json"
+
+
+def check_bundle() -> int:
+    """No git on the pod: compare file bytes with the recorded SHA-256."""
+    m = json.loads(MANIFEST.read_text())
+    if not BUNDLE_MANIFEST.exists():
+        print("not a deployment bundle (no DEPLOYMENT_MANIFEST.json); use "
+              "--check in a git checkout")
+        return 2
+    bundle = json.loads(BUNDLE_MANIFEST.read_text())
+    carried = bundle["protected_files_bundled"]
+    bad, missing = [], []
+    for rel in carried:
+        path = ROOT / rel
+        if not path.exists():
+            missing.append(rel)
+            continue
+        now = hashlib.sha256(path.read_bytes()).hexdigest()
+        if now != m["files"].get(rel):
+            bad.append({"path": rel, "recorded": m["files"].get(rel) or "",
+                        "now": now})
+    stray = [rel for rel in m["files"]
+             if rel not in set(carried) and (ROOT / rel).exists()]
+    if bad or missing:
+        print(f"PROTECTED MANIFEST FAILED (bundle): {len(bad)} changed, "
+              f"{len(missing)} missing")
+        for d in bad[:50]:
+            print(f"  {d['path']}: {d['recorded'][:12]} -> {d['now'][:12]}")
+        for rel in missing[:50]:
+            print(f"  missing {rel}")
+        return 1
+    extra = [rel for rel in stray
+             if hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
+             != m["files"][rel]]
+    if extra:
+        print(f"PROTECTED MANIFEST FAILED (bundle): {len(extra)} unlisted "
+              f"protected file(s) differ")
+        return 1
+    print(f"protected manifest OK (bundle): {len(carried)} of "
+          f"{m['file_count']} protected files carried, all match "
+          f"{m['frozen_tag']} ({m['frozen_commit'][:7]}); the rest are "
+          f"outside the Model Lab's dependency closure and not shipped")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--write", action="store_true")
     g.add_argument("--check", action="store_true")
+    g.add_argument("--check-bundle", action="store_true",
+                   help="git-free check inside a deployment bundle: every "
+                        "protected file the bundle carries must match the "
+                        "recorded SHA-256")
     args = ap.parse_args(argv)
+    if args.check_bundle:
+        return check_bundle()
     if args.write:
         m = build()
         MANIFEST.parent.mkdir(parents=True, exist_ok=True)

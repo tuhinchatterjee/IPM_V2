@@ -1,0 +1,76 @@
+{
+ "profile_id": "qwen3.5-9b-runpod",
+ "display_name": "Qwen3.5-9B (RunPod A40, vLLM)",
+ "role": "candidate",
+ "family": "Qwen",
+ "registry_id": "Qwen/Qwen3.5-9B",
+ "identity_source": "lab registry (master prompt v2.1); exact revision to pin on the pod",
+ "route": "openai_compat",
+ "status": "NOT_INSTALLED",
+ "status_reason": "Served by vLLM on the RunPod A40; needs a pinned revision and a passing probe.",
+ "recovery": "On the pod: scripts/model_lab/verify_checkpoints.py --profile qwen3.5-9b-runpod; record artifact.revision; scripts/model_lab/runpod/serve.sh qwen3.5-9b-runpod; scripts/model_lab/probe.py --profile qwen3.5-9b-runpod",
+ "parameters_total": "9B",
+ "endpoint": {
+  "class": "local_loopback",
+  "base_url_env": "LAB_VLLM_OPENAI_URL",
+  "base_url_default": "http://127.0.0.1:8000/v1",
+  "model": "Qwen/Qwen3.5-9B",
+  "api_key_env": null
+ },
+ "context_tokens": 32768,
+ "max_output_tokens": 8192,
+ "limitations": [
+  "Different artifact from any Ollama/Mac profile; never substituted for it."
+ ],
+ "allowed_modes": [
+  "E2E_BASELINE",
+  "OBSERVED_STAGE_EVIDENCE"
+ ],
+ "deployment_profiles": [
+  "runpod_a40_sequential"
+ ],
+ "requires_probe": true,
+ "supported_controls": {
+  "tools": null,
+  "forced_tool_use": null,
+  "named_tool_forcing": null,
+  "tool_result_roundtrip": null,
+  "stop_reason_mapping": null,
+  "effort_control": false,
+  "token_counting": false
+ },
+ "price": {
+  "input_usd_per_mtok": 0.0,
+  "output_usd_per_mtok": 0.0,
+  "cache_write_usd_per_mtok": 0.0,
+  "cache_read_usd_per_mtok": 0.0,
+  "basis": "no token charge; RunPod GPU time is billed by the hour and reported separately",
+  "verified_at": "2026-09-30",
+  "source": "lab local-inference policy"
+ },
+ "licence": "UNVERIFIED - read the model card before activation",
+ "provenance_status": "UNVERIFIED",
+ "artifact": {
+  "kind": "hf_repository",
+  "repository": "Qwen/Qwen3.5-9B",
+  "revision": null,
+  "revision_required": true,
+  "search_term": null,
+  "weights_gb_bf16_estimate": 19,
+  "fits_a40_48gb": true
+ },
+ "runpod": {
+  "server": "vllm",
+  "served_model_name": "Qwen/Qwen3.5-9B",
+  "max_model_len": 32768,
+  "suggested_tool_call_parser": "hermes",
+  "parser_status": "UNQUALIFIED until probe.py passes",
+  "extra_args": [
+   "--reasoning-parser",
+   "qwen3"
+  ],
+  "host": "127.0.0.1",
+  "port": 8000
+ },
+ "observed_probes": []
+}

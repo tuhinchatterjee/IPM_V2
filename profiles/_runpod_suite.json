@@ -1,0 +1,205 @@
+{
+ "suite_id": "runpod-a40-analyst-suite-v1",
+ "created": "2026-09-30",
+ "status": "PREPARED — no inference has been run",
+ "hardware": {
+  "provider": "RunPod",
+  "gpu": "NVIDIA A40",
+  "vram_gb": 48,
+  "storage": "/workspace (persistent volume)"
+ },
+ "deployment": "runpod_a40_sequential",
+ "server": "vLLM OpenAI-compatible, 127.0.0.1:8000, one model resident at a time",
+ "frozen_source": "245c50e45786c6e0c866b281f9dd74da17d160b5",
+ "trace": {
+  "required": true,
+  "flag": "MODEL_LAB_FULL_IO_TRACE=true",
+  "note": "every result must carry the full Model I/O Trace; the runner refuses to start with tracing off"
+ },
+ "reference": {
+  "saved_opus_comparison": "cmp-f364d8b6901a",
+  "applies_to": [
+   "Q01"
+  ],
+  "note": "saved Opus agreement exists only for Q01; other questions have no saved Opus run"
+ },
+ "lanes": {
+  "FROZEN_BASELINE": {
+   "status": "READY_TO_PREPARE",
+   "definition": "the unchanged frozen AdvancedCockpit engine, prompts, tools and limits"
+  },
+  "ASSISTED_V1": {
+   "status": "BLOCKED",
+   "reason": "ASSISTED_V1 is not defined: no assistance-packet content or delivery mechanism has been specified or approved. The lab records assistance_packet.json when a comparison carries one, but nothing delivers extra context to the model yet, so running this lane would silently equal FROZEN_BASELINE.",
+   "needs": [
+    "approved assistance-packet specification (deterministic content)",
+    "an approved lab-owned delivery seam that does not modify the frozen engine"
+   ]
+  }
+ },
+ "models": [
+  {
+   "model": "MiniCPM5-2B",
+   "profile_id": "minicpm5-2b-runpod"
+  },
+  {
+   "model": "LFM2.5-VL-3B",
+   "profile_id": "lfm2.5-vl-3b-runpod"
+  },
+  {
+   "model": "Qwen3.5-4B",
+   "profile_id": "qwen3.5-4b-runpod"
+  },
+  {
+   "model": "Fin-R1-7B",
+   "profile_id": "fin-r1-7b-runpod"
+  },
+  {
+   "model": "Granite 4.2-8B",
+   "profile_id": "granite-4.2-8b-runpod"
+  },
+  {
+   "model": "Ministral 3-8B",
+   "profile_id": "ministral-3-8b-runpod"
+  },
+  {
+   "model": "Qwen3.5-9B",
+   "profile_id": "qwen3.5-9b-runpod"
+  },
+  {
+   "model": "Ornith-1.5-9B",
+   "profile_id": "ornith-1.5-9b-runpod"
+  },
+  {
+   "model": "Gemma 12B",
+   "profile_id": "gemma-4-12b-runpod",
+   "note": "RunPod artifact of the registered gemma-4-12b profile"
+  },
+  {
+   "model": "gpt-oss-20b",
+   "profile_id": "gpt-oss-20b-runpod"
+  },
+  {
+   "model": "Qwen ~27B (full)",
+   "profile_id": "qwen3.8-27b-runpod"
+  }
+ ],
+ "excluded_from_analyst_benchmark": [
+  {
+   "model": "Julia-1",
+   "reason": "not an analyst-answer model for this benchmark (operator decision)"
+  },
+  {
+   "model": "Saaras V4",
+   "reason": "not an analyst-answer model for this benchmark (operator decision)"
+  }
+ ],
+ "questions": [
+  {
+   "question_id": "Q01",
+   "oracle_task_id": "corp-stage2-ead-by-sector-latest",
+   "question": "What is Stage 2 exposure by sector for the latest quarter?",
+   "tests": "S1 population + S2 aggregation + S4 largest sector",
+   "oracle_status": "ORACLE_REGISTERED"
+  },
+  {
+   "question_id": "Q02",
+   "oracle_task_id": null,
+   "question": "What is total EAD by IFRS 9 stage for the latest quarter?",
+   "tests": "simple grouped aggregate",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q03",
+   "oracle_task_id": null,
+   "question": "Which five sectors have the highest ECL coverage, measured as ECL divided by EAD, in the latest quarter?",
+   "tests": "ratio of sums, not mean of ratios",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q04",
+   "oracle_task_id": null,
+   "question": "How has Stage 3 EAD changed over the last four quarters?",
+   "tests": "time series across quarters",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q05",
+   "oracle_task_id": null,
+   "question": "Which borrowers were added to the watchlist in the latest quarter, and what are their rating drivers?",
+   "tests": "borrower grain, change detection",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q06",
+   "oracle_task_id": null,
+   "question": "What share of Stage 2 exposure in the latest quarter carries a SICR flag?",
+   "tests": "share with a filtered numerator",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q07",
+   "oracle_task_id": null,
+   "question": "List the ten largest facilities by EAD that are more than 30 days past due in the latest quarter.",
+   "tests": "ranking with a threshold filter",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q08",
+   "oracle_task_id": null,
+   "question": "What is the average collateral coverage by collateral type in the latest quarter?",
+   "tests": "collateral grain; average definition must be stated",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q09",
+   "oracle_task_id": null,
+   "question": "How many covenant breaches were there in the latest quarter by covenant type, and how many of them were waived?",
+   "tests": "covenant grain, two counts",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q10",
+   "oracle_task_id": null,
+   "question": "Which regions have the highest EAD-weighted 12-month point-in-time PD in the latest quarter?",
+   "tests": "weighted average",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q11",
+   "oracle_task_id": null,
+   "question": "Compare median leverage and DSCR for Construction versus Real Estate borrowers in the latest quarter.",
+   "tests": "borrower grain, two sectors, medians",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q12",
+   "oracle_task_id": null,
+   "question": "What is the undrawn commitment and the utilisation rate by product type in the latest quarter?",
+   "tests": "limit/drawn/undrawn consistency",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q13",
+   "oracle_task_id": null,
+   "question": "Which borrowers have been downgraded by three or more notches since origination, and what is their current EAD?",
+   "tests": "join borrower rating to facility EAD",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q14",
+   "oracle_task_id": null,
+   "question": "How much was written off and how much was recovered in each of the last four quarters?",
+   "tests": "time series, two measures",
+   "oracle_status": "NEEDS_ORACLE"
+  },
+  {
+   "question_id": "Q15",
+   "oracle_task_id": null,
+   "question": "How risky is the corporate book right now?",
+   "tests": "deliberately under-specified: tests S1 clarification or stated assumptions",
+   "oracle_status": "NEEDS_REVIEW_BY_DESIGN"
+  }
+ ],
+ "scoring_note": "Only Q01 has an independent oracle today. Q02-Q14 are scored by the frozen validators, claim evidence binding and human review (NEEDS_REVIEW) until their oracles are written and signed off; Q15 is review-only by design."
+}

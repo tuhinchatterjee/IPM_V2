@@ -216,6 +216,13 @@ def readiness(profile: Profile, *, approvals: dict[str, Any],
         if not grant:
             reasons.append(f"approval '{approval_key}' has not been granted "
                            f"(scripts/model_lab/approve.py)")
+    art = raw.get("artifact") or {}
+    if art.get("revision_required") and not art.get("revision"):
+        # A served checkpoint must be pinned to an exact repository revision
+        # before it can run: nothing is ever substituted silently.
+        reasons.append(f"exact checkpoint revision not pinned for "
+                       f"{profile.registry_id} (run scripts/model_lab/"
+                       f"verify_checkpoints.py and record artifact.revision)")
     probes = probes or {}
     probe = probes.get(profile.profile_id)
     if raw.get("requires_probe"):

@@ -21,6 +21,7 @@ for port picking and ownership checks.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -50,9 +51,12 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     cm.heading("Model comparison lab")
+    # A deployment bundle carries no .git: it is checked byte-for-byte
+    # against the recorded SHA-256 instead of against Git's blobs.
+    mode = "--check" if (ROOT / ".git").exists() else "--check-bundle"
     chk = subprocess.run([args.python, str(ROOT / "scripts" / "model_lab" /
                                            "protected_manifest.py"),
-                          "--check"], capture_output=True, text=True)
+                          mode], capture_output=True, text=True)
     if chk.returncode != 0:
         print(cm.bad("protected manifest check FAILED; refusing to start"))
         print(chk.stdout[-2000:])
@@ -95,9 +99,12 @@ def main(argv: list[str] | None = None) -> int:
         "COCKPIT_V4_UI_PORT": str(ui_port or 5424),
         "COCKPIT_V4_LOCAL_DEMO_AUTH": "true",
         "COCKPIT_V4_MEMORY_ENABLED": "false",
-        "COCKPIT_V4_STARTUP_SHA": subprocess.run(
+        "COCKPIT_V4_STARTUP_SHA": (subprocess.run(
             ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-            capture_output=True, text=True).stdout.strip(),
+            capture_output=True, text=True).stdout.strip()
+            if (ROOT / ".git").exists() else json.loads(
+                (ROOT / "DEPLOYMENT_MANIFEST.json").read_text()
+            )["source_commit"]),
         "MODEL_LAB_RUNTIME_DIR": str(runtime),
     })
     if args.live_opus:
