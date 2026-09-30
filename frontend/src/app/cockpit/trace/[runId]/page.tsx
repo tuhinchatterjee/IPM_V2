@@ -14,6 +14,7 @@
  */
 
 import { use } from "react";
+import Link from "next/link";
 
 import { GovernancePanel } from "@/components/cockpit-v4/governance-panel";
 
@@ -28,6 +29,12 @@ export default function CockpitTracePage({ params }: {
           Governance record
         </h1>
         <p className="mono mt-0.5 text-xs text-text-muted">{runId}</p>
+        {/* Guided Workspace P1: the Full LLM Exchange for this run. */}
+        <Link href={`/trace/llm-exchange/${encodeURIComponent(runId)}`}
+              className="text-xs text-accent underline"
+              data-testid="trace-llm-exchange-link">
+          LLM Exchange — every model call, as sent and received
+        </Link>
       </header>
       <GovernancePanel runId={runId} />
     </main>

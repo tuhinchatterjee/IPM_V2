@@ -1,0 +1,65 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 3,
+  "total": 3,
+  "journeys": [
+    {
+      "journey": "GW-P1-01",
+      "what": "Cockpit question → governance record → Trace › LLM Exchange shows every call, stage and panel",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-calls.png",
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-visibility.png",
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-growth.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-332682c76ec44009869eadaeda7aed48",
+      "run_id": "run-84b22227b15842c5bea7c2f65165291c",
+      "export": "llm_exchange_run-84b22227b15842c5bea7c2f65165291c.zip",
+      "calls_recorded": 2,
+      "status": "PASS",
+      "ms": 5279
+    },
+    {
+      "journey": "GW-P1-02",
+      "what": "Reopening a trace makes zero model calls",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-65243a60507b4ab39d3c20fb5c601f4c",
+      "run_id": "run-c18eb03a29104888b7f4bfca012fb61c",
+      "exchanges_before": 4,
+      "exchanges_after": 4,
+      "status": "PASS",
+      "ms": 3530
+    },
+    {
+      "journey": "GW-P1-03",
+      "what": "AI Model Lab reads the same records and compares two calls",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P1-03-compare.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "replay_buttons": [
+        {
+          "t": " Replay A on Anthropic (Cockpit credential) (not configured)",
+          "d": true
+        },
+        {
+          "t": " Replay A on Open-weight (OpenAI-compatible endpoint) (not configured)",
+          "d": true
+        }
+      ],
+      "status": "PASS",
+      "ms": 990
+    }
+  ]
+}

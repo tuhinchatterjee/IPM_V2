@@ -1,0 +1,319 @@
+READ ONLY. Nothing below writes to the lake.
+
+  v4-saudi-corporate-20q-v4  (corporate)
+    byte fingerprint   c79d0fdf8753576f  verified   (machine-specific -- see the module docstring)
+    content digest     40c05896f0ef2f17   (portable -- this is the one to compare)
+    rows               1,260,267
+      corp_borrower_quarter          108,240
+      corp_collateral_quarter        384,009
+      corp_covenant_quarter          384,009
+      corp_facility_quarter          384,009
+    entities           borrowers=5,412  facilities=21,918  groups=2,533  product_types=8  regions=10  sectors=14  sub_sectors=75
+    relations          4
+    fields             113
+    periods            20  2021Q3..2026Q2  (quarterly)
+    amounts            SAR million
+    built with         numpy=2.5.0  pandas=3.0.3  pyarrow=24.0.0  python=3.12.3
+    categorical columns, as the Data Builder serves them:
+      corp_borrower_quarter.borrower_name                  5412 sampled   [Al Ahsa Advanced Agri, Al Ahsa Advanced Chemicals, Al Ahsa Advanced Contracting, Al Ahsa Advanced Energy, Al Ahsa Advanced Engineering, Al Ahsa Advanced Estates, ...]
+      corp_borrower_quarter.group_name                     2533 sampled   [Al Ahsa Advanced Agri Holding, Al Ahsa Advanced Hospitality Holding, Al Ahsa Advanced Industries Holding, Al Ahsa Advanced Medical Holding, Al Ahsa Advanced Minerals Holding, Al Ahsa Advanced Retail Holding, ...]
+      corp_borrower_quarter.rating_at_origination            16 governed  [A, A+, A-, AA, AA-, B, B+, B-, BB, BB+, BB-, BBB, +4 more]
+      corp_borrower_quarter.rating_current                   17 governed  [A, A+, A-, AA, AA-, B, B+, B-, BB, BB+, BB-, BBB, +5 more]
+      corp_borrower_quarter.rating_driver                     4 governed  [Debt service, Leverage, Liquidity, None]
+      corp_borrower_quarter.rating_migration                  3 governed  [DOWNGRADE, STABLE, UPGRADE]
+      corp_borrower_quarter.rating_outlook                    3 governed  [Negative, Positive, Stable]
+      corp_borrower_quarter.rating_previous                  17 governed  [A, A+, A-, AA, AA-, B, B+, B-, BB, BB+, BB-, BBB, +5 more]
+      corp_borrower_quarter.region                           10 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Najran, Northern Borders, Qassim, Riyadh, Tabuk]
+      corp_borrower_quarter.relationship_tier                 3 governed  [Core, Strategic, Transactional]
+      corp_borrower_quarter.reporting_currency                1 governed  [SAR]
+      corp_borrower_quarter.sector                           14 governed  [Agriculture and Agri-processing, Chemicals, Construction, Healthcare, Hospitality, Information Technology, Manufacturing, Metals and Mining, Power and Utilities, Real Estate, Retail Trade, Telecommunications, +2 more]
+      corp_borrower_quarter.sub_sector                       75 governed  [Aggregates, Aquaculture, Building Contracting, Building Materials, Building Supplies, Catering, Civil Infrastructure, Clinics, Cold Chain, Commercial Property, Courier, Dairy, +63 more]
+      corp_borrower_quarter.watchlist_reason                  4 governed  [, Debt service below policy, Rating below watch grade, Rating downgraded since origination]
+      corp_collateral_quarter.collateral_type                 5 governed  [Cash Deposit, Corporate Guarantee, Plant and Equipment, Real Estate, Receivables]
+      corp_collateral_quarter.reporting_currency              1 governed  [SAR]
+      corp_collateral_quarter.sector                         14 governed  [Agriculture and Agri-processing, Chemicals, Construction, Healthcare, Hospitality, Information Technology, Manufacturing, Metals and Mining, Power and Utilities, Real Estate, Retail Trade, Telecommunications, +2 more]
+      corp_covenant_quarter.covenant_type                     5 governed  [Current Ratio, DSCR, Interest Cover, Leverage, Minimum EBITDA]
+      corp_covenant_quarter.reporting_currency                1 governed  [SAR]
+      corp_covenant_quarter.sector                           14 governed  [Agriculture and Agri-processing, Chemicals, Construction, Healthcare, Hospitality, Information Technology, Manufacturing, Metals and Mining, Power and Utilities, Real Estate, Retail Trade, Telecommunications, +2 more]
+      corp_covenant_quarter.test_status                       3 governed  [BREACH, PASS, WATCH]
+      corp_covenant_quarter.waiver_quarter                   13 governed  [, 2022Q1, 2022Q3, 2022Q4, 2023Q2, 2023Q3, 2024Q1, 2024Q2, 2024Q4, 2025Q1, 2025Q3, 2025Q4, +1 more]
+      corp_covenant_quarter.waiver_status                     3 governed  [GRANTED, NONE, REQUESTED]
+      corp_facility_quarter.borrower_name                  5412 sampled   [Al Ahsa Advanced Agri, Al Ahsa Advanced Chemicals, Al Ahsa Advanced Contracting, Al Ahsa Advanced Energy, Al Ahsa Advanced Engineering, Al Ahsa Advanced Estates, ...]
+      corp_facility_quarter.facility_class                    2 governed  [funded, non_funded]
+      corp_facility_quarter.origination_quarter              19 governed  [2017Q3, 2017Q4, 2018Q1, 2018Q2, 2018Q3, 2018Q4, 2019Q1, 2019Q2, 2019Q3, 2019Q4, 2020Q1, 2020Q2, +7 more]
+      corp_facility_quarter.product_type                      8 governed  [asset_finance, overdraft, project_finance, revolving_credit, supply_chain_finance, term_loan, trade_finance, working_capital]
+      corp_facility_quarter.region                           10 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Najran, Northern Borders, Qassim, Riyadh, Tabuk]
+      corp_facility_quarter.relationship_tier                 3 governed  [Core, Strategic, Transactional]
+      corp_facility_quarter.reporting_currency                1 governed  [SAR]
+      corp_facility_quarter.sector                           14 governed  [Agriculture and Agri-processing, Chemicals, Construction, Healthcare, Hospitality, Information Technology, Manufacturing, Metals and Mining, Power and Utilities, Real Estate, Retail Trade, Telecommunications, +2 more]
+      corp_facility_quarter.sub_sector                       75 governed  [Aggregates, Aquaculture, Building Contracting, Building Materials, Building Supplies, Catering, Civil Infrastructure, Clinics, Cold Chain, Commercial Property, Courier, Dairy, +63 more]
+
+  v4-saudi-retail-20m-v5  (retail)
+    byte fingerprint   c23a15d78ba88d39  verified   (machine-specific -- see the module docstring)
+    content digest     54b77d6d0baf4a49   (portable -- this is the one to compare)
+    rows               1,888,134
+      retail_account_month           584,372
+      retail_behaviour_month         584,372
+      retail_collateral_month        281,330
+      retail_customer_month          438,060
+    entities           accounts=44,027  customers=26,000  employment_types=4  products=5  regions=8  sub_products=12
+    relations          4
+    fields             92
+    periods            20  2025-01..2026-08  (monthly)
+    amounts            SAR million
+    built with         numpy=2.5.0  pandas=3.0.3  pyarrow=24.0.0  python=3.12.3
+    categorical columns, as the Data Builder serves them:
+      retail_account_month.customer_segment                   4 governed  [Affluent, Mass, Payroll, Private]
+      retail_account_month.delinquency_bucket                 5 governed  [1-29, 30-59, 60-89, 90+, Current]
+      retail_account_month.delinquency_bucket_fine            8 governed  [1-9, 10-19, 180+, 20-29, 30-59, 60-89, 90-179, Current]
+      retail_account_month.employment_type                    4 governed  [Non-salaried, Salaried-Government, Salaried-Private, Self-employed]
+      retail_account_month.origination_channel                3 governed  [Branch, Digital, Partner]
+      retail_account_month.origination_month                 68 governed  [2021-01, 2021-02, 2021-03, 2021-04, 2021-05, 2021-06, 2021-07, 2021-08, 2021-09, 2021-10, 2021-11, 2021-12, +56 more]
+      retail_account_month.product                            5 governed  [Auto Finance, Buy Now Pay Later, Credit Card, Mortgage, Personal Finance]
+      retail_account_month.region                             8 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Qassim, Riyadh, Tabuk]
+      retail_account_month.reporting_currency                 1 governed  [SAR]
+      retail_account_month.score_band                         5 governed  [A, B, C, D, E]
+      retail_account_month.sub_product                       12 governed  [Classic, Consumer Durable, Debt Consolidation, Fixed Rate, Gold, Instalment 3M, Instalment 6M, New Vehicle, Salary Advance, Signature, Used Vehicle, Variable Rate]
+      retail_behaviour_month.product                          5 governed  [Auto Finance, Buy Now Pay Later, Credit Card, Mortgage, Personal Finance]
+      retail_behaviour_month.reporting_currency               1 governed  [SAR]
+      retail_behaviour_month.sub_product                     12 governed  [Classic, Consumer Durable, Debt Consolidation, Fixed Rate, Gold, Instalment 3M, Instalment 6M, New Vehicle, Salary Advance, Signature, Used Vehicle, Variable Rate]
+      retail_collateral_month.collateral_type                 2 governed  [Motor Vehicle, Residential Property]
+      retail_collateral_month.product                         2 governed  [Auto Finance, Mortgage]
+      retail_collateral_month.reporting_currency              1 governed  [SAR]
+      retail_customer_month.customer_segment                  4 governed  [Affluent, Mass, Payroll, Private]
+      retail_customer_month.employment_type                   4 governed  [Non-salaried, Salaried-Government, Salaried-Private, Self-employed]
+      retail_customer_month.region                            8 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Qassim, Riyadh, Tabuk]
+      retail_customer_month.reporting_currency                1 governed  [SAR]
+      retail_customer_month.score_band                        5 governed  [A, B, C, D, E]
+      retail_customer_month.score_band_previous               5 governed  [A, B, C, D, E]
+      retail_customer_month.score_migration                   3 governed  [DETERIORATED, IMPROVED, STABLE]
+
+  v4-whatif-corporate-20q-s1  (corporate)
+    byte fingerprint   3b101bd41465fbe1  verified   (machine-specific -- see the module docstring)
+    content digest     12f62766edcc55a7   (portable -- this is the one to compare)
+    rows               1,064,654
+      corp_borrower_quarter           24,000
+      corp_collateral_quarter         59,920
+      corp_covenant_quarter           59,920
+      corp_facility_quarter           59,920
+      whatif_corp_ifrs9               59,920
+      whatif_corp_macro_quarter          960
+      whatif_corp_mev_registry            20
+      whatif_corp_model_metric            86
+      whatif_corp_rating_map              12
+      whatif_corp_sensitivity             60
+      whatif_corp_term_structure     799,836
+    entities           borrowers=1,200  economic_scenarios=3  facilities=2,996  groups=375  macro_factors_absent=4  macro_factors_present=16  product_types=6  regions=8  sectors=12  sub_sectors=26
+    relations          11
+    fields             257
+    periods            20  2021Q3..2026Q2  (quarterly)
+    amounts            SAR million
+    built with         numpy=2.2.4  pandas=2.2.3  pyarrow=19.0.1  python=3.12.3
+    categorical columns, as the Data Builder serves them:
+      corp_borrower_quarter.borrower_name                  1200 sampled   [Construction Holding 0001, Construction Holding 0013, Construction Holding 0025, Construction Holding 0037, Construction Holding 0049, Construction Holding 0061, ...]
+      corp_borrower_quarter.group_name                      375 sampled   [Group 101, Group 102, Group 103, Group 104, Group 105, Group 106, ...]
+      corp_borrower_quarter.rating_at_origination            11 governed  [A, AA, B, B+, BB, BB+, BB-, BBB, BBB+, BBB-, CCC]
+      corp_borrower_quarter.rating_current                    9 governed  [B, B+, BB, BB+, BB-, BBB, BBB+, BBB-, CCC]
+      corp_borrower_quarter.rating_driver                     2 governed  [Macroeconomic conditions, No change]
+      corp_borrower_quarter.rating_migration                  3 governed  [Downgrade, Stable, Upgrade]
+      corp_borrower_quarter.rating_outlook                    3 governed  [Negative, Positive, Stable]
+      corp_borrower_quarter.rating_previous                  11 governed  [A, AA, B, B+, BB, BB+, BB-, BBB, BBB+, BBB-, CCC]
+      corp_borrower_quarter.region                            8 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Qassim, Riyadh, Tabuk]
+      corp_borrower_quarter.relationship_tier                 3 governed  [Core, Standard, Strategic]
+      corp_borrower_quarter.reporting_currency                1 governed  [SAR]
+      corp_borrower_quarter.sector                           12 governed  [Construction, Education, Healthcare, Hospitality, Manufacturing, Petrochemicals, Professional Services, Real Estate, Retail Trade, Transport, Utilities, Wholesale Trade]
+      corp_borrower_quarter.sub_sector                       26 governed  [Advisory, Basic Chemicals, Building Contracting, Civil Engineering, Clinics, Commercial Leasing, Department Stores, Engineering Consultancy, Food Distribution, Food Processing, Food Service, Higher Education, +14 more]
+      corp_borrower_quarter.watchlist_reason                  2 governed  [, Rating below policy floor]
+      corp_collateral_quarter.collateral_type                 6 governed  [Cash Deposit, Commercial Property, Corporate Guarantee, Plant and Machinery, Receivables, Residential Property]
+      corp_collateral_quarter.reporting_currency              1 governed  [SAR]
+      corp_collateral_quarter.sector                         12 governed  [Construction, Education, Healthcare, Hospitality, Manufacturing, Petrochemicals, Professional Services, Real Estate, Retail Trade, Transport, Utilities, Wholesale Trade]
+      corp_covenant_quarter.covenant_type                     4 governed  [Current Ratio, DSCR, Interest Cover, Net Debt / EBITDA]
+      corp_covenant_quarter.reporting_currency                1 governed  [SAR]
+      corp_covenant_quarter.sector                           12 governed  [Construction, Education, Healthcare, Hospitality, Manufacturing, Petrochemicals, Professional Services, Real Estate, Retail Trade, Transport, Utilities, Wholesale Trade]
+      corp_covenant_quarter.test_status                       2 governed  [Breached, Passed]
+      corp_covenant_quarter.waiver_quarter                   21 governed  [, 2021Q3, 2021Q4, 2022Q1, 2022Q2, 2022Q3, 2022Q4, 2023Q1, 2023Q2, 2023Q3, 2023Q4, 2024Q1, +9 more]
+      corp_covenant_quarter.waiver_status                     2 governed  [Granted, None]
+      corp_facility_quarter.borrower_name                  1200 sampled   [Construction Holding 0001, Construction Holding 0013, Construction Holding 0025, Construction Holding 0037, Construction Holding 0049, Construction Holding 0061, ...]
+      corp_facility_quarter.facility_class                    2 governed  [Contingent, Funded]
+      corp_facility_quarter.origination_quarter               1 governed  [2021Q3]
+      corp_facility_quarter.product_type                      6 governed  [Guarantee Facility, Project Finance, Revolving Credit Facility, Term Loan, Trade Finance, Working Capital Line]
+      corp_facility_quarter.region                            8 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Qassim, Riyadh, Tabuk]
+      corp_facility_quarter.relationship_tier                 3 governed  [Core, Standard, Strategic]
+      corp_facility_quarter.reporting_currency                1 governed  [SAR]
+      corp_facility_quarter.sector                           12 governed  [Construction, Education, Healthcare, Hospitality, Manufacturing, Petrochemicals, Professional Services, Real Estate, Retail Trade, Transport, Utilities, Wholesale Trade]
+      corp_facility_quarter.sub_sector                       26 governed  [Advisory, Basic Chemicals, Building Contracting, Civil Engineering, Clinics, Commercial Leasing, Department Stores, Engineering Consultancy, Food Distribution, Food Processing, Food Service, Higher Education, +14 more]
+      whatif_corp_ifrs9.ecl_denominator                       1 governed  [ead_sar_mn]
+      whatif_corp_ifrs9.ifrs9_model_version                   1 governed  [whatif-reference-ecl-1.0.0]
+      whatif_corp_ifrs9.origin                                1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_ifrs9.overlay_reason                        2 governed  [, Sector overlay held by the credit committee]
+      whatif_corp_ifrs9.reporting_currency                    1 governed  [SAR]
+      whatif_corp_macro_quarter.aggregation_rule              2 governed  [mean, period_end]
+      whatif_corp_macro_quarter.available_at                 61 governed  [2021-09, 2021-10, 2021-11, 2021-12, 2022-01, 2022-02, 2022-03, 2022-04, 2022-05, 2022-06, 2022-07, 2022-08, +49 more]
+      whatif_corp_macro_quarter.country_or_region             1 governed  [SA]
+      whatif_corp_macro_quarter.forecast_vintage              8 governed  [, 2026-03-v1, 2026-04-v1, 2026-05-v1, 2026-06-v1, 2026-07-v1, 2026-08-v1, 2026-09-v1]
+      whatif_corp_macro_quarter.native_frequency              2 governed  [monthly, quarterly]
+      whatif_corp_macro_quarter.native_unit                   2 governed  [index, percent]
+      whatif_corp_macro_quarter.observation_status            2 governed  [ACTUAL, FORECAST]
+      whatif_corp_macro_quarter.origin                        1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_macro_quarter.published_at                 61 governed  [2021-09, 2021-10, 2021-11, 2021-12, 2022-01, 2022-02, 2022-03, 2022-04, 2022-05, 2022-06, 2022-07, 2022-08, +49 more]
+      whatif_corp_macro_quarter.reporting_currency            1 governed  [SAR]
+      whatif_corp_mev_registry.absent_reason                  5 governed  [, Consumer confidence is generated as a retail-book driver. Business confidence (MEV19) is the corporate equivalent and measures something else., Household income is generated as a retail-book driver and has no corporate series in this release., Housing transaction activity is generated as a retail-book driver., Retail sales are generated as a retail-book driver.]
+      whatif_corp_mev_registry.availability                   2 governed  [ABSENT, PRESENT]
+      whatif_corp_mev_registry.factor_name                   20 governed  [Business confidence (PMI), CPI inflation, Commercial property price index, Consumer confidence, Equity market index, Household disposable-income growth, Housing transaction activity, Industrial production growth, Nominal effective exchange rate, Non-oil real GDP growth, Oil price, Oil production, +8 more]
+      whatif_corp_mev_registry.geography                      1 governed  [SA]
+      whatif_corp_mev_registry.native_frequency               2 governed  [monthly, quarterly]
+      whatif_corp_mev_registry.native_level                  20 governed  [benchmark crude, USD per barrel, commercial property prices, 2021 = 100, consumer confidence index, 2021 = 100, crude production index, 2021 = 100, housing transaction volume index, 2021 = 100, main market index, 2021 = 100, nominal effective exchange rate, 2021 = 100; higher is stronger, policy rate, percent per year, purchasing managers' index; 50 is the expansion threshold. An index, not a probability., residential property prices, 2021 = 100, three-month interbank offered rate, percent per year, unemployment as a percent of the labour force, +8 more]
+      whatif_corp_mev_registry.native_unit                    2 governed  [index, percent]
+      whatif_corp_mev_registry.origin                         1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_mev_registry.reporting_currency             1 governed  [SAR]
+      whatif_corp_mev_registry.shock_convention               4 governed  [basis_points, index_points, percentage_points, relative_percent]
+      whatif_corp_model_metric.component                      5 governed  [additive_log, blend, lightgbm, naive_ead_pd_lgd, xgboost]
+      whatif_corp_model_metric.group_dimension                6 governed  [facility_class, overall, rating_current, region, sector, stage]
+      whatif_corp_model_metric.group_value                   43 governed  [1, 2, Asir, B, B+, BB, BB+, BB-, BBB, BBB+, BBB-, Construction, +31 more]
+      whatif_corp_model_metric.metric_name                   19 governed  [G1_out-of-time currency WAPE, G2_absolute aggregate bias, G3_worst absolute per-period bias, G4_worst material-group WAPE, bias, blend_weight, development_rows, embargoed_periods, entities, features, out_of_fold_rows, rows, +7 more]
+      whatif_corp_model_metric.model_version                  1 governed  [whatif-ecl-emulator-2.0.0]
+      whatif_corp_model_metric.note                          41 governed  [1004 test observations, carrying 7.50% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1008 test observations, carrying 8.66% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1008 test observations, carrying 8.94% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1012 test observations, carrying 7.80% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1016 test observations, carrying 7.74% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1024 test observations, carrying 7.75% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 11947 test observations, carrying 96.49% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1260 test observations, carrying 9.73% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1344 test observations, carrying 10.80% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1456 test observations, carrying 11.30% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1524 test observations, carrying 13.76% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1532 test observations, carrying 12.93% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., +29 more]
+      whatif_corp_model_metric.origin                         1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_model_metric.reporting_currency             1 governed  [SAR]
+      whatif_corp_model_metric.split                          3 governed  [counts, out_of_fold, test]
+      whatif_corp_model_metric.validated                      8 governed  [DIAGNOSTIC, GATED, IMMATERIAL, MATERIAL, PASSED, REFERENCE, REPORTED, TOO_SMALL_TO_GATE]
+      whatif_corp_rating_map.effective_from                   1 governed  [2021Q3]
+      whatif_corp_rating_map.effective_to                     1 governed  []
+      whatif_corp_rating_map.mapping_version                  1 governed  [whatif-corp-ratings-1.0]
+      whatif_corp_rating_map.origin                           1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_rating_map.rating_grade                    12 governed  [A, AA, B, B+, BB, BB+, BB-, BBB, BBB+, BBB-, CCC, D]
+      whatif_corp_rating_map.reporting_currency               1 governed  [SAR]
+      whatif_corp_rating_map.source                           1 governed  [Generated masterscale published with this release.]
+      whatif_corp_sensitivity.artifact_version                1 governed  [1.0.0]
+      whatif_corp_sensitivity.limitation                     13 governed  [Consumer confidence is generated as a retail-book driver. Business confidence (MEV19) is the corporate equivalent and measures something else., Household income is generated as a retail-book driver and has no corporate series in this release., Housing transaction activity is generated as a retail-book driver., Retail sales are generated as a retail-book driver., Supported by this release's history. The release is SYNTHETIC_DEMO: this establishes that the estimator recovers a relationship in generated data, not that the relationship holds in any real economy, and it is not a bank-validated sensitivity., The sign agrees with the point estimate in only 36% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 52% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 63% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 68% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 73% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 74% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 76% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., +1 more]
+      whatif_corp_sensitivity.method                          2 governed  [, ridge-logit-difference-1.0]
+      whatif_corp_sensitivity.native_derivative_unit          5 governed  [, percentage points of the parameter per one index point of the factor, percentage points of the parameter per one native unit of the factor; a relative shock is converted to native units first, percentage points of the parameter per one percentage point of the factor, percentage points of the parameter per one percentage point of the factor; a basis-point shock is a hundredth of that]
+      whatif_corp_sensitivity.origin                          1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_sensitivity.parameter                       3 governed  [lgd_pct, pd_lifetime, pd_pit_12m]
+      whatif_corp_sensitivity.readiness                       3 governed  [DIAGNOSTIC_ONLY, SUPPORTED_ESTIMATE, UNAVAILABLE]
+      whatif_corp_sensitivity.reporting_currency              1 governed  [SAR]
+      whatif_corp_sensitivity.source_fingerprint              1 governed  [56f914cffd5b0b174bd82b953d1384aa60d854e3adc82addeec499256230a1ec]
+      whatif_corp_sensitivity.train_end                       3 governed  [, 2024Q4, 2025Q1]
+      whatif_corp_sensitivity.train_start                     3 governed  [, 2021Q4, 2022Q1]
+      whatif_corp_sensitivity.transformation                  2 governed  [, first difference in native units]
+      whatif_corp_term_structure.horizon_end_period          16 governed  [2022Q3, 2022Q4, 2023Q1, 2023Q2, 2023Q3, 2023Q4, 2024Q1, 2024Q2, 2024Q3, 2024Q4, 2025Q1, 2025Q2, +4 more]
+      whatif_corp_term_structure.origin                       1 governed  [SYNTHETIC_DEMO]
+      whatif_corp_term_structure.reporting_currency           1 governed  [SAR]
+      whatif_corp_term_structure.scenario_name                3 governed  [Baseline, Downside, Upside]
+
+  v4-whatif-retail-20m-s1  (retail)
+    byte fingerprint   98b494ae2721bd53  verified   (machine-specific -- see the module docstring)
+    content digest     85011644af2bd351   (portable -- this is the one to compare)
+    rows               1,650,132
+      retail_account_month           127,936
+      retail_behaviour_month         127,936
+      retail_collateral_month         51,440
+      retail_customer_month           86,892
+      whatif_retail_ifrs9            127,936
+      whatif_retail_macro_month          840
+      whatif_retail_mev_registry          20
+      whatif_retail_model_metric          80
+      whatif_retail_profile           86,892
+      whatif_retail_score_map             60
+      whatif_retail_sensitivity           60
+      whatif_retail_term_structure 1,040,040
+    entities           accounts=6,702  customers=4,500  economic_scenarios=3  employer_sectors=10  employment_types=4  macro_factors_absent=6  macro_factors_present=14  products=5  regions=8  sub_products=12
+    relations          12
+    fields             249
+    periods            20  2025-01..2026-08  (monthly)
+    amounts            SAR million
+    built with         numpy=2.2.4  pandas=2.2.3  pyarrow=19.0.1  python=3.12.3
+    categorical columns, as the Data Builder serves them:
+      retail_account_month.customer_segment                   4 governed  [Affluent, Mass, Payroll, Private]
+      retail_account_month.delinquency_bucket                 5 governed  [1-30, 31-60, 61-90, 90+, Current]
+      retail_account_month.delinquency_bucket_fine            7 governed  [1-15, 16-30, 180+, 31-60, 61-90, 91-180, Current]
+      retail_account_month.employment_type                    4 governed  [Non-salaried, Salaried-Government, Salaried-Private, Self-employed]
+      retail_account_month.origination_channel                3 governed  [Branch, Digital, Partner]
+      retail_account_month.origination_month                  2 governed  [2025-01, 2026-03]
+      retail_account_month.product                            5 governed  [Auto Finance, Buy Now Pay Later, Credit Card, Mortgage, Personal Finance]
+      retail_account_month.region                             8 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Qassim, Riyadh, Tabuk]
+      retail_account_month.reporting_currency                 1 governed  [SAR]
+      retail_account_month.score_band                         5 governed  [A, B, C, D, E]
+      retail_account_month.sub_product                       12 governed  [Classic, Consumer Durable, Debt Consolidation, Fixed Rate, Gold, Instalment 3M, Instalment 6M, New Vehicle, Salary Advance, Signature, Used Vehicle, Variable Rate]
+      retail_behaviour_month.product                          5 governed  [Auto Finance, Buy Now Pay Later, Credit Card, Mortgage, Personal Finance]
+      retail_behaviour_month.reporting_currency               1 governed  [SAR]
+      retail_behaviour_month.sub_product                     12 governed  [Classic, Consumer Durable, Debt Consolidation, Fixed Rate, Gold, Instalment 3M, Instalment 6M, New Vehicle, Salary Advance, Signature, Used Vehicle, Variable Rate]
+      retail_collateral_month.collateral_type                 2 governed  [Residential Property, Vehicle]
+      retail_collateral_month.product                         2 governed  [Auto Finance, Mortgage]
+      retail_collateral_month.reporting_currency              1 governed  [SAR]
+      retail_customer_month.customer_segment                  4 governed  [Affluent, Mass, Payroll, Private]
+      retail_customer_month.employment_type                   4 governed  [Non-salaried, Salaried-Government, Salaried-Private, Self-employed]
+      retail_customer_month.region                            8 governed  [Asir, Eastern Province, Hail, Madinah, Makkah, Qassim, Riyadh, Tabuk]
+      retail_customer_month.reporting_currency                1 governed  [SAR]
+      retail_customer_month.score_band                        5 governed  [A, B, C, D, E]
+      retail_customer_month.score_band_previous               5 governed  [A, B, C, D, E]
+      retail_customer_month.score_migration                   3 governed  [Deteriorated, Improved, Stable]
+      whatif_retail_ifrs9.ecl_denominator                     1 governed  [ead_sar_mn]
+      whatif_retail_ifrs9.ifrs9_model_version                 1 governed  [whatif-reference-ecl-1.0.0]
+      whatif_retail_ifrs9.origin                              1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_ifrs9.overlay_reason                      2 governed  [, Unsecured product overlay held by the retail credit committee]
+      whatif_retail_ifrs9.reporting_currency                  1 governed  [SAR]
+      whatif_retail_macro_month.aggregation_rule              3 governed  [mean, period_end, sum]
+      whatif_retail_macro_month.available_at                 23 governed  [2025-01, 2025-02, 2025-03, 2025-04, 2025-05, 2025-06, 2025-07, 2025-08, 2025-09, 2025-10, 2025-11, 2025-12, +11 more]
+      whatif_retail_macro_month.country_or_region             1 governed  [SA]
+      whatif_retail_macro_month.forecast_vintage              6 governed  [, 2026-07-v1, 2026-08-v1, 2026-09-v1, 2026-10-v1, 2026-11-v1]
+      whatif_retail_macro_month.native_frequency              2 governed  [monthly, quarterly]
+      whatif_retail_macro_month.native_unit                   2 governed  [index, percent]
+      whatif_retail_macro_month.observation_status            2 governed  [ACTUAL, FORECAST]
+      whatif_retail_macro_month.origin                        1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_macro_month.published_at                 23 governed  [2025-01, 2025-02, 2025-03, 2025-04, 2025-05, 2025-06, 2025-07, 2025-08, 2025-09, 2025-10, 2025-11, 2025-12, +11 more]
+      whatif_retail_macro_month.reporting_currency            1 governed  [SAR]
+      whatif_retail_mev_registry.absent_reason                7 governed  [, Aggregate private-sector credit growth is generated for the corporate book only., Commercial property is a corporate-book series. Residential property (MEV09) is the Retail book's property factor and is not a substitute for it., Industrial production is generated as a corporate-book driver., Oil is generated as a corporate-book driver. The Retail book has no series for it and none is imputed from the headline., Production volumes are generated for the corporate book only., This release publishes only the headline GDP series for the Retail book; the non-oil split is not generated for it.]
+      whatif_retail_mev_registry.availability                 2 governed  [ABSENT, PRESENT]
+      whatif_retail_mev_registry.factor_name                 20 governed  [Business confidence (PMI), CPI inflation, Commercial property price index, Consumer confidence, Equity market index, Household disposable-income growth, Housing transaction activity, Industrial production growth, Nominal effective exchange rate, Non-oil real GDP growth, Oil price, Oil production, +8 more]
+      whatif_retail_mev_registry.geography                    1 governed  [SA]
+      whatif_retail_mev_registry.native_frequency             2 governed  [monthly, quarterly]
+      whatif_retail_mev_registry.native_level                20 governed  [benchmark crude, USD per barrel, commercial property prices, 2021 = 100, consumer confidence index, 2021 = 100, crude production index, 2021 = 100, housing transaction volume index, 2021 = 100, main market index, 2021 = 100, nominal effective exchange rate, 2021 = 100; higher is stronger, policy rate, percent per year, purchasing managers' index; 50 is the expansion threshold. An index, not a probability., residential property prices, 2021 = 100, three-month interbank offered rate, percent per year, unemployment as a percent of the labour force, +8 more]
+      whatif_retail_mev_registry.native_unit                  2 governed  [index, percent]
+      whatif_retail_mev_registry.origin                       1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_mev_registry.reporting_currency           1 governed  [SAR]
+      whatif_retail_mev_registry.shock_convention             4 governed  [basis_points, index_points, percentage_points, relative_percent]
+      whatif_retail_model_metric.component                    5 governed  [additive_log, blend, lightgbm, naive_ead_pd_lgd, xgboost]
+      whatif_retail_model_metric.group_dimension              6 governed  [employer_sector, overall, product, region, score_band, stage]
+      whatif_retail_model_metric.group_value                 40 governed  [1, A, Asir, Auto Finance, B, Buy Now Pay Later, C, Construction, Credit Card, D, E, Eastern Province, +28 more]
+      whatif_retail_model_metric.metric_name                 19 governed  [G1_out-of-time currency WAPE, G2_absolute aggregate bias, G3_worst absolute per-period bias, G4_worst material-group WAPE, bias, blend_weight, development_rows, embargoed_periods, entities, features, out_of_fold_rows, rows, +7 more]
+      whatif_retail_model_metric.model_version                1 governed  [whatif-ecl-emulator-2.0.0]
+      whatif_retail_model_metric.note                        38 governed  [10112 test observations, carrying 25.57% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 1744 test observations, carrying 0.78% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 20 test observations, carrying 0.54% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2448 test observations, carrying 10.34% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2508 test observations, carrying 7.51% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2620 test observations, carrying 12.64% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2636 test observations, carrying 9.99% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2660 test observations, carrying 9.27% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 26808 test observations, carrying 100.00% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2684 test observations, carrying 7.11% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2796 test observations, carrying 13.84% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., 2808 test observations, carrying 13.38% of the test period's ECL; the gate needs 100 observations. The share is diagnostic and gates nothing., +26 more]
+      whatif_retail_model_metric.origin                       1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_model_metric.reporting_currency           1 governed  [SAR]
+      whatif_retail_model_metric.split                        3 governed  [counts, out_of_fold, test]
+      whatif_retail_model_metric.validated                    9 governed  [DIAGNOSTIC, FAILED, GATED, IMMATERIAL, MATERIAL, PASSED, REFERENCE, REPORTED, TOO_SMALL_TO_GATE]
+      whatif_retail_profile.application_score_version         1 governed  [whatif-application-scorecard-2.0]
+      whatif_retail_profile.application_scored_at             1 governed  [2025-01]
+      whatif_retail_profile.behaviour_score_version           1 governed  [whatif-behaviour-scorecard-3.1]
+      whatif_retail_profile.employer_sector                  10 governed  [Construction, Education, Financial Services, Healthcare, Hospitality, Manufacturing, Oil and Gas, Public Administration, Retail Trade, Transport and Logistics]
+      whatif_retail_profile.employer_sector_group             4 governed  [Cyclical, Public Sector, Resources, Services]
+      whatif_retail_profile.origin                            1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_profile.reporting_currency                1 governed  [SAR]
+      whatif_retail_score_map.band_label                     15 governed  [A, App 200-259, App 260-319, App 320-379, App 380-439, App 440-499, App 500-559, App 560-619, App 620-679, App 680-739, App 740-799, B, +3 more]
+      whatif_retail_score_map.direction                       1 governed  [HIGHER_IS_SAFER]
+      whatif_retail_score_map.effective_from                  1 governed  [2025-01]
+      whatif_retail_score_map.effective_to                    1 governed  []
+      whatif_retail_score_map.origin                          1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_score_map.product                         6 governed  [ALL, Auto Finance, Buy Now Pay Later, Credit Card, Mortgage, Personal Finance]
+      whatif_retail_score_map.reporting_currency              1 governed  [SAR]
+      whatif_retail_score_map.score_type                      2 governed  [APPLICATION, BEHAVIOURAL]
+      whatif_retail_score_map.scorecard_version               2 governed  [whatif-application-scorecard-2.0, whatif-behaviour-scorecard-3.1]
+      whatif_retail_score_map.source                          2 governed  [Fitted at origination on this release's application score. NOT a current-score calibration., Fitted on this release's behavioural score and twelve-month default outcome.]
+      whatif_retail_sensitivity.artifact_version              1 governed  [1.0.0]
+      whatif_retail_sensitivity.limitation                   15 governed  [Aggregate private-sector credit growth is generated for the corporate book only., Commercial property is a corporate-book series. Residential property (MEV09) is the Retail book's property factor and is not a substitute for it., Industrial production is generated as a corporate-book driver., Oil is generated as a corporate-book driver. The Retail book has no series for it and none is imputed from the headline., Production volumes are generated for the corporate book only., Supported by this release's history. The release is SYNTHETIC_DEMO: this establishes that the estimator recovers a relationship in generated data, not that the relationship holds in any real economy, and it is not a bank-validated sensitivity., The sign agrees with the point estimate in only 12% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 20% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 30% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 53% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 62% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., The sign agrees with the point estimate in only 67% of period resamples. A slope whose direction is not stable is not a slope to translate a scenario through., +3 more]
+      whatif_retail_sensitivity.method                        2 governed  [, ridge-logit-difference-1.0]
+      whatif_retail_sensitivity.native_derivative_unit        5 governed  [, percentage points of the parameter per one index point of the factor, percentage points of the parameter per one native unit of the factor; a relative shock is converted to native units first, percentage points of the parameter per one percentage point of the factor, percentage points of the parameter per one percentage point of the factor; a basis-point shock is a hundredth of that]
+      whatif_retail_sensitivity.origin                        1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_sensitivity.parameter                     3 governed  [lgd_pct, pd_lifetime, pd_pit_12m]
+      whatif_retail_sensitivity.readiness                     3 governed  [DIAGNOSTIC_ONLY, SUPPORTED_ESTIMATE, UNAVAILABLE]
+      whatif_retail_sensitivity.reporting_currency            1 governed  [SAR]
+      whatif_retail_sensitivity.source_fingerprint            1 governed  [7e4fce428ba3486069484ae4c3be422a95a9414e52380cae9dd67cfd85205dfd]
+      whatif_retail_sensitivity.train_end                     3 governed  [, 2026-02, 2026-03]
+      whatif_retail_sensitivity.train_start                   3 governed  [, 2025-02, 2025-03]
+      whatif_retail_sensitivity.transformation                2 governed  [, first difference in native units]
+      whatif_retail_term_structure.horizon_end_period         8 governed  [2026-01, 2026-02, 2026-03, 2026-04, 2026-05, 2026-06, 2026-07, 2026-08]
+      whatif_retail_term_structure.origin                     1 governed  [SYNTHETIC_DEMO]
+      whatif_retail_term_structure.reporting_currency         1 governed  [SAR]
+      whatif_retail_term_structure.scenario_name              3 governed  [Baseline, Downside, Upside]
+

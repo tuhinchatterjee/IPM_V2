@@ -214,6 +214,12 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
     # it here is what stops the header reporting the whole
     # backend as offline when it is pointed at V4.
     app.include_router(routes.compat_router)
+    # Guided Risk Workspace (authorised generic shell addition, P1/G1): the
+    # workspace routes, under the V4-served prefix, only when its flag is on.
+    from backend.workspace import flags as workspace_flags
+    if workspace_flags.enabled():
+        from backend.workspace.api import router as workspace_router
+        app.include_router(workspace_router)
 
     app.state.cockpit_v4 = {
         "config": cfg, "store": store, "runtime": runtime,

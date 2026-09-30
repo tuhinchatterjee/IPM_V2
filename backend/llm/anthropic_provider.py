@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.llm import caching, telemetry
+from backend.llm import caching, exchange, telemetry
 from backend.llm.base import (ConverseResult, LLMError, LLMResult,
                               ProviderStatus, register)
 
@@ -258,6 +258,10 @@ class AnthropicProvider:
                     request["tool_choice"] = dict(tool_choice)
                 if output_config:
                     request["output_config"] = dict(output_config)
+                # PASSIVE: attaches a copy of the provider-native body to the
+                # exchange being recorded, if any. A no-op otherwise.
+                exchange.adapter_stage(adapter="anthropic.messages",
+                                       provider=self.name, request=request)
                 if timeout > 0:
                     message = client.messages.with_options(
                         timeout=timeout).create(**request) if hasattr(
@@ -266,6 +270,9 @@ class AnthropicProvider:
                 else:
                     message = client.messages.create(**request)
 
+                exchange.adapter_stage(adapter="anthropic.messages",
+                                       provider=self.name,
+                                       raw_response=message)
                 blocks = list(getattr(message, "content", []) or [])
                 text = " ".join(
                     getattr(b, "text", "") for b in blocks

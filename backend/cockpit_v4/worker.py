@@ -271,8 +271,14 @@ class Worker:
         # point, no longer a detailed description of an answer handed to a
         # turn whose only job is to choose what to run.
         full_tools = provider_tools(catalog=book.catalog)
+        # Guided Workspace P1: the Full LLM Exchange Trace. `bind` returns
+        # this exact provider object when COCKPIT_V4_LLM_EXCHANGE_TRACE is
+        # off, and a passive recording proxy when it is on.
+        from backend.llm import exchange as llm_exchange
+
         analyst = Analyst(
-            provider=self.runtime.provider,
+            provider=llm_exchange.bind(self.runtime.provider,
+                                       runtime=self.runtime, run=record),
             capability=self.runtime.capability, ledger=ledger,
             system=packet.system_blocks,
             tools=provider_tools(

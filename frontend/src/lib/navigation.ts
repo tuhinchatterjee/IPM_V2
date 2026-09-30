@@ -306,6 +306,17 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "core",
   },
   {
+    href: "/ai-model-lab",
+    label: "AI Model Lab",
+    description:
+      "Compare Opus and open-weight models call by call on the exact requests CreditProbe recorded in the Full LLM Exchange Trace, and replay a recorded request on another configured model.",
+    icon: Brain,
+    status: "live",
+    phase: "",
+    group: "Govern",
+    demo: "optional",
+  },
+  {
     href: "/workflow",
     label: "Workflow",
     description:
