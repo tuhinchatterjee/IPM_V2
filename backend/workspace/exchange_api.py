@@ -173,7 +173,8 @@ def run_view(run_id: str, who: dict[str, Any]) -> dict[str, Any]:
     events = access.run_store().events_since(run_id, 0, 5000)
     return {
         "run_id": run_id, "thread_id": run.thread_id,
-        "question": run.question, "release_id": run.release_id,
+        "question": exchange.scrub_text(run.question or "", "$.question", []),
+        "release_id": run.release_id,
         "recorder": {"flag": exchange.FLAG, "enabled": exchange.enabled(),
                      "record_version": exchange.RECORD_VERSION,
                      "calls_recorded": len(calls)},

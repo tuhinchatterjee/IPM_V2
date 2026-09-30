@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 38,
-  "total": 38,
+  "passed": 41,
+  "total": 41,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -18,12 +18,12 @@
         "docs/guided_workspace/evidence/journeys/GW-P1-01-growth.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-aaf047d78c9d4ca38799f5480ad9aafa",
-      "run_id": "run-c68ee7cd39c34bdeac2569855c47dfe4",
-      "export": "llm_exchange_run-c68ee7cd39c34bdeac2569855c47dfe4.zip",
+      "thread_id": "th-61c30ac49cff4e0fb6a83da15c4ce4ab",
+      "run_id": "run-fe6af006e21f42b2995b40a5b162bb2e",
+      "export": "llm_exchange_run-fe6af006e21f42b2995b40a5b162bb2e.zip",
       "calls_recorded": 2,
       "status": "PASS",
-      "ms": 11360
+      "ms": 9702
     },
     {
       "journey": "GW-P1-02",
@@ -33,12 +33,12 @@
       ],
       "screenshots": [],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-f1e6888c03424304883ee1e59284fe99",
-      "run_id": "run-52d0825a55db45f08f282aed58828767",
-      "exchanges_before": 40,
-      "exchanges_after": 40,
+      "thread_id": "th-bbb2574706a84175b03a4a69baa7ab9d",
+      "run_id": "run-4bdb2061cbae4477b5c96ab20b22474d",
+      "exchanges_before": 82,
+      "exchanges_after": 82,
       "status": "PASS",
-      "ms": 4711
+      "ms": 3679
     },
     {
       "journey": "GW-P1-03",
@@ -59,7 +59,7 @@
         }
       ],
       "status": "PASS",
-      "ms": 1268
+      "ms": 1324
     },
     {
       "journey": "GW-P10-01",
@@ -225,6 +225,82 @@
       "stress": "/what-if",
       "status": "PASS",
       "ms": 3252
+    },
+    {
+      "journey": "GW-P12-01",
+      "what": "Result → Export package (the page's own Plotly charts attached as SVG + figure spec; every file hash-listed) → Trace: integrity verified, versions in the hash chain, lineage to the scenario, the run's method decisions → tenant ledger verifies → the downloaded package verifies against the store",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-result-trace.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-verified.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-run-trace.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-d20aec2fe58a",
+      "package": "creditprobe_res-d20aec2fe58a_v1.zip",
+      "files": 26,
+      "snapshots": [
+        "snapshots/whatif-waterfall-selected.svg",
+        "snapshots/whatif-waterfall-selected.plotly.json",
+        "snapshots/whatif-waterfall-total.svg",
+        "snapshots/whatif-waterfall-total.plotly.json",
+        "snapshots/whatif-result-stages.svg",
+        "snapshots/whatif-result-stages.plotly.json",
+        "snapshots/whatif-result-top.svg",
+        "snapshots/whatif-result-top.plotly.json",
+        "snapshots/whatif-result-pareto.svg",
+        "snapshots/whatif-result-pareto.plotly.json",
+        "snapshots/whatif-result-distribution.svg",
+        "snapshots/whatif-result-distribution.plotly.json"
+      ],
+      "versions": 1,
+      "ancestors": [
+        "scenario · Construction PD deterioration",
+        "run · Run: Construction PD deterioration"
+      ],
+      "ledger": "618 entries, chain head 8f45647b6f…86fc · no problems",
+      "package_verify": "Package verified: 25 files, 3 objects checked against the store",
+      "run_states": 5,
+      "status": "PASS",
+      "ms": 5345
+    },
+    {
+      "journey": "GW-P12-02",
+      "what": "Lens and alert: Export package from the Lens view; the Lens Trace lists its refreshes, each in the hash chain; an alert's Trace lists its state history",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-02-lens-trace.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-02-alert-trace.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "lens_snapshots": 20,
+      "lens_refreshes": 1,
+      "alert_events": 1,
+      "status": "PASS",
+      "ms": 5232
+    },
+    {
+      "journey": "GW-P12-03",
+      "what": "LLM Exchange, one recorder: a Cockpit call reads as SYSTEM / USER / ASSISTANT / TOOL CALL / TOOL RESULT / VALIDATOR in the order sent, beside canonical → translated → raw → normalized; the AI Model Lab lists the SAME exchange records (no second recorder)",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-03-segments.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-03-lab.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-541cd46ae5344bf6be63a01c41b9a736",
+      "run_id": "run-bdf6ef03a5234076ba633f7feb579e6d",
+      "segment_kinds": [
+        "SYSTEM",
+        "USER",
+        "TOOL CALL",
+        "TOOL RESULT"
+      ],
+      "lab_rows": 86,
+      "status": "PASS",
+      "ms": 8642
     },
     {
       "journey": "GW-P3-01-CORP",

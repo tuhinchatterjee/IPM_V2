@@ -7,6 +7,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { ChartCard } from "@/components/viz/chart-card";
+import { ExportPackage } from "@/components/workspace/export-package";
 import { ShareButton } from "@/components/workspace/share-button";
 import { comparisonBars, type Comparison } from "@/lib/viz/decomposition";
 import { sar, sarDelta } from "@/lib/viz/format";
@@ -41,6 +42,7 @@ export function ComparisonPage({ comparisonId }: { comparisonId: string }) {
         </span>
         <span className="ml-auto">
           <ShareButton objectId={obj.object_id} testId="comparison-share" />
+          <ExportPackage objectId={obj.object_id} scopeSelector="main" testId="comparison-export" compact />
         </span>
       </header>
       <div className="overflow-auto rounded-lg border border-border" data-testid="comparison-kpis">

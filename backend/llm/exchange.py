@@ -441,14 +441,15 @@ class ExchangeStore:
         return json.loads(row["body"]) if row else None
 
     def search(self, *, tenant_id: str, model: str = "", purpose: str = "",
-               run_id: str = "", limit: int = 200) -> list[dict[str, Any]]:
+               run_id: str = "", thread_id: str = "", limit: int = 200
+               ) -> list[dict[str, Any]]:
         sql = ("SELECT exchange_id, run_id, thread_id, surface, seq, purpose, "
                "role, provider, adapter, requested_model, resolved_model, "
                "status, stop_reason, started_at, provider_ms, replay_of, "
                "domain_id FROM llm_exchanges WHERE tenant_id = ?")
         args: list[Any] = [tenant_id]
         for column, value in (("resolved_model", model), ("purpose", purpose),
-                              ("run_id", run_id)):
+                              ("run_id", run_id), ("thread_id", thread_id)):
             if value:
                 sql += f" AND {column} = ?"
                 args.append(value)

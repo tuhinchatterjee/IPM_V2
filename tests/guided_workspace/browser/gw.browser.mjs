@@ -1679,6 +1679,130 @@ async function p11bJourneys() {
 }
 
 // =========================================================================
+// P12 — Trace, exports, governance
+// =========================================================================
+
+async function readZip(file) {
+  // Minimal ZIP reader via the system unzip (the browser saved the file).
+  const { execFileSync } = await import("node:child_process");
+  const list = execFileSync("unzip", ["-Z1", file]).toString().trim().split("\n");
+  const read = (name) => execFileSync("unzip", ["-p", file, name], { maxBuffer: 64 * 1024 * 1024 });
+  return { list, read };
+}
+
+async function p12Journeys() {
+  await journey("GW-P12-01", "Result → Export package (the page's own Plotly charts attached as SVG + figure spec; every file hash-listed) → Trace: integrity verified, versions in the hash chain, lineage to the scenario, the run's method decisions → tenant ledger verifies → the downloaded package verifies against the store", async (record) => {
+    const { createHash } = await import("node:crypto");
+    const done = await apiRun("scn-tpl-corp-01", `gw-p12-01-${Date.now()}`);
+    const result = done.result?.object_id;
+    record.result_id = result;
+    assert.ok(result, "a result");
+    const page = await open();
+    await page.goto(`${UI}/what-if/result/${result}`, { waitUntil: "domcontentloaded" });
+    await resultRendered(page);
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 120_000 }),
+      page.click('[data-testid="whatif-result-export-go"]'),
+    ]);
+    const file = await download.path();
+    record.package = download.suggestedFilename();
+    assert.match(record.package, new RegExp(`^creditprobe_${result}_v\\d+\\.zip$`));
+    const zip = await readZip(file);
+    const manifest = JSON.parse(zip.read("manifest.json").toString());
+    record.files = zip.list.length;
+    record.snapshots = manifest.snapshots.map((s) => s.path);
+    assert.ok(record.snapshots.includes("snapshots/whatif-waterfall-selected.svg"), "the waterfall as drawn");
+    assert.ok(record.snapshots.includes("snapshots/whatif-waterfall-selected.plotly.json"), "and its Plotly figure");
+    for (const [name, sha] of Object.entries(manifest.files)) {
+      assert.equal(createHash("sha256").update(zip.read(name)).digest("hex"), sha, name);
+    }
+    assert.ok(zip.list.includes("tables/decomposition_delta_selected.csv"));
+    assert.equal(manifest.root.object_id, result);
+    await page.waitForSelector('[data-testid="whatif-result-export-note"]', { timeout: 30_000 });
+    await page.click('[data-testid="whatif-result-export-trace"]');
+    await page.waitForSelector('[data-testid="object-trace"][data-integrity="true"]', { timeout: 60_000 });
+    record.versions = await page.locator('[data-testid="trace-version"]').count();
+    const ledgerOk = await page.$$eval('[data-testid="trace-version"] [data-ledger-ok]', (els) => els.map((e) => e.getAttribute("data-ledger-ok")));
+    assert.ok(ledgerOk.length >= 1 && ledgerOk.every((v) => v === "true"), "each version links in the hash chain");
+    const ancestors = await page.$$eval('[data-testid="trace-ancestor"]', (els) => els.map((e) => e.textContent));
+    record.ancestors = ancestors;
+    assert.ok(ancestors.some((a) => a.startsWith("scenario")) && ancestors.some((a) => a.startsWith("run")), "lineage to the run and the scenario");
+    await shot(page, record, "result-trace");
+    await page.click('[data-testid="trace-verify-ledger"]');
+    await page.waitForSelector('[data-testid="trace-ledger-result"][data-ok="true"]', { timeout: 60_000 });
+    record.ledger = await page.textContent('[data-testid="trace-ledger-result"]');
+    await page.setInputFiles('[data-testid="trace-verify-package"]', file);
+    await page.waitForSelector('[data-testid="trace-package-result"][data-ok="true"]', { timeout: 60_000 });
+    record.package_verify = await page.textContent('[data-testid="trace-package-result"]');
+    await shot(page, record, "verified");
+    // The run's own Trace carries the method decision.
+    await page.locator('[data-testid="trace-ancestor"]', { hasText: /^run/ }).first().click();
+    await page.waitForSelector('[data-testid="object-trace"][data-kind="run"]', { timeout: 60_000 });
+    const states = await page.$$eval('[data-testid="trace-event"][data-type="run_state"]', (els) => els.map((e) => e.textContent));
+    record.run_states = states.length;
+    assert.ok(states.some((t) => /METHOD_SELECTION/.test(t)) && states.some((t) => /method chosen: Delta/.test(t)) && states.some((t) => /EXECUTED/.test(t)));
+    await shot(page, record, "run-trace");
+  });
+
+  await journey("GW-P12-02", "Lens and alert: Export package from the Lens view; the Lens Trace lists its refreshes, each in the hash chain; an alert's Trace lists its state history", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/lenses/lens-01`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="lens-export-go"]', { timeout: 120_000 });
+    await page.waitForSelector('[data-plotly="true"][data-rendered="true"]', { timeout: 120_000 });
+    const [download] = await Promise.all([page.waitForEvent("download", { timeout: 120_000 }), page.click('[data-testid="lens-export-go"]')]);
+    const zip = await readZip(await download.path());
+    const manifest = JSON.parse(zip.read("manifest.json").toString());
+    record.lens_snapshots = manifest.snapshots.length;
+    assert.ok(manifest.snapshots.length >= 2 && zip.list.includes("tables/observations.csv"));
+    await page.click('[data-testid="lens-export-trace"]');
+    await page.waitForSelector('[data-testid="object-trace"][data-kind="lens"]', { timeout: 60_000 });
+    const refreshes = await page.$$eval('[data-testid="trace-event"][data-type="lens_refresh"] [data-ledger-ok]', (els) => els.map((e) => e.getAttribute("data-ledger-ok")));
+    record.lens_refreshes = refreshes.length;
+    assert.ok(refreshes.length >= 1 && refreshes.every((v) => v === "true"));
+    await shot(page, record, "lens-trace");
+    const alerts = (await api("/monitoring?view=all")).body;
+    const alert = (alerts.alerts ?? alerts.items ?? []).find((a) => !a.demo_historical) ?? (alerts.alerts ?? alerts.items ?? [])[0];
+    assert.ok(alert, "an alert");
+    await page.goto(`${UI}/trace/object/${alert.alert_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="object-trace"][data-kind="alert"]', { timeout: 60_000 });
+    const events = await page.$$eval('[data-testid="trace-event"][data-type="alert_state"]', (els) => els.map((e) => e.textContent));
+    record.alert_events = events.length;
+    assert.ok(events.length >= 1 && events.some((t) => /NEW/.test(t)));
+    await shot(page, record, "alert-trace");
+  });
+
+  await journey("GW-P12-03", "LLM Exchange, one recorder: a Cockpit call reads as SYSTEM / USER / ASSISTANT / TOOL CALL / TOOL RESULT / VALIDATOR in the order sent, beside canonical → translated → raw → normalized; the AI Model Lab lists the SAME exchange records (no second recorder)", async (record) => {
+    const page = await open();
+    await askFromHome(page, record, "Show me construction exposure by sector");
+    record.run_id = await latestRun(record.thread_id);
+    await page.goto(`${UI}/trace/llm-exchange/${record.run_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="llm-exchange"]', { timeout: 90_000 });
+    await page.click('[data-testid="llm-call-2"] button[aria-expanded="false"]');
+    await page.waitForSelector('[data-testid="llm-call-2"] button[aria-expanded="true"]', { timeout: 10_000 });
+    const stages = await page.textContent('[data-testid="llm-call-2"]');
+    for (const s of ["Canonical request", "Translated provider request", "Raw provider response", "Normalized response"]) assert.ok(stages.includes(s), s);
+    await page.waitForSelector('[data-testid="llm-call-2"] [data-testid="llm-segment"]', { timeout: 30_000 });
+    const kinds = await page.$$eval('[data-testid="llm-call-2"] [data-testid="llm-segment"]', (els) => els.map((e) => e.getAttribute("data-kind")));
+    record.segment_kinds = [...new Set(kinds)];
+    for (const k of ["SYSTEM", "USER", "TOOL CALL", "TOOL RESULT"]) assert.ok(kinds.includes(k), k);
+    const counted = await page.$$eval('[data-testid="llm-call-2"] [data-testid="llm-segment-counts"] [data-kind]', (els) => els.map((e) => e.getAttribute("data-kind")));
+    assert.deepEqual(counted, ["SYSTEM", "USER", "ASSISTANT", "TOOL CALL", "TOOL RESULT", "VALIDATOR"]);
+    await shot(page, record, "segments");
+    const exchange = (await api(`/llm-exchange/runs/${record.run_id}`)).body;
+    const ids = exchange.calls.map((c) => c.exchange_id);
+    await page.goto(`${UI}/ai-model-lab`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('a[href^="/trace/llm-exchange/"]', { timeout: 90_000 });
+    const lab = (await api("/model-lab/exchanges")).body;
+    const labIds = new Set((lab.exchanges ?? []).map((e) => e.exchange_id));
+    record.lab_rows = labIds.size;
+    assert.ok(ids.every((id) => labIds.has(id)), "the Lab lists the very records the Trace shows");
+    const hrefs = await page.$$eval('a[href^="/trace/llm-exchange/"]', (els) => els.map((e) => e.getAttribute("href")));
+    assert.ok(hrefs.includes(`/trace/llm-exchange/${record.run_id}`), "and links back to the same Trace");
+    await shot(page, record, "lab");
+  });
+}
+
+// =========================================================================
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
@@ -1694,6 +1818,7 @@ async function main() {
     await p10Journeys();
     await p11Journeys();
     await p11bJourneys();
+    await p12Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

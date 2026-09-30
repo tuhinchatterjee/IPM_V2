@@ -14,6 +14,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { ChartCard, type ChartData } from "@/components/viz/chart-card";
+import { ExportPackage } from "@/components/workspace/export-package";
 import { ShareButton } from "@/components/workspace/share-button";
 import { distribution, pareto } from "@/lib/viz/advanced";
 import { contributions } from "@/lib/viz/figures";
@@ -80,6 +81,7 @@ export function ResultView({ result, actions }: { result: ScenarioResult; action
           ))}
           {actions}
           <ShareButton objectId={result.object_id} testId="whatif-result-share" />
+          <ExportPackage objectId={result.object_id} scopeSelector={`[data-result-id="${result.object_id}"]`} testId="whatif-result-export" />
         </div>
       </header>
 

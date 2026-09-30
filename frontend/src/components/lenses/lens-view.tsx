@@ -18,6 +18,7 @@ import { Bell, BellOff, Loader2, RefreshCw, X } from "lucide-react";
 
 import { ChartCard } from "@/components/viz/chart-card";
 import { PlotlyChart } from "@/components/viz/plotly-chart";
+import { ExportPackage } from "@/components/workspace/export-package";
 import { ShareButton } from "@/components/workspace/share-button";
 import { formatValue } from "@/lib/workspace/metric-figures";
 import { breakdownFigure, clickFilter, groupsFigure, kpiTile, sparkFigure, topOwnersFigure, trendFigure } from "@/lib/workspace/lens-figures";
@@ -265,6 +266,7 @@ export function LensView({ lensId }: { lensId: string }) {
             {lens.following ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />} {lens.following ? "Following" : "Follow"}
           </button>
           <ShareButton objectId={lens.object_id} testId="lens-share" />
+          <ExportPackage objectId={lens.object_id} scopeSelector="main" testId="lens-export" />
         </div>
       </header>
       {trigger && (

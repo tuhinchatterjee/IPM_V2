@@ -628,7 +628,86 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P12 — Trace, exports, governance, reproducibility
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Hashes and immutable lineage** (`backend/workspace/store.py`):
+    * **Chained ledger.** Every governed write (object version, Lens observation, alert event, comment, share) appends, in the same transaction, one entry to a per-tenant SHA-256 **hash chain** (`ledger`). The entry hashes the stored row, every column, and links to the previous entry.
+    * **Triggers.** Comments, shares, observations and alert events now refuse UPDATE and DELETE; objects already did. The ledger itself is append-only.
+    * **`verify_ledger`** re-walks the chain and re-hashes every record. It reports, and never repairs:
+      * `CHAIN_BROKEN`;
+      * `ALTERED`, which catches metadata changes such as permissions that the body hash cannot see;
+      * `MISSING`;
+      * `UNLEDGERED`, a row written around the module.
+    * **Backfill.** Existing stores are backfilled **once** and marked `backfilled`. A later restart never legitimises a slipped-in row.
+    * **Credential scrubbing.** Credential-shaped text is replaced by `[REDACTED]` before any row is written: object bodies and titles, comments, share messages, observation bodies and errors, alert notes. Hashes, ids and numbers are untouched.
+  * **Governance Trace** (`trace.py`, `GET /trace/objects/{id}`, `/trace/ledger/verify`; UI `/trace/object/[id]`): for any object the viewer may open (finding, cohort, scenario, run, result, comparison, Lens, alert, metric), it shows:
+    * **integrity:** every version re-hashed, and each record's chain link and row match;
+    * **versions** with content hashes and ledger links;
+    * **lineage:** ancestors walked to the roots (depth-capped, unreadable ancestors named but not opened), plus descendants;
+    * **events:** comments, shares, the run's state log (confirmation, **method decision**, execution), **Lens refreshes** and **alert transitions**, each with its chain link;
+    * **LLM exchanges:** those behind the object's Cockpit thread(s), by id and hash. These are for administrators, model-risk reviewers and auditors only; others see that they exist, not their content.
+    * **Tenant check:** "Verify the whole tenant ledger" and "Verify a package" are on the page.
+    * **Side effects:** none. Zero model calls; nothing changes.
+  * **Export packages** (`exports.py`, `POST/GET /exports/objects/{id}`, `POST /exports/verify`): a ZIP containing:
+    * `objects/`: the root and every readable ancestor, **exactly as stored**, with content hashes and ledger links;
+    * `tables/`: the **exact stored values**:
+      * scenario results: decomposition per method × scope (all taxonomy components with N/A reasons), reconciliation, method results, stages, top contributors, Pareto, distribution;
+      * cohorts: members re-resolved and exported only when the membership hash is IDENTICAL;
+      * Lenses: observations and latest KPIs/tables;
+      * alerts: events;
+      * runs: state log;
+    * `snapshots/`: the page's own Plotly charts as **SVG plus the Plotly figure spec**, validated server-side (type, name, count ≤ 24, size ≤ 6 MB);
+    * `trace.json`;
+    * optional **sanitized `llm_exchange/`**, reviewer roles only (403 otherwise);
+    * `manifest.json`: SHA-256 of every file, the tenant ledger head, and a redaction count (never values).
+
+    `verify` re-hashes the files, flags unlisted files, re-hashes object bodies against the manifest and the store, and checks **reopen/export parity**:
+    * tables must be byte-identical to what the stored version produces now;
+    * append-only logs must still contain every exported row.
+  * **UI** "Export package" (+ "incl. LLM exchange") and "Trace" on the result, comparison, Lens, scenario detail and alert panel.
+  * **LLM Exchange, one recorder.** The readable view labels every part SYSTEM / USER / ASSISTANT / TOOL CALL / TOOL RESULT / **VALIDATOR** in the order sent. VALIDATOR is CreditProbe's rejected or `is_error` tool results: the repair loop made visible. It sits beside canonical → **translated** → raw → normalized. The AI Model Lab lists the same records (browser-proven); there is no second recorder.
+  * **Leak fixed:** the LLM Exchange view returned the V4 run's typed question verbatim. It is now scrubbed.
+* **Tests:**
+  * **`test_gw_trace.py` (18):**
+    * the chain across all 5 record kinds, with separate tenant chains;
+    * 6 tables refuse UPDATE and DELETE;
+    * trigger-bypass tampering detected (ALTERED share and object permissions, UNLEDGERED insert, MISSING delete) and still detected after a restart;
+    * one-time backfill of a pre-ledger store;
+    * credentials never reach any store file;
+    * the result Trace (versions, ledger, digests, lineage result ← run ← scenario + cohort, method decisions in order);
+    * access (stranger and unshared colleague → 404);
+    * the ledger verify endpoint;
+    * the full package (manifest hashes, nothing unlisted, objects as stored, decomposition values component by component, all tables, snapshots, verify OK);
+    * an edited package is reported (FILE_ALTERED, TABLE_DIFFERS_FROM_STORE after re-hashing, BODY_DOES_NOT_HASH_TO_MANIFEST, UNLISTED_FILE, not-a-zip);
+    * snapshot validation (wrong PNG, non-SVG, traversal name, bad format, too many);
+    * cohort and Lens packages (the package still verifies after a later refresh);
+    * the LLM exchange for auditors only (403 for analysts), with the exported canonical request hashing to the recorded hash and zero model calls.
+  * **Secret-leak suite `test_gw_secret_leak.py` (4):**
+    * **Planted canaries:** Anthropic key, OpenAI key, bearer token, password assignment, AWS key. They are planted in the environment, a Cockpit question, a finding, comments, a share message and a Lens refresh.
+    * **Surfaces scanned:** every store file (workspace and exchange, including WAL); every Trace, ledger verify, LLM exchange view, Model Lab, Messages, Monitoring, comments and objects; every export (result/finding/cohort/scenario/run × with/without LLM exchange, Lens, LLM exchange ZIP, grid CSV).
+    * **Result:** no canary anywhere.
+    * **Pre-fix proof:** it failed before the question-scrub fix.
+  * **Frontend:**
+    * TRC01–02 (snapshot names, hash display);
+    * EXS01–03 (six-way labelling, validator vs plain tool result);
+    * `npm test` 658/658; `tsc` clean; eslint 0 in new code; ruff clean in new files.
+  * **Mutation proofs (5, all killed):**
+    * a write not ledgered (5 fail);
+    * no scrub at write (4 fail);
+    * no table parity (1);
+    * backfill on every open (1);
+    * exchange visible to analysts (1).
+  * **Browser** GW-P12-01..03 pass 3/3:
+    * result → Export package (waterfall SVG and Plotly spec attached, every file SHA-verified in the harness) → Trace integrity ✓, versions chained, lineage to run and scenario → tenant ledger ✓ → the downloaded package uploaded and verified → run Trace shows METHOD_SELECTION → "method chosen: Delta" → EXECUTED;
+    * Lens export plus Lens Trace refreshes chained, and alert Trace state history;
+    * LLM Exchange six-way labels plus four stages, and the Model Lab lists the same exchange ids and links to the same Trace.
+  * The long-lived stub store backfilled and verified clean.
+* **Finding that needs a protected-core decision:**
+  * **What:** a credential typed into a Cockpit question is persisted by the **protected V4 run store** (`state.sqlite3` WAL, measured).
+  * **What its own `redact()` covers:** event bodies only, not the question.
+  * **What is already fixed:** every unprotected surface. The LLM Exchange record is redacted, and the view now scrubs the question.
+  * **What remains:** fixing persistence needs an edit to `backend/cockpit_v4/run_store.py` (or `routes.py`/`service.py`) → **awaiting approval**, not done.
+* **Protected files:** none added (still 5).
+* **Status:** PASS (with the protected-core finding above recorded for decision)
 
 ## P13 — Full regression, security, performance, mutation
 * **Status:** NOT STARTED

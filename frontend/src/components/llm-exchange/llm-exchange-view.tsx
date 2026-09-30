@@ -28,33 +28,42 @@ import {
   type RunExchange,
 } from "@/lib/workspace/llm-exchange";
 import { count } from "@/lib/viz/format";
+import { counts, segments, type SegmentKind } from "@/lib/workspace/exchange-segments";
 import { cn } from "@/lib/utils";
 
 const STAGES = [
   { id: "readable", label: "Readable" },
   { id: "canonical", label: "Canonical request" },
-  { id: "adapter", label: "Adapter / provider request" },
+  { id: "adapter", label: "Translated provider request" },
   { id: "raw", label: "Raw provider response" },
   { id: "normalized", label: "Normalized response" },
   { id: "meta", label: "Hashes & redactions" },
 ];
 
+const SEGMENT_TONE: Record<SegmentKind, string> = {
+  SYSTEM: "border-l-slate-500",
+  USER: "border-l-sky-600",
+  ASSISTANT: "border-l-violet-600",
+  "TOOL CALL": "border-l-amber-600",
+  "TOOL RESULT": "border-l-emerald-600",
+  VALIDATOR: "border-l-rose-600",
+};
+
 function Readable({ call }: { call: ExchangeCall }) {
   const req = call.canonical_request ?? {};
-  const system = Array.isArray(req.system) ? (req.system as { text?: string }[]) : [{ text: String(req.system ?? "") }];
-  const messages = (req.messages as { role: string; content: unknown }[]) ?? [];
   const tools = (req.tools as { name: string; description?: string }[]) ?? [];
   const norm = call.normalized_response ?? {};
+  const parts = segments(req, norm);
+  const n = counts(parts);
   return (
-    <div className="space-y-3 text-xs">
-      <section>
-        <h4 className="mb-1 font-semibold text-text-primary">System instructions actually sent ({system.length} block{system.length === 1 ? "" : "s"})</h4>
-        {system.map((b, i) => (
-          <pre key={i} className="mb-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-surface-sunken p-2 text-[11px]">
-            {b.text}
-          </pre>
+    <div className="space-y-3 text-xs" data-testid="llm-readable">
+      <p className="flex flex-wrap gap-2" data-testid="llm-segment-counts">
+        {(Object.keys(n) as SegmentKind[]).map((k) => (
+          <span key={k} className={cn("rounded border border-l-4 border-border px-1.5 py-0.5", SEGMENT_TONE[k])} data-kind={k} data-count={n[k]}>
+            {k} {n[k]}
+          </span>
         ))}
-      </section>
+      </p>
       <section>
         <h4 className="mb-1 font-semibold text-text-primary">Tools offered ({tools.length}) · tool choice {JSON.stringify(req.tool_choice ?? "auto")}</h4>
         <ul className="list-disc pl-5">
@@ -66,42 +75,16 @@ function Readable({ call }: { call: ExchangeCall }) {
         </ul>
       </section>
       <section>
-        <h4 className="mb-1 font-semibold text-text-primary">Messages, in order ({messages.length})</h4>
-        {messages.map((m, i) => (
-          <div key={i} className="mb-1 rounded border border-border p-2">
-            <div className="mb-1 text-text-muted">
-              {i + 1}. {m.role}
+        <h4 className="mb-1 font-semibold text-text-primary">Sent, in order, then what came back ({parts.length} parts)</h4>
+        {parts.map((p, i) => (
+          <div key={i} className={cn("mb-1 rounded border border-l-4 border-border p-2", SEGMENT_TONE[p.kind])} data-testid="llm-segment" data-kind={p.kind} data-side={p.side}>
+            <div className="mb-1 flex flex-wrap gap-2 text-text-muted">
+              <span className="font-semibold text-text-primary">{p.kind}</span>
+              <span>{p.side === "response" ? "response" : p.message ? `message ${p.message}` : "system"}</span>
+              {p.name && <span className="font-medium">{p.name}</span>}
+              {p.id && <span>({p.id})</span>}
             </div>
-            {typeof m.content === "string" ? (
-              <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[11px]">{m.content}</pre>
-            ) : (
-              (m.content as Record<string, unknown>[]).map((block, j) => (
-                <div key={j} className="mb-1">
-                  <Badge variant="outline">{String(block.type)}</Badge>{" "}
-                  <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap text-[11px]">
-                    {block.type === "text"
-                      ? String(block.text)
-                      : block.type === "tool_result"
-                        ? String(block.content).slice(0, 4000)
-                        : JSON.stringify(block, null, 2).slice(0, 4000)}
-                  </pre>
-                </div>
-              ))
-            )}
-          </div>
-        ))}
-      </section>
-      <section>
-        <h4 className="mb-1 font-semibold text-text-primary">What came back</h4>
-        {norm.text ? <pre className="whitespace-pre-wrap rounded bg-surface-sunken p-2 text-[11px]">{norm.text}</pre> : null}
-        {(norm.tool_calls ?? []).map((tc) => (
-          <div key={tc.id} className="mb-1 rounded border border-border p-2">
-            <div className="font-medium">
-              Tool call: {tc.name} <span className="text-text-muted">({tc.id})</span>
-            </div>
-            <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap text-[11px]">
-              {JSON.stringify(tc.input, null, 2)}
-            </pre>
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-[11px]">{p.text.slice(0, 6000)}</pre>
           </div>
         ))}
         {call.error && <p className="text-negative">{call.error}</p>}

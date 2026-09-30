@@ -6,6 +6,10 @@ totals so every chart proves it reconciles to the filtered book. The
 portfolio never reaches the browser; these tests pin that by size and shape.
 """
 
+# Fixtures are shared with sibling suites by import; pytest injects them by
+# parameter name, which ruff reads as a redefinition.
+# ruff: noqa: F811
+
 from __future__ import annotations
 
 import json
@@ -14,8 +18,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.workspace import grid, whatif
-from tests.cockpit_v4.test_gw_whatif import (  # noqa: F401 (fixtures)
-    CONSTRUCTION, P, WHO, _book, client, flags, svc)
+from tests.cockpit_v4.test_gw_whatif import CONSTRUCTION, WHO, P, _book, client, flags, svc  # noqa: F401 (fixtures)
 
 
 def _sum(cells, key):

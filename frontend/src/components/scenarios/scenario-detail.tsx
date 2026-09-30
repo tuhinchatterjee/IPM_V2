@@ -31,6 +31,7 @@ import {
   type Resolution,
   type ScenarioDetail as Detail,
 } from "@/lib/workspace/scenarios";
+import { ExportPackage } from "@/components/workspace/export-package";
 
 export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
   const router = useRouter();
@@ -120,6 +121,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
           </p>
         )}
         <div className="flex flex-wrap gap-2" data-testid="scenario-actions">
+          <ExportPackage objectId={obj.object_id} testId="scenario-export" compact />
           <Action icon={<Copy className="h-4 w-4" />} testId="scenario-action-clone" onClick={() => act(() => cloneScenario(obj.object_id), (c) => router.push(`/scenarios/${c.object_id}`))}>
             Clone
           </Action>

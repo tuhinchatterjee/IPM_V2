@@ -17,6 +17,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { ChartCard } from "@/components/viz/chart-card";
+import { ExportPackage } from "@/components/workspace/export-package";
 import { SEMANTIC, SEVERITY_COLORS, categorical } from "@/lib/viz/palette";
 import { formatValue } from "@/lib/workspace/metric-figures";
 import { actOnAlert, alertCohort, investigateAlert, readAlert, readMonitoring, runDueRefreshes, type AlertDetail, type AlertSummary, type MonitoringView } from "@/lib/workspace/monitoring";
@@ -357,6 +358,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
         <Link href={lensHref} className="rounded-md bg-accent px-2 py-1 text-accent-contrast" data-testid="alert-open-lens">
           Open Lens at the trigger
         </Link>
+        <ExportPackage objectId={alertId} testId="alert-export" compact />
         {breachType && (
           <>
             <button type="button" disabled={busy} onClick={() => void go(async () => {

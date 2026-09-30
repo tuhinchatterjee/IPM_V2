@@ -16,6 +16,7 @@ from backend.workspace import (
                                objects_api,
                                runs_api,
                                scenarios_api,
+                               trace_api,
                                whatif_api,
 )
 
@@ -33,6 +34,7 @@ router.include_router(runs_api.router)
 router.include_router(messages_api.router)
 router.include_router(lenses_api.router)
 router.include_router(monitoring_api.router)
+router.include_router(trace_api.router)
 
 # The workspace's saved cohorts become nameable by id in a scenario preview
 # (Cockpit or What-If), resolved and hash-verified by the engine.
