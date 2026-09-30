@@ -41,6 +41,8 @@ export interface PlotlyChartProps {
   /** Filename stem for PNG/SVG downloads. */
   filename?: string;
   className?: string;
+  /** "minimal" hides the mode bar (sparklines inside cards). */
+  chrome?: "full" | "minimal";
 }
 
 type PlotlyModule = typeof import("plotly.js-dist-min").default;
@@ -99,6 +101,7 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
     testId,
     filename = "creditprobe-chart",
     className,
+    chrome = "full",
   },
   ref,
 ) {
@@ -126,6 +129,7 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
         const config = {
           responsive: true,
           displaylogo: false,
+          displayModeBar: chrome === "minimal" ? false : "hover",
           scrollZoom: false,
           toImageButtonOptions: { format: "png", filename, scale: 2 },
           modeBarButtonsToRemove: selectable ? [] : ["select2d", "lasso2d"],
@@ -159,7 +163,7 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
     return () => {
       cancelled = true;
     };
-  }, [data, layout, height, selectable, filename]);
+  }, [data, layout, height, selectable, filename, chrome]);
 
   React.useEffect(() => {
     const el = host.current;
@@ -167,7 +171,11 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
     const observer = new ResizeObserver(() => {
       loadPlotly()
         .then((Plotly) => {
-          if (el.getAttribute("data-rendered")) Plotly.Plots.resize(el);
+          // A chart hidden or detached mid-resize (a collapsed card, a route
+          // change) is not resized: Plotly rejects it, and that rejection
+          // would otherwise surface as an unhandled page error.
+          if (!el.getAttribute("data-rendered") || !el.isConnected || el.offsetParent === null) return;
+          void Promise.resolve(Plotly.Plots.resize(el)).catch(() => undefined);
         })
         .catch(() => undefined);
     });

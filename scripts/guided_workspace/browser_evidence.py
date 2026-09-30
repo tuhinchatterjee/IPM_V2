@@ -74,6 +74,7 @@ def main() -> int:
         print(ok(f"API on http://127.0.0.1:{api_port}"))
         ui_env = ui_environment({**os.environ}, api_port=api_port,
                                 ui_port=ui_port)
+        ui_env["NEXT_PUBLIC_GUIDED_WORKSPACE"] = "1"
 
         def start_ui():
             return subprocess.Popen(

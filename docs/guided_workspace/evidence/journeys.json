@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 3,
-  "total": 3,
+  "passed": 8,
+  "total": 8,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -18,12 +18,12 @@
         "docs/guided_workspace/evidence/journeys/GW-P1-01-growth.png"
       ],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-332682c76ec44009869eadaeda7aed48",
-      "run_id": "run-84b22227b15842c5bea7c2f65165291c",
-      "export": "llm_exchange_run-84b22227b15842c5bea7c2f65165291c.zip",
+      "thread_id": "th-a53059d78a5443808946600e1b2baa6a",
+      "run_id": "run-2ef2951be11347b08128913f4dc1cbf0",
+      "export": "llm_exchange_run-2ef2951be11347b08128913f4dc1cbf0.zip",
       "calls_recorded": 2,
       "status": "PASS",
-      "ms": 5279
+      "ms": 8905
     },
     {
       "journey": "GW-P1-02",
@@ -33,12 +33,12 @@
       ],
       "screenshots": [],
       "model": "MODEL MOCK (scripted analyst)",
-      "thread_id": "th-65243a60507b4ab39d3c20fb5c601f4c",
-      "run_id": "run-c18eb03a29104888b7f4bfca012fb61c",
-      "exchanges_before": 4,
-      "exchanges_after": 4,
+      "thread_id": "th-c57dc3365689449282d33076f8445dc4",
+      "run_id": "run-df20d8a367e047c7ba31e145d40c1098",
+      "exchanges_before": 22,
+      "exchanges_after": 22,
       "status": "PASS",
-      "ms": 3530
+      "ms": 3191
     },
     {
       "journey": "GW-P1-03",
@@ -59,7 +59,167 @@
         }
       ],
       "status": "PASS",
-      "ms": 990
+      "ms": 1009
+    },
+    {
+      "journey": "GW-P3-01-CORP",
+      "what": "corporate: landing shows Requires Attention AND the free Ask box; cards carry measured evidence",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-01-CORP-landing.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_count": 10,
+      "release_id": "v4-whatif-corporate-20q-s1",
+      "titles": [
+        "Hospitality: booked ECL rose +SAR 24.6m (+19.0%)",
+        "Construction: booked ECL rose +SAR 24.9m (+17.1%)",
+        "Booked ECL rose +SAR 169m (+9.6%) across the Corporate book",
+        "Hospitality: EAD-weighted PD rose +20 bps",
+        "Education: 15.66% of EAD is on the watchlist (book 7.63%)"
+      ],
+      "status": "PASS",
+      "ms": 1052
+    },
+    {
+      "journey": "GW-P3-01-RET",
+      "what": "retail: landing shows Requires Attention AND the free Ask box; cards carry measured evidence",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-01-RET-landing.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_count": 8,
+      "release_id": "v4-whatif-retail-20m-s1",
+      "titles": [
+        "Personal Finance: booked ECL rose +SAR 453k (+36.6%)",
+        "Credit Card: booked ECL rose +SAR 145k (+34.1%)",
+        "Personal Finance: average payment ratio fell −577 bps",
+        "Booked ECL rose +SAR 806k (+33.8%) across the Retail book",
+        "Personal Finance: 1,011 customers with PD up 20% or more this month"
+      ],
+      "status": "PASS",
+      "ms": 5018
+    },
+    {
+      "journey": "GW-P3-02",
+      "what": "Issue card → Investigate → an ordinary thread with the path and NBQ chips; a chip runs a normal turn in the SAME thread",
+      "prompts": [
+        "chip: Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-path.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-chip-answered.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-free-form.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "thread_id": "th-b5ae9e59fda84684835f3120c36a1297",
+      "path": [
+        [
+          "Issue",
+          "done"
+        ],
+        [
+          "Evidence",
+          "done"
+        ],
+        [
+          "Driver",
+          "open"
+        ],
+        [
+          "Cohort",
+          "done"
+        ],
+        [
+          "Finding",
+          "open"
+        ],
+        [
+          "Scenario/Decision",
+          "open"
+        ]
+      ],
+      "chips": [
+        {
+          "text": "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+          "type": "explain_driver"
+        },
+        {
+          "text": "What changed for Hotels in Hospitality between 2026Q1 and 2026Q2: exposure, PD, LGD or stage?",
+          "type": "explain_driver"
+        },
+        {
+          "text": "Show the borrowers in Hospitality with the largest increase in booked ECL between 2026Q1 and 2026Q2.",
+          "type": "drill_contributors"
+        },
+        {
+          "text": "Check whether rating or score deterioration explains the movement in Hospitality: compare PD and stage between 2026Q1 and 2026Q2 for the same facilities.",
+          "type": "validate_hypothesis"
+        },
+        {
+          "text": "How does Booked ECL in Hospitality in 2026Q2 compare with the same measure four periods earlier?",
+          "type": "compare_period"
+        }
+      ],
+      "investigation_id": "inv-623fb5abea84",
+      "clicks_recorded": [
+        {
+          "suggestion_id": "nbq-8b9e927a5874",
+          "kind": "explain_driver",
+          "exact_request": "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+          "rationale": "Booked ECL moved +SAR 24.6m (+19.0%) in Hospitality; a contribution breakdown separates concentrated from broad-based movement.",
+          "source": {
+            "issue_id": "iss-db4929b9bd19",
+            "metric_id": "M001",
+            "evidence": [
+              "M001",
+              "M002"
+            ]
+          },
+          "run_id": "",
+          "at": 1790778657.7803626
+        }
+      ],
+      "status": "PASS",
+      "ms": 5045
+    },
+    {
+      "journey": "GW-P3-03",
+      "what": "Issue detail: charts are Plotly; clicking a driver bar narrows the governed grid server-side",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-03-drilled.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "filter_chips": [
+        "Sub-sector: Food Service"
+      ],
+      "rows_before": 251,
+      "rows_after": 130,
+      "clicked": "Sub-sector: Food Service",
+      "status": "PASS",
+      "ms": 4356
+    },
+    {
+      "journey": "GW-P3-04",
+      "what": "Early Warning (retail) → save cohort → investigate opens a Cockpit thread over that exact population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-04-ew.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-04-thread.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Saved 286 exposures as cohort coh-8f5c41e5470c.",
+      "cohort_id": "coh-8f5c41e5470c",
+      "cohort_entities": 286,
+      "thread_id": "th-2f3d620624e747919f6c0a54dfe4a5d8",
+      "thread_domain": "retail",
+      "status": "PASS",
+      "ms": 3559
     }
   ]
 }

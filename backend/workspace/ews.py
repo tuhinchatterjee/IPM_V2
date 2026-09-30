@@ -32,8 +32,8 @@ RULES: dict[str, list[dict[str, Any]]] = {
         {"id": "R-MINPAY", "label": "Persistent minimum payment (payment ratio < 35%)",
          "sql": "payment_ratio_pct < 35", "weight": 1},
         {"id": "R-SALARY", "label": "Salary-interruption proxy (salaried, cyclical employer, payment ratio < 35%)",
-         "sql": ("employment_type = 'Salaried' AND employer_sector_group = 'Cyclical' "
-                 "AND payment_ratio_pct < 35"),
+         "sql": ("employment_type IN ('Salaried-Private', 'Salaried-Government') "
+                 "AND employer_sector_group = 'Cyclical' AND payment_ratio_pct < 35"),
          "weight": 2,
          "limitation": ("The candidate book publishes no salary-credit feed. "
                         "This proxy combines employment type, employer sector "

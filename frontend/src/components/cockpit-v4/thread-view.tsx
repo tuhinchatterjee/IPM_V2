@@ -35,6 +35,8 @@
 
 import * as React from "react";
 
+import { InvestigationBar } from "@/components/guided/investigation-bar";
+
 import { comparisonPeriod, periodLabel, reportingPeriod } from "./period";
 
 import {
@@ -992,6 +994,15 @@ export function CockpitV4Thread({
       <div className="mt-6 space-y-10">
         <SeedCard context={transcript?.context ?? {}}
                   threadId={threadId} />
+        {/* Guided Workspace P3: investigation path + next-best questions,
+            submitted through this thread's own `ask`. Renders nothing
+            unless NEXT_PUBLIC_GUIDED_WORKSPACE=1 and the thread began
+            from a guided issue. */}
+        <React.Suspense fallback={null}>
+          <InvestigationBar threadId={threadId} busy={busy}
+                            turnCount={turns.length}
+                            onAsk={(q) => void ask(q)} />
+        </React.Suspense>
 
         {turns.map((turn) => (
           <article key={turn.key} className="space-y-4">

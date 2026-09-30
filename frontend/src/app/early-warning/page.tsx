@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { cockpitV4Enabled } from "@/components/cockpit-v4/client";
+import { EarlyWarningV4 } from "@/components/guided/early-warning-v4";
+import { guidedEnabled } from "@/lib/workspace/guided";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import {
@@ -55,6 +58,16 @@ import { cn } from "@/lib/utils";
  * score it accounts for — and those contributions add up to the score.
  */
 export default function EarlyWarningPage() {
+  // In a V4 runtime with the Guided Workspace on, Early Warning is the
+  // governed EWS rule set over the book the Cockpit serves (the legacy
+  // module's API is not served by the V4 runtime).
+  if (cockpitV4Enabled() && guidedEnabled()) {
+    return (
+      <main className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-10">
+        <EarlyWarningV4 />
+      </main>
+    );
+  }
   return (
     <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
       <EarlyWarning />

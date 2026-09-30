@@ -37,7 +37,11 @@ function Node({
 }) {
   const isObject = value !== null && typeof value === "object";
   const [open, setOpen] = React.useState(depth < 2 || expandAll);
-  React.useEffect(() => setOpen(depth < 2 || expandAll), [expandAll, depth]);
+  const [openedFor, setOpenedFor] = React.useState(expandAll);
+  if (openedFor !== expandAll) {
+    setOpenedFor(expandAll);
+    setOpen(depth < 2 || expandAll);
+  }
   if (!matches(value, needle) && !name.toLowerCase().includes(needle.toLowerCase())) return null;
   if (!isObject) {
     const text = typeof value === "string" ? value : JSON.stringify(value);

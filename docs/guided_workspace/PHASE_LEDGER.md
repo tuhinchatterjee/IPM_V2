@@ -32,7 +32,7 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
   recorded); emulator gates reproduced (Corporate all PASS; Retail G4 0.3436 FAIL);
   H2 protected manifest 171 files, 0 drift.
 * **Baseline regression at H2 (isolated worktree, before any edit):** see §"Baseline counts" below.
-* **Status:** IN PROGRESS (baseline re-measure on the accepted interpreter running)
+* **Status:** PASS (exit gate: provenance, fingerprints/content digests, protected report and baseline counts recorded; parent SHA committed in `928c70bf`)
 
 ## P1 — Platform observability first: Full LLM Exchange Trace
 
@@ -90,7 +90,54 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P3 — Guided Cockpit: Requires Attention
-* **Status:** NOT STARTED
+
+* **Entry check:** P2 exit gate proven (28 backend tests; cohort identity by membership hash).
+* **Requirements:** §43 P3, §8–§9 (Guided Cockpit, Requires Attention cards, investigation
+  path, next-best questions, no causal claims, free-form Ask preserved), §10 (Plotly
+  standard for every new chart), §46 (metric catalogue depth used by issues), EWS in V4.
+* **Files inspected:** `cockpit-v4-home.tsx`, `thread-view.tsx`, `attention-panel.tsx`,
+  `backend/cockpit_v4/{context,investigation,store}.py` (seeded-thread mechanism),
+  `scripts/whatif/whatif_stub_server.py`.
+* **Files changed / added:**
+  * backend (new): `backend/workspace/{metric_catalog,metrics,metrics_api,issues,issues_api,nbq,usage,grid_api}.py`;
+    `api.py`, `ews.py`, `grid.py` extended.
+  * frontend (new): `lib/viz/figures.ts`, `lib/workspace/guided.ts`,
+    `components/guided/{requires-attention,investigation-bar,issue-detail,early-warning-v4,domain-toggle}.tsx`,
+    `components/workspace/data-grid.tsx`, `app/issues/[issueId]/page.tsx`; `app/early-warning/page.tsx`
+    renders the V4 Early Warning when V4 + guided are on; `plotly-chart.tsx` resize guard.
+  * harness: `scripts/guided_workspace/guided_script.py` (scripted analyst for guided turns
+    on either book, MODEL MOCK), `gw_stub_server.py` installs it, `browser_evidence.py` sets
+    `NEXT_PUBLIC_GUIDED_WORKSPACE=1` for the UI only.
+* **Design:** issues are measured, not generated: 19 governed detection patterns
+  (`gw-issues-1.0.0`, 10 Corporate + 9 Retail; book/segment level, delta and excess modes)
+  over the 64-metric catalogue (`gw-metrics-1.0.0`). Each card carries the rule id and
+  version, the metric, current/prior values from published rows, materiality (affected
+  entities/owners/EAD/ECL, share of book ECL), a fact vs measured-association split, a
+  sparkline, and 2–5 next-best questions from `nbq.py` (typed, sourced, rationale stated;
+  causal wording refused; answered ones suppressed until the cohort hash changes; a
+  What-If chip only once a Finding exists and labelled "not a forecast"). "Investigate"
+  freezes the issue population as a governed cohort, creates an Investigation object and
+  opens an ordinary Cockpit thread seeded through the existing `attention_item` context
+  (no orchestration change). Chips submit through the thread's own `ask`; the click is
+  recorded on the Investigation with suggestion id, rationale, source and exact request.
+  Issue detail: four Plotly charts, each with View data / CSV / PNG / SVG; a driver bar
+  click becomes a server-side filter on the governed grid.
+* **Measured:** Corporate 10 issues, Retail 8 issues (17 rules firing, 18 cards); detection
+  ≈3.7 s Corporate / ≈2.9 s Retail cold, cached thereafter; all 64 metrics evaluate on both books.
+* **Protected changes:** `cockpit-v4-home.tsx` (+10 lines), `thread-view.tsx` (+11 lines),
+  both flag-gated; rows 4–5 of `PROTECTED_EXTENSION_MAP.md`. Lint output on both files is
+  identical to H2 (2 pre-existing errors, 3 warnings in `thread-view.tsx`).
+* **Tests:**
+  * `tests/cockpit_v4/test_gw_guided.py` — 17 passed (full gw backend set 72 passed).
+  * `frontend/src/lib/viz/figures.test.ts` — 7 passed (FIG01–FIG07); `npm test` 612/612; `tsc` clean;
+    eslint clean on every new directory.
+  * Browser (MODEL MOCK, real UI/API/stores/books) `GW-P3-01-CORP`, `GW-P3-01-RET`, `GW-P3-02`,
+    `GW-P3-03`, `GW-P3-04` — 5/5; full suite with P1 8/8
+    (`docs/guided_workspace/evidence/journeys.json`, screenshots under `evidence/journeys/`).
+* **Limitations:** the Retail salary-credit rule is a stated proxy (the book has no salary
+  feed); NBQ ranking is rule-based, not learned; guided turns in the browser suite are
+  scripted (MODEL MOCK).
+* **Status:** PASS
 
 ## P4 — Scenario Library foundation
 * **Status:** NOT STARTED
@@ -132,17 +179,31 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 
 ## Baseline counts (H2 `feb80f58`, isolated worktree `/home/user/baseline_wt`, no round code)
 
-| Suite | Interpreter | Result |
+Protocol fixed at P0 and reused at P13: the V4 + frontend suites run on the ACCEPTED
+interpreter (`/home/user/.venv312`, exact `requirements.txt`), because
+`test_whatif_ml.py` asserts that interpreter carries no ML library; the What-If
+suite additionally runs on `.venv-whatif`, which does.
+
+| Suite | Interpreter | Result at H2 |
 |---|---|---|
-| `tests/cockpit_v4` + `tests/frontend` | `.venv-whatif` (ML libs present) | 4328 passed, 16 failed, 35 skipped (19m35s) — the 16 are environment-bound, see below |
-| `tests/cockpit_agentic` (V3) | `.venv-whatif` | 589 passed, 1 failed |
+| `tests/cockpit_v4` + `tests/frontend` | accepted | **4341 passed, 3 failed, 35 skipped** (17m50s) |
+| `tests/cockpit_v4/test_whatif_*.py` | `.venv-whatif` | 964 passed, 10 failed, 2 skipped |
+| `tests/cockpit_agentic` (V3) | accepted | 589 passed, 1 failed |
 | frontend `npm test` | node 22 | 593 / 593 |
 | `tsc --noEmit` | — | clean |
 
-Of the 16: 7 `test_whatif_ml` tests assert the ACCEPTED interpreter carries no ML
-library (they must run on the accepted interpreter); 6 Saudi/India-label and
-provisioning tests pass on the accepted interpreter (47/47 re-run); 2
-`test_the_accepted_releases_are_byte_identical` pin the earlier container's accepted
-fingerprints (environmental, §3 of the provenance); 1 `test_p9b_…` passes on the
-accepted interpreter. Re-measure on the accepted interpreter is recorded below when
-it completes.
+Every baseline failure is environment-bound and pre-exists this round:
+* `test_the_accepted_releases_are_byte_identical[×2]` pin the earlier container's
+  accepted byte fingerprints (`BASELINE_PROVENANCE.md` §3).
+* `test_the_accepted_environment_carries_none_of_the_ml_libraries[matplotlib]`:
+  `requirements.txt` itself pins `matplotlib==3.11.0`, so an exact accepted install
+  carries it; the earlier container's interpreter evidently did not.
+* On `.venv-whatif` the other seven `test_whatif_ml` isolation tests fail by design
+  (they must run on the accepted interpreter, where they pass), and
+  `test_p9b_a_feature_never_appears_as_an_attribution_driver` fails there but passes
+  on the accepted interpreter.
+* V3 `test_the_namespace_is_where_the_release_actually_goes` reads
+  `COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4`, which the V4 protocol sets.
+
+The first measurement (all suites on `.venv-whatif`) was 4328 passed / 16 failed /
+35 skipped; the difference is exactly the interpreter-bound tests above.

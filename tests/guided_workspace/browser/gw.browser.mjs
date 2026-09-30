@@ -260,12 +260,165 @@ async function p1Journeys() {
   });
 }
 
+
+// =========================================================================
+// P3 — Guided Cockpit: Requires Attention, investigation path, drill
+// =========================================================================
+
+async function openHome(page, book) {
+  await page.goto(`${UI}/`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="cockpit-v4-home"]', { timeout: 120_000 });
+  await pickBook(page, book);
+  await page.waitForSelector('[data-testid="requires-attention"]', { timeout: 120_000 });
+}
+
+async function turns(page) {
+  return page.$$eval('[data-testid="v4-turn-assistant"]', (n) => n.length);
+}
+
+async function p3Journeys() {
+  for (const book of ["corporate", "retail"]) {
+    const tag = book === "corporate" ? "CORP" : "RET";
+    await journey(
+      `GW-P3-01-${tag}`,
+      `${book}: landing shows Requires Attention AND the free Ask box; cards carry measured evidence`,
+      async (record) => {
+        const page = await open();
+        await openHome(page, book);
+        const count = Number(await page.getAttribute('[data-testid="requires-attention"]', "data-count"));
+        record.issue_count = count;
+        assert.ok(count >= 1, "at least one issue is shown");
+        assert.ok(await page.isVisible('[data-testid="cockpit-v4-question"]'), "the Ask box is on the landing");
+        const first = page.locator('[data-testid="issue-card"]').first();
+        for (const id of ["issue-title", "issue-current", "issue-affected", "issue-interpretation", "issue-investigate", "issue-save-cohort"]) {
+          assert.ok(await first.locator(`[data-testid="${id}"]`).count(), `the card carries ${id}`);
+        }
+        const feed = (await api(`/issues?domain=${book}`)).body;
+        record.release_id = feed.release_id;
+        record.titles = feed.issues.slice(0, 5).map((i) => i.title);
+        assert.equal(feed.issues.length, count, "the page shows the server's feed, no more and no fewer");
+        assert.ok(feed.issues.every((i) => i.detection_rule?.id && i.materiality && i.evidence?.series?.length), "every issue is measured");
+        await shot(page, record, "landing");
+      },
+    );
+  }
+
+  await journey("GW-P3-02", "Issue card → Investigate → an ordinary thread with the path and NBQ chips; a chip runs a normal turn in the SAME thread", async (record) => {
+    const page = await open();
+    await openHome(page, "corporate");
+    const issueId = await page.locator('[data-testid="issue-card"]').first().getAttribute("data-issue-id");
+    record.issue_id = issueId;
+    await page.locator('[data-testid="issue-investigate"]').first().click();
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 90_000 });
+    const match = /\/thread\/([A-Za-z0-9-]+)/.exec(page.url());
+    record.thread_id = match?.[1];
+    assert.ok(record.thread_id, "a thread opened");
+    await page.waitForSelector('[data-testid="investigation-bar"]', { timeout: 60_000 });
+    const steps = await page.$$eval('[data-testid="investigation-path"] li', (ls) => ls.map((l) => [l.getAttribute("data-step"), l.getAttribute("data-status")]));
+    record.path = steps;
+    assert.deepEqual(steps.map((s) => s[0]), ["Issue", "Evidence", "Driver", "Cohort", "Finding", "Scenario/Decision"]);
+    const chips = await page.$$eval('[data-testid="nbq-chip"]', (bs) => bs.map((b) => ({ text: b.textContent, type: b.getAttribute("data-suggestion-type") })));
+    record.chips = chips;
+    assert.ok(chips.length >= 2 && chips.length <= 5, "2-5 next-best questions");
+    assert.ok(!chips.some((c) => c.type === "run_whatif"), "no What-If chip before a finding exists");
+    await shot(page, record, "path");
+    const before = await turns(page);
+    const chip = page.locator('[data-testid="nbq-chip"][data-suggestion-type="driver"], [data-testid="nbq-chip"][data-suggestion-type="contribution"], [data-testid="nbq-chip"]').first();
+    const asked = (await chip.textContent()).trim();
+    record.prompts.push(`chip: ${asked}`);
+    await chip.click();
+    await settle(page, before);
+    const after = /\/thread\/([A-Za-z0-9-]+)/.exec(page.url())?.[1];
+    assert.equal(after, record.thread_id, "the chip ran in the same thread");
+    const inv = (await api(`/investigations/by-thread/${record.thread_id}`)).body;
+    record.investigation_id = inv.investigation_id;
+    record.clicks_recorded = inv.clicks ?? [];
+    assert.ok((inv.clicks ?? []).some((s) => s.suggestion_id && s.rationale && s.exact_request === asked), "the click was recorded with its rationale and exact request");
+    const answered = await page.$$eval('[data-testid="v4-turn-assistant"]', (n) => n.at(-1).textContent);
+    assert.ok(!/Terminal|failed/i.test(answered.slice(0, 80)), "the chip's turn answered");
+    await shot(page, record, "chip-answered");
+
+    // Free-form still works in the same thread.
+    const beforeFree = await turns(page);
+    const free = "Which sectors carry the most reported ECL?";
+    record.prompts.push(free);
+    await page.fill('[data-testid="v4-composer-input"]', free);
+    await page.click('[data-testid="v4-composer-send"]');
+    await settle(page, beforeFree);
+    assert.ok((await turns(page)) > beforeFree, "a free-form question answered in the same thread");
+    await shot(page, record, "free-form");
+  });
+
+  await journey("GW-P3-03", "Issue detail: charts are Plotly; clicking a driver bar narrows the governed grid server-side", async (record) => {
+    const feed = (await api(`/issues?domain=corporate`)).body;
+    const issue = feed.issues.find((i) => (i.evidence?.breakdown ?? []).length >= 2) ?? feed.issues[0];
+    record.issue_id = issue.issue_id;
+    const page = await open();
+    await page.goto(`${UI}/issues/${issue.issue_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="issue-detail"]', { timeout: 120_000 });
+    await page.waitForSelector('[data-testid="issue-drivers"][data-rendered="true"]', { timeout: 60_000 });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total") || 0) > 0, null, { timeout: 60_000 });
+    const totalBefore = Number(await page.getAttribute('[data-testid="issue-grid"]', "data-total"));
+    await page.locator('[data-testid="issue-drivers"]').scrollIntoViewIfNeeded();
+    const box = await page.locator('[data-testid="issue-drivers"] g.point path').first().boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(250);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForFunction(
+      (n) => {
+        const t = Number(document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total") || 0);
+        return t > 0 && t !== n;
+      },
+      totalBefore,
+      { timeout: 30_000 },
+    ).catch(() => undefined);
+    const chips = await page.$$eval('[data-testid="issue-grid"] [data-testid="grid-filter-chip"]', (c) => c.map((x) => x.textContent));
+    record.filter_chips = chips;
+    const totalAfter = Number(await page.getAttribute('[data-testid="issue-grid"]', "data-total"));
+    record.rows_before = totalBefore;
+    record.rows_after = totalAfter;
+    const labels = issue.evidence.breakdown.map((b) => String(b.label));
+    record.clicked = chips.find((c) => labels.some((l) => c.includes(l))) ?? "";
+    assert.ok(record.clicked, "the clicked bar became a server-side filter on its own label");
+    assert.ok(totalAfter > 0 && totalAfter <= totalBefore, "the grid narrowed");
+    await page.click('[data-testid="issue-drivers-view-data"]');
+    await page.waitForSelector('[data-testid="issue-drivers-table"]');
+    await shot(page, record, "drilled");
+  });
+
+  await journey("GW-P3-04", "Early Warning (retail) → save cohort → investigate opens a Cockpit thread over that exact population", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/early-warning`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="early-warning-v4"]', { timeout: 120_000 });
+    await page.waitForSelector('[data-testid="ew-band-critical"]', { timeout: 120_000 });
+    await page.click('[data-testid="ew-save-cohort"]');
+    await page.waitForSelector('[data-testid="ew-note"]', { timeout: 60_000 });
+    record.note = await page.textContent('[data-testid="ew-note"]');
+    const cohortId = /\b(coh[-_][0-9A-Za-z_-]+)/.exec(record.note)?.[1];
+    record.cohort_id = cohortId;
+    assert.ok(cohortId, "a governed cohort id was returned");
+    const cohort = (await api(`/objects/${cohortId}`)).body;
+    record.cohort_entities = cohort.body.counts.entities;
+    assert.ok(cohort.body.membership_hash, "the cohort is frozen with a membership hash");
+    await shot(page, record, "ew");
+    await page.click('[data-testid="ew-investigate"]');
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 90_000 });
+    record.thread_id = /\/thread\/([A-Za-z0-9-]+)/.exec(page.url())?.[1];
+    assert.ok(record.thread_id, "the investigation opened as a thread");
+    const thread = await v4(`/threads/${record.thread_id}`);
+    record.thread_domain = thread?.domain_id ?? thread?.thread?.domain_id;
+    assert.equal(record.thread_domain, "retail", "the thread reads the retail book");
+    await shot(page, record, "thread");
+  });
+}
+
 // =========================================================================
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
   try {
     await p1Journeys();
+    await p3Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

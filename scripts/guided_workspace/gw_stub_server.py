@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts" / "whatif"))
 sys.path.insert(0, str(ROOT / "tests" / "cockpit_v4"))
+sys.path.insert(0, str(ROOT / "scripts" / "guided_workspace"))
 
 os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
 for flag in ("COCKPIT_V4_WHATIF_CORPORATE", "COCKPIT_V4_WHATIF_RETAIL",
@@ -52,6 +53,8 @@ def main() -> int:
     runtime_dir.mkdir(parents=True, exist_ok=True)
     app = base.build_app(args.port, runtime_dir, domain_id="corporate",
                          ui_port=args.ui_port)
+    import guided_script
+    guided_script.install(app)
     print(f"guided-workspace stub V4 API on http://127.0.0.1:{args.port}",
           flush=True)
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")

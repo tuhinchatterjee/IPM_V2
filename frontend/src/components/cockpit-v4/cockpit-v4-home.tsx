@@ -25,6 +25,8 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useWideContent } from "@/components/layout/content-width";
+import { RequiresAttention } from "@/components/guided/requires-attention";
+import { guidedEnabled } from "@/lib/workspace/guided";
 
 import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
@@ -294,6 +296,14 @@ export function CockpitV4Home() {
           </p>
         ) : null}
       </div>
+
+      {/* Guided Workspace P3: Requires Attention becomes the guided entry,
+          directly under the Ask box. Only with NEXT_PUBLIC_GUIDED_WORKSPACE=1. */}
+      {guidedEnabled() ? (
+        <div className="mt-10">
+          <RequiresAttention domain={domain} />
+        </div>
+      ) : null}
 
       <div className="mt-12">
         <AttentionPanel onOpen={(item) => setOpen(item)} domain={domain} />
