@@ -256,6 +256,17 @@ def test_scenario_metrics_read_the_published_decomposition(client, svc):
                          ).json()["result"]
     d = result["body"]["decomposition"]["delta"]
     book = access.book(WHO, "corporate")
+    # A private result counts only for a viewer who may open it.
+    assert metrics.evaluate(book, "M039")["latest_result"] != \
+        result["object_id"]
+    token = metrics.VIEWER.set(service.principal(WHO))
+    try:
+        _check_scenario_metrics(book, result, d)
+    finally:
+        metrics.VIEWER.reset(token)
+
+
+def _check_scenario_metrics(book, result, d):
     m39 = metrics.evaluate(book, "M039")
     assert m39["latest_result"] == result["object_id"]
     assert close(m39["value"], float(d["scopes"]["selected"]["change"]))

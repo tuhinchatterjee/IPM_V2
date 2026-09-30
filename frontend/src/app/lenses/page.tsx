@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
+import { Suspense } from "react";
 import { ArrowRight, LayoutGrid, Loader2, Sparkles } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -13,6 +14,8 @@ import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { guidedEnabled } from "@/lib/workspace/guided";
+import { LensLibrary } from "@/components/lenses/lens-library";
 
 /**
  * The Lens library.
@@ -24,7 +27,7 @@ import { useAsync } from "@/lib/hooks";
  * The CRO Lens is a hand-built screen and stays where it is; everything else
  * here is a Lens somebody made by asking for it.
  */
-export default function LensesPage() {
+function LegacyLensesPage() {
   const router = useRouter();
   const library = useAsync(() => api.lensList(), []);
   const [request, setRequest] = React.useState("");
@@ -178,5 +181,21 @@ export default function LensesPage() {
           ))}
       </section>
     </div>
+  );
+}
+
+/**
+ * With the Guided Risk Workspace on, the Lens Library is Lenses 2.0 (§32,
+ * §45): governed persona Lenses on catalogue metrics. With it off, the page
+ * above is served exactly as before.
+ */
+export default function LensesPage() {
+  if (!guidedEnabled()) return <LegacyLensesPage />;
+  return (
+    <main className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-10">
+      <Suspense fallback={null}>
+        <LensLibrary />
+      </Suspense>
+    </main>
   );
 }

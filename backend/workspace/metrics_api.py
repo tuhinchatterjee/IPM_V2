@@ -89,14 +89,18 @@ async def evaluate(body: Evaluate,
                    who: dict[str, Any] = Depends(v4routes.principal)
                    ) -> dict[str, Any]:
     book = access.book(who, body.domain)
-    out = metrics.evaluate(book, body.metric_id, period=body.period,
-                           filters=body.filters or None,
-                           group_by=body.group_by)
-    if body.series_periods:
-        out = {**out, "series": metrics.series(
-            book, body.metric_id, periods=body.series_periods,
-            filters=body.filters or None,
-            end_period=body.period)["points"]}
+    token = metrics.VIEWER.set(service.principal(who))
+    try:
+        out = metrics.evaluate(book, body.metric_id, period=body.period,
+                               filters=body.filters or None,
+                               group_by=body.group_by)
+        if body.series_periods:
+            out = {**out, "series": metrics.series(
+                book, body.metric_id, periods=body.series_periods,
+                filters=body.filters or None,
+                end_period=body.period)["points"]}
+    finally:
+        metrics.VIEWER.reset(token)
     return out
 
 

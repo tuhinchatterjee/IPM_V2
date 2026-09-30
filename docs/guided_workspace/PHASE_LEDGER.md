@@ -443,7 +443,65 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P9 — Lenses 2.0
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Lens objects** (`backend/workspace/lenses.py`, `lenses_api.py`, `lens_seed.py`
+    `gw-lens-seed-1.0.0`): identity, persona, audience, book scope and default filters, pinned
+    metric ids + versions, visual specs (closed vocabulary: kpi, trend, breakdown, stage_mix,
+    top_owners, scenario_results, alerts, sensitivity, table), layout, refresh default
+    (cadence, timezone Asia/Riyadh, expected availability), breach rules (comparison, threshold,
+    window, materiality, dedup key, cooldown, severity, recipients), delivery and lineage.
+    Validation refuses any visual or rule whose metric is not a catalogue id ("no anonymous
+    KPI"), a column not in the book, or a book outside the scope.
+  * **Library, first launch:** LENS-01…LENS-18 exactly as §45 names them, plus LENS-19
+    Hospitality & Transport Watch and LENS-20 BNPL Watch — 20 Lenses, 7–13 visuals each, every one
+    with ≥1 breach rule; pairwise visual-signature overlap < 0.6 (materially distinct). Retail
+    "Home Finance" is the `Mortgage` product in this book and the Lens says so. Two
+    library-owned, tenant-visible, synthetic executed results (CORP-02, RET-06) are seeded so
+    Scenario Impact Watch is populated on first launch.
+  * **Rendering** (`POST /lenses/{id}/render`): every visual evaluated now through the metric
+    engine, with the Lens's default filters plus cross-filters (applied where the column exists,
+    reported as skipped where it does not), per-book period selection, KPI prior/movement and
+    sparkline, and exact rows for tables. Nothing stored on the Lens goes stale.
+  * **Refresh** (`POST /lenses/{id}/refresh`): an immutable observation (release/fingerprint,
+    every metric value and prior, material changes against the previous successful observation
+    using each metric's materiality, breach-rule evaluation, "what changed"); idempotent for a
+    non-manual trigger on an unchanged release and Lens version.
+  * **Creating:** one prompt → a PREVIEW (template matched with reasons, N KPIs / M charts / T
+    tables / metrics / rules / refresh) that is not saved; "add …", "remove …", "weekly"
+    refine it; Save creates the object. From an investigation (scoped to its governed cohort) and
+    from a Cockpit thread ("Save this analysis as a Lens" on every guided thread). Editing writes
+    a new version; editing a library or shared Lens makes your own copy. Lenses share through
+    Messages (Open, Save my own copy, Comment).
+  * **UI** (flag-gated; the legacy `/lenses` pages are served unchanged with the flag off):
+    library with search and EMPTY_BY_FILTER; Lens view with active-state bar (period per book,
+    "not latest" marked, Lens scope, removable cross-filter chips, reset), KPI tiles (value,
+    signed movement coloured by the metric's governed direction, sparkline, metric id/version,
+    click → definition), Plotly charts with View data / CSV / PNG / SVG, category click →
+    cross-filter, trend point → period, box/lasso → temporary cohort with Save / Investigate /
+    What-If / Share, top-owner or table-row click → investigation context (Borrower 360 reads a
+    service not in this runtime, so it is not linked), breach rules with last-refresh status,
+    refresh, edit, share.
+* **Defects found and fixed:**
+  * Scenario metrics counted every result in the tenant regardless of who was looking — a
+    permission leak. They now count only results the viewer can open (`metrics.VIEWER`), and
+    only tenant-visible results when no viewer is known.
+  * Breakdowns of evaluator-based metrics (e.g. EWS high/critical share by product) returned no
+    groups; the engine now evaluates such metrics once per dimension value.
+  * The persona matcher took "dashboard" for "board" (word boundary added).
+* **Tests:** `test_gw_lenses.py` 15/15 (library ≥18 with the §45 names; distinctness; every Lens
+  ≥5 visuals with real values, groups, rows and series; every binding a pinned catalogue metric
+  and every seeded Lens has rules; cross-filter incl. skipped-book reporting; period; default
+  product scope; immutable observations, "what changed", idempotent refresh; a material move
+  reported; preview not saved, refine, save; anonymous metric refused; versioning and library
+  copy; investigation → Lens keeps its cohort; share through Messages; viewer-scoped scenario
+  metrics). `lens-figures.test.ts` LENS01–04. All GW backend suites 222 passed, 3 ML skips;
+  `npm test` 642/642; `tsc` clean; eslint 0 in new code. Browser `GW-P9-01` (library ≥18; LENS-02
+  KPIs; category click → table = 248 Construction rows; trend point → earlier period marked "not
+  latest"; reset; refresh; KPI → definition), `GW-P9-02` (prompt → preview not saved → refine →
+  save → live Lens → edit → v2), `GW-P9-03` (box-select → temporary cohort → What-If; Cockpit
+  thread → Save as Lens → saved with source `cockpit`) — **3/3**.
+* **Protected files:** none added (still 5).
+* **Status:** PASS
 
 ## P10 — Monitoring Centre, refresh, breaches, Inbox
 * **Status:** NOT STARTED

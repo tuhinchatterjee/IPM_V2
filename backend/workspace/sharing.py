@@ -80,6 +80,14 @@ def card_for(obj: dict[str, Any]) -> dict[str, Any]:
                     methods=b.get("methods_ran") or b.get("methods_chosen"),
                     baseline=b.get("baseline", {}).get("mode", ""),
                     result_id=b.get("result_id", ""))
+    elif kind == "lens":
+        base.update(name=b["name"], persona=b["persona"],
+                    domain_scope=b["domain_scope"],
+                    description=b["description"],
+                    metrics=len(b["metrics"]),
+                    visuals=len(b["visuals"]),
+                    refresh=b["refresh"]["cadence"],
+                    filters=b.get("filters") or {})
     elif kind == "comparison":
         base.update(name=obj["title"], method=b["method"],
                     items=[i["scenario_name"] for i in b["items"]],

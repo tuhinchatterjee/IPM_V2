@@ -1226,6 +1226,133 @@ async function p8Journeys() {
   });
 }
 
+
+// =========================================================================
+// P9 — Lenses 2.0
+// =========================================================================
+
+async function openLens(page, objectId) {
+  await page.goto(`${UI}/lenses/${objectId}`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="lens-view"]', { timeout: 120_000 });
+}
+
+async function lensCrossCount(page) {
+  return Number(await page.getAttribute('[data-testid="lens-state"]', "data-cross"));
+}
+
+async function p9Journeys() {
+  await journey("GW-P9-01", "Lens Library first launch: >=18 populated persona Lenses; a Lens renders governed KPIs and Plotly visuals; a category click cross-filters charts and the table; a trend point moves the Lens period; refresh records what changed and which rules breach", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/lenses`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="lens-library"]')?.getAttribute("data-total") || 0) > 0, null, { timeout: 120_000 });
+    record.total = Number(await page.getAttribute('[data-testid="lens-library"]', "data-total"));
+    assert.ok(record.total >= 18, `${record.total} Lenses`);
+    const ids = await page.$$eval('[data-testid="lens-card"]', (els) => els.map((e) => e.dataset.lensId));
+    for (let i = 1; i <= 18; i += 1) assert.ok(ids.includes(`LENS-${String(i).padStart(2, "0")}`), `LENS-${i}`);
+    await shot(page, record, "library");
+    await page.click('[data-testid="lens-card"][data-lens-id="LENS-02"]');
+    await page.waitForSelector('[data-testid="lens-view"]', { timeout: 120_000 });
+    const kpis = await page.$$eval('[data-testid="lens-kpi"]', (els) => els.map((e) => [e.dataset.metricId, e.dataset.raw]));
+    record.kpis = kpis;
+    assert.ok(kpis.length >= 5 && kpis.every(([m, raw]) => /^M\d{3}$/.test(m) && raw !== ""), "governed KPIs with values");
+    await page.waitForSelector('[data-testid="lens-visual-v06"][data-rendered="true"]', { timeout: 60_000 });
+    await shot(page, record, "lens-02");
+    await clickBar(page, "lens-visual-v06", "Construction");
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="lens-state"]')?.getAttribute("data-cross")) === 1, null, { timeout: 60_000 });
+    await page.waitForFunction(() => {
+      const cells = [...document.querySelectorAll('[data-testid="lens-table-row"]')].map((r) => r.children[1]?.textContent);
+      return cells.length > 0 && cells.every((c) => c === "Construction");
+    }, null, { timeout: 60_000 });
+    record.cross_filtered_rows = await page.getAttribute('[data-testid^="lens-table-"][data-total]', "data-total");
+    assert.equal(record.cross_filtered_rows, "248");
+    await shot(page, record, "cross-filtered");
+    // A trend point moves the Lens to that period, and the state says so.
+    const trend = '[data-testid="lens-visual-v08"]';
+    await page.waitForSelector(`${trend}[data-rendered="true"]`, { timeout: 60_000 });
+    await page.locator(trend).scrollIntoViewIfNeeded();
+    const pts = page.locator(`${trend} g.points path`);
+    const box = await pts.nth(0).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(250);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForFunction(() => /not latest/.test(document.querySelector('[data-testid="lens-period-corporate"]')?.textContent ?? ""), null, { timeout: 60_000 });
+    record.moved_to = await page.getAttribute('[data-testid="lens-period-corporate"]', "data-period");
+    await page.click('[data-testid="lens-reset"]');
+    await page.waitForFunction(() => /\(latest\)/.test(document.querySelector('[data-testid="lens-period-corporate"]')?.textContent ?? ""), null, { timeout: 60_000 });
+    assert.equal(await lensCrossCount(page), 0);
+    await page.click('[data-testid="lens-refresh"]');
+    await page.waitForSelector('[data-testid="lens-note"]', { timeout: 60_000 });
+    record.refresh_note = await page.textContent('[data-testid="lens-note"]');
+    const rules = await page.$$eval('[data-testid="lens-rule"]', (els) => els.map((e) => e.dataset.breached));
+    assert.ok(rules.length >= 1, "breach rules are shown");
+    // KPI → the governed definition.
+    await page.click('[data-testid="lens-kpi"] >> nth=0');
+    await page.waitForURL(/\/metrics\?m=M\d{3}/, { timeout: 60_000 });
+  });
+
+  await journey("GW-P9-02", "One-prompt Lens: a PREVIEW (KPIs, charts, tables, refresh rule) is shown and NOT saved until confirmed; refine by asking; save opens a live Lens; editing writes a new version", async (record) => {
+    const before = (await api("/lenses")).body.total;
+    const page = await open();
+    await page.goto(`${UI}/lenses`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="lens-prompt"]', { timeout: 120_000 });
+    const prompt = "Credit card risk with Stage 2 EAD share, weekly";
+    record.prompts.push(prompt);
+    await page.fill('[data-testid="lens-prompt"]', prompt);
+    await page.click('[data-testid="lens-propose"]');
+    await page.waitForSelector('[data-testid="lens-preview"]', { timeout: 60_000 });
+    record.preview = await page.textContent('[data-testid="lens-preview-summary"]');
+    assert.match(record.preview, /KPIs · \d+ charts · \d+ tables .* refresh Weekly/);
+    assert.equal((await api("/lenses")).body.total, before, "a preview is not saved");
+    await shot(page, record, "preview");
+    await page.fill('[data-testid="lens-prompt"]', "add default-entry rate");
+    await page.click('[data-testid="lens-propose"]');
+    await page.waitForFunction(() => /M012/.test(document.querySelector('[data-testid="lens-preview"]')?.textContent ?? ""), null, { timeout: 60_000 });
+    await page.click('[data-testid="lens-save"]');
+    await page.waitForURL(/\/lenses\/lens-[0-9a-f]{12}/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="lens-kpi"]', { timeout: 120_000 });
+    assert.equal((await api("/lenses")).body.total, before + 1);
+    record.saved = /\/lenses\/(lens-[0-9a-f]{12})/.exec(page.url())[1];
+    await page.click('[data-testid="lens-edit"]');
+    await page.fill('[data-testid="lens-edit-name"]', "GW-P9-02 card Lens (edited)");
+    await page.click('[data-testid="lens-edit-save"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="lens-view"]')?.getAttribute("data-version") === "2", null, { timeout: 60_000 });
+  });
+
+  await journey("GW-P9-03", "Box-select categories on a Lens chart → temporary cohort → What-If with that governed cohort; a Cockpit analysis is saved as a Lens from the thread", async (record) => {
+    const page = await open();
+    await openLens(page, "lens-02");
+    const chart = '[data-testid="lens-visual-v06"]';
+    await page.waitForSelector(`${chart}[data-rendered="true"]`, { timeout: 60_000 });
+    await page.locator(chart).scrollIntoViewIfNeeded();
+    const b0 = await page.locator(`${chart} g.point path`).nth(0).boundingBox();
+    const b1 = await page.locator(`${chart} g.point path`).nth(1).boundingBox();
+    // Start inside the plot area (the tallest bar may touch its top edge,
+    // where Plotly's axis-drag handle would take the gesture instead).
+    const plot = await page.locator(`${chart} rect.nsewdrag`).boundingBox();
+    await page.mouse.move(Math.max(b0.x - 4, plot.x + 2), plot.y + 3);
+    await page.mouse.down();
+    await page.mouse.move(b1.x + b1.width + 4, b0.y + b0.height - 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForSelector('[data-testid="lens-selection"]', { timeout: 60_000 });
+    record.selection = await page.textContent('[data-testid="lens-selection"]');
+    assert.match(record.selection, /sector ∈ [^,]+, /);
+    await page.click('[data-testid="lens-selection-whatif"]');
+    await page.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 60_000 });
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+    // Cockpit → Save this analysis as a Lens.
+    await askFromHome(page, record, "Which sectors carry the most reported ECL?");
+    await page.click('[data-testid="thread-save-as-lens"]');
+    await page.waitForURL(/\/lenses\?from_thread=/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="lens-preview"]', { timeout: 60_000 });
+    await page.click('[data-testid="lens-save"]');
+    await page.waitForURL(/\/lenses\/lens-[0-9a-f]{12}/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="lens-kpi"]', { timeout: 120_000 });
+    const saved = (await api(`/objects/${/\/lenses\/(lens-[0-9a-f]{12})/.exec(page.url())[1]}`)).body;
+    record.source = saved.body.source;
+    assert.equal(saved.body.source.kind, "cockpit");
+  });
+}
+
 // =========================================================================
 
 async function main() {
@@ -1238,6 +1365,7 @@ async function main() {
     await p6Journeys();
     await p7Journeys();
     await p8Journeys();
+    await p9Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

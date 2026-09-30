@@ -16,6 +16,7 @@ so a KPI on a Lens can always say exactly what it is.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import time
 from typing import Any
@@ -349,15 +350,28 @@ def _ev_reconciliation_residual(book, metric, *, period, filters):
             "denominator": _f(row["parts"]), "rows": 1}
 
 
+#: Who is looking. Scenario results are objects with their own permissions:
+#: a metric over them counts only what the viewer may open. With no viewer
+#: set, only tenant-visible results are counted (the safe default).
+VIEWER: contextvars.ContextVar[Any] = contextvars.ContextVar("metric_viewer",
+                                                             default=None)
+
+
 def _scenario_results(book: Book) -> list[dict[str, Any]]:
     from backend.workspace import service
+    from backend.workspace.objects import can_read
 
+    viewer = VIEWER.get()
     try:
-        return [r for r in service.store().latest_of_kind(
+        rows = service.store().latest_of_kind(
             "scenario_result", tenant_id=book.tenant_id,
-            domain_id=book.domain_id)]
+            domain_id=book.domain_id)
     except Exception:  # noqa: BLE001 - no store outside a running app
         return []
+    if viewer is None:
+        return [r for r in rows if (r.get("permissions") or {}).get(
+            "visibility") == "tenant"]
+    return [r for r in rows if can_read(r, viewer)]
 
 
 _PREFERRED = ("delta", "user_defined", "ml")
@@ -504,6 +518,9 @@ def evaluate(book: Book, metric_id: str, *, period: str = "",
                                  filters=filters, group_by=group_by)
                      if v.prior_period else None)
             result = _delta(metric, now, prior)
+        elif metric["evaluator"] and group_by and metric["kind"] == "book":
+            result = _grouped_evaluator(book, metric, v, period=chosen,
+                                        filters=filters, group_by=group_by)
         elif metric["evaluator"]:
             result = EVALUATORS[metric["evaluator"]](
                 book, metric, period=chosen, filters=filters)
@@ -532,6 +549,39 @@ def evaluate(book: Book, metric_id: str, *, period: str = "",
         return compute()
     return _cached(_key(book, "eval", metric_id, chosen, filters, group_by),
                    compute)
+
+
+#: Most groups an evaluator metric is broken down into (one evaluation each).
+GROUPS_MAX = 40
+
+
+def _grouped_evaluator(book: Book, metric: dict[str, Any], v: grid.View, *,
+                       period: str, filters: Any, group_by: str
+                       ) -> list[dict[str, Any]]:
+    """A breakdown of a metric whose value is not a ratio of sums: the same
+    evaluator, once per value of the dimension, with that value added to the
+    filters -- so each bar is exactly the metric on that slice."""
+    if group_by not in v.keys:
+        raise HTTPException(422, {"error_code": "UNKNOWN_DIMENSION",
+                                  "message": f"{group_by} is not a column."})
+    where, params = _where(v, filters)
+    values = [r["d"] for r in book.rows(
+        f"SELECT {group_by} AS d, SUM(ead_sar_mn) AS e FROM ({v.sql}) g "
+        f"{where} GROUP BY 1 ORDER BY 2 DESC LIMIT {GROUPS_MAX}", params)]
+    base = list(predicates.normalise(filters, columns=v.keys)) if filters \
+        else []
+    out = []
+    for value in values:
+        if value is None:
+            continue
+        sliced = [*base, {"column": group_by, "op": "in", "values": [value]}]
+        r = EVALUATORS[metric["evaluator"]](book, metric, period=period,
+                                            filters=sliced)
+        out.append({"dimension": value, "value": r.get("value"),
+                    "numerator": r.get("numerator"),
+                    "denominator": r.get("denominator"),
+                    "rows": r.get("rows")})
+    return out
 
 
 def _delta(metric, now, prior):

@@ -28,6 +28,8 @@ import {
   type RenderedPanel,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { guidedEnabled } from "@/lib/workspace/guided";
+import { LensView as GuidedLensView } from "@/components/lenses/lens-view";
 import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
 
 /**
@@ -41,7 +43,7 @@ import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
  * a new revision with a sentence saying what changed, and the history below it
  * can put any earlier one back.
  */
-export default function LensPage({
+function LegacyLensPage({
   params,
 }: {
   params: Promise<{ lensId: string }>;
@@ -343,5 +345,20 @@ function PanelView({
         <ResultView run={run} />
       </div>
     </Card>
+  );
+}
+
+/** Lenses 2.0 when the Guided Risk Workspace is on; the legacy page otherwise. */
+export default function LensPage({ params }: { params: Promise<{ lensId: string }> }) {
+  if (!guidedEnabled()) return <LegacyLensPage params={params} />;
+  return <GuidedLens params={params} />;
+}
+
+function GuidedLens({ params }: { params: Promise<{ lensId: string }> }) {
+  const { lensId } = React.use(params);
+  return (
+    <main className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-10">
+      <GuidedLensView lensId={lensId} />
+    </main>
   );
 }

@@ -12,6 +12,7 @@
  */
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronRight, Circle, FlaskConical, Info } from "lucide-react";
 
@@ -33,6 +34,13 @@ export function InvestigationBar(props: { threadId: string; busy: boolean; turnC
     <>
       <ThreadWhatIf {...props} />
       <InvestigationPath {...props} />
+      {guidedEnabled() && (
+        <p className="text-right text-xs">
+          <Link href={`/lenses?from_thread=${encodeURIComponent(props.threadId)}`} className="text-accent underline" data-testid="thread-save-as-lens">
+            Save this analysis as a Lens
+          </Link>
+        </p>
+      )}
     </>
   );
 }

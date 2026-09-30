@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 27,
-  "total": 27,
+  "passed": 30,
+  "total": 30,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -559,6 +559,77 @@
       "drill_total": "248",
       "status": "PASS",
       "ms": 3603
+    },
+    {
+      "journey": "GW-P9-01",
+      "what": "Lens Library first launch: >=18 populated persona Lenses; a Lens renders governed KPIs and Plotly visuals; a category click cross-filters charts and the table; a trend point moves the Lens period; refresh records what changed and which rules breach",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-library.png",
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-lens-02.png",
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-cross-filtered.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "total": 21,
+      "kpis": [
+        [
+          "M001",
+          "1936.063962999998"
+        ],
+        [
+          "M002",
+          "169.0411339999962"
+        ],
+        [
+          "M009",
+          "1010.9934000000001"
+        ],
+        [
+          "M023",
+          "0.23166666666666666"
+        ],
+        [
+          "M036",
+          "0.34279038718291055"
+        ]
+      ],
+      "cross_filtered_rows": "248",
+      "moved_to": "2024Q3",
+      "refresh_note": "Refreshed: No material change since the previous refresh.",
+      "status": "PASS",
+      "ms": 8680
+    },
+    {
+      "journey": "GW-P9-02",
+      "what": "One-prompt Lens: a PREVIEW (KPIs, charts, tables, refresh rule) is shown and NOT saved until confirmed; refine by asking; save opens a live Lens; editing writes a new version",
+      "prompts": [
+        "Credit card risk with Stage 2 EAD share, weekly"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P9-02-preview.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "preview": "6 KPIs · 3 charts · 1 tables · 8 governed metrics · 1 breach rules · refresh Weekly",
+      "saved": "lens-4bfc756446a7",
+      "status": "PASS",
+      "ms": 4678
+    },
+    {
+      "journey": "GW-P9-03",
+      "what": "Box-select categories on a Lens chart → temporary cohort → What-If with that governed cohort; a Cockpit analysis is saved as a Lens from the thread",
+      "prompts": [
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "selection": "Temporary cohort: corporate · sector ∈ Utilities, EducationSaveInvestigateWhat-Ifclear",
+      "thread_id": "th-ae0e991472304c42a19db8523d9e7570",
+      "source": {
+        "kind": "cockpit",
+        "thread_id": "th-ae0e991472304c42a19db8523d9e7570"
+      },
+      "status": "PASS",
+      "ms": 13546
     }
   ]
 }

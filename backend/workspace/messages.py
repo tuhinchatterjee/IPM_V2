@@ -109,6 +109,9 @@ def _actions(obj: dict[str, Any], *, recipient: bool) -> list[dict[str, str]]:
     elif kind == "comparison":
         add("open", "Open comparison", f"/what-if/compare/{oid}")
         add("save", "Save a copy")
+    elif kind == "lens":
+        add("open", "Open Lens", f"/lenses/{oid}")
+        add("save", "Save my own copy")
     elif kind == "run":
         add("open", "Open the run", f"/what-if?run={oid}")
     else:
@@ -205,6 +208,12 @@ def save(svc: ObjectService, who_raw: dict[str, Any], share_id: str
     _row, obj = _shared(svc, p, share_id)
     if obj["kind"] == "scenario":
         return duplicate(svc, who_raw, share_id)
+    if obj["kind"] == "lens":
+        from backend.workspace import lenses
+
+        return lenses.revise(svc, who_raw, obj["object_id"],
+                             {"name": f"{obj['body']['name']} (my copy)"},
+                             reason="saved from a message")
     if obj["kind"] not in ("scenario_result", "cohort", "comparison"):
         _refuse(422, "NOT_SAVEABLE", f"a {obj['kind']} is not copied.")
     return svc.duplicate(obj["object_id"], p, version=obj["version"],

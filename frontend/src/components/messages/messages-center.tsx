@@ -38,6 +38,7 @@ const KIND_LABEL: Record<string, string> = {
   cohort: "Cohort",
   comparison: "Scenario comparison",
   run: "What-If run",
+  lens: "Lens (live dashboard)",
 };
 
 function when(ts: number): string {
@@ -185,6 +186,11 @@ function ObjectSummary({ card }: { card: ShareCard }) {
       {k === "cohort" && (
         <div className="tabular">
           {count(card.entities ?? 0)} exposures · {card.description} · membership {card.membership_hash?.slice(0, 16)}
+        </div>
+      )}
+      {k === "lens" && (
+        <div>
+          {card.persona} · {card.refresh} refresh · {card.description}
         </div>
       )}
       {k === "comparison" && (

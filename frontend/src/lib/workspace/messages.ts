@@ -37,6 +37,8 @@ export interface ShareCard {
   description?: string;
   items?: string[];
   method?: string;
+  persona?: string;
+  refresh?: string;
   attachments?: { object_id: string; kind: string; version: number }[];
 }
 
@@ -109,6 +111,8 @@ export function hrefFor(obj: { kind: string; object_id: string }): string {
       return `/what-if?cohort=${obj.object_id}`;
     case "run":
       return `/what-if?run=${obj.object_id}`;
+    case "lens":
+      return `/lenses/${obj.object_id}`;
     default:
       return `/messages`;
   }
