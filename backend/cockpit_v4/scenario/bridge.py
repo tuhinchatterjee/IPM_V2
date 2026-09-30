@@ -942,6 +942,15 @@ def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
         warnings=list(outcome.notes))
 
 
+def _calibration_gap(o: Any) -> str | None:
+    facts = getattr(o, "facts", None) or {}
+    raw, observed = facts.get("raw_model_baseline"), facts.get(
+        "observed_modelled_ecl")
+    if raw is None or observed is None:
+        return None
+    return str(Decimal(str(raw)) - Decimal(str(observed)))
+
+
 def _result_record(done: Computed, decomposed: Mapping[str, Any], *,
                    run_id: str) -> dict[str, Any]:
     """What an executed scenario published, compactly, for the thread."""
@@ -955,7 +964,10 @@ def _result_record(done: Computed, decomposed: Mapping[str, Any], *,
                 "change": None if change is None else str(change),
                 "change_pct": None if pct is None else
                 str(pct.quantize(Decimal("0.0001"))),
-                "reason": o.reason, "limitations": list(o.limitations)}
+                "reason": o.reason, "limitations": list(o.limitations),
+                # Method 2 only (M042): the emulator's own baseline gap, removed
+                # by anchoring and published, never hidden.
+                "calibration_gap": _calibration_gap(o)}
 
     out = done.outcome
     return {"run_id": run_id,

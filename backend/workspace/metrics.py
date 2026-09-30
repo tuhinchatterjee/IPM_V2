@@ -360,39 +360,89 @@ def _scenario_results(book: Book) -> list[dict[str, Any]]:
         return []
 
 
-def _scenario_groups(book, key):
+_PREFERRED = ("delta", "user_defined", "ml")
+
+
+def _scenario_groups(book: Book, pick) -> list[dict[str, Any]]:
+    """One group per persisted Scenario Result on this book, newest first,
+    read from its published decomposition (nothing is recomputed). `pick`
+    maps (method, decomposition, result body) to the value or None."""
+    rows = sorted(_scenario_results(book), key=lambda r: -r["created_at"])
     out = []
-    for r in _scenario_results(book):
-        headline = (r["body"].get("headline") or {})
-        value = headline.get(key)
-        out.append({"dimension": r["title"] or r["object_id"],
-                    "value": value, "object_id": r["object_id"]})
+    for r in rows:
+        b = r["body"]
+        decomp = b.get("decomposition") or {}
+        method = next((m for m in _PREFERRED if m in decomp), "")
+        if not method:
+            continue
+        value = pick(method, decomp[method], b)
+        out.append({"dimension": f"{b.get('scenario_name', r['title'])} · "
+                                 f"{r['object_id']}",
+                    "value": value, "object_id": r["object_id"],
+                    "method": method, "period": b.get("period", ""),
+                    "baseline": (b.get("baseline") or {}).get("mode", "")})
     return out
 
 
+def _scenario_value(groups: list[dict[str, Any]]) -> dict[str, Any]:
+    """The headline is the most recent result's value; every result is a
+    group (scenario, method and baseline ids travel with it)."""
+    latest = next((g for g in groups if g["value"] is not None), None)
+    return {"value": None if latest is None else latest["value"],
+            "numerator": None, "denominator": None, "rows": len(groups),
+            "groups": groups,
+            "latest_result": None if latest is None else latest["object_id"]}
+
+
+def _num(x: Any) -> float | None:
+    try:
+        return None if x in (None, "") else float(x)
+    except (TypeError, ValueError):
+        return None
+
+
 def _ev_scenario_delta(book, metric, *, period, filters):
-    groups = _scenario_groups(book, "delta")
-    return {"value": len(groups), "numerator": None, "denominator": None,
-            "rows": len(groups), "groups": groups}
+    return _scenario_value(_scenario_groups(
+        book, lambda m, d, b: _num(d["scopes"]["selected"]["change"])))
 
 
 def _ev_scenario_delta_pct(book, metric, *, period, filters):
-    groups = _scenario_groups(book, "delta_pct")
-    return {"value": len(groups), "numerator": None, "denominator": None,
-            "rows": len(groups), "groups": groups}
+    def pct(m, d, b):
+        opening = _num(d["scopes"]["selected"]["opening"])
+        change = _num(d["scopes"]["selected"]["change"])
+        if opening is None or change is None or opening <= 0:
+            return None
+        return change / opening
+    return _scenario_value(_scenario_groups(book, pct))
 
 
 def _ev_scope_contribution(book, metric, *, period, filters):
-    groups = _scenario_groups(book, "selected_share_of_total")
-    return {"value": len(groups), "numerator": None, "denominator": None,
-            "rows": len(groups), "groups": groups}
+    def share(m, d, b):
+        total = _num(d["cross_scope"]["total_delta"])
+        sel = _num(d["cross_scope"]["selected_delta"])
+        if not total or sel is None:
+            return None
+        return sel / total
+    return _scenario_value(_scenario_groups(book, share))
 
 
 def _ev_calibration_gap(book, metric, *, period, filters):
-    groups = _scenario_groups(book, "calibration_gap")
-    return {"value": len(groups), "numerator": None, "denominator": None,
-            "rows": len(groups), "groups": [g for g in groups
-                                            if g["value"] is not None]}
+    """Method 2 only: raw emulator baseline minus observed modelled ECL,
+    as each ML result published it. Results without ML are not groups."""
+    rows = sorted(_scenario_results(book), key=lambda r: -r["created_at"])
+    groups = []
+    for r in rows:
+        ml = (r["body"].get("results") or {}).get("ml") or {}
+        if not ml.get("ran"):
+            continue
+        groups.append({"dimension": f"{r['body'].get('scenario_name')} · "
+                                    f"{r['object_id']}",
+                       "value": _num(ml.get("calibration_gap")),
+                       "object_id": r["object_id"], "method": "ml",
+                       "period": r["body"].get("period", ""),
+                       "baseline": (r["body"].get("baseline") or {}).get(
+                           "mode", "")})
+    return _scenario_value(groups)
 
 
 def _ev_active_breaches(book, metric, *, period, filters):

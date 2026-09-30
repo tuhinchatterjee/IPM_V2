@@ -598,6 +598,15 @@ def _top_contributors(rows: list[dict[str, Any]], plan: dl.Plan,
     return out[:TOP_CONTRIBUTORS]
 
 
+def _calibration_gap(o: Any) -> str | None:
+    facts = getattr(o, "facts", None) or {}
+    raw, observed = facts.get("raw_model_baseline"), facts.get(
+        "observed_modelled_ecl")
+    if raw is None or observed is None:
+        return None
+    return str(Decimal(str(raw)) - Decimal(str(observed)))
+
+
 def _outcome(o: rn.Outcome) -> dict[str, Any]:
     change = o.change
     pct = (change / o.baseline * 100) if change is not None and o.baseline \
@@ -608,7 +617,10 @@ def _outcome(o: rn.Outcome) -> dict[str, Any]:
             "change": None if change is None else str(change),
             "change_pct": None if pct is None else
             str(pct.quantize(Decimal("0.0001"))),
-            "reason": o.reason, "limitations": list(o.limitations)}
+            "reason": o.reason, "limitations": list(o.limitations),
+            # Method 2 only (M042): the emulator's own baseline gap, removed
+            # by anchoring and published, never hidden.
+            "calibration_gap": _calibration_gap(o)}
 
 
 def execute(svc: ObjectService, who_raw: dict[str, Any], run_id: str

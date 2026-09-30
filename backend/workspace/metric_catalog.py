@@ -32,6 +32,9 @@ _EXCL_INVALID_STAGE = ("Rows with a missing or invalid stage are excluded "
                        "from the denominator and counted in the data-quality "
                        "metric M045.")
 _NULL_SUM = "NULL values contribute nothing to a sum; an all-NULL group is NULL, never 0."
+#: A qualifying-population amount (e.g. Stage 3 EAD) is a MEASURED 0 when no
+#: row qualifies; only missing data is NULL. (P8 formula tests: Stage 3 share
+#: of a book with no Stage 3 exposure was published as NULL.)
 _NULL_RATIO = "Null (not zero) when the denominator is zero or NULL."
 _PERIOD_POINT = "Point-in-time at the selected reporting period (quarter for Corporate, month for Retail)."
 _PERIOD_MOVE = ("Movement between the selected period t and the immediately "
@@ -124,7 +127,7 @@ METRICS: list[dict[str, Any]] = [
        aggregation="ratio of sums", lineage=["M001"], dimensions=CORP_DIMS + RET_DIMS, family="ECL",
        thresholds={"amber": 0.05, "red": 0.10}, example="+9.6%"),
     _m("M004", "Stage 1 EAD share", "both", "Share of EAD in Stage 1.",
-       "SUM(EAD stage1) / SUM(EAD)", num="SUM(CASE WHEN stage = 1 THEN ead_sar_mn END)",
+       "SUM(EAD stage1) / SUM(EAD)", num="SUM(CASE WHEN stage = 1 THEN ead_sar_mn ELSE 0 END)",
        den="SUM(CASE WHEN stage IN (1, 2, 3) THEN ead_sar_mn END)",
        numerator="SUM(EAD where stage = 1)", denominator="SUM(EAD where stage in 1,2,3)",
        unit="fraction", direction="context", grain="portfolio-period",
@@ -132,7 +135,7 @@ METRICS: list[dict[str, Any]] = [
        lineage=["*.stage", "*.ead_sar_mn"], dimensions=CORP_DIMS + RET_DIMS, family="Stage",
        example="99.6%"),
     _m("M005", "Stage 2 EAD share", "both", "Share of EAD in Stage 2 — the SICR stock indicator.",
-       "SUM(EAD stage2) / SUM(EAD)", num="SUM(CASE WHEN stage = 2 THEN ead_sar_mn END)",
+       "SUM(EAD stage2) / SUM(EAD)", num="SUM(CASE WHEN stage = 2 THEN ead_sar_mn ELSE 0 END)",
        den="SUM(CASE WHEN stage IN (1, 2, 3) THEN ead_sar_mn END)",
        numerator="SUM(EAD where stage = 2)", denominator="SUM(EAD where stage in 1,2,3)",
        unit="fraction", direction="lower_is_better", grain="portfolio-period",
@@ -140,7 +143,7 @@ METRICS: list[dict[str, Any]] = [
        thresholds={"amber": 0.05, "red": 0.10}, lineage=["*.stage", "*.ead_sar_mn"],
        dimensions=CORP_DIMS + RET_DIMS, family="Stage", example="0.39%"),
     _m("M006", "Stage 3 EAD share", "both", "Share of EAD in Stage 3 — the default/impaired stock.",
-       "SUM(EAD stage3) / SUM(EAD)", num="SUM(CASE WHEN stage = 3 THEN ead_sar_mn END)",
+       "SUM(EAD stage3) / SUM(EAD)", num="SUM(CASE WHEN stage = 3 THEN ead_sar_mn ELSE 0 END)",
        den="SUM(CASE WHEN stage IN (1, 2, 3) THEN ead_sar_mn END)",
        numerator="SUM(EAD where stage = 3)", denominator="SUM(EAD where stage in 1,2,3)",
        unit="fraction", direction="lower_is_better", grain="portfolio-period",
@@ -148,7 +151,7 @@ METRICS: list[dict[str, Any]] = [
        thresholds={"amber": 0.02, "red": 0.04}, lineage=["*.stage", "*.ead_sar_mn"],
        dimensions=CORP_DIMS + RET_DIMS, family="Stage", example="0.00%"),
     _m("M007", "Stage 2 ECL share", "both", "Share of booked ECL held in Stage 2.",
-       "SUM(ECL stage2) / SUM(ECL)", num="SUM(CASE WHEN stage = 2 THEN ecl_sar_mn END)",
+       "SUM(ECL stage2) / SUM(ECL)", num="SUM(CASE WHEN stage = 2 THEN ecl_sar_mn ELSE 0 END)",
        den="SUM(CASE WHEN stage IN (1, 2, 3) THEN ecl_sar_mn END)",
        numerator="SUM(ECL where stage = 2)", denominator="SUM(ECL where stage in 1,2,3)",
        unit="fraction", direction="lower_is_better", grain="portfolio-period",
@@ -156,7 +159,7 @@ METRICS: list[dict[str, Any]] = [
        lineage=["*.stage", "*.ecl_sar_mn"], dimensions=CORP_DIMS + RET_DIMS, family="Stage",
        example="4.2%"),
     _m("M008", "Stage 3 ECL share", "both", "Share of booked ECL held in Stage 3.",
-       "SUM(ECL stage3) / SUM(ECL)", num="SUM(CASE WHEN stage = 3 THEN ecl_sar_mn END)",
+       "SUM(ECL stage3) / SUM(ECL)", num="SUM(CASE WHEN stage = 3 THEN ecl_sar_mn ELSE 0 END)",
        den="SUM(CASE WHEN stage IN (1, 2, 3) THEN ecl_sar_mn END)",
        numerator="SUM(ECL where stage = 3)", denominator="SUM(ECL where stage in 1,2,3)",
        unit="fraction", direction="lower_is_better", grain="portfolio-period",
@@ -164,7 +167,7 @@ METRICS: list[dict[str, Any]] = [
        lineage=["*.stage", "*.ecl_sar_mn"], dimensions=CORP_DIMS + RET_DIMS, family="Stage"),
     _m("M009", "Stage 1→2 migration EAD", "both", "EAD of exposures that were Stage 1 at t-1 and are Stage 2 at t.",
        "SUM(EAD where prior stage = 1 and current stage = 2)",
-       num="SUM(CASE WHEN prior_stage = 1 AND stage = 2 THEN ead_sar_mn END)", unit="SAR_mn",
+       num="SUM(CASE WHEN prior_stage = 1 AND stage = 2 THEN ead_sar_mn ELSE 0 END)", unit="SAR_mn",
        direction="lower_is_better", grain="entity-transition period",
        population="Exposures present at both t-1 and t.", period=_PERIOD_TRANSITION,
        exclusions="Exposures without a t-1 observation.", lineage=["*.stage", "prior-period *.stage", "*.ead_sar_mn"],
@@ -172,13 +175,13 @@ METRICS: list[dict[str, Any]] = [
        validation="Equals the (1,2) cell of the stage transition matrix (test_migration_matrix_reconciles)."),
     _m("M010", "Stage 2→3 migration EAD", "both", "EAD of exposures that were Stage 2 at t-1 and are Stage 3 at t.",
        "SUM(EAD where prior stage = 2 and current stage = 3)",
-       num="SUM(CASE WHEN prior_stage = 2 AND stage = 3 THEN ead_sar_mn END)", unit="SAR_mn",
+       num="SUM(CASE WHEN prior_stage = 2 AND stage = 3 THEN ead_sar_mn ELSE 0 END)", unit="SAR_mn",
        direction="lower_is_better", grain="entity-transition period",
        population="Exposures present at both t-1 and t.", period=_PERIOD_TRANSITION,
        exclusions="Exposures without a t-1 observation.", lineage=["*.stage", "prior-period *.stage"],
        dimensions=CORP_DIMS + RET_DIMS, family="Stage"),
     _m("M011", "Cure EAD", "both", "EAD of exposures whose stage improved (3→2/1 or 2→1) between t-1 and t. Definition version 1, identical for both books.",
-       "SUM(EAD with improving stage)", num="SUM(CASE WHEN prior_stage > stage THEN ead_sar_mn END)",
+       "SUM(EAD with improving stage)", num="SUM(CASE WHEN prior_stage > stage THEN ead_sar_mn ELSE 0 END)",
        unit="SAR_mn", direction="higher_is_better", grain="entity-transition period",
        population="Exposures present at both t-1 and t.", period=_PERIOD_TRANSITION,
        lineage=["*.stage", "prior-period *.stage"], dimensions=CORP_DIMS + RET_DIMS, family="Stage"),
@@ -199,7 +202,7 @@ METRICS: list[dict[str, Any]] = [
        population="Entities performing at t-1.", period=_PERIOD_TRANSITION, aggregation="count",
        lineage=["*.default_flag"], dimensions=CORP_DIMS + RET_DIMS, family="Default"),
     _m("M014", "NPL / default EAD", "both", "EAD in default or Stage 3 (domain mapping: default_flag = 1 OR stage = 3, both books).",
-       "SUM(EAD default/Stage3)", num="SUM(CASE WHEN default_flag = 1 OR stage = 3 THEN ead_sar_mn END)",
+       "SUM(EAD default/Stage3)", num="SUM(CASE WHEN default_flag = 1 OR stage = 3 THEN ead_sar_mn ELSE 0 END)",
        unit="SAR_mn", direction="lower_is_better", grain="entity-period",
        population="Every exposure at the period.", lineage=["*.default_flag", "*.stage", "*.ead_sar_mn"],
        dimensions=CORP_DIMS + RET_DIMS, family="Default"),
@@ -430,7 +433,7 @@ METRICS: list[dict[str, Any]] = [
        family="Monitoring", nulls="UNAVAILABLE if the Lens has never refreshed successfully."),
     # ---- beyond the minimum registry --------------------------------------------
     _m("M051", "Watchlist EAD share", "corporate", "Share of EAD owed by borrowers on the watchlist.",
-       "SUM(EAD watchlist) / SUM(EAD)", num="SUM(CASE WHEN watchlist_flag = 1 THEN ead_sar_mn END)",
+       "SUM(EAD watchlist) / SUM(EAD)", num="SUM(CASE WHEN watchlist_flag = 1 THEN ead_sar_mn ELSE 0 END)",
        den=EAD, numerator="SUM(EAD where watchlist)", denominator="SUM(EAD)", unit="fraction",
        direction="lower_is_better", grain="facility-period", population="Every facility.",
        nulls=_NULL_RATIO, thresholds={"amber": 0.08, "red": 0.12}, lineage=["corp_borrower_quarter.watchlist_flag"],
@@ -447,7 +450,7 @@ METRICS: list[dict[str, Any]] = [
        thresholds={"amber": 0.80, "red": 0.90}, lineage=["*_collateral_*.ltv_pct"],
        dimensions=CORP_DIMS + RET_DIMS, family="Collateral"),
     _m("M054", "Past-due EAD", "both", "EAD with any days past due.", "SUM(EAD where DPD > 0)",
-       num="SUM(CASE WHEN dpd_days > 0 THEN ead_sar_mn END)", unit="SAR_mn", direction="lower_is_better",
+       num="SUM(CASE WHEN dpd_days > 0 THEN ead_sar_mn ELSE 0 END)", unit="SAR_mn", direction="lower_is_better",
        grain="entity-period", population="Every exposure.", lineage=["*.dpd_days"],
        dimensions=CORP_DIMS + RET_DIMS, family="Delinquency"),
     _m("M055", "Stage 2 count", "both", "Number of exposures in Stage 2.", "COUNT(stage = 2)",
@@ -455,7 +458,7 @@ METRICS: list[dict[str, Any]] = [
        grain="entity-period", population="Every exposure.", aggregation="count", lineage=["*.stage"],
        dimensions=CORP_DIMS + RET_DIMS, family="Stage"),
     _m("M056", "Weak score-band share", "retail", "EAD share of accounts in behaviour bands D and E.",
-       "SUM(EAD bands D,E) / SUM(EAD)", num="SUM(CASE WHEN score_band IN ('D', 'E') THEN ead_sar_mn END)",
+       "SUM(EAD bands D,E) / SUM(EAD)", num="SUM(CASE WHEN score_band IN ('D', 'E') THEN ead_sar_mn ELSE 0 END)",
        den=EAD, numerator="SUM(EAD in D/E)", denominator="SUM(EAD)", unit="fraction",
        direction="lower_is_better", grain="account-period", population="Every account.", nulls=_NULL_RATIO,
        thresholds={"amber": 0.25, "red": 0.35}, lineage=["retail_account_month.score_band"],
@@ -489,19 +492,80 @@ METRICS: list[dict[str, Any]] = [
        lineage=["retail_account_month.months_on_book", "pd_pit_12m"], dimensions=["product"],
        family="Vintage"),
     _m("M062", "EWS warned EAD", "both", "EAD of exposures with an active EWS warning (band low or worse).",
-       "SUM(EAD where ews_band != none)", num="SUM(CASE WHEN ews_band <> 'none' THEN ead_sar_mn END)",
+       "SUM(EAD where ews_band != none)", num="SUM(CASE WHEN ews_band <> 'none' THEN ead_sar_mn ELSE 0 END)",
        unit="SAR_mn", direction="lower_is_better", grain="entity-period", population="Every exposure.",
        lineage=["backend/workspace/ews.py"], dimensions=CORP_DIMS + RET_DIMS, family="Early warning"),
     _m("M063", "High/critical EWS EAD", "both", "EAD of exposures in EWS bands high or critical.",
        "SUM(EAD where ews_band in (high, critical))",
-       num="SUM(CASE WHEN ews_band IN ('high', 'critical') THEN ead_sar_mn END)", unit="SAR_mn",
+       num="SUM(CASE WHEN ews_band IN ('high', 'critical') THEN ead_sar_mn ELSE 0 END)", unit="SAR_mn",
        direction="lower_is_better", grain="entity-period", population="Every exposure.",
        lineage=["backend/workspace/ews.py"], dimensions=CORP_DIMS + RET_DIMS, family="Early warning"),
     _m("M064", "Covenant-breach EAD", "corporate", "EAD of facilities with at least one covenant breach.",
-       "SUM(EAD where covenant_breaches > 0)", num="SUM(CASE WHEN covenant_breaches > 0 THEN ead_sar_mn END)",
+       "SUM(EAD where covenant_breaches > 0)", num="SUM(CASE WHEN covenant_breaches > 0 THEN ead_sar_mn ELSE 0 END)",
        unit="SAR_mn", direction="lower_is_better", grain="facility-period", population="Every facility.",
        lineage=["corp_covenant_quarter.breach_flag"], dimensions=CORP_DIMS, family="Covenants"),
 ]
+
+#: MATERIALITY where no breach level is governed (§46: thresholds /
+#: materiality are part of every definition). These are change-detection
+#: materialities -- what counts as a material move between refreshes (M049) --
+#: and say so in `basis`; they are not breach limits.
+_MATERIALITY: dict[str, dict[str, Any]] = {
+    "SAR_mn": {"materiality_move_pct": 0.05, "materiality_abs_sar_mn": 1.0},
+    "fraction": {"materiality_move_pp": 0.5},
+    "count": {"materiality_move_pct": 0.10, "materiality_abs": 5},
+    "score": {"materiality_move_abs": 5.0},
+    "notches": {"materiality_move_abs": 0.1},
+    "coefficient": {"materiality_move_pct": 0.25},
+}
+
+#: Explicit levels for the platform metrics that have a natural limit.
+_LEVELS: dict[str, dict[str, Any]] = {
+    "M046": {"amber_hours": 24, "red_hours": 72},
+    "M048": {"amber": 1, "red": 5},
+    "M049": {"amber": 3, "red": 10},
+    "M050": {"amber_hours": 24, "red_hours": 72},
+}
+
+#: Drill-down for metrics that are not a plain portfolio aggregate.
+_DRILL: dict[str, list[str]] = {
+    "M021": ["sector|product", "region", "stage"],
+    "M022": ["sector|product", "region", "stage"],
+    "M027": ["score_band", "product"],
+    "M034": ["product", "region", "score_band"],
+    "M039": ["scenario", "method", "baseline", "result"],
+    "M040": ["scenario", "method", "baseline", "result"],
+    "M041": ["scenario", "method", "baseline", "result"],
+    "M042": ["scenario", "result"],
+    "M043": ["factor", "parameter", "segment"],
+    "M044": ["factor", "parameter", "segment"],
+    "M045": ["field"],
+    "M046": ["dataset"],
+    "M047": ["stage", "component"],
+    "M048": ["lens", "rule", "severity"],
+    "M049": ["lens", "metric"],
+    "M050": ["lens"],
+}
+
+
+def _complete(metric: dict[str, Any]) -> dict[str, Any]:
+    mid = metric["metric_id"]
+    if mid in _LEVELS:
+        metric["thresholds"] = {**_LEVELS[mid], **metric["thresholds"],
+                                "basis": "governed platform limit"}
+    elif not metric["thresholds"]:
+        metric["thresholds"] = {
+            **_MATERIALITY.get(metric["unit"], {"materiality_move_pct": 0.05}),
+            "basis": ("catalogue materiality for change detection; no breach "
+                      "level is governed for this "
+                      + ("context " if metric["directionality"] == "context"
+                         else "") + "metric")}
+    if not metric["drilldown_dimensions"]:
+        metric["drilldown_dimensions"] = list(_DRILL.get(mid, []))
+    return metric
+
+
+METRICS = [_complete(m) for m in METRICS]
 
 BY_ID = {m["metric_id"]: m for m in METRICS}
 

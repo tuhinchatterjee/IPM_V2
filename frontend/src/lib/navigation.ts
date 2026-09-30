@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Mail,
+  Ruler,
   BarChart3,
   Bot,
   Boxes,
@@ -127,7 +128,7 @@ export const NAV_GROUPS: NavGroup[] = [
 const GUIDED = process.env.NEXT_PUBLIC_GUIDED_WORKSPACE === "1";
 
 /** Items that exist only with the Guided Risk Workspace on. */
-const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab", "/messages"]);
+const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab", "/messages", "/metrics"]);
 
 const ALL_NAV_ITEMS: NavItem[] = [
   {
@@ -340,6 +341,17 @@ const ALL_NAV_ITEMS: NavItem[] = [
   },
 
   // ---- GOVERN ----
+  {
+    href: "/metrics",
+    label: "Metric Catalogue",
+    description:
+      "Every governed metric behind Lenses, Requires Attention and Monitoring: formula, SQL, grain, unit, direction, null policy, thresholds, lineage, live values on both books, trend, drill-down to rows, and everything that uses it.",
+    icon: Ruler,
+    status: "live",
+    phase: "",
+    group: "Govern",
+    demo: "optional",
+  },
   {
     href: "/trace",
     label: "Trace & Lineage",

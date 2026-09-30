@@ -1183,6 +1183,49 @@ async function p7Journeys() {
   });
 }
 
+
+// =========================================================================
+// P8 — Metric Catalogue
+// =========================================================================
+
+async function p8Journeys() {
+  await journey("GW-P8-01", "Metric Catalogue first launch: >=50 persisted governed metrics; a definition shows every field, live values on both books, trend, breakdown whose bar click drills to the exact rows, lineage and users", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/metrics?m=M005`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="metric-count"]')?.getAttribute("data-count") || 0) > 0, null, { timeout: 120_000 });
+    record.count = Number(await page.getAttribute('[data-testid="metric-count"]', "data-count"));
+    assert.ok(record.count >= 50, `${record.count} metrics`);
+    const api_ = (await api("/metrics")).body;
+    assert.equal(api_.count, record.count, "the page shows the persisted count");
+    const nav = await page.textContent("nav, aside");
+    assert.ok(nav.includes("Metric Catalogue"));
+    await page.waitForSelector('[data-testid="metric-detail"][data-metric-id="M005"]', { timeout: 60_000 });
+    await page.waitForFunction(() => document.querySelector('[data-testid="metric-value-corporate"] [data-raw]')?.getAttribute("data-raw") !== "" && document.querySelector('[data-testid="metric-value-retail"] [data-raw]'), null, { timeout: 60_000 });
+    record.corporate_raw = await page.getAttribute('[data-testid="metric-value-corporate"] [data-raw]', "data-raw");
+    const definition = await page.textContent('[data-testid="metric-definition"]');
+    for (const label of ["Formula", "Null policy", "Period semantics", "Grain", "Thresholds / materiality", "Drill-down dimensions", "Direction"]) assert.ok(definition.includes(label), label);
+    await page.waitForSelector(`[data-testid="metric-trend-corporate"][data-rendered="true"]`, { timeout: 60_000 });
+    await page.waitForSelector(`[data-testid="metric-trend-retail"][data-rendered="true"]`, { timeout: 60_000 });
+    await clickBar(page, "metric-breakdown", "Construction");
+    await page.waitForSelector('[data-testid="metric-drill"]', { timeout: 60_000 });
+    record.drill_total = await page.getAttribute('[data-testid="metric-drill"]', "data-total");
+    assert.equal(record.drill_total, "248");
+    const lineage = await page.textContent('[data-testid="metric-lineage"]');
+    assert.match(lineage, /corp_facility_quarter|stage|ead/);
+    await shot(page, record, "M005");
+    // Search narrows; an empty search says why it is empty.
+    await page.fill('[data-testid="metric-search"]', "coverage");
+    const items = await page.$$eval('[data-testid="metric-item"]', (els) => els.map((e) => e.dataset.metricId));
+    assert.ok(items.includes("M052"));
+    await page.fill('[data-testid="metric-search"]', "zzz-no-such-metric");
+    await page.waitForSelector('[data-testid="metric-empty-by-filter"]');
+    // Requires Attention uses M001: its users list says so.
+    await page.goto(`${UI}/metrics?m=M001`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="metric-used-by"]', { timeout: 60_000 });
+    assert.match(await page.textContent('[data-testid="metric-used-by"]'), /Requires Attention detectors: [A-Z]/);
+  });
+}
+
 // =========================================================================
 
 async function main() {
@@ -1194,6 +1237,7 @@ async function main() {
     await p5Journeys();
     await p6Journeys();
     await p7Journeys();
+    await p8Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

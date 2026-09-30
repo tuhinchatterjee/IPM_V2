@@ -399,7 +399,48 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P8 — Metric Catalogue 2.0
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Persisted, versioned registry** (`backend/workspace/metric_registry.py`): each of the 64
+    reviewed definitions in `metric_catalog.py` (`gw-metrics-1.0.0`) is published as a governed
+    `metric` object (`met-m001`…, library-owned, tenant-visible, seeded). The catalogue API lists
+    and COUNTS persisted objects; a definition whose text changes becomes a new version of the
+    same object and the old version stays readable.
+  * **Completeness:** every metric now carries every §46 field. 41 metrics had no
+    thresholds/materiality and 14 no drill-down dimensions; each was given an explicit, labelled
+    entry (change-detection materiality by unit with `basis` stating that no breach level is
+    governed; explicit amber/red for freshness, refresh age, active breaches, material changes;
+    scenario / sensitivity / platform drill-downs). Nothing existing was weakened.
+  * **API:** `GET /metrics/{id}` (persisted object + users), `GET /metrics/{id}/lineage`
+    (source relations/fields, executable SQL or evaluator, drill-down dimensions, Lenses / breach
+    rules / Requires Attention detectors using it, version history), `GET /metrics/{id}/rows`
+    now honours `filters` (drill from a clicked dimension to the exact rows).
+  * **UI** `/metrics` (nav "Metric Catalogue" under Govern, flag-gated): search, book and family
+    filters with an explicit EMPTY_BY_FILTER state; detail with every definition field, the
+    executable SQL, live values on each applicable book (parts formatted in their unit), one
+    trend per book (quarters and months never share an axis), breakdown by any grid drill-down
+    dimension whose bar click drills to the rows, lineage, versions and users.
+* **Defects found and fixed:**
+  * Scenario metrics M039–M042 read a pre-P6 `headline` field that results do not have (they
+    returned a count and `None` values). Rewritten over the published decomposition: M039 =
+    selected-scope Δ, M040 = Δ / selected opening (null when opening ≤ 0), M041 = selected Δ /
+    total Δ, M042 = the ML emulator's calibration gap (raw model baseline − observed modelled
+    ECL), now persisted on every ML result (Workspace and Cockpit) so it is measured, never hidden.
+  * Qualifying-population numerators (M004–M011, M014, M051, M054, M056, M062–M064) published
+    NULL instead of a measured 0 when no row qualified (e.g. Stage 3 share on a book with no Stage
+    3) — `ELSE 0` added; denominators and conditional weighted averages still return NULL when
+    undefined. Found by the formula tests (4 failures before the fix).
+* **Tests:** `test_gw_metrics.py` 14/14 — persisted count ≥ 50 equals the catalogue and is seeded
+  once; all 50 §46 ids under their spec names; every field defined; a changed definition is a new
+  version with the old readable; formula tests recomputed independently in Python from governed
+  rows on both books (M001, M005–M007, M015, M016, M018, M020, M021, M052, M059, M060; M028/M029/
+  M054 on Retail; M002/M003 as differences of M001; a filtered M001); every applicable metric
+  evaluates on both books; M039–M042 against a real executed result; lineage and filtered drill
+  (248 Construction rows). `metric-figures.test.ts` MET01–04; `npm test` 638/638; `tsc` clean;
+  eslint 0 in new code. All GW backend suites 207 passed, 3 ML skips. Browser `GW-P8-01` 1/1.
+* **Data note:** the Retail candidate book has no account at ≥ 30 DPD in any published month
+  (max 28 days; all Stage 1), so M028/M029 are measured zeros there, not missing values.
+* **Protected files:** none added (still 5).
+* **Status:** PASS
 
 ## P9 — Lenses 2.0
 * **Status:** NOT STARTED

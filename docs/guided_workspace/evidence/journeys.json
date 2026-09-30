@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 26,
-  "total": 26,
+  "passed": 27,
+  "total": 27,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -545,6 +545,20 @@
       "membership": "2c9ddb012037896bf3e6e72473902d12c8e8dc0c4ec7e7952c1e995da6f43f38",
       "status": "PASS",
       "ms": 2325
+    },
+    {
+      "journey": "GW-P8-01",
+      "what": "Metric Catalogue first launch: >=50 persisted governed metrics; a definition shows every field, live values on both books, trend, breakdown whose bar click drills to the exact rows, lineage and users",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P8-01-M005.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "count": 64,
+      "corporate_raw": "0.003948820034308134",
+      "drill_total": "248",
+      "status": "PASS",
+      "ms": 3603
     }
   ]
 }
