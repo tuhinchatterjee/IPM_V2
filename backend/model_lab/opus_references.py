@@ -49,12 +49,19 @@ READY, MISSING, INVALID = "READY", "MISSING", "INVALID"
 REFERENCE_FAILED = "REFERENCE_FAILED"
 
 
+def default_dir() -> Path:
+    """On RunPod the bootstrap points this at the persistent volume
+    (<persist_root>/creditprobe-model-lab/reference_sets)."""
+    env = os.environ.get("MODEL_LAB_REFERENCE_SET_DIR")
+    return Path(env) if env else DEFAULT_DIR
+
+
 def set_path(directory: Path | None = None) -> Path:
-    return (directory or DEFAULT_DIR) / f"{SET_ID}.json"
+    return (directory or default_dir()) / f"{SET_ID}.json"
 
 
 def snapshot_dir(directory: Path | None = None) -> Path:
-    return (directory or DEFAULT_DIR) / SET_ID
+    return (directory or default_dir()) / SET_ID
 
 
 def _h(obj: Any) -> str:

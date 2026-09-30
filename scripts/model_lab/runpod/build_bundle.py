@@ -7,6 +7,7 @@ Writes artifacts/model_comparison/deployment/ (gitignored):
 
     CreditProbe_Model_Lab_RunPod_FullTrace.zip
     RUNPOD_BOOTSTRAP.sh
+    runpod_storage.py          (persistent-volume detection; runs before unpacking)
     DEPLOYMENT_MANIFEST.json
     checksums.sha256
 
@@ -224,8 +225,12 @@ def main() -> int:
     boot = OUT / "RUNPOD_BOOTSTRAP.sh"
     boot.write_bytes(git_bytes("scripts/model_lab/runpod/RUNPOD_BOOTSTRAP.sh"))
     boot.chmod(0o755)
+    # Storage detection runs BEFORE the zip is unpacked, so it ships beside it.
+    store = OUT / "runpod_storage.py"
+    store.write_bytes(git_bytes("scripts/model_lab/runpod/runpod_storage.py"))
+    store.chmod(0o755)
     sums = "".join(f"{sha((OUT / n).read_bytes())}  {n}\n" for n in
-                   (ZIP_NAME, "RUNPOD_BOOTSTRAP.sh",
+                   (ZIP_NAME, "RUNPOD_BOOTSTRAP.sh", "runpod_storage.py",
                     "DEPLOYMENT_MANIFEST.json"))
     (OUT / "checksums.sha256").write_text(sums)
     print(f"bundle {zpath} ({zpath.stat().st_size:,} bytes, {len(files)} "

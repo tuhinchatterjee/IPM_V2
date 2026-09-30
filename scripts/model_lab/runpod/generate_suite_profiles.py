@@ -231,7 +231,12 @@ def write_suite() -> Path:
         "suite_id": bq.SUITE_VERSION, "suite_schema": 2,
         "status": "PREPARED — no benchmark call has been made",
         "hardware": {"provider": "RunPod", "gpu": "NVIDIA A40",
-                     "vram_gb": 48, "storage": "/workspace"},
+                     "vram_gb": 48,
+                     "storage": "persistent root detected by "
+                                "runpod_storage.py: /workspace-global "
+                                "(Global Volume) else /workspace (Network "
+                                "Volume) else refuse; all state under "
+                                "<root>/creditprobe-model-lab/"},
         "deployment": "runpod_a40_sequential",
         "server": "vLLM OpenAI-compatible, 127.0.0.1:8000, one resident "
                   "model at a time",

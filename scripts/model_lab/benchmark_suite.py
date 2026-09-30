@@ -72,6 +72,9 @@ def save_checkpoint(runtime: Path, suite: dict, cp: dict) -> None:
 
 
 def reference_set_path(suite: dict, override: str | None = None) -> Path:
+    env = os.environ.get("MODEL_LAB_REFERENCE_SET_DIR")
+    if not override and env:          # the persistent volume on RunPod
+        return Path(env) / "OPUS_REFERENCE_SET_V1.json"
     rel = override or (suite.get("reference_set") or {}).get("path") or \
         "artifacts/model_comparison/reference_sets/OPUS_REFERENCE_SET_V1.json"
     p = Path(rel)
