@@ -171,10 +171,10 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
   (Retail G4 0.3436 > 0.15 → UNAVAILABLE, shown with the reason). The preview never
   calculates ECL and no definition selects a method.
 * **Measured:** 36 templates (18 CORP, 18 RET; 11 tagged macro/combined); all 36 preview on
-  the candidate books in 0.05–0.5 s each. Seeded readiness: 27 READY_FOR_CONFIRMATION,
-  5 READY_WITH_USER_DEFINED_INPUTS, 4 BLOCKED by design (CORP-18 and RET-18 need the
-  composition choice §44 requires; RET-02 carries the unsupported Retail CCF rule; none
-  hidden). RET-07 flags SIGN_REVIEW: the governed MEV09 slope lowers LGD when property
+  the candidate books in 0.05–0.5 s each. Seeded readiness (measured): 27
+  READY_FOR_CONFIRMATION; 6 READY_WITH_USER_DEFINED_INPUTS (CORP-16, RET-04, RET-05,
+  RET-08, RET-14, RET-17); 3 BLOCKED by design (CORP-18 and RET-18 need the composition
+  choice §44 requires; RET-02 carries the unsupported Retail CCF rule; none hidden). RET-07 flags SIGN_REVIEW: the governed MEV09 slope lowers LGD when property
   prices fall on this synthetic history; shown, not corrected.
 * **Protected changes:** none.
 * **Tests:**
