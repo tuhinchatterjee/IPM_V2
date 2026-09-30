@@ -40,6 +40,11 @@ def _needs_release():
                     "scripts/cockpit_v4/seed_domains.py")
 
 
+#: The protected-manifest check this checkout supports: Git blobs in a
+#: repository, recorded SHA-256 in a deployment bundle (no .git).
+MANIFEST_CHECK = "--check" if (ROOT / ".git").exists() else "--check-bundle"
+
+
 def make_service(tmp: Path, **kw: Any):
     from backend.model_lab.service import LabService, default_config
     return LabService(default_config(tmp), **kw)

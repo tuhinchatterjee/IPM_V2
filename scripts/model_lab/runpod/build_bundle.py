@@ -111,9 +111,37 @@ def closure() -> list[str]:
         return json.loads(out.read_text())
 
 
+_IMPORT = re.compile(r"^\s*(?:from|import)\s+(backend\.[a-z_0-9]+)", re.M)
+
+
+def static_closure(packages: set[str], tracked: list[str]) -> set[str]:
+    """Add every backend package a shipped package imports, transitively.
+
+    The runtime closure cannot see imports that only run on routes the
+    offline run does not take (e.g. the frozen Opus provider, imported lazily
+    when an Opus child runs). A static scan of shipped sources can.
+    """
+    dirs = {p.rsplit("/", 1)[0] + "/" for p in tracked
+            if p.startswith("backend/") and p.count("/") >= 2}
+    todo, seen = list(packages), set(packages)
+    while todo:
+        pkg = todo.pop()
+        for p in tracked:
+            if p.startswith(pkg) and p.endswith(".py"):
+                src = (ROOT / p).read_text(errors="replace")
+                for m in _IMPORT.finditer(src):
+                    dep = m.group(1).replace(".", "/") + "/"
+                    if dep in dirs and dep not in seen:
+                        seen.add(dep)
+                        todo.append(dep)
+    return seen
+
+
 def select(tracked: list[str], touched: list[str]) -> tuple[list[str], dict]:
-    packages = sorted({"/".join(p.split("/")[:2]) + "/" for p in touched
-                       if p.startswith("backend/") and p.count("/") >= 2})
+    runtime_pkgs = {"/".join(p.split("/")[:2]) + "/" for p in touched
+                    if p.startswith("backend/") and p.count("/") >= 2
+                    and "__pycache__" not in p}
+    packages = sorted(static_closure(runtime_pkgs, tracked))
     top_backend = sorted(p for p in touched if p.startswith("backend/")
                          and p.count("/") == 1)
     data_read = sorted(p for p in touched if p.startswith(("data/",
@@ -126,6 +154,8 @@ def select(tracked: list[str], touched: list[str]) -> tuple[list[str], dict]:
                 any(p.startswith(pkg) for pkg in packages):
             keep.append(p)
     return sorted(set(keep)), {"backend_packages": packages,
+                               "backend_packages_runtime": sorted(
+                                   runtime_pkgs),
                                "backend_modules": top_backend,
                                "data_and_config_read": data_read}
 

@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import ROOT, child, make_service, run
+from conftest import MANIFEST_CHECK, ROOT, child, make_service, run
 from test_request_controls import _git, _wire
 
 from backend.model_lab import diagnostic_limits as dl
@@ -237,7 +237,7 @@ def test_3_a_crashed_diagnostic_process_fails_the_child(tmp_path,
 def test_4_protected_frozen_files_are_unchanged(mixed):
     out = subprocess.run(
         [sys.executable, "scripts/model_lab/protected_manifest.py",
-         "--check"], cwd=ROOT, capture_output=True, text=True)
+         MANIFEST_CHECK], cwd=ROOT, capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
     assert "protected manifest OK" in out.stdout
 

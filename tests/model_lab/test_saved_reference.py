@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from conftest import QUESTION, ROOT, child, make_service, run
+from conftest import MANIFEST_CHECK, QUESTION, ROOT, child, make_service, run
 
 from backend.model_lab import evaluate, registry
 
@@ -251,6 +251,6 @@ def test_cli_reports_the_reference_and_rebuilds_the_pack(linked, capsys):
 def test_protected_manifest_is_clean():
     out = subprocess.run([sys.executable,
                           "scripts/model_lab/protected_manifest.py",
-                          "--check"], cwd=ROOT, capture_output=True,
+                          MANIFEST_CHECK], cwd=ROOT, capture_output=True,
                          text=True)
     assert out.returncode == 0, out.stdout + out.stderr
