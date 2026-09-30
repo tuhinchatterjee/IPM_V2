@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { componentTable, identities, kpis, methodComparison, plotted, sharedScale, stageBeforeAfter, waterfall, type Decomposition } from "./decomposition.ts";
+import { comparisonBars, componentTable, identities, kpis, methodComparison, plotted, sharedScale, stageBeforeAfter, waterfall, type Decomposition } from "./decomposition.ts";
 import { DRIVERS, driverColor } from "./palette.ts";
 
 // A real engine decomposition (CORP-18, Delta), not a hand-made one.
@@ -89,4 +89,29 @@ test("DEC08 a small movement on a large book cuts the axis and says so", () => {
   assert.equal(layout.annotations[0].text, "Axis does not start at zero");
   const selected = waterfall(d.scopes.selected, { scale, compact: true }).layout as { annotations: unknown[] };
   assert.ok(Array.isArray(selected.annotations));
+});
+
+test("DEC09 a comparison plots every compared result, component by component, from the published values", () => {
+  const comp = {
+    domain_id: "corporate",
+    period: "2026Q2",
+    method: "delta",
+    items: [
+      { result_id: "res-a", version: 1, scenario_name: "A", baseline_mode: "SOURCE_BASELINE", chain: [], cohort: "", entities: 1, methods_ran: ["delta"] },
+      { result_id: "res-b", version: 1, scenario_name: "B", baseline_mode: "SOURCE_BASELINE", chain: [], cohort: "", entities: 1, methods_ran: ["delta"] },
+    ],
+    kpis: [],
+    components: d.scopes.selected.components.map((c) => ({
+      id: c.id,
+      label: c.label,
+      kind: c.kind,
+      values: { "res-a": { selected: { value: c.value, status: c.status } }, "res-b": { selected: { value: c.value, status: c.status } } },
+    })),
+    note: "",
+  };
+  const fig = comparisonBars(comp, "selected");
+  assert.equal(fig.data.length, 2);
+  const x = (fig.data[0] as { x: string[] }).x;
+  assert.ok(!x.includes("Opening ECL") && !x.includes("New originations"), "totals and all-N/A components are not bars");
+  assert.ok(x.includes("PD"));
 });

@@ -18,8 +18,7 @@ from fastapi import HTTPException
 from backend.workspace import access, cohorts
 from backend.workspace import scenario_library as lib
 from backend.workspace import scenario_seed as seed
-from backend.workspace.objects import (LIBRARY_OWNER, ObjectService,
-                                       Principal, can_edit)
+from backend.workspace.objects import LIBRARY_OWNER, ObjectService, Principal, can_edit
 
 LIBRARY_PERMISSIONS = {"visibility": "tenant", "readers": [], "editors": []}
 

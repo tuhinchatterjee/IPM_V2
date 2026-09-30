@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataGrid, type GridSelection } from "@/components/workspace/data-grid";
 import { PortfolioExplorer } from "@/components/whatif/portfolio-explorer";
 import { ScenarioApplication } from "@/components/whatif/scenario-application";
+import { SessionTree } from "@/components/whatif/session-tree";
 import { count, pct, sar } from "@/lib/viz/format";
 import { downloadGridCsv } from "@/lib/workspace/guided";
 import { listCohorts, readObject, workspaceCohortExportUrl, type Cohort, type DomainId, type Filter } from "@/lib/workspace/objects";
@@ -476,6 +477,7 @@ export function WhatIfWorkspace() {
           onRun={setActiveRun}
         />
       )}
+      <SessionTree domain={domain} refreshKey={`${activeRun?.object_id ?? ""}-${activeRun?.status ?? ""}`} />
     </div>
   );
 }

@@ -12,9 +12,8 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
-from backend.workspace import access, service
+from backend.workspace import access, scenarios, service
 from backend.workspace import scenario_library as lib
-from backend.workspace import scenarios
 
 router = APIRouter(tags=["workspace-scenarios"])
 

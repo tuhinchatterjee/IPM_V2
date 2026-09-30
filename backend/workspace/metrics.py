@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import json
 import time
-from functools import lru_cache
 from typing import Any
 
 from fastapi import HTTPException
 
-from backend.workspace import grid, metric_catalog as mc, predicates
+from backend.workspace import grid, predicates
+from backend.workspace import metric_catalog as mc
 from backend.workspace.access import Book
 
 _CACHE: dict[tuple, Any] = {}

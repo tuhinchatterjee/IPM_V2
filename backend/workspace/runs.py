@@ -350,7 +350,8 @@ def _prepare(book: Book, svc: ObjectService, who: Principal,
 def create(svc: ObjectService, who_raw: dict[str, Any], *, scenario_id: str,
            scenario_version: int | None = None, cohort_id: str = "",
            cohort_version: int | None = None, session_id: str = "",
-           baseline: Any = None, entry: str = "whatif") -> dict[str, Any]:
+           baseline: Any = None, entry: str = "whatif",
+           shared_from: dict[str, Any] | None = None) -> dict[str, Any]:
     """Start a run. Asks for the baseline when the session already ran one."""
     who = Principal.of(who_raw)
     scenario = svc.get(scenario_id, who, version=scenario_version)
@@ -369,6 +370,7 @@ def create(svc: ObjectService, who_raw: dict[str, Any], *, scenario_id: str,
         "cohort": _cohort_body(frozen, origin),
         "methods_chosen": [], "methods_ran": [], "user_assumption": {},
         "result_id": "", "delta_change": "", "state_log": [],
+        "shared_from": dict(shared_from or {}),
     }
     executed = executed_in_session(svc, who, session_id, book.domain_id)
     if executed and chosen is None:
@@ -540,6 +542,9 @@ def rerun(svc: ObjectService, who_raw: dict[str, Any], run_id: str
                                       "with another method.")
     body = {**b, "methods_chosen": [], "methods_ran": [],
             "user_assumption": {}, "result_id": "", "delta_change": "",
+            # In the body, not only the lineage: every later transition is a
+            # revision, and a revision's lineage records its parent version.
+            "variant_of": b.get("variant_of") or run_id,
             "state": METHOD_SELECTION,
             "state_log": [{"state": METHOD_SELECTION, "at": time.time(),
                            "reason": f"re-run of {run_id}: same confirmed "
@@ -691,6 +696,8 @@ def execute(svc: ObjectService, who_raw: dict[str, Any], run_id: str
         "notes": [*b["preview"]["notes"], *done.outcome.notes],
         "stage_policy": spec.stage_policy,
         "evidence": "Engine computation on the governed book; no model call.",
+        "entry": b.get("entry", "whatif"),
+        "shared_from": b.get("shared_from") or {},
     }
     result = svc.derive(
         "scenario_result", who, result_body,
@@ -720,6 +727,65 @@ def get(svc: ObjectService, who_raw: dict[str, Any], run_id: str
     return run
 
 
+def _change(svc: ObjectService, who: Principal, run: dict[str, Any]
+            ) -> dict[str, Any]:
+    rid = run["body"].get("result_id")
+    if not rid:
+        return {}
+    try:
+        res = svc.get(rid, who)
+    except HTTPException:
+        return {}
+    return {m: {"change": v.get("change"), "change_pct": v.get("change_pct")}
+            for m, v in res["body"]["results"].items() if v.get("ran")}
+
+
+def tree(svc: ObjectService, who_raw: dict[str, Any], *, session_id: str,
+         domain: str) -> dict[str, Any]:
+    """The session's scenarios as a tree (§30): original baseline at the
+    root, layered scenarios under their parent, method re-runs as variants
+    of the run they re-used, combined definitions marked with their parts."""
+    who = Principal.of(who_raw)
+    domain_id = access.parse_domain(domain)
+    nodes = [{"id": "baseline", "kind": "baseline",
+              "label": "Original reported baseline"}]
+    edges = []
+    for r in _session_runs(svc, who, session_id, domain_id):
+        b = r["body"]
+        variant_of = str(b.get("variant_of") or "")
+        parent = b.get("baseline", {}).get("parent_run_id") or "baseline"
+        try:
+            scenario = svc.get(b["scenario_id"], who,
+                               version=b["scenario_version"])
+            parts = [p.get("name") for p in scenario["body"].get("parents")
+                     or []]
+            combined = (scenario["lineage"] or {}).get("origin") == "combine"
+        except HTTPException:
+            parts, combined = [], False
+        nodes.append({
+            "id": r["object_id"], "kind": "run", "label": b["scenario_name"],
+            "scenario_id": b["scenario_id"],
+            "scenario_version": b["scenario_version"],
+            "cohort": b["cohort"].get("description", ""),
+            "entities": b["cohort"].get("entity_count"),
+            "state": r["status"], "methods_ran": b.get("methods_ran", []),
+            "baseline_mode": b.get("baseline", {}).get("mode", ""),
+            "parent": parent, "variant_of": variant_of,
+            "combined": combined, "combined_from": parts if combined else [],
+            "result_id": b.get("result_id", ""),
+            "results": _change(svc, who, r),
+            "created_at": r["created_at"]})
+        if variant_of:
+            edges.append({"from": variant_of, "to": r["object_id"],
+                          "kind": "method_variant"})
+        else:
+            edges.append({"from": parent, "to": r["object_id"],
+                          "kind": "layered" if parent != "baseline"
+                          else "baseline"})
+    return {"session_id": session_id, "domain_id": domain_id,
+            "nodes": nodes, "edges": edges}
+
+
 def session_listing(svc: ObjectService, who_raw: dict[str, Any], *,
                     session_id: str, domain: str) -> list[dict[str, Any]]:
     who = Principal.of(who_raw)
@@ -737,4 +803,4 @@ __all__ = ["CHOICES", "EXECUTED", "METHOD_INPUT_REQUIRED", "METHOD_SELECTION",
            "SCENARIO_PREVIEW", "STATES", "WAITING_BASELINE_CHOICE",
            "choose_baseline", "choose_method", "confirm", "create",
            "execute", "executed_in_session", "get", "rerun",
-           "session_listing"]
+           "session_listing", "tree"]

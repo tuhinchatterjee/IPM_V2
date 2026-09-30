@@ -26,8 +26,9 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 SCHEMA_VERSION = 1
 

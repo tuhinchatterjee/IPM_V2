@@ -638,8 +638,8 @@ def translate_score(book: Book, v: grid.View, cond: str, params: list[Any],
         "application_score"
     product_key = "g.product" if score_type == "BEHAVIOURAL" else "'ALL'"
     period = book.latest_period
-    smap = (f"(SELECT * FROM whatif_retail_score_map WHERE score_type = ? AND "
-            f"reporting_month = ?)")
+    smap = ("(SELECT * FROM whatif_retail_score_map WHERE score_type = ? AND "
+            "reporting_month = ?)")
     idx = (f"(SELECT *, ROW_NUMBER() OVER (PARTITION BY product ORDER BY "
            f"band_low) AS ix FROM {smap} m0)")
     # The scope is applied INSIDE a subquery so its unqualified columns bind

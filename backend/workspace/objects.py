@@ -41,6 +41,7 @@ KINDS: dict[str, str] = {
     "alert": "alr",
     "issue": "iss",
     "run": "wrun",
+    "comparison": "cmp",
 }
 
 #: Fields the body of each kind must carry. Checked on every write, so a
@@ -68,6 +69,8 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     "issue": ("title", "severity", "evidence"),
     "run": ("scenario_id", "scenario_version", "scenario_name", "domain_id",
             "session_id", "cohort", "state", "methods_chosen", "state_log"),
+    "comparison": ("domain_id", "period", "method", "items", "components",
+                   "kpis"),
 }
 
 #: Status vocabularies, per kind. A status outside these is refused.
@@ -95,7 +98,7 @@ class Principal:
     roles: frozenset[str]
 
     @classmethod
-    def of(cls, who: dict[str, Any]) -> "Principal":
+    def of(cls, who: dict[str, Any]) -> Principal:
         from backend.workspace.access import roles_of, tenant_of
 
         return cls(id=str(who.get("id") or ""), tenant=tenant_of(who),
@@ -251,7 +254,12 @@ class ObjectService:
             version: int | None = None) -> dict[str, Any]:
         found = self.store.get(object_id, tenant_id=who.tenant,
                                version=version)
-        if found is None or not can_read(found, who):
+        # Access is a property of the OBJECT, content of the version: an
+        # older version is readable by whoever the latest version names
+        # (a share pinned to v3 stays openable after a grant writes v4).
+        gate = found if version is None or found is None else \
+            self.store.get(object_id, tenant_id=who.tenant)
+        if found is None or gate is None or not can_read(gate, who):
             raise HTTPException(404, {
                 "error_code": "NOT_FOUND",
                 "message": "No such object is available to you."})

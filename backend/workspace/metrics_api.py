@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
-from backend.workspace import access, grid, metric_catalog as mc, metrics
+from backend.workspace import access, grid, metrics
+from backend.workspace import metric_catalog as mc
 
 router = APIRouter(tags=["workspace-metrics"])
 

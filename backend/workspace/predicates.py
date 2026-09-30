@@ -225,8 +225,8 @@ def predicate_hash(filters: list[dict[str, Any]], *, selection: str,
                    period: str, domain_id: str) -> str:
     """The identity of the QUESTION a cohort asked (the membership hash is the
     identity of the ANSWER). Canonical, so equal filters hash equally."""
-    canon = sorted((json.dumps(f, sort_keys=True, default=str)
-                    for f in filters))
+    canon = sorted(json.dumps(f, sort_keys=True, default=str)
+                    for f in filters)
     blob = json.dumps({"filters": canon, "selection": selection,
                        "period": period, "domain": domain_id},
                       sort_keys=True)

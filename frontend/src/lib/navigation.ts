@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Mail,
   BarChart3,
   Bot,
   Boxes,
@@ -126,7 +127,7 @@ export const NAV_GROUPS: NavGroup[] = [
 const GUIDED = process.env.NEXT_PUBLIC_GUIDED_WORKSPACE === "1";
 
 /** Items that exist only with the Guided Risk Workspace on. */
-const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab"]);
+const GUIDED_ONLY = new Set(["/scenarios", "/ai-model-lab", "/messages"]);
 
 const ALL_NAV_ITEMS: NavItem[] = [
   {
@@ -187,6 +188,18 @@ const ALL_NAV_ITEMS: NavItem[] = [
     demo: "hidden",
     demoNote:
       "Placeholder by design: the cards are fixed sample records, not authored documents. Nothing here is wired to analytical content, so it would be the first dead end a client found.",
+  },
+
+  {
+    href: "/messages",
+    label: "Messages",
+    description:
+      "Governed objects shared between people — scenario definitions, executed results, comparisons and cohorts — opened, commented, duplicated, re-run or compared as the same object, never as a screenshot.",
+    icon: Mail,
+    status: "live",
+    phase: "",
+    group: "Work",
+    demo: "optional",
   },
 
   // ---- INTELLIGENCE: standing capability rather than one-off work ----

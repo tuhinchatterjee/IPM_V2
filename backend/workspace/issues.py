@@ -20,7 +20,8 @@ import hashlib
 import time
 from typing import Any
 
-from backend.workspace import grid, metric_catalog as mc, metrics, nbq
+from backend.workspace import grid, metrics, nbq
+from backend.workspace import metric_catalog as mc
 from backend.workspace.access import Book
 
 RULESET_VERSION = "gw-issues-1.0.0"

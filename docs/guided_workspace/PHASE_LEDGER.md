@@ -337,7 +337,66 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS
 
 ## P7 — Composition, branching, lineage and collaboration
-* **Status:** NOT STARTED
+* **Delivered:**
+  * **Messages** (`backend/workspace/messages.py`, `messages_api.py`, `/messages`, nav "Messages"
+    under Work, flag-gated): a message is an object reference (id + version + card). Inbox /
+    Sent, unread count, read receipts. Recipient actions by kind — scenario definition: Open,
+    Run on my cohort or book, Duplicate/branch, Comment; executed result: Open analysis, Compare
+    with my results, Re-run on the latest data, Run on my cohort, Duplicate the definition, Save a
+    copy, Comment (a Cockpit-executed result offers Open the conversation instead of re-run);
+    cohort: Open in What-If, Investigate in Cockpit, Save a copy, Comment; comparison: Open,
+    Save a copy, Comment. Only actions that work are shown.
+  * **Run from a message** is the recipient's OWN run (session `msg-<share>`), still preview →
+    confirm → METHOD SELECTION → method; its run and result carry `shared_from`
+    (share, object, version, sender); the sender's objects are never changed. A second run from
+    the same message is asked for its baseline.
+  * **Permissions.** Sharing names the recipients as readers of the object and of what it needs
+    to be opened or re-run (a result's scenario version and cohort, a scenario's bound cohort, a
+    comparison's results) — identity only, same tenant; the card lists them. Read access is now
+    object-level (`ObjectService.get` checks the latest version's permissions), so a share pinned
+    to v1 stays openable after the object moves to v2; the recipient sees "newer version exists".
+    Bystanders and other tenants get 404 for the message and the object; a recipient cannot
+    re-share a private object (403); only the recipient acts on a message (403 for the sender).
+  * **Comparison** object kind (`backend/workspace/comparisons.py`, `POST /whatif/compare`,
+    `/what-if/compare/[id]`): same book and period and a method every result ran, else refused
+    with the reason; KPIs of both scopes and all 20 components per result, COPIED from the
+    published decompositions (nothing recomputed); grouped Plotly by component with View data /
+    CSV / PNG / SVG; shareable.
+  * **Scenario tree** (`GET /whatif/tree`, What-If "Scenario tree — this session"): original
+    baseline at the root, scenarios and layered children, method re-runs as variants of the run
+    they re-used, combined definitions marked with their parts; each node shows cohort, state,
+    methods, Δ per method and links to its result or run; tick two nodes to compare; "New
+    session" starts a fresh lineage context.
+  * **Share** button on every result and comparison (and the existing scenario / cohort shares).
+  * **First launch** (§44): the synthetic colleague `head-of-corporate-credit.synthetic` shares
+    "Construction Downside Sep-26" (defined, not executed), a Delta-executed "GDP recession"
+    result and the cohort "Hospitality — Stage 2 (synthetic demo)"; every message is prefixed
+    `[SYNTHETIC DEMO]` and badged in the UI; seeded once per recipient.
+* **Defects found by the journeys and fixed:** a method re-run lost its `rerun` lineage origin
+  once revised (method chosen, executed), so the tree stopped showing it as a variant —
+  `variant_of` is now in the run body (test strengthened; fails on the old logic); the tree's
+  node component was defined inside its parent, remounting on every tick (checkbox detached) —
+  hoisted.
+* **Tests:**
+  * `test_gw_messages.py` 13/13 (seeded inbox; definition → recipient's own linked run through
+    the method gate; run on the recipient's cohort; duplicate/branch lineage; result → compare /
+    re-run latest / save; comparison shareable with its results; incompatible comparison
+    refused; comments on the shared version seen by both; pinned version openable after revision;
+    bystander / other-tenant / re-share / sender-acts denials; shared cohort investigated; tree
+    edges incl. a variant that ran; a private scenario's result carries what a re-run needs).
+  * Mutation proofs: object-level read gate reverted → pinned-share test fails; dependency grants
+    removed → comparison-sharing and private-result re-run tests fail; old variant detection →
+    tree test fails.
+  * `decomposition.test.ts` DEC09 (comparison figure); `npm test` 634/634; `tsc` clean; eslint 0
+    problems in new code.
+  * All GW backend suites (`-k gw_`, accepted interpreter): **193 passed, 3 skipped** (ML-runtime).
+  * Browser `GW-P7-01` (seeded inbox; shared definition → own run → METHOD SELECTION → Delta →
+    result linked to the definition), `GW-P7-02` (shared result → compare with mine → comparison
+    Plotly; save copy opens; comment; open analysis), `GW-P7-03` (A, variant of A, B layered on A in
+    the tree; compare from the tree; share → Sent), `GW-P7-04` (shared cohort → What-If with the
+    same object; Investigate → Cockpit thread) — **4/4**.
+* **Protected files:** none added (still 5, all mapped).
+* **Status:** PASS
 
 ## P8 — Metric Catalogue 2.0
 * **Status:** NOT STARTED

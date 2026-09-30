@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
-from backend.workspace import runs, service
+from backend.workspace import comparisons, runs, service
 
 router = APIRouter(tags=["workspace-whatif-runs"])
 
@@ -71,6 +71,49 @@ async def list_runs(session_id: str = Query("", max_length=80),
     return {"runs": runs.session_listing(service.objects(), who,
                                          session_id=session_id,
                                          domain=domain)}
+
+
+@router.get("/whatif/tree")
+async def session_tree(session_id: str = Query("", max_length=80),
+                       domain: str = Query("corporate"),
+                       who: dict[str, Any] = Depends(v4routes.principal)
+                       ) -> dict[str, Any]:
+    return runs.tree(service.objects(), who, session_id=session_id,
+                     domain=domain)
+
+
+@router.get("/whatif/results")
+async def my_results(domain: str = Query("corporate"),
+                     who: dict[str, Any] = Depends(v4routes.principal)
+                     ) -> dict[str, Any]:
+    """Results the reader can open on this book, newest first (the picker
+    for "Compare with my results")."""
+    from backend.workspace import access, sharing
+
+    principal = service.principal(who)
+    domain_id = access.parse_domain(domain)
+    rows = service.objects().list("scenario_result", principal,
+                                  domain_id=domain_id)
+    rows.sort(key=lambda r: -r["created_at"])
+    return {"results": [{**sharing.card_for(r),
+                         "created_at": r["created_at"],
+                         "mine": r["owner_id"] == principal.id}
+                        for r in rows[:100]]}
+
+
+class Compare(BaseModel):
+    result_ids: list[str] = Field(min_length=2, max_length=6)
+    method: str = Field(default="", max_length=20)
+    title: str = Field(default="", max_length=160)
+
+
+@router.post("/whatif/compare", status_code=201)
+async def compare(body: Compare,
+                  who: dict[str, Any] = Depends(v4routes.principal)
+                  ) -> dict[str, Any]:
+    return comparisons.compare(service.objects(), service.principal(who),
+                               body.result_ids, method=body.method,
+                               title=body.title)
 
 
 @router.get("/whatif/runs/{run_id}")

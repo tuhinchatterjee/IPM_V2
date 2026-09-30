@@ -1017,6 +1017,172 @@ async function p6Journeys() {
   });
 }
 
+
+// =========================================================================
+// P7 — Messages, tree, comparison, lineage
+// =========================================================================
+
+async function openMessage(page, kind) {
+  await page.goto(`${UI}/messages`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="message-item"]', { timeout: 120_000 });
+  await page.click(`[data-testid="message-item"][data-kind="${kind}"][data-seeded="true"]`);
+  await page.waitForSelector('[data-testid="message-view"][data-accessible="true"]', { timeout: 60_000 });
+}
+
+async function apiRun(scenarioId, session, methods = ["delta"]) {
+  let run = (await api("/whatif/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scenario_id: scenarioId, session_id: session }) })).body;
+  run = (await api(`/whatif/runs/${run.object_id}/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ digest: run.body.contract.digest }) })).body;
+  run = (await api(`/whatif/runs/${run.object_id}/method`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ methods }) })).body;
+  return (await api(`/whatif/runs/${run.object_id}/execute`, { method: "POST" })).body;
+}
+
+async function p7Journeys() {
+  await journey("GW-P7-01", "Messages first launch holds synthetic shared definition, result and cohort; the recipient runs the shared DEFINITION as their own run: preview → confirm → METHOD SELECTION → Delta → a new result linked to the shared definition", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/messages`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="message-item"]', { timeout: 120_000 });
+    const kinds = await page.$$eval('[data-testid="message-item"][data-seeded="true"]', (els) => els.map((e) => e.dataset.kind));
+    record.seeded_kinds = kinds;
+    for (const k of ["scenario", "scenario_result", "cohort"]) assert.ok(kinds.includes(k), `seeded ${k}`);
+    const nav = await page.textContent("nav, aside");
+    assert.ok(nav.includes("Messages"), "Messages is in the navigation");
+    await openMessage(page, "scenario");
+    assert.match(await page.textContent('[data-testid="message-view"]'), /SYNTHETIC DEMO/);
+    const actions = await page.$$eval('[data-testid="message-actions"] button', (els) => els.map((e) => e.dataset.testid));
+    record.actions = actions;
+    for (const a of ["open", "run", "duplicate", "comment"]) assert.ok(actions.includes(`message-action-${a}`), a);
+    await shot(page, record, "definition");
+    await page.click('[data-testid="message-action-run"]');
+    await page.click('[data-testid="message-run-go"]');
+    await page.waitForURL(/\/what-if\?run=wrun-/, { timeout: 60_000 });
+    // A second run from the same message is asked for its baseline (the
+    // stub's store persists between evidence runs); never assumed.
+    await page.waitForFunction(() => ["SCENARIO_PREVIEW", "WAITING_BASELINE_CHOICE"].includes(document.querySelector('[data-testid="whatif-run"]')?.getAttribute("data-state")), null, { timeout: 120_000 });
+    if ((await page.getAttribute('[data-testid="whatif-run"]', "data-state")) === "WAITING_BASELINE_CHOICE") {
+      record.baseline_asked = true;
+      await page.check('[data-testid="whatif-baseline-option"][data-mode="SOURCE_BASELINE"]');
+      await page.click('[data-testid="whatif-baseline-choose"]');
+    }
+    await waitRunState(page, "SCENARIO_PREVIEW");
+    await page.click('[data-testid="whatif-run-confirm"]');
+    await waitRunState(page, "METHOD_SELECTION");
+    await page.check('[data-testid="whatif-method-pick-delta"]');
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    const runId = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    const run = (await api(`/whatif/runs/${runId}`)).body;
+    record.shared_from = run.body.shared_from;
+    assert.equal(run.body.shared_from.kind, "scenario");
+    const result = (await api(`/objects/${run.body.result_id}`)).body;
+    assert.equal(result.body.shared_from.object_id, run.body.shared_from.object_id, "the result is linked to the shared definition");
+    await shot(page, record, "own-result");
+  });
+
+  await journey("GW-P7-02", "A shared executed RESULT: open the analysis, compare with my own result (comparison page: KPIs + component-by-component Plotly), save a copy, comment on the shared version", async (record) => {
+    const mine = await apiRun("scn-tpl-corp-01", `gw-p7-02-${Date.now()}`);
+    record.my_result = mine.result.object_id;
+    const page = await open();
+    await openMessage(page, "scenario_result");
+    const card = await page.textContent('[data-testid="message-object"]');
+    assert.match(card, /Method\(s\): delta/);
+    await page.click('[data-testid="message-action-compare"]');
+    await page.waitForSelector(`[data-testid="message-compare-option"][data-result-id="${record.my_result}"]`, { timeout: 60_000 });
+    await page.check(`[data-testid="message-compare-option"][data-result-id="${record.my_result}"]`);
+    await page.click('[data-testid="message-compare-go"]');
+    await page.waitForURL(/\/what-if\/compare\/cmp-/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="comparison-chart"][data-rendered="true"]', { timeout: 60_000 });
+    record.items = await page.getAttribute('[data-testid="comparison"]', "data-items");
+    assert.equal(record.items, "2");
+    const traces = await page.evaluate(() => document.querySelector('[data-testid="comparison-chart"]')?.data?.length);
+    assert.equal(traces, 2);
+    await shot(page, record, "comparison");
+    await openMessage(page, "scenario_result");
+    await page.click('[data-testid="message-action-save"]');
+    await page.waitForSelector('[data-testid="message-note-link"]', { timeout: 60_000 });
+    await page.click('[data-testid="message-note-link"]');
+    await page.waitForURL(/\/what-if\/result\/res-/, { timeout: 60_000 });
+    await resultRendered(page);
+    await openMessage(page, "scenario_result");
+    await page.fill('[data-testid="message-comment-input"]', "GW-P7-02 comment on the shared version");
+    await page.click('[data-testid="message-comment-send"]');
+    await page.waitForFunction(() => /GW-P7-02 comment/.test(document.querySelector('[data-testid="message-comments"]')?.textContent ?? ""), null, { timeout: 60_000 });
+    await page.click('[data-testid="message-action-open"]');
+    await page.waitForURL(/\/what-if\/result\/res-/, { timeout: 60_000 });
+    await resultRendered(page);
+  });
+
+  await journey("GW-P7-03", "Scenario tree in What-If: A, B layered on A, a method variant of A; compare two nodes from the tree; share a result and see it in Sent", async (record) => {
+    const page = await open();
+    await startScenarioRun(page, "?scenario=scn-tpl-corp-01");
+    await confirmAndChoose(page, record, ["delta"]);
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    const runA = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    // Method variant of A: same confirmed contract, User-defined.
+    await page.click('[data-testid="whatif-run-rerun"]');
+    await waitRunState(page, "METHOD_SELECTION");
+    const variant = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    await page.check('[data-testid="whatif-method-pick-user_defined"]');
+    await page.fill('[data-testid="whatif-ud-value"]', "12");
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "EXECUTED", 180_000);
+    // B layered on A.
+    await page.goto(`${UI}/what-if?scenario=scn-tpl-corp-12`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-run-start"]', { timeout: 120_000 });
+    await page.click('[data-testid="whatif-run-start"]');
+    await waitRunState(page, "WAITING_BASELINE_CHOICE");
+    await page.check(`[data-testid="whatif-baseline-option"][data-parent="${runA}"]`);
+    await page.click('[data-testid="whatif-baseline-choose"]');
+    await confirmAndChoose(page, record, ["delta"]);
+    await waitRunState(page, "EXECUTED", 180_000);
+    await resultRendered(page);
+    const runB = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="whatif-tree"]')?.getAttribute("data-nodes") || 0) >= 3, null, { timeout: 60_000 });
+    record.variant_parent = await page.getAttribute(`[data-testid="tree-node"][data-node-id="${variant}"]`, "data-variant-of");
+    record.b_parent = await page.getAttribute(`[data-testid="tree-node"][data-node-id="${runB}"]`, "data-parent");
+    assert.equal(record.variant_parent, runA);
+    assert.equal(record.b_parent, runA);
+    await shot(page, record, "tree");
+    // A and B share Delta (the UD variant would not share a method with B).
+    const aResult = (await api(`/whatif/runs/${runA}`)).body.body.result_id;
+    const bResult = (await api(`/whatif/runs/${runB}`)).body.body.result_id;
+    await page.check(`[data-testid="tree-compare-pick"][data-result-id="${aResult}"]`);
+    await page.check(`[data-testid="tree-compare-pick"][data-result-id="${bResult}"]`);
+    await page.click('[data-testid="tree-compare"]');
+    await page.waitForURL(/\/what-if\/compare\/cmp-/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="comparison-chart"][data-rendered="true"]', { timeout: 60_000 });
+    // Share the layered result and find it in Sent.
+    await page.goto(`${UI}/what-if/result/${bResult}`, { waitUntil: "domcontentloaded" });
+    await resultRendered(page);
+    await page.click('[data-testid="whatif-result-share-open"]');
+    await page.fill('[data-testid="whatif-result-share-to"]', "head-of-corporate-credit.synthetic");
+    await page.fill('[data-testid="whatif-result-share-message"]', "Layered on A — GW-P7-03");
+    await page.click('[data-testid="whatif-result-share-send"]');
+    await page.waitForSelector('[data-testid="whatif-result-share-done"]', { timeout: 60_000 });
+    await page.goto(`${UI}/messages?box=sent`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="message-item"]', { timeout: 60_000 });
+    const sent = await page.$$eval('[data-testid="message-item"]', (els) => els.map((e) => e.textContent));
+    assert.ok(sent.some((t) => /head-of-corporate-credit/.test(t)), "the share is in Sent");
+  });
+
+  await journey("GW-P7-04", "A shared COHORT opens in What-If with the same membership, and Investigate opens a Cockpit thread about it without rebuilding the population", async (record) => {
+    const page = await open();
+    await openMessage(page, "cohort");
+    const objectId = await page.getAttribute('[data-testid="message-object"]', "data-object-id");
+    const cohort = (await api(`/objects/${objectId}`)).body;
+    record.membership = cohort.body.membership_hash;
+    await page.click('[data-testid="message-action-open"]');
+    await page.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 60_000 });
+    await page.waitForFunction((id) => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") === id, objectId, { timeout: 120_000 });
+    await openMessage(page, "cohort");
+    await page.click('[data-testid="message-action-investigate"]');
+    await page.waitForURL(/\/cockpit\/thread\/th-/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 60_000 });
+    await shot(page, record, "investigate");
+  });
+}
+
 // =========================================================================
 
 async function main() {
@@ -1027,6 +1193,7 @@ async function main() {
     await p4Journeys();
     await p5Journeys();
     await p6Journeys();
+    await p7Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

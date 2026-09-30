@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 22,
-  "total": 22,
+  "passed": 26,
+  "total": 26,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -475,6 +475,76 @@
       "entities": 248,
       "status": "PASS",
       "ms": 13363
+    },
+    {
+      "journey": "GW-P7-01",
+      "what": "Messages first launch holds synthetic shared definition, result and cohort; the recipient runs the shared DEFINITION as their own run: preview → confirm → METHOD SELECTION → Delta → a new result linked to the shared definition",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-01-definition.png",
+        "docs/guided_workspace/evidence/journeys/GW-P7-01-own-result.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "seeded_kinds": [
+        "cohort",
+        "scenario_result",
+        "scenario"
+      ],
+      "actions": [
+        "message-action-open",
+        "message-action-run",
+        "message-action-duplicate",
+        "message-action-comment"
+      ],
+      "baseline_asked": true,
+      "shared_from": {
+        "share_id": "shr-492092b6c6af4b93",
+        "object_id": "scn-b97ef159a878",
+        "version": 2,
+        "kind": "scenario",
+        "from_id": "head-of-corporate-credit.synthetic",
+        "mode": "run"
+      },
+      "status": "PASS",
+      "ms": 5929
+    },
+    {
+      "journey": "GW-P7-02",
+      "what": "A shared executed RESULT: open the analysis, compare with my own result (comparison page: KPIs + component-by-component Plotly), save a copy, comment on the shared version",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-02-comparison.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "my_result": "res-963e1813dad8",
+      "items": "2",
+      "status": "PASS",
+      "ms": 7948
+    },
+    {
+      "journey": "GW-P7-03",
+      "what": "Scenario tree in What-If: A, B layered on A, a method variant of A; compare two nodes from the tree; share a result and see it in Sent",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-03-tree.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "variant_parent": "wrun-52494861a959",
+      "b_parent": "wrun-52494861a959",
+      "status": "PASS",
+      "ms": 10779
+    },
+    {
+      "journey": "GW-P7-04",
+      "what": "A shared COHORT opens in What-If with the same membership, and Investigate opens a Cockpit thread about it without rebuilding the population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-04-investigate.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "membership": "2c9ddb012037896bf3e6e72473902d12c8e8dc0c4ec7e7952c1e995da6f43f38",
+      "status": "PASS",
+      "ms": 2325
     }
   ]
 }

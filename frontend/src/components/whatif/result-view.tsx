@@ -14,6 +14,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { ChartCard, type ChartData } from "@/components/viz/chart-card";
+import { ShareButton } from "@/components/workspace/share-button";
 import { contributions } from "@/lib/viz/figures";
 import { componentTable, identities, kpis, methodComparison, plotted, sharedScale, stageBeforeAfter, waterfall, type Decomposition, type DecompositionScope } from "@/lib/viz/decomposition";
 import { count, sar, sarDelta } from "@/lib/viz/format";
@@ -77,6 +78,7 @@ export function ResultView({ result, actions }: { result: ScenarioResult; action
             </button>
           ))}
           {actions}
+          <ShareButton objectId={result.object_id} testId="whatif-result-share" />
         </div>
       </header>
 

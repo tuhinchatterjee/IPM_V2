@@ -447,8 +447,8 @@ async def model_lab_compare(a: str = Query(...), b: str = Query(...),
 
 
 def targets() -> list[dict[str, Any]]:
-    from backend.llm import openai_compatible
     from backend.cockpit_v4 import service as v4service
+    from backend.llm import openai_compatible
 
     open_weight = openai_compatible.from_environment()
     return [
@@ -482,9 +482,9 @@ class Replay(BaseModel):
 
 
 def _provider_for(target: str) -> Any:
+    from backend.cockpit_v4 import service as v4service
     from backend.llm import openai_compatible
     from backend.llm.anthropic_provider import AnthropicProvider
-    from backend.cockpit_v4 import service as v4service
 
     if target == "open_weight":
         provider = openai_compatible.from_environment()

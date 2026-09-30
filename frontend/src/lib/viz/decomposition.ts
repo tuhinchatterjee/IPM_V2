@@ -295,3 +295,52 @@ export function stageBeforeAfter(stages: StageRow[]): Figure {
 
 /** The taxonomy ids in the one order (pinned against the server's). */
 export const TAXONOMY_ORDER = DRIVERS.map((d) => d.id);
+
+export interface Comparison {
+  domain_id: string;
+  period: string;
+  method: string;
+  items: {
+    result_id: string;
+    version: number;
+    scenario_name: string;
+    baseline_mode: string;
+    chain: string[];
+    cohort: string;
+    entities: number;
+    methods_ran: string[];
+  }[];
+  kpis: Record<string, string>[];
+  components: { id: string; label: string; kind: string; values: Record<string, { selected?: { value: string | null; status: ComponentStatus }; total?: { value: string | null; status: ComponentStatus } }> }[];
+  note: string;
+}
+
+/** Component-by-component comparison: one trace per result, components in
+ * the taxonomy order (component colour marks the axis tick, the result is
+ * the bar series). Components N/A in every result are left out of the chart
+ * and listed in the table. */
+export function comparisonBars(c: Comparison, scope: "selected" | "total"): Figure {
+  const comps = c.components.filter(
+    (k) => k.kind !== "total" && c.items.some((i) => k.values[i.result_id]?.[scope]?.status && k.values[i.result_id]?.[scope]?.status !== "N/A"),
+  );
+  const scale = scaleFor(comps.flatMap((k) => c.items.map((i) => num(k.values[i.result_id]?.[scope]?.value))));
+  const PALETTE = ["#2563EB", "#F97316", "#10B981", "#8B5CF6", "#EC4899", "#14B8A6"];
+  return {
+    data: c.items.map((i, n) => ({
+      type: "bar",
+      name: i.scenario_name,
+      x: comps.map((k) => driverLabel(k.id)),
+      y: comps.map((k) => toScale(num(k.values[i.result_id]?.[scope]?.value), scale)),
+      marker: { color: PALETTE[n % PALETTE.length] },
+      customdata: comps.map((k) => [k.id, i.result_id, k.values[i.result_id]?.[scope]?.value ?? "", k.values[i.result_id]?.[scope]?.status ?? "N/A"]),
+      hovertemplate: `<b>${i.scenario_name}</b><br>%{x}: %{customdata[2]} SAR mn · %{customdata[3]}<extra></extra>`,
+    })),
+    layout: {
+      barmode: "group",
+      yaxis: { title: { text: `ECL change (${scale})` }, zeroline: true },
+      xaxis: { tickangle: -30, automargin: true },
+      legend: { orientation: "h", y: -0.35 },
+      margin: { l: 60, r: 20, t: 20, b: 140 },
+    },
+  };
+}

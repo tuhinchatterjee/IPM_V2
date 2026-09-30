@@ -242,8 +242,7 @@ def engine_resolver(cohort_id: str, *, domain_id: str, tenant_id: str,
                     release_id: str) -> dict[str, Any]:
     """`scenario.cohort_refs` resolver: a saved cohort's server-written
     predicate and identity, for a preview that names it by id."""
-    from backend.cockpit_v4.scenario.errors import (COHORT_UNRESOLVED,
-                                                    raise_for)
+    from backend.cockpit_v4.scenario.errors import COHORT_UNRESOLVED, raise_for
     from backend.workspace import access, service
 
     found = service.store().get(cohort_id, tenant_id=tenant_id)
