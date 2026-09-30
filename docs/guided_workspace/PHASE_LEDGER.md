@@ -63,7 +63,31 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS (exit gate proven with MODEL MOCK + injected SDK/transport)
 
 ## P2 — Shared object model and continuity contracts
-* **Status:** NOT STARTED
+
+* **Entry check:** P1 exit gate proven (27 backend, 12 frontend unit, 3 browser).
+* **Requirements:** §43 P2, §29, §34 — governed identities for Cohort, Finding,
+  Investigation, Scenario, Scenario Result, Lens, Metric, Alert, Message
+  attachment; id/version/owner/domain/release/fingerprint/period/permissions/
+  lineage/trace on every object; identity preserved across modules.
+* **Files:** `backend/workspace/{store,objects,service,predicates,grid,ews,cohorts,objects_api}.py`
+  (new), `backend/workspace/api.py`, `frontend/src/lib/workspace/objects.ts`.
+* **Design:** one INSERT-only versioned `objects` table (triggers refuse UPDATE and
+  DELETE), content hash verified on every read, append-only comments/shares/
+  observations/alert events. Cohorts freeze through the What-If engine's own
+  `scenario.cohort.freeze` over a governed latest-period grid view (joined borrower/
+  customer, prior period, collateral, covenants, IFRS 9, behaviour and the governed
+  EWS rule set `gw-ews-1.0.0`), so a cohort's membership hash is exactly the one the
+  scenario engine re-verifies. Filters compile to bound parameters (grid) or
+  allowlisted literals (freeze); a request can never name a tenant, relation or release.
+* **Protected changes:** none.
+* **Tests:** `tests/cockpit_v4/test_gw_objects.py` — 28 passed (every kind round-trips
+  with hash; incomplete refused; immutable/undeletable; tamper refused; revise keeps
+  old version; non-owner duplicates; privacy/tenancy; lineage tree; filter injection
+  refused; bound SQL carries no user text; cohorts freeze/reopen IDENTICAL on both
+  books; joined-column filter; one-customer owner selection; refresh = new version;
+  EW→Cockpit→What-If identity by membership hash; API round trip; tenant cannot be
+  named; comments bound to versions).
+* **Status:** PASS
 
 ## P3 — Guided Cockpit: Requires Attention
 * **Status:** NOT STARTED
