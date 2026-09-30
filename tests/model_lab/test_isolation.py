@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,17 @@ def test_I01_frozen_identity_is_pinned_to_the_tag():
         assert out.stdout.strip() == m["frozen_commit"]
 
 
+BUNDLE = not (ROOT / ".git").exists()
+
+
 def test_I02_lab_is_not_a_linked_worktree_and_has_no_symlinks():
+    if BUNDLE:
+        # A deployment bundle has no Git metadata: prove the equivalent --
+        # no symlink anywhere in the unpacked tree.
+        links = [p for p in ROOT.rglob("*") if p.is_symlink()
+                 and ".venv" not in p.parts and "node_modules" not in p.parts]
+        assert links == [], links[:5]
+        return
     wt = subprocess.run(["git", "-C", str(ROOT), "worktree", "list"],
                         capture_output=True, text=True).stdout.splitlines()
     assert len(wt) == 1
@@ -35,6 +46,12 @@ def test_I02_lab_is_not_a_linked_worktree_and_has_no_symlinks():
 
 
 def test_I04_I09_protected_manifest_matches():
+    if BUNDLE:
+        out = subprocess.run([sys.executable, str(
+            ROOT / "scripts/model_lab/protected_manifest.py"),
+            "--check-bundle"], capture_output=True, text=True)
+        assert out.returncode == 0, out.stdout + out.stderr
+        return
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "pm", ROOT / "scripts/model_lab/protected_manifest.py")
