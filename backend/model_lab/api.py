@@ -71,6 +71,10 @@ class CompareRequest(BaseModel):
     #: A saved comparison whose comparator answers are compared with this
     #: group's (agreement only, never latency). Empty means none.
     reference_comparison_id: str = ""
+    #: FROZEN_BASELINE (default) or ASSISTED_V1 (needs a registered
+    #: benchmark question, asked verbatim).
+    lane: str = "FROZEN_BASELINE"
+    benchmark_question_id: str = ""
 
 
 class ClarifyRequest(BaseModel):

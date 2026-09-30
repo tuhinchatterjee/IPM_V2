@@ -157,6 +157,11 @@ def _engine_view(trace: dict[str, Any] | None, entry: dict[str, Any],
             "output_allowance": allowance or None,
             "call_timeout_seconds": entry.get("call_timeout_seconds"),
             "request_controls": ctx.get("request_controls"),
+            "lane": ctx.get("lane"),
+            "assistance_appended": ({k: v for k, v in (t.get("assistance")
+                                                        or {}).items()
+                                     if k != "appended_system_block"}
+                                    or None),
             "frozen_context_bytes": entry.get("context_bytes"),
             "request_bytes": parts,
         },
@@ -230,6 +235,8 @@ def build(coord, cid: str, *, include_bodies: bool = False
                     "engine_request": _engine_view(trace, entry, stage),
                     "wire_request": _wire_request_view(trace),
                     "wire_response_raw": _wire_response_view(trace),
+                    "assistance_appended_to_request": (trace or {}).get(
+                        "assistance"),
                     "normalized_response": ({"response": norm,
                                              "error": trace.get("error")}
                                             if trace else None),
@@ -424,6 +431,9 @@ def export_files(trace: dict[str, Any]
                 for v in VIEWS:
                     files[f"{d}/{v}.json"] = _pretty(views.get(v)).encode()
                 files[f"{d}/metadata.json"] = _pretty(meta).encode()
+                if views.get("assistance_appended_to_request"):
+                    files[f"{d}/assistance_appended.json"] = _pretty(
+                        views["assistance_appended_to_request"]).encode()
                 calls_jsonl.append(json.dumps(meta | {"views": views},
                                               default=str))
                 er = (views.get("engine_request") or {})

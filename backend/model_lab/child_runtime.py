@@ -24,7 +24,8 @@ DEFAULT_CONTEXT_TOKENS = 32_768
 os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
 
 
-def capability_for(profile: Profile, probe: dict[str, Any] | None = None
+def capability_for(profile: Profile, probe: dict[str, Any] | None = None,
+                   *, context_reserve_tokens: int = 0
                    ) -> Any:
     from backend.cockpit_v4.capability import Capability, PriceCard
     from backend.cockpit_v4.model_capabilities import ModelTraits
@@ -54,8 +55,12 @@ def capability_for(profile: Profile, probe: dict[str, Any] | None = None
         provider="anthropic",   # the frozen engine's wire dialect, see OG-03
         model_id=profile.requested_model,
         sdk_version=profile.route,
+        # An ASSISTED_V1 child adds a packet the frozen engine does not
+        # count, so the capacity it is told shrinks by the packet's size:
+        # the frozen fits() check still guards the real total.
         context_tokens=int(raw.get("context_tokens") or
-                           DEFAULT_CONTEXT_TOKENS),
+                           DEFAULT_CONTEXT_TOKENS) - int(
+            context_reserve_tokens or 0),
         max_output_tokens=int(raw.get("max_output_tokens") or 8192),
         supports_tools=True,
         supports_token_counting=bool(ctl.get("token_counting")),
@@ -69,6 +74,7 @@ def capability_for(profile: Profile, probe: dict[str, Any] | None = None
 
 
 def runtime_for(profile: Profile, provider: Any, *, domain: str,
+                context_reserve_tokens: int = 0,
                 runtime_dir: Path, state_db: Path,
                 probe: dict[str, Any] | None = None) -> Any:
     from backend.cockpit_v4 import analytical_runtime as arun
@@ -76,7 +82,8 @@ def runtime_for(profile: Profile, provider: Any, *, domain: str,
     from backend.cockpit_v4.service import Runtime
 
     book = arun.for_domain(domain)
-    cap = capability_for(profile, probe)
+    cap = capability_for(profile, probe,
+                         context_reserve_tokens=context_reserve_tokens)
     cfg = config_mod.V4Config(
         enabled=True, provider="anthropic", reasoning_model=cap.model_id,
         runtime_dir=runtime_dir, state_database=str(state_db),

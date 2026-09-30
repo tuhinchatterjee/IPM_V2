@@ -194,6 +194,32 @@ def _finalize(artifact: str, rows: list[dict[str, Any]], *,
         "referral_owner": "", "referral_reason": ""}}
 
 
+def _finalize_scripted(artifact: str, rows: list[dict[str, Any]], *,
+                       call_id: str) -> dict[str, Any]:
+    cols = list(rows[0].keys()) if rows else []
+    num = next((c for c in cols if isinstance(rows[0].get(c), (int, float))
+                and not isinstance(rows[0].get(c), bool)), None)
+    ref = {"artifact_id": artifact, "row_key": "r0", "column_id": num or ""}
+    unit = ("facilities" if num and isinstance(rows[0][num], int)
+            else "SAR million")
+    claims = ([{"claim_id": "first", "unit": unit, "evidence": ref}]
+              if num else [])
+    return {"id": call_id, "name": "finalize_response", "input": {
+        "disposition": "answer",
+        "narrative": ("The executed result is shown in the table."
+                      + (" The first row reads {{claim.first}}." if num
+                         else "")),
+        "coverage": [{"subquestion": "the question as asked",
+                      "status": "answered", "evidence_refs": [ref]
+                      if num else []}],
+        "numeric_claims": claims, "evidence_refs": [],
+        "tables": [{"title": "Result", "artifact_id": artifact,
+                    "columns": cols}],
+        "charts": [], "limitations": [], "suggested_questions": [],
+        "clarification_question": "", "clarification_options": [],
+        "referral_owner": "", "referral_reason": ""}}
+
+
 def _asked_already(messages) -> bool:
     first = messages[0].get("content") if messages else ""
     text = first if isinstance(first, str) else json.dumps(first)
@@ -203,7 +229,11 @@ def _asked_already(messages) -> bool:
 class FixtureProvider:
     """One behaviour per profile; stateless apart from the call counter."""
 
-    def __init__(self, behaviour: str, model: str) -> None:
+    def __init__(self, behaviour: str, model: str,
+                 sql: str | None = None) -> None:
+        #: `scripted_sql` (tests only): submit `sql`, then publish the
+        #: result as a table with one claim on its first row.
+        self.sql = sql
         self.behaviour = behaviour
         self.model = model
         self.calls = 0
@@ -262,6 +292,11 @@ class FixtureProvider:
             return FixtureResult(tool_calls=[_finalize(
                 artifact, rows, call_id=f"fx-{n}")], model=self.model,
                 **usage)
+        if executed and b == "scripted_sql":
+            artifact, rows = executed
+            return FixtureResult(tool_calls=[_finalize_scripted(
+                artifact, rows, call_id=f"fx-{n}")], model=self.model,
+                **usage)
         if executed and b == "two_metrics":
             artifact, rows = executed
             return FixtureResult(tool_calls=[_finalize_two_metrics(
@@ -288,6 +323,8 @@ class FixtureProvider:
             sql = TWO_METRIC_SQL
         elif b == "alternate_plan":
             sql = ALTERNATE_SQL
+        elif b == "scripted_sql":
+            sql = self.sql or STAGE2_SQL
         else:
             sql = STAGE2_SQL
         return FixtureResult(tool_calls=[_execute(

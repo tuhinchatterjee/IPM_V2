@@ -204,6 +204,21 @@ class Coordinator:
             errors.append(f"{diag} relax the frozen time limits and may run "
                           f"only in LONG_RUN_DIAGNOSTIC mode (SLA not "
                           f"comparable), never as E2E_BASELINE")
+        lane = request.get("lane") or "FROZEN_BASELINE"
+        bqid = request.get("benchmark_question_id") or ""
+        if lane not in ("FROZEN_BASELINE", "ASSISTED_V1"):
+            errors.append(f"unknown lane {lane}")
+        if bqid:
+            from backend.model_lab import benchmark_questions as bq
+            known = bq.BY_ID.get(bqid)
+            if known is None:
+                errors.append(f"unknown benchmark question {bqid}")
+            elif " ".join(known.text.split()) != " ".join(question.split()):
+                errors.append(f"{bqid} must be asked verbatim: "
+                              f"{known.text!r}")
+        if lane == "ASSISTED_V1" and not bqid:
+            errors.append("ASSISTED_V1 needs benchmark_question_id: the "
+                          "packet is defined per registered question")
         ref = request.get("reference_comparison_id") or ""
         if ref and self.store.get_comparison(ref, self.cfg.tenant_id) is None:
             errors.append(f"reference comparison {ref} is not saved in this "
@@ -353,6 +368,15 @@ class Coordinator:
                                 [r["profile_id"] for r in pre["profiles"]]},
             "preflight": pre,
         }
+        lane = request.get("lane") or "FROZEN_BASELINE"
+        spec["lane"] = lane
+        if request.get("benchmark_question_id"):
+            spec["benchmark_question_id"] = str(
+                request["benchmark_question_id"])
+        if lane == "ASSISTED_V1":
+            from backend.model_lab import assistance
+            spec["assistance_packet"] = assistance.packet_record(
+                assistance.build_packet(spec["benchmark_question_id"]))
         if request.get("reference_comparison_id"):
             # A SAVED comparison whose comparator this group's answers are
             # compared with (agreement only; read-only; never latency).
@@ -610,10 +634,24 @@ class Coordinator:
                           source_site="ModelIOTrace",
                           payload=rec, sensitivity="lab-trace")
 
+        if spec.get("lane") == "ASSISTED_V1":
+            # After the wire recorder is attached to the real provider, so
+            # the recorded HTTP body is what the model actually received.
+            from backend.model_lab.assistance import AssistedProvider
+            inner = AssistedProvider(inner,
+                                     spec["assistance_packet"]["packet"])
+            trace_context["lane"] = "ASSISTED_V1"
+            trace_context["assistance_packet_sha256"] = spec[
+                "assistance_packet"]["sha256"]
+        elif trace_context:
+            trace_context["lane"] = spec.get("lane") or "FROZEN_BASELINE"
         provider = observe(inner, sink, trace_sink=trace_sink,
                            recorder=recorder, trace_context=trace_context)
         domain = spec.get("domain") or "corporate"
         rt = runtime_for(prof, provider, domain=domain,
+                         context_reserve_tokens=int(
+                             (spec.get("assistance_packet") or {}).get(
+                                 "estimated_tokens") or 0),
                          runtime_dir=self.cfg.runtime_dir,
                          state_db=self.store.runs_db_path,
                          probe=self.probes().get(prof.profile_id))

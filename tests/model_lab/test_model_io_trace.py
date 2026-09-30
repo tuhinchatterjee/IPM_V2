@@ -233,7 +233,9 @@ def test_every_call_has_four_views_and_exact_tool_results(traced):
     for c, sent in zip(calls, bodies, strict=True):
         v = c["views"]
         assert c["dispatch_status"] == "SENT"
-        assert set(v) == set(model_io.VIEWS)
+        assert set(v) == set(model_io.VIEWS) | {
+            "assistance_appended_to_request"}
+        assert v["assistance_appended_to_request"] is None    # baseline
         er = v["engine_request"]
         assert er["request"]["system"] and er["request"]["tools"]
         assert er["metadata"]["context_capacity_tokens"] == 32_768

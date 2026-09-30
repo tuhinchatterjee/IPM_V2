@@ -123,6 +123,15 @@ class _Observed:
         except Exception as exc:  # noqa: BLE001 - telemetry never gates
             return {"capture_error": f"{type(exc).__name__}: {exc}"[:300]}
 
+    def _assistance(self) -> dict[str, Any] | None:
+        rec = getattr(self._inner, "assistance_record", None)
+        if not rec:
+            return None
+        return {"lane": "ASSISTED_V1", "applied": True,
+                "delivery": rec["delivery"], "bytes": rec["bytes"],
+                "sha256": rec["sha256"],
+                "appended_system_block": rec["rendered_text"]}
+
     def _trace(self, call_id: str, wall: float, duration_ms: float,
                engine: Any, mark: int, result: Any,
                exc: BaseException | None) -> None:
@@ -168,6 +177,7 @@ class _Observed:
                 "wire_exchanges": wire,
                 "normalized_response": normalized,
                 "error": error,
+                "assistance": self._assistance(),
             }
             text = io_trace.scrub(json.dumps(record, default=str), secrets)
             self._trace_sink(json.loads(text))

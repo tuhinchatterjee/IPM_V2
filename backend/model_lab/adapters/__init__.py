@@ -20,7 +20,8 @@ def build_provider(profile: Profile, *, env: dict[str, str] | None = None
     if profile.route == "fixture":
         from backend.model_lab.adapters.fixture import FixtureProvider
         return FixtureProvider(profile.raw["fixture_behaviour"],
-                               model=profile.requested_model)
+                               model=profile.requested_model,
+                               sql=profile.raw.get("fixture_sql"))
     if profile.route == "anthropic":
         key = env.get(ep.get("api_key_env") or "")
         if not key:

@@ -543,11 +543,21 @@ def evaluate_child(child: dict[str, Any], *, runs, events: list[dict],
              if c.get("call_timeout_seconds") is not None), default=None)
 
     # ---- checks against the independent reference
-    checks, facts = _checks(child, answers, runs, tenant, task, reference)
+    bqid = spec.get("benchmark_question_id")
+    suite = bool(bqid) and bqid != "Q01"
+    if suite:
+        checks, facts = _suite_checks(answers, runs, tenant, bqid, spec)
+    else:
+        checks, facts = _checks(child, answers, runs, tenant, task,
+                                reference)
     out["checks"] = checks
+    out["lane"] = spec.get("lane") or "FROZEN_BASELINE"
+    out["benchmark_question_id"] = bqid
     out["repair"] = _repair(all_gens, facts)
     out["claims"] = _claims(last["final_response"], runs, tenant, task,
                             reference, facts, frozen_validation)
+    if suite:
+        _suite_claims(out["claims"], checks, bqid, spec)
     out["frozen_validation"] = frozen_validation
     out["claim_rates"] = _claim_rates(out["claims"], task, facts)
     out["stages"] = _stages(all_gens, checks, out["repair"], out["claims"],
@@ -732,6 +742,174 @@ def _checks(child, answers, runs, tenant, task, reference
                  else ""),
         "evidence_ref": {"artifact_id": artifact_id}})
     return checks, facts
+
+
+# ---- RunPod suite (Q02-Q15): independent pandas oracles ----------------------
+
+def _unit_kind(units: str | None) -> str | None:
+    uc = oracle.unit_class(units)
+    if uc == "money":
+        return "money"
+    if uc and uc.startswith("count"):
+        return "count"
+    if re.search(r"%|percent|share", str(units or ""), re.I):
+        return "percent"
+    return None
+
+
+def _suite_checks(answers, runs, tenant, qid, spec
+                  ) -> tuple[list[dict], dict[str, Any]]:
+    from backend.model_lab import benchmark_oracles as bo
+    from backend.model_lab import benchmark_questions as bq
+
+    release = str(spec.get("data_snapshot_id") or bo.RELEASE).split("@")[0]
+    ex = bo.expected(qid, release)
+    last = answers[-1]
+    fr = last["final_response"] or {}
+    cited = [t.get("artifact_id") for t in fr.get("tables") or []] + [
+        (c.get("evidence") or {}).get("artifact_id")
+        for c in fr.get("numeric_claims") or []]
+    produced: list[str] = []
+    for a in answers:
+        try:
+            produced += runs.artifact_ids_for_run(a["run_id"],
+                                                  tenant_id=tenant)
+        except Exception:  # noqa: BLE001
+            pass
+    order = list(dict.fromkeys([x for x in cited if x] + produced))
+    arts = [(aid, _artifact_rows(runs, aid, tenant)) for aid in order]
+    arts = [(a, r) for a, r in arts if r]
+    oref = {"oracle_version": ex["oracle_version"],
+            "code_sha256": ex["code_sha256"],
+            "data_snapshot_id": ex["data_snapshot_id"], "question_id": qid}
+    facts: dict[str, Any] = {"task_id": f"suite:{qid}", "oracle": oref,
+                             "artifact_ids": [a for a, _ in arts],
+                             "produced": {}}
+    checks: list[dict] = []
+    table_outcomes = []
+    for t in ex["tables"]:
+        best = None
+        for aid, rows in arts:
+            g = bo.grade_table(qid, t["name"], rows, release)
+            g["artifact_id"] = aid
+            if g["outcome"] == PASS:
+                best = g
+                break
+            best = best or g
+        if best is None:
+            outcome, actual = NOT_REACHED, "no executed result artifact"
+        else:
+            outcome = best["outcome"]
+            actual = {k: best.get(k) for k in (
+                "artifact_id", "diagnosis", "missing_keys", "extra_keys",
+                "duplicate_keys", "order_ok", "key_columns",
+                "metric_columns")} | {"mismatch_sample": {
+                    m: v[:3] for m, v in (best.get("mismatches") or {})
+                    .items()}}
+        table_outcomes.append(outcome)
+        checks.append({
+            "check_id": f"ORACLE-{t['name']}", "stage": "S1+S2",
+            "kind": "result_matches_independent_oracle", "outcome": outcome,
+            "expected": {"table": t["name"], "keys": t["keys"],
+                         "metrics": t["metrics"], "rows": len(t["rows"]),
+                         "ordered": t["ordered"], "top_n": t["top_n"]}
+            | oref,
+            "actual": actual, "truth_source": "independent pandas oracle "
+            f"{ex['oracle_version']}", "tolerance": ex["spec"]["tolerances"],
+            "severity": "MAJOR", "status": "AUTO_CHECKED",
+            "evidence_ref": {"artifact_id": (best or {}).get("artifact_id")}})
+    if ex["tables"]:
+        primary = checks[0]
+        checks.insert(0, dict(primary, check_id="S1S2-POP",
+                              kind="population_and_values"))
+        s2 = (NOT_REACHED if all(o == NOT_REACHED for o in table_outcomes)
+              else PASS if all(o == PASS for o in table_outcomes) else FAIL)
+        checks.insert(1, {"check_id": "S2-RESULT", "stage": "S2",
+                          "kind": "all_required_tables", "outcome": s2,
+                          "expected": [t["name"] for t in ex["tables"]],
+                          "actual": table_outcomes,
+                          "truth_source": "independent pandas oracle",
+                          "severity": "MAJOR", "status": "AUTO_CHECKED",
+                          "evidence_ref": None})
+    else:
+        checks.append({"check_id": "REF-FACTSET", "stage": "S4",
+                       "kind": "fact_set_only", "outcome": UNKNOWN,
+                       "expected": f"{len(ex['facts'])} oracle facts; "
+                                   "quantitative claims checked against them",
+                       "actual": "see claim ledger (oracle_consistency)",
+                       "truth_source": "independent pandas oracle",
+                       "severity": "INFO", "status": "NEEDS_REVIEW",
+                       "evidence_ref": None})
+    if ex.get("chart_required"):
+        charts = fr.get("charts") or []
+        checks.append({"check_id": "S4-CHART", "stage": "S4",
+                       "kind": "chart_requirement",
+                       "outcome": PASS if charts else FAIL,
+                       "expected": "a chart", "actual":
+                       "CHART_PRESENT" if charts else "NO_CHART_GENERATED",
+                       "truth_source": "question output contract",
+                       "severity": "MINOR", "status": "AUTO_CHECKED",
+                       "evidence_ref": {"charts": len(charts)}})
+    if bq.get(qid).causal_limits:
+        text = str(fr.get("narrative") or "")
+        marks = [m for m in ("interpret", "not established", "cannot be "
+                             "established", "the data does not", "may ",
+                             "might ", "possible", "suggests", "limitation")
+                 if m in text.lower()]
+        checks.append({"check_id": "S4-FACT-CAUSE-SEPARATION", "stage": "S4",
+                       "kind": "facts_separated_from_causes",
+                       "outcome": UNKNOWN,
+                       "expected": "facts and causal interpretation "
+                                   "explicitly separated",
+                       "actual": {"markers_found": marks,
+                                  "limitations": fr.get("limitations")},
+                       "truth_source": "review", "severity": "MINOR",
+                       "status": "NEEDS_REVIEW",
+                       "note": "detected markers are hints for the "
+                               "reviewer, not a verdict",
+                       "evidence_ref": {"run_id": last["run_id"]}})
+    return checks, facts
+
+
+def _suite_claims(claims: list[dict], checks: list[dict], qid: str,
+                  spec: dict) -> None:
+    """Annotate numeric claims with oracle consistency; causes on a
+    causal-limits question are UNVERIFIABLE, never silently supported."""
+    from backend.model_lab import benchmark_oracles as bo
+    from backend.model_lab import benchmark_questions as bq
+
+    release = str(spec.get("data_snapshot_id") or bo.RELEASE).split("@")[0]
+    nums = [c for c in claims if c.get("asserted_value") is not None]
+    res = bo.check_facts(qid, [(float(c["asserted_value"]),
+                                _unit_kind(c.get("units"))) for c in nums],
+                         release)
+    for c, r in zip(nums, res, strict=True):
+        c["oracle_consistency"] = r["status"]
+        c["oracle_ref"] = r["oracle_ref"]
+    if bq.get(qid).causal_limits:
+        for c in claims:
+            if c["claim_type"] == "causal" and \
+                    c["verification_status"] == UNSUPPORTED:
+                c["verification_status"] = UNVERIFIABLE
+                c["evidence_status"] = EV_INCOMPLETE
+                c["explanation"] = ("causal statement: not derivable from "
+                                    "the data by the oracle; UNVERIFIABLE "
+                                    "unless a reviewer finds direct support")
+                c["reviewer_status"] = "NEEDS_REVIEW"
+    ok = sum(1 for r in res if r["status"] == "CONSISTENT_WITH_ORACLE")
+    checks.append({"check_id": "S4-ORACLE-FACTS", "stage": "S4",
+                   "kind": "numeric_claims_vs_oracle",
+                   "outcome": (NOT_OBSERVED if not res else PASS
+                               if ok == len(res) else PARTIAL),
+                   "expected": "every stated number matches an oracle fact "
+                               "or table cell",
+                   "actual": f"{ok}/{len(res)} consistent",
+                   "truth_source": "independent pandas oracle",
+                   "severity": "MAJOR", "status": (
+                       "AUTO_CHECKED" if ok == len(res) else "NEEDS_REVIEW"),
+                   "note": "a number not in the oracle set needs review; it "
+                           "is not automatically wrong",
+                   "evidence_ref": None})
 
 
 def _repair(gens: list[dict], facts: dict) -> dict[str, Any]:
@@ -1601,7 +1779,7 @@ def evaluate_comparison(coord, cid: str, *,
 
 #: Saved evaluations whose child records carry everything agreement needs
 #: (frozen-authority tool calls, row-id claims, metric-aware references).
-COMPATIBLE_REFERENCE_VERSIONS = ("lab-eval-3", "lab-eval-4")
+COMPATIBLE_REFERENCE_VERSIONS = ("lab-eval-3", "lab-eval-4", "lab-eval-5")
 _REFERENCE_CHILD_KEYS = ("execution_state", "stages", "checks", "claims",
                          "facts")
 REFERENCE_NOTE = ("saved separate run, read-only; Opus Match is agreement, "
