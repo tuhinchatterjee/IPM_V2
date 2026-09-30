@@ -50,6 +50,8 @@ sha256sum -c checksums.sha256 || die "bundle checksum mismatch"
 mkdir -p "$APP"
 python3 -c "import zipfile,sys; zipfile.ZipFile('CreditProbe_Model_Lab_RunPod_FullTrace.zip').extractall(sys.argv[1])" "$WS"
 cd "$APP"
+# zipfile does not restore Unix modes: make the launchers executable again.
+find . -type f \( -name '*.sh' -o -name '*.command' \) -exec chmod +x {} +
 python3 - <<'EOF' || die "unpacked files do not match DEPLOYMENT_MANIFEST.json"
 import hashlib, json, pathlib
 m = json.loads(pathlib.Path("DEPLOYMENT_MANIFEST.json").read_text())
