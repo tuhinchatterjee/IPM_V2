@@ -10,12 +10,19 @@
 # materialises the independent oracle artifacts, installs vLLM, PINS every
 # suite checkpoint to an immutable revision with an A40 fit preflight,
 # PROBES each pinned, licence-clear, fitting model with the harmless dummy
-# tool (this downloads those checkpoints), starts the lab on 127.0.0.1 and
-# prints the suite plan.
+# tool (this downloads those checkpoints), runs the OPUS REFERENCE preflight
+# (OPUS_REFERENCE_SET_V1: which of Q01-Q15 already have a valid saved Opus
+# reference, which are missing, the approved and the required spend), starts
+# the lab on 127.0.0.1 and prints the suite plan.
 #
-# It sends NO benchmark question to any model. Running the suite
-# (scripts/model_lab/benchmark_suite.py --run --confirm-model-calls --serve)
-# is a separate, deliberate operator step.
+# It makes NO paid call and sends NO benchmark question to any model.
+# Building missing Opus references and running the suite are separate,
+# deliberate operator steps, in that order: the suite refuses to start a
+# candidate until all 15 references are READY.
+#
+# COCKPIT_ANTHROPIC_API_KEY is read by the frozen Opus provider only from
+# the runtime environment (a RunPod secret). Never pass it on a command
+# line, never write it to a file; this script checks presence only.
 set -euo pipefail
 
 SKIP_BROWSER=0; WITH_VLLM=1; START=1; PROBE=1
@@ -98,8 +105,9 @@ echo "== 7. Offline fixture smoke test (no model)"
   tests/model_lab/test_model_io_trace.py tests/model_lab/test_observer_neutrality.py \
   tests/model_lab/test_saved_reference.py tests/model_lab/test_assisted_lane.py \
   tests/model_lab/test_benchmark_oracles.py tests/model_lab/test_runpod_suite.py \
+  tests/model_lab/test_opus_reference_set.py \
   || die "fixture smoke test failed"
-ok "fixture smoke test passed (full Model I/O Trace, oracles, ASSISTED_V1, suite runner)"
+ok "fixture smoke test passed (full Model I/O Trace, oracles, ASSISTED_V1, suite runner, Opus reference gate)"
 
 echo "== 8. Suite preparation: independent oracle artifacts"
 mkdir -p "$RUNTIME"
@@ -134,26 +142,55 @@ else
   echo "   .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --probe"
 fi
 
-echo "== 12. Suite plan (no model call)"
+echo "== 12. Opus reference preflight: OPUS_REFERENCE_SET_V1 (no model call)"
+if [ -n "${IMPORT_RUNTIME_FROM:-}" ]; then
+  echo "   importing saved comparisons from $IMPORT_RUNTIME_FROM (approvals/probes not copied)"
+  .venv/bin/python scripts/model_lab/opus_reference_set.py import-runtime \
+    --runtime-dir "$RUNTIME" --from "$IMPORT_RUNTIME_FROM" || echo "  WARN import refused (see message)"
+fi
+REF_RC=0
+.venv/bin/python scripts/model_lab/opus_reference_set.py preflight --runtime-dir "$RUNTIME" || REF_RC=$?
+case "$REF_RC" in
+  0) REF_STATE=READY; ok "all 15 Opus references READY: the candidate benchmark may start" ;;
+  3) REF_STATE=MISSING
+     echo "  Opus references are MISSING (listed above). NO candidate may start yet."
+     echo "  The bootstrap makes no paid call. After granting a cap that covers the"
+     echo "  required spend and injecting COCKPIT_ANTHROPIC_API_KEY as a pod secret, build"
+     echo "  them explicitly (one frozen-provider Opus run per missing question):"
+     echo "    .venv/bin/python scripts/model_lab/approve.py grant opus_spend --cap-usd <required_cap_usd> --runtime-dir $RUNTIME"
+     echo "    .venv/bin/python scripts/model_lab/opus_reference_set.py build --runtime-dir $RUNTIME --confirm-paid-opus-calls"
+     echo "  then verify all 15 READY:"
+     echo "    .venv/bin/python scripts/model_lab/opus_reference_set.py verify --runtime-dir $RUNTIME" ;;
+  *) REF_STATE=ERROR; echo "  WARN Opus reference preflight failed (exit $REF_RC)" ;;
+esac
+
+echo "== 13. Suite plan (no model call)"
 .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir "$RUNTIME"
 
 if [ "$START" = 1 ]; then
-  echo "== 13. Start Model Lab services (127.0.0.1 only)"
+  echo "== 14. Start Model Lab services (127.0.0.1 only)"
   MODEL_LAB_RUNTIME_DIR="$RUNTIME" MODEL_LAB_PYTHON=.venv/bin/python \
     ./launchers/START_MODEL_LAB.command --runtime-dir "$RUNTIME"
   echo "  From your machine: ssh -L 5424:127.0.0.1:5424 -L 8424:127.0.0.1:8424 <pod-ssh>"
   echo "  then open http://127.0.0.1:5424/cockpit/lab"
 fi
 
+if [ "$REF_STATE" = READY ]; then
+  HEAD_LINE="READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET"
+else
+  HEAD_LINE="OPUS REFERENCES INCOMPLETE — BUILD THEM (step 12) BEFORE THE BENCHMARK; NO MODEL CALLS YET"
+fi
 cat <<EOF
 
-READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET
+$HEAD_LINE
+  opus refs: $REF_STATE (.venv/bin/python scripts/model_lab/opus_reference_set.py verify --runtime-dir $RUNTIME)
   roster:    $RUNTIME/pins/ROSTER.json
   licences:  review each LICENSE_REVIEW_REQUIRED model's terms, then
              .venv/bin/python scripts/model_lab/approve.py grant license:<profile-id> --runtime-dir $RUNTIME
   identities: for a PIN_BLOCKED model, name the official repository and re-pin:
              .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --profile <id> --repo <id>=<Org/Repo> --probe
-  run (explicit; every qualified model, smallest first, checkpointed, resumable):
+  run (explicit; only after all 15 Opus references are READY; every qualified
+       model, smallest first, checkpointed, resumable):
              .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir $RUNTIME --run --confirm-model-calls --serve
   report:    .venv/bin/python scripts/model_lab/suite_report.py --runtime-dir $RUNTIME
 EOF

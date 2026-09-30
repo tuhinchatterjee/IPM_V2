@@ -38,7 +38,17 @@ cd /workspace && bash RUNPOD_BOOTSTRAP.sh          # --skip-probe to defer weigh
 7. Installs vLLM into `/workspace/vllm-venv`.
 8. **Pins checkpoints and checks A40 fit** (`pin_and_probe_models.py`): metadata only, no weights.
 9. **Probes each model** (`--probe`) that is pinned, licence-clear and fits the A40. Each is served with vLLM from its pinned revision, which downloads that checkpoint, and gets the harmless dummy-tool probe. The result is `READY_E2E` or `PROBE_FAILED` with the exact failure, and the next model follows.
-10. Prints the suite plan, starts the lab on 127.0.0.1, and stops at **READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET**.
+10. **Opus reference preflight** (`opus_reference_set.py preflight`, no model call). It prints which of Q01–Q15 have a valid saved Opus reference, the missing ones, the current `opus_spend` cap, the available and the required spend, and whether the key is present.
+    - Set `IMPORT_RUNTIME_FROM=<dir>` to import a prior runtime, for example the Mac runtime holding Q01 `cmp-f364d8b6901a`, into the empty pod runtime first.
+    - If references are missing, it prints the explicit grant, build and verify commands. **It never runs the paid build itself.**
+11. Prints the suite plan, starts the lab on 127.0.0.1, and stops at one of two banners:
+    - **READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET** when all 15 references are READY;
+    - **OPUS REFERENCES INCOMPLETE** otherwise.
+
+**API key.** The frozen Opus provider reads `COCKPIT_ANTHROPIC_API_KEY` only from the runtime environment: set it as a RunPod secret.
+- Never put it on a command line, in a file, in the manifest or in the bundle.
+- The scripts check presence only.
+- The Model I/O Trace, the reference set, the store and the export packs never contain it; the secret-scrubbing tests cover this.
 
 ## Gates (nothing is substituted or run silently)
 
@@ -52,9 +62,13 @@ cd /workspace && bash RUNPOD_BOOTSTRAP.sh          # --skip-probe to defer weigh
 
 A blocked model is skipped with its reason, and the suite continues.
 
-## Run and report
+## Opus references, then run and report
 
 ```bash
+.venv/bin/python scripts/model_lab/opus_reference_set.py preflight --runtime-dir /workspace/lab-runtime
+.venv/bin/python scripts/model_lab/approve.py grant opus_spend --cap-usd <required_cap_usd> --runtime-dir /workspace/lab-runtime
+.venv/bin/python scripts/model_lab/opus_reference_set.py build --runtime-dir /workspace/lab-runtime --confirm-paid-opus-calls
+.venv/bin/python scripts/model_lab/opus_reference_set.py verify --runtime-dir /workspace/lab-runtime   # all 15 READY
 .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir /workspace/lab-runtime --run --confirm-model-calls --serve
 .venv/bin/python scripts/model_lab/suite_report.py --runtime-dir /workspace/lab-runtime
 ```
@@ -63,4 +77,4 @@ A blocked model is skipped with its reason, and the suite continues.
 - **Per model:** re-probe, FROZEN_BASELINE Q01, then Q02–Q15, then ASSISTED_V1 Q01–Q15.
 - **Checkpointing:** after every question, and a re-run resumes.
 - **Evidence per result:** each is exported with its Full Model I/O Trace; the VRAM peak is sampled.
-- **Report:** covers every model (variant, parameters, quantisation, exact revision, licence status, runtime, context, VRAM peak) and every cell. Each cell has the answer, S1–S4, independent correctness, Opus agreement for Q01, the trace, tables and charts, and for ASSISTED_V1 the packet hash and the stage-by-stage change against the baseline. No overall winner is declared.
+- **Report:** covers every model (variant, parameters, quantisation, exact revision, licence status, runtime, context, VRAM peak) and every cell. Each cell has the answer, S1–S4, independent correctness and, separately, the saved-Opus agreement (reference id, revision, S1–S4 and FINAL) for every question, the trace, tables and charts, and for ASSISTED_V1 the packet hash and the stage-by-stage change against the baseline. No overall winner is declared.

@@ -72,3 +72,38 @@ def demo(tmp_path_factory):
 
 def child(ev: dict[str, Any], profile_id: str) -> dict[str, Any]:
     return next(k for k in ev["children"] if k["profile_id"] == profile_id)
+
+
+def as_opus_profiles(fixture_id: str = "fixture-reference") -> dict:
+    """The registry with a labelled FIXTURE registered as `opus-frozen`, so
+    a saved "Opus" reference can be built offline. Never a real Opus."""
+    from backend.model_lab import registry
+    raw = registry.load_profiles()[fixture_id].raw | {
+        "profile_id": "opus-frozen", "display_name": "Saved Opus (fixture)"}
+    return registry.load_profiles() | {
+        "opus-frozen": registry._validate(raw, Path("opus-frozen.json"))}
+
+
+def build_fixture_reference_set(runtime: Path, set_dir: Path,
+                                qids: list[str], **kw: Any) -> int:
+    """Grant a cap that covers exactly these questions, then build their
+    saved references with the fixture standing in for Opus."""
+    import json
+
+    from backend.model_lab.coordinator import PER_CHILD_RESERVE_USD
+    sys.path.insert(0, str(ROOT / "scripts" / "model_lab"))
+    import opus_reference_set
+
+    runtime.mkdir(parents=True, exist_ok=True)
+    ap = runtime / "approvals.json"
+    data = json.loads(ap.read_text()) if ap.exists() else {}
+    data["opus_spend"] = {"granted_at": 1.0, "granted_by": "test",
+                          "cap_usd": PER_CHILD_RESERVE_USD * len(qids)}
+    ap.write_text(json.dumps(data))
+    svc = make_service(runtime, profiles=as_opus_profiles())
+    argv = ["build", "--runtime-dir", str(runtime), "--set-dir",
+            str(set_dir), "--confirm-paid-opus-calls",
+            "--allow-fixture-reference"]
+    for q in qids:
+        argv += ["--question", q]
+    return opus_reference_set.main(argv, svc=svc, **kw)

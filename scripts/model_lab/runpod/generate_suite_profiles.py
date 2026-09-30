@@ -238,8 +238,17 @@ def write_suite() -> Path:
         "frozen_source": "245c50e45786c6e0c866b281f9dd74da17d160b5",
         "trace": {"required": True, "flag": "MODEL_LAB_FULL_IO_TRACE=true"},
         "oracle_version": "lab-oracle-suite-1",
-        "reference": {"saved_opus_comparison": "cmp-f364d8b6901a",
-                      "applies_to": ["Q01"]},
+        "reference_set": {
+            "set_id": "OPUS_REFERENCE_SET_V1",
+            "path": "artifacts/model_comparison/reference_sets/"
+                    "OPUS_REFERENCE_SET_V1.json",
+            "required": "every suite question READY before any candidate "
+                        "starts (override --allow-missing-opus is "
+                        "diagnostic only)",
+            "semantics": "saved Opus agreement only; no live Opus "
+                         "comparator child; correctness is the independent "
+                         "oracle",
+            "known_prior": {"Q01": "cmp-f364d8b6901a"}},
         "run_order": "smallest / cheapest first (list order)",
         "per_model_sequence": [
             "qualification: pinned, licence clear, fits the A40, probe "

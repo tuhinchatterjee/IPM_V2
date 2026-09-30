@@ -10,7 +10,7 @@ import shutil
 import sys
 
 import pytest
-from conftest import ROOT
+from conftest import ROOT, build_fixture_reference_set
 
 from backend.model_lab import benchmark_questions as bq
 from backend.model_lab import registry
@@ -239,8 +239,13 @@ def mini_run(tmp_path_factory):
     sp = tmp / "suite.json"
     sp.write_text(json.dumps(suite))
     rt = tmp / "rt"
+    # The candidate gate: a saved (fixture-as-Opus) reference per question.
+    assert build_fixture_reference_set(rt, tmp / "sets", ["Q01", "Q02"]) \
+        == 6
     args = ["--suite", str(sp), "--runtime-dir", str(rt), "--run",
-            "--confirm-model-calls"]
+            "--confirm-model-calls", "--reference-set",
+            str(tmp / "sets" / "OPUS_REFERENCE_SET_V1.json"),
+            "--allow-fixture-reference"]
     assert benchmark_suite.main(args) == 0
     cp1 = benchmark_suite.load_checkpoint(rt, suite)
     assert benchmark_suite.main(args) == 0                 # resume

@@ -784,7 +784,9 @@ def _suite_checks(answers, runs, tenant, qid, spec
             "data_snapshot_id": ex["data_snapshot_id"], "question_id": qid}
     facts: dict[str, Any] = {"task_id": f"suite:{qid}", "oracle": oref,
                              "artifact_ids": [a for a, _ in arts],
-                             "produced": {}}
+                             "produced": {}, "suite_values": {},
+                             "suite_tables": [t["name"] for t in
+                                              ex["tables"]]}
     checks: list[dict] = []
     table_outcomes = []
     for t in ex["tables"]:
@@ -799,6 +801,11 @@ def _suite_checks(answers, runs, tenant, qid, spec
         if best is None:
             outcome, actual = NOT_REACHED, "no executed result artifact"
         else:
+            if best.get("key_columns"):
+                facts.setdefault("suite_values", {})[t["name"]] = \
+                    bo.table_values(t, dict(arts)[best["artifact_id"]],
+                                    best["key_columns"],
+                                    best.get("metric_columns") or {})
             outcome = best["outcome"]
             actual = {k: best.get(k) for k in (
                 "artifact_id", "diagnosis", "missing_keys", "extra_keys",
@@ -1626,67 +1633,56 @@ def _first_divergence(ev: dict[str, Any]) -> dict[str, Any] | None:
 
 # ---- Opus Match (comparator agreement; NOT correctness) ---------------------
 
-def opus_match(cand: dict[str, Any], comp: dict[str, Any] | None
-               ) -> dict[str, Any]:
+MATCH_STAGES = ("S1", "S2", "S3", "S4", "FINAL")
+
+
+def _na_match(reason: str) -> dict[str, Any]:
+    return {s: {"pct": None, "display": "N/A", "reason": reason,
+                "checks": []} for s in MATCH_STAGES}
+
+
+def _match_blocker(cand: dict[str, Any], comp: dict[str, Any] | None
+                   ) -> str | None:
     if comp is None or comp.get("execution_state") != "COMPLETED":
-        reason = ("comparator unavailable" if comp is None else
-                  f"comparator did not complete ({comp.get('execution_state')})")
-        return {s: {"pct": None, "display": "N/A", "reason": reason,
-                    "checks": []} for s in ("S1", "S2", "S3", "S4")}
+        return ("comparator unavailable" if comp is None else
+                f"comparator did not complete ({comp.get('execution_state')})")
     if not cand.get("turns") or cand.get("execution_state") not in (
             "COMPLETED", "WAITING_USER"):
-        reason = (f"candidate did not produce comparable evidence "
-                  f"({cand.get('execution_state')})")
-        return {s: {"pct": None, "display": "N/A", "reason": reason,
-                    "checks": []} for s in ("S1", "S2", "S3", "S4")}
-    cf, kf = cand.get("facts") or {}, comp.get("facts") or {}
-    cp, kp = cf.get("produced") or {}, kf.get("produced") or {}
+        return (f"candidate did not produce comparable evidence "
+                f"({cand.get('execution_state')})")
+    return None
 
-    def chk(cid, desc, weight, a, b, agree):
-        return {"check_id": cid, "description": desc, "weight": weight,
-                "candidate": a, "comparator": b,
-                "agree": agree if (a is not None and b is not None)
-                else None}
-    s1 = [chk("M-S1-POP", "same population (result keys and totals)", 2,
-              sorted(cp) or None, sorted(kp) or None,
-              bool(cp) and bool(kp) and set(cp) == set(kp) and all(
-                  abs(cp[k] - kp[k]) <= 0.01 for k in cp)),
-          chk("M-S1-CLAR", "same clarification decision", 1,
-              bool(cf.get("clarification")), bool(kf.get("clarification")),
-              bool(cf.get("clarification")) == bool(kf.get("clarification")))]
-    s2 = [chk("M-S2-RESULT", "same result set within 0.01 (semantics, not "
-              "SQL text)", 2, len(cp) or None, len(kp) or None,
-              bool(cp) and bool(kp) and set(cp) == set(kp) and all(
-                  abs(cp[k] - kp[k]) <= 0.01 for k in cp))]
+
+def _chk(cid, desc, weight, a, b, agree):
+    return {"check_id": cid, "description": desc, "weight": weight,
+            "candidate": a, "comparator": b,
+            "agree": agree if (a is not None and b is not None) else None}
+
+
+def _unsupported(ev) -> int:
+    return sum(1 for c in ev.get("claims") or []
+               if c["verification_status"] in (UNSUPPORTED, CONTRADICTED))
+
+
+def _answered(ev) -> bool:
+    return ((ev.get("answer") or {}).get("disposition") in
+            ("answer", "partial_answer"))
+
+
+def _repair_check(cand, comp) -> list[dict]:
     cr, kr = cand.get("repair") or {}, comp.get("repair") or {}
-    s3 = []
-    if cr.get("opportunities") or kr.get("opportunities"):
-        s3.append(chk("M-S3-RECOG", "both recognised and repaired their "
-                      "errors (or had none)", 1,
-                      cr.get("valid_repairs") == cr.get("opportunities"),
-                      kr.get("valid_repairs") == kr.get("opportunities"),
-                      (cr.get("valid_repairs") == cr.get("opportunities")) ==
-                      (kr.get("valid_repairs") == kr.get("opportunities"))))
-    ctop = max(cp, key=cp.get) if cp else None
-    ktop = max(kp, key=kp.get) if kp else None
+    if not (cr.get("opportunities") or kr.get("opportunities")):
+        return []
+    a = cr.get("valid_repairs") == cr.get("opportunities")
+    b = kr.get("valid_repairs") == kr.get("opportunities")
+    return [_chk("M-S3-RECOG", "both recognised and repaired their errors "
+                 "(or had none)", 1, a, b, a == b)]
 
-    def unsupported(ev):
-        return sum(1 for c in ev.get("claims") or []
-                   if c["verification_status"] in (UNSUPPORTED,
-                                                   CONTRADICTED))
-    def answered(ev):
-        return ((ev.get("answer") or {}).get("disposition") in
-                ("answer", "partial_answer"))
-    s4 = []
-    if answered(cand) and answered(comp):
-        s4 = [chk("M-S4-TOP", "same material conclusion (largest sector)",
-                  2, ctop, ktop, ctop == ktop),
-              chk("M-S4-CLAIMS", "same claim-support profile (no "
-                  "unsupported or contradicted claims on both)", 1,
-                  unsupported(cand), unsupported(comp),
-                  (unsupported(cand) == 0) == (unsupported(comp) == 0))]
+
+def _score(stages: dict[str, list[dict]], empty_reason: dict[str, str]
+           ) -> dict[str, Any]:
     out = {}
-    for s, lst in (("S1", s1), ("S2", s2), ("S3", s3), ("S4", s4)):
+    for s, lst in stages.items():
         assessed = [c for c in lst if c["agree"] is not None]
         w = sum(c["weight"] for c in assessed)
         pct = (100.0 * sum(c["weight"] for c in assessed if c["agree"]) / w
@@ -1694,9 +1690,137 @@ def opus_match(cand: dict[str, Any], comp: dict[str, Any] | None
         out[s] = {"pct": pct, "display": f"{pct:.0f}%" if pct is not None
                   else "N/A", "assessed": len(assessed), "defined": len(lst),
                   "reason": "" if pct is not None else
-                  "insufficient evidence", "checks": lst,
-                  "weights_version": "opus-match-1"}
+                  empty_reason.get(s) or "insufficient evidence",
+                  "checks": lst, "weights_version": "opus-match-2"}
     return out
+
+
+def opus_match(cand: dict[str, Any], comp: dict[str, Any] | None
+               ) -> dict[str, Any]:
+    """Agreement with a comparator/reference answer. NOT correctness.
+
+    S1-S4 per stage plus FINAL (the material final answer). A stage with no
+    comparable evidence is N/A with its reason, never 0%."""
+    why = _match_blocker(cand, comp)
+    if why:
+        return _na_match(why)
+    cf, kf = cand.get("facts") or {}, comp.get("facts") or {}
+    if str(cf.get("task_id") or "").startswith("suite:") or \
+            str(kf.get("task_id") or "").startswith("suite:"):
+        return suite_match(cand, comp)
+    cp, kp = cf.get("produced") or {}, kf.get("produced") or {}
+    same = bool(cp) and bool(kp) and set(cp) == set(kp) and all(
+        abs(cp[k] - kp[k]) <= 0.01 for k in cp)
+    s1 = [_chk("M-S1-POP", "same population (result keys and totals)", 2,
+               sorted(cp) or None, sorted(kp) or None, same),
+          _chk("M-S1-CLAR", "same clarification decision", 1,
+               bool(cf.get("clarification")), bool(kf.get("clarification")),
+               bool(cf.get("clarification")) == bool(kf.get("clarification")))]
+    s2 = [_chk("M-S2-RESULT", "same result set within 0.01 (semantics, not "
+               "SQL text)", 2, len(cp) or None, len(kp) or None, same)]
+    ctop = max(cp, key=cp.get) if cp else None
+    ktop = max(kp, key=kp.get) if kp else None
+    s4 = []
+    if _answered(cand) and _answered(comp):
+        s4 = [_chk("M-S4-TOP", "same material conclusion (largest sector)",
+                   2, ctop, ktop, ctop == ktop),
+              _chk("M-S4-CLAIMS", "same claim-support profile (no "
+                   "unsupported or contradicted claims on both)", 1,
+                   _unsupported(cand), _unsupported(comp),
+                   (_unsupported(cand) == 0) == (_unsupported(comp) == 0))]
+    final = [c for c in s2 + s4 if c["check_id"] in ("M-S2-RESULT",
+                                                      "M-S4-TOP")]
+    return _score({"S1": s1, "S2": s2, "S3": _repair_check(cand, comp),
+                   "S4": s4, "FINAL": final}, {})
+
+
+def _top_key(t: dict) -> str | None:
+    """The material conclusion of a table: its first row when the question
+    asks for an order, else the key with the largest first metric."""
+    rows = t.get("rows") or []
+    if not rows:
+        return None
+    if t.get("ordered"):
+        return "|".join(rows[0]["key"])
+    m = (t.get("metrics") or [None])[0]
+    vals = [(r["values"].get(m), r["key"]) for r in rows
+            if r["values"].get(m) is not None]
+    return "|".join(max(vals)[1]) if vals else None
+
+
+def _fact_refs(ev) -> list[str]:
+    return sorted({str(c.get("oracle_ref")) for c in ev.get("claims") or []
+                   if c.get("oracle_consistency") == "CONSISTENT_WITH_ORACLE"
+                   and c.get("oracle_ref")})
+
+
+def suite_match(cand: dict[str, Any], comp: dict[str, Any]
+                ) -> dict[str, Any]:
+    """Agreement for a suite question (Q02-Q15), by VALUES: each answer's
+    result tables are normalised onto the independent oracle's keys and
+    metrics (the grader's own column mapping), then compared with each
+    other. The oracle only supplies the coordinate system; whether the
+    candidate is correct is the separate oracle check."""
+    why = _match_blocker(cand, comp)
+    if why:
+        return _na_match(why)
+    cf, kf = cand.get("facts") or {}, comp.get("facts") or {}
+    if "suite_values" not in kf:
+        return _na_match("the saved reference evaluation predates value "
+                         "agreement (re-score it offline)")
+    cv, kv = cf.get("suite_values") or {}, kf.get("suite_values") or {}
+    tables = list(dict.fromkeys((kf.get("suite_tables") or []) +
+                                (cf.get("suite_tables") or [])))
+    s1 = [_chk("M-S1-CLAR", "same clarification decision", 1,
+               bool(cf.get("clarification")), bool(kf.get("clarification")),
+               bool(cf.get("clarification")) == bool(kf.get("clarification")))]
+    s2, top = [], []
+    for t in tables:
+        a, b = cv.get(t), kv.get(t)
+        if b is None:           # the reference has nothing to agree with
+            ak = bk = None
+        else:
+            ak = sorted("|".join(r["key"]) for r in (a or {}).get("rows")
+                        or [])
+            bk = sorted("|".join(r["key"]) for r in b["rows"])
+        s1.append(_chk(f"M-S1-POP-{t}", f"same population in {t} (same "
+                       f"result keys)", 2, len(ak) if ak is not None else
+                       None, len(bk) if bk is not None else None,
+                       ak == bk))
+        s2.append(_chk(f"M-S2-VALUES-{t}", f"same {t} values within the "
+                       f"oracle tolerance (semantics, not SQL text)", 2,
+                       len(ak) if ak is not None else None,
+                       len(bk) if bk is not None else None,
+                       bool(a) and bool(b) and bo_values_agree(a, b)))
+        if a is not None or b is not None:
+            ta = _top_key(a) if a else None
+            tb = _top_key(b) if b else None
+            top.append(_chk(f"M-S4-TOP-{t}", f"same leading row in {t}", 2,
+                            ta if a else "no result table",
+                            tb, ta == tb))
+    s4 = []
+    if _answered(cand) and _answered(comp):
+        fa, fb = _fact_refs(cand), _fact_refs(comp)
+        s4 = top[:1] + [
+            _chk("M-S4-FACTS", "the same oracle facts stated (numeric "
+                 "claims consistent with the oracle, by fact id)", 1,
+                 fa, fb, fa == fb),
+            _chk("M-S4-CLAIMS", "same claim-support profile (no "
+                 "unsupported or contradicted claims on both)", 1,
+                 _unsupported(cand), _unsupported(comp),
+                 (_unsupported(cand) == 0) == (_unsupported(comp) == 0))]
+    final = s2 + top[:1] if tables else [c for c in s4
+                                         if c["check_id"] == "M-S4-FACTS"]
+    fact_only = "not separately observable: a fact-only question has no " \
+                "result table to compare"
+    return _score({"S1": s1, "S2": s2, "S3": _repair_check(cand, comp),
+                   "S4": s4, "FINAL": final},
+                  {"S2": fact_only} if not tables else {})
+
+
+def bo_values_agree(a: dict, b: dict) -> bool:
+    from backend.model_lab import benchmark_oracles as bo
+    return bo.values_agree(a, b)
 
 
 # ---- the comparison --------------------------------------------------------------
@@ -1779,7 +1903,8 @@ def evaluate_comparison(coord, cid: str, *,
 
 #: Saved evaluations whose child records carry everything agreement needs
 #: (frozen-authority tool calls, row-id claims, metric-aware references).
-COMPATIBLE_REFERENCE_VERSIONS = ("lab-eval-3", "lab-eval-4", "lab-eval-5")
+COMPATIBLE_REFERENCE_VERSIONS = ("lab-eval-3", "lab-eval-4", "lab-eval-5",
+                                 "lab-eval-6")
 _REFERENCE_CHILD_KEYS = ("execution_state", "stages", "checks", "claims",
                          "facts")
 REFERENCE_NOTE = ("saved separate run, read-only; Opus Match is agreement, "
@@ -1830,9 +1955,7 @@ def saved_reference(coord, spec: dict[str, Any], kids: list[dict], *,
             elif status == "NO_REFERENCE":
                 k["reference_match"] = None
             else:
-                k["reference_match"] = {
-                    s: {"pct": None, "display": "N/A", "reason": status,
-                        "checks": []} for s in ("S1", "S2", "S3", "S4")}
+                k["reference_match"] = _na_match(status)
         return out
 
     if not ref:
@@ -1869,9 +1992,13 @@ def saved_reference(coord, spec: dict[str, Any], kids: list[dict], *,
     ref_child = next((c for c in body.get("children") or []
                       if c.get("child_run_id") == opus_row["child_run_id"]),
                      None)
+    suite_q = bool(spec.get("benchmark_question_id")) and \
+        spec.get("benchmark_question_id") != "Q01"
     if body.get("evaluator_version") not in COMPATIBLE_REFERENCE_VERSIONS \
             or ref_child is None or any(k not in ref_child
-                                        for k in _REFERENCE_CHILD_KEYS):
+                                        for k in _REFERENCE_CHILD_KEYS) \
+            or (suite_q and "suite_values" not in
+                (ref_child.get("facts") or {})):
         return done("REFERENCE_EVALUATION_INCOMPATIBLE",
                     remedy=f"saved evaluation r{saved.get('revision')} is "
                            f"{body.get('evaluator_version')}; agreement "

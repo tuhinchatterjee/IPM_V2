@@ -159,7 +159,7 @@ Three concepts stay separate in the evaluation, the UI and the export:
 | `NO_REFERENCE` | No reference was named. |
 | `REFERENCE_COMPARISON_UNAVAILABLE` | The named comparison is not saved in this lab. |
 | `REFERENCE_NOT_EVALUATED` | The saved comparison has no evaluation. |
-| `REFERENCE_EVALUATION_INCOMPATIBLE` | The saved evaluator is not `lab-eval-3`/`lab-eval-4`, or required evidence is missing. The remedy names the offline re-score; it is never run automatically. |
+| `REFERENCE_EVALUATION_INCOMPATIBLE` | The saved evaluator is not one of `lab-eval-3` to `lab-eval-6`, or required evidence is missing (for Q02–Q15, the `suite_values` that value agreement needs). The remedy names the offline re-score; it is never run automatically. |
 | `REFERENCE_HAS_NO_OPUS_CHILD` | The saved comparison contains no Opus child. |
 | `REFERENCE_OPUS_NOT_COMPLETED` | The Opus child did not complete. |
 | `REFERENCE_NOT_COMPARABLE` | The question or data snapshot differs. |
@@ -173,3 +173,24 @@ When the status is not READY, every `reference_match` stage is N/A with the stat
 - `summary.csv` carries the reference fields.
 - `limitations.md` says when agreement comes from a saved separate run.
 
+
+## Agreement stages and suite value agreement (lab-eval-6)
+
+`opus_match` and `reference_match` carry five entries: `S1`–`S4` and `FINAL`, the agreement on the material final answer. All five are **agreement, never truth**; correctness stays with the independent oracle.
+
+**Q01** keeps the sector-map checks (`M-S1-POP`, `M-S2-RESULT`, `M-S4-TOP`, `M-S4-CLAIMS`). `FINAL` = `M-S2-RESULT` + `M-S4-TOP`.
+
+**Q02–Q15** agree by **values**:
+- The evaluator stores `facts.suite_values`. Each oracle table the answer produced is normalised onto the oracle's keys and metrics, using the column mapping the grader chose. The oracle supplies only the coordinate system.
+- `M-S1-POP-<table>`: the same result keys.
+- `M-S2-VALUES-<table>`: the same keys, and every metric within the oracle tolerance.
+- `M-S4-TOP-<table>`: the same leading row (the first row when order is asked for, otherwise the largest first metric).
+- `M-S4-FACTS`: the same oracle facts stated by consistent numeric claims.
+- `M-S4-CLAIMS`: the same claim-support profile.
+- `FINAL` = the value checks plus the first table's leading row. For a fact-only question it is `M-S4-FACTS`.
+
+**No comparable evidence stays N/A with its reason; it is never 0 %.** For example:
+- a fact-only question has no result table, so S2 is "not separately observable";
+- a reference that produced no table leaves those checks unassessed.
+
+A candidate that produced no table where the reference did **disagrees**. It is not N/A.

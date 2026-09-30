@@ -1,3 +1,8 @@
 # Lab run bundles, runtime state and incident evidence: never committed.
 *
 !.gitignore
+# The versioned Opus reference set is committed; its per-question answer
+# snapshots (written on the pod) are not.
+!reference_sets/
+reference_sets/*
+!reference_sets/OPUS_REFERENCE_SET_V1.json

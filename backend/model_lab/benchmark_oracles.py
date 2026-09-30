@@ -782,6 +782,44 @@ def _match(exp: dict, rows: list[dict], kc: dict[str, str]
             "inflation_ratio_min": min(ratios) if ratios else None}
 
 
+def table_values(exp: dict, rows: list[dict], key_columns: dict[str, str],
+                 metric_columns: dict[str, str | None],
+                 limit: int = 500) -> dict[str, Any]:
+    """A result table normalised onto an oracle table's keys and metrics,
+    through the column mapping the grader chose. Used for AGREEMENT between
+    two answers (candidate vs a saved reference), never for correctness."""
+    out_rows, seen = [], set()
+    for r in rows:
+        k = [_norm_key(r.get(key_columns.get(c))) for c in exp["keys"]]
+        if all(x in ("", "none", "nan") for x in k) or tuple(k) in seen:
+            continue
+        seen.add(tuple(k))
+        out_rows.append({"key": k, "values": {
+            m: (_num(r.get(c)) if c else None)
+            for m, c in metric_columns.items()}})
+        if len(out_rows) >= limit:
+            break
+    return {"keys": list(exp["keys"]), "metrics": list(exp["metrics"]),
+            "units": {m: exp["units"].get(m, "money") for m in exp["metrics"]},
+            "ordered": bool(exp.get("ordered")), "top_n": exp.get("top_n"),
+            "rows": out_rows, "truncated": len(out_rows) >= limit}
+
+
+def values_agree(a: dict, b: dict) -> bool:
+    """Same keys and every shared metric within the oracle tolerance."""
+    ra = {tuple(r["key"]): r["values"] for r in a["rows"]}
+    rb = {tuple(r["key"]): r["values"] for r in b["rows"]}
+    if not ra or set(ra) != set(rb):
+        return False
+    for k, va in ra.items():
+        for m, x in va.items():
+            y = rb[k].get(m)
+            if x is None or y is None or \
+                    not _close(x, y, a["units"].get(m, "money")):
+                return False
+    return True
+
+
 def grade_table(qid: str, table_name: str, rows: list[dict],
                 release: str = RELEASE) -> dict[str, Any]:
     exp = next(t for t in expected(qid, release)["tables"]

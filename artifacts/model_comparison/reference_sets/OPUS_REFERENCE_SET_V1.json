@@ -1,0 +1,104 @@
+{
+ "created_at": 1790778449.8892543,
+ "evaluator_version": "lab-eval-6",
+ "frozen_source_id": "245c50e45786c6e0c866b281f9dd74da17d160b5",
+ "profile_id": "opus-frozen",
+ "questions": {
+  "Q01": {
+   "question_id": "Q01",
+   "question_text": "What is Stage 2 exposure by sector for the latest quarter?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q02": {
+   "question_id": "Q02",
+   "question_text": "How many Stage 2 facilities are there in each sector in the latest quarter, which three sectors have the most, and what is the total?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q03": {
+   "question_id": "Q03",
+   "question_text": "How did Stage 2 EAD by sector change between the preceding quarter and the latest quarter? Which sectors increased and decreased the most?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q04": {
+   "question_id": "Q04",
+   "question_text": "What drove the change in Stage 2 EAD in the latest quarter? Separate what the data shows from any explanation of causes.",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q05": {
+   "question_id": "Q05",
+   "question_text": "Which borrowers were downgraded in the latest quarter? Give each one's prior and current rating, sector and EAD.",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q06": {
+   "question_id": "Q06",
+   "question_text": "What is ECL by IFRS 9 stage and sector in the latest quarter? Show it as a chart.",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q07": {
+   "question_id": "Q07",
+   "question_text": "Show the IFRS 9 stage migration from the preceding quarter to the latest quarter. Where were the largest moves into Stage 2?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q08": {
+   "question_id": "Q08",
+   "question_text": "Who are the top 10 Stage 2 borrowers by EAD in the latest quarter, with their sector and rating?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q09": {
+   "question_id": "Q09",
+   "question_text": "Which sectors are deteriorating? Use Stage 2 EAD, ECL and the borrower and facility signals available.",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q10": {
+   "question_id": "Q10",
+   "question_text": "Write an executive summary of corporate credit deterioration in the latest quarter.",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q11": {
+   "question_id": "Q11",
+   "question_text": "What is total EAD by sector in the latest quarter across all stages, and what is the portfolio total?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q12": {
+   "question_id": "Q12",
+   "question_text": "What are Stage 3 EAD and ECL by sector in the latest quarter, and where are they most concentrated?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q13": {
+   "question_id": "Q13",
+   "question_text": "Where are the largest Stage 2 concentrations by sector and by borrower in the latest quarter, as shares of total Stage 2 EAD?",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q14": {
+   "question_id": "Q14",
+   "question_text": "Which borrowers moved into Stage 3 in the latest quarter? Give their EAD, ECL, sector and rating.",
+   "search": [],
+   "state": "MISSING"
+  },
+  "Q15": {
+   "question_id": "Q15",
+   "question_text": "How risky is the corporate book right now?",
+   "search": [],
+   "state": "MISSING"
+  }
+ },
+ "schema": 1,
+ "semantics": "agreement reference only: Opus Match is agreement, never truth; correctness is the independent oracle; never latency or SLA",
+ "set_id": "OPUS_REFERENCE_SET_V1",
+ "spend_ledger": [],
+ "suite_version": "runpod-a40-analyst-suite-v2",
+ "updated_at": 1790778451.4319458
+}

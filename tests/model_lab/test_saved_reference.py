@@ -210,7 +210,7 @@ def test_export_contains_the_saved_reference_metadata(linked):
                                          .decode())))
     saved = [r for r in om if r["match_source"] == "saved_comparison"]
     live = [r for r in om if r["match_source"] == "live_comparator"]
-    assert len(saved) == 4 and len(live) == 4
+    assert len(saved) == 5 and len(live) == 5          # S1-S4 + FINAL
     assert all(r["reference_status"] == "READY" and
                r["reference_comparison_id"] == ref for r in saved)
     assert next(r for r in saved if r["stage"] == "S2")["match_pct"] == \
@@ -226,7 +226,7 @@ def test_export_contains_the_saved_reference_metadata(linked):
                for c in readme_cells)
     sheet = list(wb["Opus Match"].iter_rows(values_only=True))
     col = sheet[0].index("match_source")
-    assert sum(1 for r in sheet[1:] if r[col] == "saved_comparison") == 4
+    assert sum(1 for r in sheet[1:] if r[col] == "saved_comparison") == 5
     lim = z.read("limitations.md").decode()
     assert "SAVED separate Opus run" in lim
 

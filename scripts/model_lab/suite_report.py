@@ -10,8 +10,10 @@ the reason where it did not run. Writes report.json, cells.csv and
 report.html under <runtime>/benchmark/<suite_id>/report/.
 
 No overall winner is declared. Per cell it gives the full answer, S1-S4,
-independent correctness (oracle checks), saved-Opus agreement where it
-exists (Q01), the comparison id and export pack carrying the Full Model I/O
+independent correctness (oracle checks) and, SEPARATELY, agreement with the
+question's saved Opus reference from OPUS_REFERENCE_SET_V1 (reference id,
+evaluation revision, S1-S4 and final-answer agreement; N/A stays N/A),
+the comparison id and export pack carrying the Full Model I/O
 Trace, tables and charts, and for ASSISTED_V1 the exact packet hash plus the
 stage-by-stage change against the same model's baseline.
 """
@@ -92,10 +94,30 @@ def _cell(ev: dict | None, child_pid: str) -> dict[str, Any]:
         "claims": {c["claim_id"]: [c["verification_status"],
                                    c.get("oracle_consistency")]
                    for c in k.get("claims") or []},
-        "opus_agreement": ({s: v.get("display") for s, v in ref.items()}
-                           if ref else None),
+        "independent_correctness": {"verdict": correct,
+                                    "oracle_checks": oracle,
+                                    "source": "independent pandas oracle"},
+        "opus_agreement": _agreement(ev.get("saved_reference") or {}, ref),
         "lane": k.get("lane"),
     }
+
+
+def _agreement(sr: dict, ref: dict) -> dict[str, Any]:
+    """Saved-Opus AGREEMENT, kept apart from correctness. A stage without
+    comparable evidence stays N/A with its reason; it is never 0."""
+    return {"reference_comparison_id": sr.get("reference_comparison_id"),
+            "reference_status": sr.get("reference_status") or
+            "NO_REFERENCE",
+            "reference_evaluation_revision":
+            sr.get("reference_evaluation_revision"),
+            "reference_evaluator_version":
+            sr.get("reference_evaluator_version"),
+            "stages": {s: {"display": (ref.get(s) or {}).get("display",
+                                                             "N/A"),
+                           "pct": (ref.get(s) or {}).get("pct"),
+                           "reason": (ref.get(s) or {}).get("reason", "")}
+                       for s in STAGES + ("FINAL",)} if ref else None,
+            "note": "agreement with the saved Opus answer, not truth"}
 
 
 def _delta(base: dict, assist: dict) -> dict[str, str]:
@@ -179,7 +201,11 @@ def build(runtime: Path, suite: dict) -> dict[str, Any]:
                 a["vs_baseline"] = _delta(b, a)
     return {"suite_id": suite["suite_id"], "models": models,
             "cells": cells,
+            "reference_set": cp.get("reference_set"),
             "policy": "factual comparative metrics only; no overall winner; "
+                      "independent correctness (oracle) and saved-Opus "
+                      "agreement are separate columns, agreement is not "
+                      "truth; "
                       "raw evidence (answers, traces, packs) preserved; "
                       "uncertainty and NEEDS_REVIEW items kept visible"}
 
@@ -191,7 +217,8 @@ def _html(rep: dict) -> str:
                                     for k in mh) + "</tr>"
                    for m in rep["models"])
     ch = ["model", "lane", "question_id", "state", "correctness", "stages",
-          "opus_agreement", "vs_baseline", "comparison_id", "reason"]
+          "independent_correctness", "opus_agreement", "vs_baseline",
+          "comparison_id", "reason"]
     crow = "".join("<tr>" + "".join(
         f"<td>{e(json.dumps(c.get(k)) if isinstance(c.get(k), dict) else str(c.get(k) or ''))}</td>"
         for k in ch) + "</tr>" for c in rep["cells"])
@@ -217,12 +244,19 @@ def write(runtime: Path, suite: dict) -> Path:
     buf = io.StringIO()
     cols = ["model", "profile_id", "lane", "question_id", "state",
             "correctness", "comparison_id", "reason"]
+    agree = ["reference_comparison_id", "reference_status",
+             "reference_evaluation_revision"] + \
+        [f"opus_agreement_{s}" for s in STAGES + ("FINAL",)]
     w = csv.DictWriter(buf, fieldnames=cols + [f"stage_{s}" for s in STAGES]
-                       + ["vs_baseline"], extrasaction="ignore")
+                       + agree + ["vs_baseline"], extrasaction="ignore")
     w.writeheader()
     for c in rep["cells"]:
+        oa = c.get("opus_agreement") or {}
         w.writerow(c | {f"stage_{s}": (c.get("stages") or {}).get(s)
                         for s in STAGES} | {
+            k: oa.get(k) for k in agree[:3]} | {
+            f"opus_agreement_{s}": ((oa.get("stages") or {}).get(s) or {})
+            .get("display", "N/A") for s in STAGES + ("FINAL",)} | {
             "vs_baseline": json.dumps(c.get("vs_baseline"))
             if c.get("vs_baseline") else ""})
     (out / "cells.csv").write_text(buf.getvalue())

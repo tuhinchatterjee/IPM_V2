@@ -17,11 +17,22 @@ FROZEN_BASELINE Q01 -> FROZEN_BASELINE Q02..Q15 -> ASSISTED_V1 Q01..Q15.
 A checkpoint is written after every question; a re-run resumes and skips
 cells already DONE. Every result is exported with its Full Model I/O Trace.
 The runner refuses to start with tracing off.
+
+Opus reference gate: a candidate starts only when every suite question is
+READY in OPUS_REFERENCE_SET_V1 (scripts/model_lab/opus_reference_set.py).
+Each MODEL x LANE x QUESTION cell points at that question's saved
+reference_comparison_id; there is no live Opus comparator child, and the
+runner never creates, re-evaluates or writes a reference. Opus Match is
+agreement, never truth; correctness is the independent oracle.
+--allow-missing-opus runs cells without a reference for DIAGNOSTIC
+development only (labelled in the checkpoint); the production run must not
+use it.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -58,6 +69,46 @@ def save_checkpoint(runtime: Path, suite: dict, cp: dict) -> None:
     tmp = p.with_suffix(".tmp")
     tmp.write_text(json.dumps(cp, indent=1, default=str))
     tmp.replace(p)
+
+
+def reference_set_path(suite: dict, override: str | None = None) -> Path:
+    rel = override or (suite.get("reference_set") or {}).get("path") or \
+        "artifacts/model_comparison/reference_sets/OPUS_REFERENCE_SET_V1.json"
+    p = Path(rel)
+    return p if p.is_absolute() else ROOT / p
+
+
+def reference_gate(svc, suite: dict, set_file: Path, *,
+                   allow_fixture: bool = False) -> dict[str, Any]:
+    """Verify the saved references for every suite question, read-only:
+    the set file and every reference comparison are left byte-identical."""
+    import copy
+
+    from backend.model_lab import opus_references as orf
+
+    if not set_file.exists():
+        doc = orf.empty_set()
+        sha = None
+    else:
+        raw = set_file.read_bytes()
+        doc, sha = json.loads(raw), hashlib.sha256(raw).hexdigest()
+    checked = orf.resolve(svc.coord, copy.deepcopy(doc),
+                          allow_fixture=allow_fixture,
+                          write_snapshots=False)
+    need = [q["question_id"] for q in suite["questions"]]
+    refs, missing = {}, []
+    for qid in need:
+        e = checked["questions"].get(qid) or {}
+        if e.get("state") == orf.READY:
+            refs[qid] = e
+        else:
+            missing.append({"question_id": qid,
+                            "state": e.get("state") or orf.MISSING,
+                            "reason": e.get("invalid_reason") or
+                            e.get("failure") or ""})
+    return {"set_id": doc.get("set_id"), "path": str(set_file),
+            "sha256": sha, "refs": refs, "missing": missing,
+            "required": need}
 
 
 def plan(suite: dict, *, runtime_dir: Path, lanes: list[str],
@@ -106,8 +157,13 @@ def plan(suite: dict, *, runtime_dir: Path, lanes: list[str],
                               "state": (cp["cells"].get(k) or {}).get(
                                   "state", "PENDING" if ok else
                                   "SKIPPED")})
+    rs = reference_set_path(suite)
+    states = (json.loads(rs.read_text()).get("questions") or {}
+              if rs.exists() else {})
+    ref_states = {q["question_id"]: (states.get(q["question_id"]) or {})
+                  .get("state", "MISSING") for q in suite["questions"]}
     return {"suite_id": suite["suite_id"], "rows": rows, "cells": cells,
-            "questions": qs,
+            "questions": qs, "reference_states": ref_states,
             "runnable_cells": sum(1 for c in cells if c["runnable"]),
             "done_cells": sum(1 for c in cells if c["state"] == "DONE"),
             "total_cells": len(cells)}
@@ -156,9 +212,9 @@ def _sequence(qs: list[dict]) -> list[tuple[str, dict]]:
 
 
 def run_model(svc, suite: dict, pid: str, lanes: list[str], qs: list[dict],
-              cp: dict, runtime: Path) -> None:
-    ref = suite["reference"]["saved_opus_comparison"]
-    has_ref = svc.coord.store.get_comparison(ref, svc.cfg.tenant_id)
+              cp: dict, runtime: Path,
+              refs: dict[str, dict] | None = None) -> None:
+    refs = refs or {}
     for lane, q in _sequence(qs):
         if lane not in lanes:
             continue
@@ -172,8 +228,11 @@ def run_model(svc, suite: dict, pid: str, lanes: list[str], qs: list[dict],
                "group_spend_cap_usd": 0.0, "group_wall_clock_s": 1800,
                "label": f"{suite['suite_id']} {pid} {lane} "
                         f"{q['question_id']}"}
-        if has_ref and q["question_id"] in suite["reference"]["applies_to"]:
-            req["reference_comparison_id"] = ref
+        ref = refs.get(q["question_id"])
+        if ref:
+            # The SAVED Opus reference for this question: the same one for
+            # every model and both lanes. Agreement only; read-only.
+            req["reference_comparison_id"] = ref["reference_comparison_id"]
         started = time.time()
         try:
             st = svc.coord.create(req, idempotency_key=f"{suite['suite_id']}"
@@ -187,7 +246,13 @@ def run_model(svc, suite: dict, pid: str, lanes: list[str], qs: list[dict],
         except Exception as exc:  # noqa: BLE001 - record, continue
             cell = {"state": "FAILED",
                     "error": f"{type(exc).__name__}: {exc}"[:400]}
-        cell |= {"started_at": started, "finished_at": time.time()}
+        cell |= {"started_at": started, "finished_at": time.time(),
+                 "reference_comparison_id": (ref or {}).get(
+                     "reference_comparison_id"),
+                 "reference_evaluation_revision": (ref or {}).get(
+                     "evaluation_revision"),
+                 "reference_status": "READY" if ref else
+                 "MISSING_OPUS_REFERENCE (diagnostic run)"}
         cp["cells"][k] = cell
         save_checkpoint(runtime, suite, cp)
         print(f"  {k:48} {cell['state']:6} {cell.get('comparison_id', '')}"
@@ -218,6 +283,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--serve", action="store_true",
                     help="start/stop vLLM per model and re-probe it first")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--reference-set",
+                    help="path of OPUS_REFERENCE_SET_V1.json (default: the "
+                         "suite's reference_set.path)")
+    ap.add_argument("--allow-missing-opus", action="store_true",
+                    help="DIAGNOSTIC development only: run cells whose "
+                         "saved Opus reference is missing (no agreement); "
+                         "never for the production benchmark")
+    ap.add_argument("--allow-fixture-reference", action="store_true",
+                    help=argparse.SUPPRESS)      # offline tests only
     args = ap.parse_args(argv)
     os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
 
@@ -236,6 +310,11 @@ def main(argv: list[str] | None = None) -> int:
             mark = "RUN " if r["runnable"] else "SKIP"
             print(f"  {mark} {r['lane']:16} {r['profile_id']:30} "
                   f"{r['readiness']:18} {r['reason'][:100]}")
+        rs = p["reference_states"]
+        ready = sum(1 for v in rs.values() if v == "READY")
+        print(f"Opus reference set: {ready}/{len(rs)} READY "
+              f"(recorded state; verified before any run) " + " ".join(
+                  f"{q}:{v}" for q, v in rs.items() if v != "READY"))
     if not args.run:
         print("dry run: no model was called")
         return 0
@@ -254,6 +333,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"refusing: {lane} is BLOCKED: "
                   + suite["lanes"][lane].get("reason", ""))
             return 2
+    if any(m["profile_id"] == "opus-frozen" for m in suite["models"]):
+        print("refusing: opus-frozen is the saved reference, never a "
+              "candidate in this suite")
+        return 2
     order = [m["profile_id"] for m in suite["models"]]
     runnable = [pid for pid in order if any(
         r["profile_id"] == pid and r["runnable"] for r in p["rows"])]
@@ -270,7 +353,28 @@ def main(argv: list[str] | None = None) -> int:
     from backend.model_lab.service import LabService, default_config
 
     svc = LabService(default_config(runtime))
+    gate = reference_gate(svc, suite, reference_set_path(
+        suite, args.reference_set), allow_fixture=args.allow_fixture_reference)
+    if gate["missing"]:
+        print(f"OPUS_REFERENCE_SET_INCOMPLETE: "
+              f"{len(gate['required']) - len(gate['missing'])}/"
+              f"{len(gate['required'])} READY in {gate['path']}")
+        for m in gate["missing"]:
+            print(f"  {m['question_id']} {m['state']} {m['reason'][:100]}")
+        if not args.allow_missing_opus:
+            print("refusing: no candidate starts until every question has a "
+                  "READY saved Opus reference. Run: python scripts/model_lab/"
+                  "opus_reference_set.py preflight --runtime-dir "
+                  f"{runtime}")
+            return 2
+        print("DIAGNOSTIC RUN (--allow-missing-opus): cells without a saved "
+              "reference carry no Opus agreement; not a production result")
     cp = load_checkpoint(runtime, suite)
+    cp["reference_set"] = {k: gate[k] for k in ("set_id", "path", "sha256")} \
+        | {"questions": {q: e["reference_comparison_id"]
+                         for q, e in gate["refs"].items()},
+           "diagnostic_allow_missing_opus": bool(gate["missing"])}
+    save_checkpoint(runtime, suite, cp)
     for m in suite["models"]:
         pid = m["profile_id"]
         if pid not in runnable:
@@ -295,7 +399,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             with VramSampler() as vram:
                 run_model(svc, suite, pid, lanes, p["questions"], cp,
-                          runtime)
+                          runtime, gate["refs"])
             cp["models"][pid] = {"status": "COMPLETED",
                                  "vram_peak_mib": vram.peak}
             save_checkpoint(runtime, suite, cp)
