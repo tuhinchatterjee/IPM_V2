@@ -31,7 +31,7 @@ import time
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -87,6 +87,9 @@ class LabConfig:
     remote_parallel_workers: int = 1
     manifest_path: Path = Path(__file__).resolve().parents[2] / "docs" / \
         "model_comparison" / "PROTECTED_MANIFEST.json"
+    #: Lab-only full model I/O trace (MODEL_LAB_FULL_IO_TRACE, default on).
+    full_io_trace: bool = field(default_factory=lambda: __import__(
+        "backend.model_lab.io_trace", fromlist=["enabled"]).enabled())
 
 
 class Coordinator:
@@ -574,7 +577,41 @@ class Coordinator:
                       measurement_method="monotonic, around converse()",
                       payload=rec)
 
-        provider = observe(inner, sink)
+        trace_sink = recorder = None
+        trace_context: dict[str, Any] = {}
+        if self.cfg.full_io_trace:
+            from backend.model_lab import io_trace
+            from backend.model_lab.child_runtime import capability_for
+
+            recorder = io_trace.attach_wire_recorder(inner)
+            q = (turn or {}).get("text") or spec["question_text"]
+            trace_context = {
+                "comparison_id": cid, "child_run_id": child_id,
+                "question_id": spec.get("task_id") or
+                f"q-{_h(q)[:12]}",
+                "question_text": q,
+                "profile_id": prof.profile_id,
+                "requested_model": prof.requested_model,
+                "route": prof.route,
+                "endpoint_class": (prof.raw.get("endpoint") or {}).get(
+                    "class"),
+                "declared_context_tokens": capability_for(
+                    prof, self.probes().get(prof.profile_id)
+                ).context_tokens,
+                "request_controls": prof.raw.get("request_controls"),
+                "wire_boundary": ("http" if recorder is not None else
+                                  "in-process (no network request)"),
+                "trace_flag": io_trace.ENV_FLAG + "=true"}
+
+            def trace_sink(rec: dict[str, Any]) -> None:
+                self.emit(cid, "model_io.call", child_run_id=child_id,
+                          call_id=rec.get("call_id"),
+                          status=("error" if rec.get("error") else "ok"),
+                          source_site="ModelIOTrace",
+                          payload=rec, sensitivity="lab-trace")
+
+        provider = observe(inner, sink, trace_sink=trace_sink,
+                           recorder=recorder, trace_context=trace_context)
         domain = spec.get("domain") or "corporate"
         rt = runtime_for(prof, provider, domain=domain,
                          runtime_dir=self.cfg.runtime_dir,
@@ -673,7 +710,8 @@ class Coordinator:
                     "tenant_id": self.cfg.tenant_id,
                     "remote_parallel_workers":
                         self.cfg.remote_parallel_workers,
-                    "manifest_path": str(self.cfg.manifest_path)},
+                    "manifest_path": str(self.cfg.manifest_path),
+                    "full_io_trace": self.cfg.full_io_trace},
             "comparison_id": cid, "child_run_id": child_id, "turn": turn,
             "profile": prof.raw}, default=str))
         env = dict(os.environ) | dict(self.env) | {dl.ENV_FLAG: "1"}

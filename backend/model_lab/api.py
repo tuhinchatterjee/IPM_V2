@@ -167,6 +167,30 @@ async def get_comparison(cid: str, who: dict = Depends(principal)
                  "reviews": s.coord.store.reviews(cid, s.cfg.tenant_id)}
 
 
+@router.get("/comparisons/{cid}/model-io")
+async def model_io_trace(cid: str, who: dict = Depends(principal)
+                         ) -> dict[str, Any]:
+    """Model I/O Trace timeline (sizes, hashes, stage links, tool round
+    trips). Read-only: built from stored evidence; no model call."""
+    _comparison(cid, who)
+    from backend.model_lab import model_io
+    return await asyncio.to_thread(model_io.build, svc().coord, cid)
+
+
+@router.get("/comparisons/{cid}/model-io/{call_id}")
+async def model_io_call(cid: str, call_id: str,
+                        who: dict = Depends(principal)) -> dict[str, Any]:
+    """One call's four views: engine request, wire request, raw response,
+    normalized response. Credentials and hidden reasoning are excluded."""
+    _comparison(cid, who)
+    from backend.model_lab import model_io
+    item = await asyncio.to_thread(model_io.call_detail, svc().coord, cid,
+                                   call_id)
+    if item is None:
+        raise HTTPException(404, "call not found")
+    return item
+
+
 @router.get("/comparisons/{cid}/events")
 async def events(cid: str, request: Request, cursor: int = 0,
                  stream: bool = False, who: dict = Depends(principal)):

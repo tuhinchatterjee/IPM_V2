@@ -36,7 +36,8 @@ def main(argv: list[str] | None = None) -> int:
     cfg = LabConfig(runtime_dir=Path(c["runtime_dir"]),
                     tenant_id=c["tenant_id"],
                     remote_parallel_workers=int(c["remote_parallel_workers"]),
-                    manifest_path=Path(c["manifest_path"]))
+                    manifest_path=Path(c["manifest_path"]),
+                    full_io_trace=bool(c.get("full_io_trace", True)))
     raw = job["profile"]
     prof = registry._validate(raw, Path(f"{raw['profile_id']}.json"))
     # recover=False: this process must never touch another child's state.

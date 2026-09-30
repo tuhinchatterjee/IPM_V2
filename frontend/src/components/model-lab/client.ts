@@ -389,6 +389,77 @@ export type CompareInput = {
   reference_comparison_id?: string;
 };
 
+export type ViewSize = { bytes: number; sha256: string };
+
+export type ModelIoCall = {
+  kind: "call";
+  n: number;
+  call_id: string;
+  child_run_id: string;
+  run_id?: string;
+  dispatch_status: string;
+  dispatch_reason?: string;
+  purpose?: string;
+  phase?: string;
+  stage_tags?: string[];
+  shared_span?: boolean;
+  requested_model?: string | null;
+  resolved_model?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  counted_input_tokens?: number | null;
+  duration_ms?: number | null;
+  stop_reason?: string | null;
+  tool_calls?: { id: string; name: string }[];
+  error?: { type: string; code: string; message: string } | null;
+  wire_request_bytes?: number;
+  wire_response_bytes?: number;
+  sizes?: Record<string, ViewSize>;
+  views?: Record<string, { request?: unknown; metadata?: unknown } & Record<string, unknown>>;
+};
+
+export type ModelIoEvent = { seq: number; event_type: string; operation: string; status: string; message: string; detail: unknown };
+
+export type ModelIoTool = {
+  kind: "tool";
+  n: number;
+  call_n: number;
+  call_id: string;
+  stage_tags: string[];
+  model_tool_call: { id: string; name: string; input: unknown };
+  validation: ModelIoEvent[];
+  execution: ModelIoEvent[];
+  submissions: unknown[];
+  tool_result_returned: unknown;
+  tool_result_source: string;
+  tool_result_bytes: number;
+  tool_result_sha256: string;
+  is_final_response: boolean;
+};
+
+export type ModelIoItem = ModelIoCall | ModelIoTool;
+
+export type ModelIoTrace = {
+  comparison_id: string;
+  policy: { captures: string; excluded: string; truncation: string };
+  children: {
+    child_run_id: string;
+    profile_id: string;
+    display_name: string;
+    execution_state: string;
+    traced_calls: number;
+    stage_links: Record<"S1" | "S2" | "S3" | "S4", { calls: number[]; shared_calls: number[]; tool_roundtrips: number[] }>;
+    timeline: ModelIoItem[];
+  }[];
+};
+
+export const readModelIo = (id: string) =>
+  call<ModelIoTrace>(`/comparisons/${encodeURIComponent(id)}/model-io`);
+export const readModelIoCall = (id: string, callId: string) =>
+  call<ModelIoCall>(
+    `/comparisons/${encodeURIComponent(id)}/model-io/${encodeURIComponent(callId)}`,
+  );
+
 export const readProfiles = () =>
   call<{ profiles: Profile[]; presets: Preset[] }>("/model-profiles");
 export const preflight = (input: CompareInput) =>

@@ -29,6 +29,7 @@ import {
   readProfiles,
 } from "./client";
 import { SETTLED, blindLabel } from "./format";
+import { ModelIoTrace } from "./model-io-trace";
 import { AnswerCard, Evidence, Overview, StageMatrix, Status } from "./results";
 
 const REMEMBER = "model-lab:last-comparison";
@@ -392,6 +393,15 @@ export function ModelComparisonLab() {
                     <h3 className="mb-1 text-sm font-semibold text-text-primary">Four stages</h3>
                     <StageMatrix ev={ev} blind={blind}
                       onOpen={(child, stage) => setFocus({ child, stage })} />
+                  </section>
+                  <section>
+                    <details>
+                      <summary className="mb-1 cursor-pointer text-sm font-semibold text-text-primary">
+                        MODEL I/O TRACE
+                      </summary>
+                      <ModelIoTrace cid={ev.comparison_id}
+                        refreshKey={`${cmp?.state}-${cmp?.evaluation_revision}`} />
+                    </details>
                   </section>
                   {focusChild && (
                     <div className="rounded border border-border-strong bg-surface-sunken p-3">

@@ -321,7 +321,10 @@ def _xlsx(ev: dict[str, Any], tables: dict[str, list[dict]],
               ("Four Stages", "stages"), ("Calls", "calls"),
               ("Validation Checks", "checks"), ("Claim Review", "claims"),
               ("Failure Diagnosis", "failures"), ("Opus Match", "opus_match"),
-              ("Costs & Resources", "resource_samples")]
+              ("Costs & Resources", "resource_samples"),
+              ("Model Calls", "model_calls"),
+              ("Request Summary", "request_summary"),
+              ("Tool Round Trips", "tool_roundtrip_rows")]
     for title, key in sheets:
         data = tables.get(key) or []
         s = wb.create_sheet(title)
@@ -419,6 +422,8 @@ def _readme(ev: dict[str, Any], manifest: dict[str, Any],
 <p>Frozen source {_esc(FROZEN_COMMIT[:12])} · data {_esc(manifest['data_snapshot_id'])} ·
 evaluator {_esc(ev['evaluator_version'])} · evaluation r{_esc(manifest.get('evaluation_revision'))}</p>
 <p><b>{_esc(comparator_line(ev))}</b></p>
+<p><b>Model I/O Trace captures the actual request/response boundary. Provider credentials and hidden reasoning are excluded.</b>
+See MODEL_IO_TRACE.html, model_io/ and tool_roundtrips/.</p>
 <p><b>{_esc(reference_line(ev))}</b></p>
 <p>{_esc(ev['summary']['note'])}. Blank = unknown, never zero.
 Opus Match is agreement with the comparator, never correctness.</p>
@@ -452,14 +457,21 @@ def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
                                   c["child_run_id"]), None)}
         for c in status["children"]]
     spec = status["spec"]
+    from backend.model_lab import io_trace, model_io
+    trace = model_io.build(coord, cid, include_bodies=True)
+    trace_files, trace_tables = model_io.export_files(trace)
+    tables.update(trace_tables)
+    traced = any(ch["traced_calls"] for ch in trace["children"])
     omissions = [{"item": "record-level rows beyond "
                   f"{MAX_ARTIFACT_ROWS} per artifact", "reason":
                   "bounded preview; full data stays in the lab store"},
                  {"item": "provider credentials", "reason": "never stored"},
                  {"item": "hidden reasoning", "reason": "not requested or "
                   "available (OG-06)"},
-                 {"item": "full system prompts", "reason": "redacted "
-                  "default; hashes in manifest"}]
+                 ] + ([] if traced else [
+                     {"item": "full system prompts", "reason": "no model I/O "
+                      "trace recorded for this comparison (tracing off or "
+                      "the run predates it); hashes in manifest"}])
     manifest = {
         "comparison_id": cid, "spec_hash": status["spec_hash"],
         "state": status["state"], "partial_snapshot": partial,
@@ -476,6 +488,10 @@ def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
         "comparator": ev["comparator"],
         "saved_reference": reference_meta(ev),
         "comparison_class": ev["comparison_class"],
+        "model_io_trace": {"flag": io_trace.ENV_FLAG,
+                           "traced_calls": sum(ch["traced_calls"] for ch in
+                                               trace["children"]),
+                           "statement": model_io.README_LINE},
         "release_claim": RELEASE_CLAIM, "generated_at": time.time(),
         "omissions": omissions, "task": ev.get("task"),
     }
@@ -489,6 +505,7 @@ def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
                       ("resource_samples", "resource_samples.csv")):
         files[name] = _csv(tables[key])
     files["comparison.xlsx"] = _xlsx(ev, tables, manifest)
+    files.update(trace_files)
     sanitized = []
     for e in events:
         e = {k: v for k, v in e.items() if k != "payload_obj"}
@@ -533,6 +550,16 @@ def build(coord, cid: str, ev: dict[str, Any], out_dir: Path,
             = json.dumps(subs, indent=1).encode()
     names = sorted(files)
     files["README.html"] = _readme(ev, manifest, names).encode()
+    # Defence in depth: no secret value may leave in any text file, even if
+    # something upstream failed to exclude it.
+    secrets = io_trace.secret_values()
+    for n in list(files):
+        if n.rsplit(".", 1)[-1] in ("json", "jsonl", "csv", "html", "md",
+                                    "txt", "sha256"):
+            text = files[n].decode("utf-8", errors="replace")
+            clean = io_trace.scrub(text, secrets)
+            if clean != text:
+                files[n] = clean.encode()
     checks = "".join(f"{hashlib.sha256(files[n]).hexdigest()}  {n}\n"
                      for n in sorted(files))
     files["checksums.sha256"] = checks.encode()

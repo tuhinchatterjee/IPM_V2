@@ -142,6 +142,24 @@ await step("U13", "refresh reopens the saved comparison without a new run", asyn
   assert.equal(after, before);
 });
 
+await step("U17", "Model I/O Trace shows each call's four views without a model call", async () => {
+  const before = labRequests.filter((u) => u.endsWith("/comparisons")).length;
+  await page.getByText("MODEL I/O TRACE", { exact: true }).click();
+  const trace = page.getByLabel("Model I/O Trace");
+  await trace.waitFor({ timeout: 60000 });
+  const call1 = trace.locator("summary", { hasText: /^Call 1 / }).first();
+  await call1.click();
+  for (const view of ["[Engine request]", "[Wire request]", "[Raw response]", "[Normalized response]"]) {
+    await trace.getByText(view, { exact: false }).first().waitFor({ timeout: 60000 });
+  }
+  await trace.getByText("[Conversation, role-labelled]").first().click();
+  await trace.getByText("SYSTEM", { exact: true }).first().waitFor({ timeout: 30000 });
+  assert.ok(await trace.getByText(/Tool round-trip 1/).count() > 0);
+  assert.ok((await trace.textContent()).includes("hidden reasoning are excluded"));
+  const after = labRequests.filter((u) => u.endsWith("/comparisons")).length;
+  assert.equal(after, before, "opening the trace must not start a run");
+});
+
 await step("U04", "the original Cockpit chat is still on the page", async () => {
   await page.getByTestId("cockpit-v4-ask-box").first().waitFor({ timeout: 60000 });
 });
