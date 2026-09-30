@@ -701,6 +701,10 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
     * Lens export plus Lens Trace refreshes chained, and alert Trace state history;
     * LLM Exchange six-way labels plus four stages, and the Model Lab lists the same exchange ids and links to the same Trace.
   * The long-lived stub store backfilled and verified clean.
+* **Cross-phase regression after P12:** GW backend suites **281 passed, 3 skipped**. The full browser journey suite
+  (P1–P12, one stack, persisted store) passed **40/41** on first run. GW-P4-01 failed on a harness race: `every()`
+  over an empty card list mid-refetch is vacuously true, so the count read 0. The wait now requires a non-empty,
+  all-retail list, and the rerun passed. Evidence file **41/41 PASS**.
 * **Finding that needs a protected-core decision:**
   * **What:** a credential typed into a Cockpit question is persisted by the **protected V4 run store** (`state.sqlite3` WAL, measured).
   * **What its own `redact()` covers:** event bodies only, not the question.
