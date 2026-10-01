@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testsuite name="the stage vocabulary" time="0.004892" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="is §7's eleven states, in order" time="0.002672" classname="test"/>
+		<testcase name="gives every stage a caption and a short label" time="0.000302" classname="test"/>
+		<testcase name="says nothing about how the model is thinking" time="0.000659" classname="test"/>
+	</testsuite>
+	<testsuite name="when the indicator is on screen" time="0.001147" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="is working while a stage is not terminal" time="0.000403" classname="test"/>
+		<testcase name="stops completely when the work is done" time="0.000265" classname="test"/>
+		<testcase name="shows nothing at all when there is no run" time="0.000230" classname="test"/>
+	</testsuite>
+	<testsuite name="the status line" time="0.001438" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="names the officer working, in §4's words" time="0.000331" classname="test"/>
+		<testcase name="prefers the title the run recorded over the one the level implies" time="0.000233" classname="test"/>
+		<testcase name="says nobody is working once the run has finished" time="0.000310" classname="test"/>
+	</testsuite>
+	<testsuite name="the caption" time="0.000717" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="prefers the run's own detail — §8's 'Validating 6 calculations'" time="0.000287" classname="test"/>
+		<testcase name="falls back to the API's caption before the local copy" time="0.000167" classname="test"/>
+		<testcase name="ignores a detail that is only whitespace" time="0.000105" classname="test"/>
+	</testsuite>
+	<testsuite name="the specialist line" time="0.000846" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="lists the specialists in §8's form" time="0.000204" classname="test"/>
+		<testcase name="says nothing for one specialist" time="0.000132" classname="test"/>
+		<testcase name="counts only when there is genuinely coordination" time="0.000138" classname="test"/>
+	</testsuite>
+	<testsuite name="elapsed time" time="0.000377" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="is seconds, then minutes — never milliseconds" time="0.000183" classname="test"/>
+		<testcase name="shows nothing before the first second" time="0.000083" classname="test"/>
+	</testsuite>
+	<testsuite name="what has already happened" time="0.000476" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="is the stages before this one" time="0.000147" classname="test"/>
+		<testcase name="prefers the list the run actually recorded" time="0.000100" classname="test"/>
+		<testcase name="has nothing to show for a stage outside the sequence" time="0.000117" classname="test"/>
+	</testsuite>
+	<testsuite name="escalation" time="0.001760" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="is shown only when a run actually escalated — §9" time="0.000180" classname="test"/>
+		<testcase name="carries the reason beside the line, never a bare heading" time="0.000137" classname="test"/>
+		<testcase name="does not leave a dangling reason when there is none" time="0.000081" classname="test"/>
+	</testsuite>
+	<testsuite name="the screen-reader announcement" time="0.000776" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="says in words what the pulse says visually — §10" time="0.000419" classname="test"/>
+		<testcase name="is the same words that are on screen, not a separate description" time="0.000131" classname="test"/>
+		<testcase name="is empty when nothing is running" time="0.000082" classname="test"/>
+	</testsuite>
+	<testsuite name="polling" time="0.000524" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="is fast early and slow later" time="0.000239" classname="test"/>
+		<testcase name="never polls fast enough to be a request per frame" time="0.000086" classname="test"/>
+	</testsuite>
+	<testcase name="nothing plays until somebody presses Play" time="0.001066" classname="test"/>
+	<testcase name="play then tick advances one period at a time" time="0.000240" classname="test"/>
+	<testcase name="playback stops at the last period rather than looping" time="0.000114" classname="test"/>
+	<testcase name="pressing Play at the end restarts" time="0.000105" classname="test"/>
+	<testcase name="a tick while paused changes nothing" time="0.000190" classname="test"/>
+	<testcase name="scrubbing takes over from playback" time="0.000106" classname="test"/>
+	<testcase name="Next on the last period does not run off the end" time="0.001367" classname="test"/>
+	<testcase name="Previous on the first period does not run off the start" time="0.000142" classname="test"/>
+	<testcase name="speed changes how long a period is held" time="0.000620" classname="test"/>
+	<testcase name="comparing a period with itself turns comparison off" time="0.000319" classname="test"/>
+	<testcase name="comparing shows both periods together, in period order" time="0.001264" classname="test"/>
+	<testcase name="without a comparison only the current period is drawn" time="0.000120" classname="test"/>
+	<testcase name="reset returns to the first period, paused, at normal speed" time="0.000071" classname="test"/>
+	<testcase name="one period is not eligible for playback" time="0.000056" classname="test"/>
+	<testcase name="play does nothing where there is nothing to play" time="0.000042" classname="test"/>
+	<testcase name="periods keep the result's own order, never an alphabetical one" time="0.000089" classname="test"/>
+	<testcase name="the caption says where the cursor is and what it is compared with" time="0.000071" classname="test"/>
+	<testcase name="one row of figures is a KPI, not a one-bar bar chart" time="0.003228" classname="test"/>
+	<testcase name="a from/to pair with a measure is a transition matrix" time="0.001140" classname="test"/>
+	<testcase name="a period column makes it a trend" time="0.000288" classname="test"/>
+	<testcase name="a few series over time stay on one axis; many do not" time="0.000468" classname="test"/>
+	<testcase name="signed changes get a zero line rather than a plain bar" time="0.000261" classname="test"/>
+	<testcase name="two measures per name is a relationship, not a ranking" time="0.000180" classname="test"/>
+	<testcase name="three measures per name adds size" time="0.000280" classname="test"/>
+	<testcase name="a handful of groups is a bar; a couple of dozen is a horizontal bar" time="0.000270" classname="test"/>
+	<testcase name="too many categories falls back to the table, and says why" time="0.000525" classname="test"/>
+	<testcase name="no measure means no chart, and no crash" time="0.000438" classname="test"/>
+	<testcase name="an empty result never claims a chart" time="0.000154" classname="test"/>
+	<testcase name="hidden lineage columns are not treated as measures" time="0.000114" classname="test"/>
+	<testcase name="every choice explains itself" time="0.000137" classname="test"/>
+	<testcase name="a sector ranking is a bar chart" time="0.000310" classname="test"/>
+	<testcase name="a time series is a line" time="0.000289" classname="test"/>
+	<testcase name="an ECL movement offers a waterfall" time="0.000125" classname="test"/>
+	<testcase name="a stage migration is a matrix and offers a Sankey" time="0.000214" classname="test"/>
+	<testcase name="a concentration offers a treemap" time="0.000155" classname="test"/>
+	<testcase name="a multidimensional borrower result is a scatter or a bubble" time="0.000211" classname="test"/>
+	<testcase name="a dense heterogeneous result is a table, and says why" time="0.000197" classname="test"/>
+	<testcase name="the registry never names a series the result does not have" time="0.001323" classname="test"/>
+	<testcase name="the chosen form is always one the result supports" time="0.000229" classname="test"/>
+	<testcase name="a table is offered as an alternative wherever a chart is chosen" time="0.000267" classname="test"/>
+	<testcase name="a share of the measure is not a second measure" time="0.000194" classname="test"/>
+	<testcase name="a genuine second measure still makes it a relationship" time="0.000148" classname="test"/>
+	<testcase name="a governed code column is a dimension, not a measure" time="0.000188" classname="test"/>
+	<testcase name="a column with no declared semantic is still read from its data" time="0.000238" classname="test"/>
+	<testcase name="two measures across a small governed scale is a comparison, not a scatter" time="0.000145" classname="test"/>
+	<testcase name="two measures per named thing is still a scatter" time="0.000128" classname="test"/>
+	<testcase name="three measures per named thing is a bubble" time="0.000115" classname="test"/>
+	<testcase name="hiding a series removes it from what is drawn" time="0.003244" classname="test"/>
+	<testcase name="hiding the same series twice brings it back" time="0.000285" classname="test"/>
+	<testcase name="hiding every series still draws the chart" time="0.000199" classname="test"/>
+	<testcase name="isolating a series shows it alone" time="0.000361" classname="test"/>
+	<testcase name="isolating the same series again shows them all" time="0.001572" classname="test"/>
+	<testcase name="isolation ends when the reader asks for a second series" time="0.000205" classname="test"/>
+	<testcase name="an isolated series that is no longer in the result does not blank the chart" time="0.000110" classname="test"/>
+	<testcase name="a brushed range narrows what is drawn, not what was calculated" time="0.003557" classname="test"/>
+	<testcase name="a range beyond the rows is clamped rather than producing nothing" time="0.000527" classname="test"/>
+	<testcase name="picking a category emphasises it without dropping the others" time="0.000544" classname="test"/>
+	<testcase name="with nothing picked every row is drawn at full strength" time="0.000145" classname="test"/>
+	<testcase name="reset undoes everything, not most of it" time="0.000190" classname="test"/>
+	<testcase name="arrow keys walk the categories and wrap" time="0.000164" classname="test"/>
+	<testcase name="moving focus in an empty result focuses nothing" time="0.000108" classname="test"/>
+	<testcase name="the reducer never mutates the state it was given" time="0.000205" classname="test"/>
+	<testcase name="the description says what the reader chose, in their words" time="0.000250" classname="test"/>
+	<testcase name="an untouched selection describes itself as nothing" time="0.000053" classname="test"/>
+	<testcase name="a request settles into exactly one of five things, and none of them is silence" time="0.002086" classname="test"/>
+	<testcase name="each envelope kind the server writes maps to what the reader is shown" time="0.001723" classname="test"/>
+	<testcase name="a response this client cannot read is an error, not an empty answer" time="0.000156" classname="test"/>
+	<testcase name="every governed terminal state is a supported outcome with its own explanation" time="0.000186" classname="test"/>
+	<testcase name="a budget stop renders the backend's own sentence, not a generic outage" time="0.000270" classname="test"/>
+	<testcase name="a partial answer is still an answer, and a redirect is still a redirect" time="0.000125" classname="test"/>
+	<testcase name="a plan the model could not fit in its allowance is a supported stop" time="0.000173" classname="test"/>
+	<testcase name="the terminal list is the server's, and nothing invented sits in it" time="0.000083" classname="test"/>
+	<testcase name="a timeout is reported, with the sentence the transport layer wrote" time="0.000361" classname="test"/>
+	<testcase name="a governed 503 keeps the server's explanation instead of becoming an outage" time="0.000396" classname="test"/>
+	<testcase name="a failure is never empty and never a bare status code" time="0.000302" classname="test"/>
+	<testcase name="a raw exception never reaches the reader: no stack trace, no class name" time="0.000139" classname="test"/>
+	<testcase name="cockpitV3Ask waits 120 seconds, and the shared default is untouched" time="0.000187" classname="test"/>
+	<testcase name="the measured 20.517-second request would have survived" time="0.000091" classname="test"/>
+	<testcase name="nothing about the server's deadlines was changed to fix the transport" time="0.000247" classname="test"/>
+	<testcase name="a credential can never reach the reader through a failure" time="0.000148" classname="test"/>
+	<testcase name="the running indicator is off once a request has settled, whatever it settled as" time="0.000056" classname="test"/>
+	<testcase name="the transport error this reads is the one the API client throws" time="0.000160" classname="test"/>
+	<testcase name="a fully answered request reads as n of n" time="0.001118" classname="test"/>
+	<testcase name="a partly verified request never reads as n of n" time="0.000322" classname="test"/>
+	<testcase name="every objective that is not complete carries a reason" time="0.000269" classname="test"/>
+	<testcase name="an unavailable coverage block still says something" time="0.000178" classname="test"/>
+	<testcase name="a partial objective is presentable, not a failure" time="0.000327" classname="test"/>
+	<testcase name="an ordinary paragraph splits into its sentences" time="0.002135" classname="test"/>
+	<testcase name="a decimal is never a sentence boundary" time="0.000171" classname="test"/>
+	<testcase name="an abbreviation followed by a lowercase word does not split" time="0.000111" classname="test"/>
+	<testcase name="a quoted sentence opening is a boundary" time="0.000127" classname="test"/>
+	<testcase name="empty and blank input produce nothing rather than an empty sentence" time="0.000183" classname="test"/>
+	<testcase name="the promoted observation is one the backend already wrote" time="0.001214" classname="test"/>
+	<testcase name="a finding that only restates the headline is not promoted" time="0.000175" classname="test"/>
+	<testcase name="a finding carrying figures beats a louder one without them" time="0.000252" classname="test"/>
+	<testcase name="nothing to promote renders nothing rather than a platitude" time="0.001448" classname="test"/>
+	<testcase name="the insight says why it was chosen" time="0.000146" classname="test"/>
+	<testcase name="a refusal is an implication in the strongest sense" time="0.001478" classname="test"/>
+	<testcase name="named contributors become an implication, in the engine's own order" time="0.000267" classname="test"/>
+	<testcase name="implications are capped and deduplicated" time="0.000201" classname="test"/>
+	<testcase name="nothing to say produces no section" time="0.000636" classname="test"/>
+	<testcase name="an empty result is a conclusion, not an empty table" time="0.000638" classname="test"/>
+	<testcase name="a result with figures but no rows is not a negative finding" time="0.000201" classname="test"/>
+	<testcase name="a step that failed is not reported as having found nothing" time="0.000087" classname="test"/>
+	<testcase name="an inline token's colour follows the ontology, not the sign" time="0.000105" classname="test"/>
+	<testsuite name="dimension cells" time="0.001866" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="never reads an unmeasured dimension as a pass" time="0.000853" classname="test"/>
+		<testcase name="distinguishes a warning from a failure" time="0.000206" classname="test"/>
+	</testsuite>
+	<testsuite name="the score" time="0.002016" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="shows the status in words rather than a zero when nothing was scored" time="0.000306" classname="test"/>
+		<testcase name="uses the label the payload supplied, never the word accuracy" time="0.000107" classname="test"/>
+		<testcase name="leaves no dangling space where the surrounding label names it" time="0.001409" classname="test"/>
+	</testsuite>
+	<testsuite name="reference match" time="0.000934" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="explains the absence rather than rendering a blank" time="0.000246" classname="test"/>
+		<testcase name="reports the figure where an approved reference exists" time="0.000390" classname="test"/>
+	</testsuite>
+	<testsuite name="staleness" time="0.000574" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="never presents a stale record as current validation" time="0.000215" classname="test"/>
+		<testcase name="leaves a current record alone" time="0.000147" classname="test"/>
+	</testsuite>
+	<testsuite name="what needs attention" time="0.000507" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="flags a critical failure" time="0.000287" classname="test"/>
+		<testcase name="flags a record where somebody pressed Bad" time="0.000080" classname="test"/>
+		<testcase name="leaves a clean record alone" time="0.000055" classname="test"/>
+	</testsuite>
+	<testsuite name="review order" time="0.012793" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="puts what needs attention first, not what scored lowest" time="0.001296" classname="test"/>
+		<testcase name="does not sort unscored records to an end by their missing score" time="0.011204" classname="test"/>
+		<testcase name="does not mutate the array it was given" time="0.000165" classname="test"/>
+	</testsuite>
+	<testsuite name="ordering — §46" time="0.010545" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="is the stored priority, and nothing else" time="0.001652" classname="test"/>
+		<testcase name="breaks a tie on the severity arithmetic, then on age" time="0.006675" classname="test"/>
+		<testcase name="does not mutate the list it was given" time="0.000159" classname="test"/>
+	</testsuite>
+	<testsuite name="the filter tabs — §40" time="0.000836" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="vm">
+		<testcase name="are the five the brief names, in order" time="0.000128" classname="test"/>
+		<testcase name="each map to a case level, and ALL to none" time="0.000117" classname="test"/>
+		<testcase name="take their counts from the backend's grouped query" time="0.000097" classname="test"/>
+		<testcase name="show zero rather than a guess when no counts have arrived" time="0.000135" classname="test"/>
+	</testsuite>
+	<testsuite name="the severity band" time="0.000925" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="carries a word for every band, not colour alone — §10" time="0.000355" classname="test"/>
+		<testcase name="uses tokens rather than a literal colour" time="0.000358" classname="test"/>
+	</testsuite>
+	<testsuite name="urgency" time="0.000431" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="is narrow enough to mean something" time="0.000244" classname="test"/>
+		<testcase name="never marks a closed case" time="0.000097" classname="test"/>
+	</testsuite>
+	<testsuite name="the due date" time="0.000728" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="counts in days, in the reader's terms" time="0.000412" classname="test"/>
+		<testcase name="says nothing for a closed case or a missing date" time="0.000073" classname="test"/>
+		<testcase name="does not fall over on a date it cannot read" time="0.000096" classname="test"/>
+	</testsuite>
+	<testsuite name="evidence coverage — §54" time="0.000338" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="is words, not a percentage" time="0.000129" classname="test"/>
+		<testcase name="never renders a number" time="0.000148" classname="test"/>
+	</testsuite>
+	<testsuite name="the row subtitle" time="0.007711" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="vm">
+		<testcase name="shows a segment's share of the book — §42" time="0.007120" classname="test"/>
+		<testcase name="shows a borrower's exposure and position — §43" time="0.000241" classname="test"/>
+		<testcase name="names the dataset for a data case rather than an exposure" time="0.000134" classname="test"/>
+		<testcase name="degrades to the period alone rather than to an empty row" time="0.000106" classname="test"/>
+	</testsuite>
+	<testsuite name="number formatting" time="0.000340" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="drops precision nobody reads as the figure grows" time="0.000197" classname="test"/>
+		<testcase name="treats a negative figure the same way" time="0.000086" classname="test"/>
+	</testsuite>
+	<testcase name="the feed is read from the V4 attention endpoint" time="0.004559" classname="test"/>
+	<testcase name="one item is read from its own V4 path" time="0.000590" classname="test"/>
+	<testcase name="an item id is encoded, never interpolated raw" time="0.000719" classname="test"/>
+	<testcase name="Investigate Further posts to the V4 investigate action" time="0.000673" classname="test"/>
+	<testcase name="no home-feed call addresses the legacy backend" time="0.000444" classname="test"/>
+	<testcase name="an open investigation survives a reload" time="0.000389" classname="test"/>
+	<testcase name="a malformed remembered investigation is discarded, not rendered" time="0.000377" classname="test"/>
+	<testsuite name="what a downloaded chart is called" time="0.002504" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="puts the PNG beside the SVG of the same chart" time="0.000967" classname="test"/>
+		<testcase name="does not double an extension the API left off" time="0.000216" classname="test"/>
+		<testcase name="replaces the extension rather than the word" time="0.000228" classname="test"/>
+	</testsuite>
+	<testsuite name="the size of a raster" time="0.003107" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="vm">
+		<testcase name="keeps the drawing's own shape, not the window's" time="0.000429" classname="test"/>
+		<testcase name="is legible in a slide" time="0.001407" classname="test"/>
+		<testcase name="gives a drawing with no stated size a page rather than refusing" time="0.000250" classname="test"/>
+		<testcase name="ignores a size that is not a size" time="0.000301" classname="test"/>
+	</testsuite>
+	<testsuite name="handing the drawing to the browser" time="0.002827" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="survives a label that is not ASCII" time="0.001927" classname="test"/>
+		<testcase name="escapes the characters that would end the URL early" time="0.000612" classname="test"/>
+	</testsuite>
+	<testsuite name="the scale a chart is drawn against" time="0.004992" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="vm">
+		<testcase name="takes the extent the server published" time="0.001977" classname="test"/>
+		<testcase name="falls back to the data for an answer saved before axes existed" time="0.000213" classname="test"/>
+		<testcase name="falls back for an axis whose ticks the server could not build" time="0.000130" classname="test"/>
+		<testcase name="reaches zero for a length-encoded form when it has to guess" time="0.000152" classname="test"/>
+		<testcase name="gives a usable scale when every value is the same" time="0.001142" classname="test"/>
+		<testcase name="gives a usable scale when there are no values at all" time="0.000165" classname="test"/>
+		<testcase name="ignores a tick the payload left unusable" time="0.000128" classname="test"/>
+	</testsuite>
+	<testsuite name="where a mark goes" time="0.001478" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="vm">
+		<testcase name="puts the low at the floor and the high at the ceiling" time="0.000304" classname="test"/>
+		<testcase name="puts the midpoint halfway up" time="0.000251" classname="test"/>
+		<testcase name="spreads positions from edge to edge" time="0.000289" classname="test"/>
+		<testcase name="centres a lone point rather than pinning it to the left edge" time="0.000131" classname="test"/>
+		<testcase name="tiles bands across the box without a gap" time="0.000118" classname="test"/>
+	</testsuite>
+	<testsuite name="which mark the cursor is over" time="0.000385" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="vm">
+		<testcase name="finds the nearest position" time="0.000125" classname="test"/>
+		<testcase name="keeps hold past the edge rather than blinking out" time="0.000052" classname="test"/>
+		<testcase name="reports nothing to be near when there is nothing" time="0.000046" classname="test"/>
+		<testcase name="finds the band the cursor is inside, not the nearest edge" time="0.000075" classname="test"/>
+	</testsuite>
+	<testsuite name="zoom" time="0.000944" disabled="0" errors="0" tests="7" failures="0" skipped="0" hostname="vm">
+		<testcase name="shows everything until it is asked not to" time="0.000223" classname="test"/>
+		<testcase name="narrows about the middle of what is on screen" time="0.000110" classname="test"/>
+		<testcase name="widens back out to everything" time="0.000060" classname="test"/>
+		<testcase name="never narrows below what a trend needs to be a trend" time="0.000171" classname="test"/>
+		<testcase name="pans without changing how much is shown" time="0.000101" classname="test"/>
+		<testcase name="stops panning at the ends instead of running off them" time="0.000059" classname="test"/>
+		<testcase name="clamps a window that outlives the result it was made on" time="0.000103" classname="test"/>
+	</testsuite>
+	<testsuite name="x labels" time="0.000284" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="shows every one when they fit" time="0.000082" classname="test"/>
+		<testcase name="thins them when they do not" time="0.000041" classname="test"/>
+		<testcase name="never divides by a stride of nothing" time="0.000090" classname="test"/>
+	</testsuite>
+	<testcase name="the published string is what is shown" time="0.001224" classname="test"/>
+	<testcase name="a full-precision cross-check never reaches the screen" time="0.000340" classname="test"/>
+	<testcase name="the declared precision is respected when the server sent no string" time="0.000182" classname="test"/>
+	<testcase name="nothing is shown when there is nothing to show" time="0.000289" classname="test"/>
+	<testcase name="a non-numeric cross-check is not printed as digits either" time="0.000280" classname="test"/>
+	<testcase name="the unit is not said twice" time="0.000178" classname="test"/>
+	<testcase name="the fallback still says what the number measures" time="0.000231" classname="test"/>
+	<testcase name="the configured V4 API origin is used" time="0.002945" classname="test"/>
+	<testcase name="an alternate selected port propagates" time="0.000326" classname="test"/>
+	<testcase name="a trailing slash is normalised away" time="0.000315" classname="test"/>
+	<testcase name="an unset V4 variable fails loudly instead of defaulting" time="0.000315" classname="test"/>
+	<testcase name="the generic API variable is NEVER used as a fall back" time="0.000536" classname="test"/>
+	<testcase name="no V4 request can be addressed to the legacy backend port" time="0.000274" classname="test"/>
+	<testcase name="an empty or whitespace value is not configuration" time="0.000184" classname="test"/>
+	<testcase name="same-origin is an explicit opt-in, not an accident" time="0.000187" classname="test"/>
+	<testcase name="the thrown error is typed so callers can render it" time="0.000489" classname="test"/>
+	<testcase name="V4 mode is decided by the Cockpit variable alone" time="0.000373" classname="test"/>
+	<testcase name="a remembered run survives and is forgotten deliberately" time="0.000451" classname="test"/>
+	<testcase name="the remembered run keeps the question it is answering" time="0.000177" classname="test"/>
+	<testcase name="export links name the run, the artifact and the row scope" time="0.000222" classname="test"/>
+	<testcase name="an export link escapes a run id rather than pasting it into a path" time="0.000097" classname="test"/>
+	<testcase name="a running stage counts forward between events" time="0.001635" classname="test"/>
+	<testcase name="the step that is running is the one that counts" time="0.001372" classname="test"/>
+	<testcase name="a settled run stops counting and reports the authoritative total" time="0.000440" classname="test"/>
+	<testcase name="a refresh at eleven seconds displays eleven, not zero and not twenty-two" time="0.000261" classname="test"/>
+	<testcase name="a replayed event does not advance the clock twice" time="0.000203" classname="test"/>
+	<testcase name="the headline names what is running and how long it has been" time="0.000168" classname="test"/>
+	<testcase name="elapsed is whole seconds, and minutes past sixty" time="0.000113" classname="test"/>
+	<testcase name="nothing counts before the first event" time="0.000093" classname="test"/>
+	<testcase name="every collaboration call addresses the V4 prefix and no other" time="0.002759" classname="test"/>
+	<testcase name="a share carries the audience and the optional address, nothing else" time="0.000388" classname="test"/>
+	<testcase name="only a delivered notification may be described as sent" time="0.000815" classname="test"/>
+	<testcase name="a state of SENT without delivered is still not a delivery claim" time="0.000449" classname="test"/>
+	<testcase name="no notification at all says so plainly" time="0.000185" classname="test"/>
+	<testcase name="the outbox is read from the V4 prefix" time="0.000275" classname="test"/>
+	<testcase name="a payload about this book is rendered" time="0.001321" classname="test"/>
+	<testcase name="a payload about the other book is dropped" time="0.000276" classname="test"/>
+	<testcase name="a panel that was told no book takes what the server resolved" time="0.000268" classname="test"/>
+	<testcase name="a payload from an older server is not treated as a mismatch" time="0.000249" classname="test"/>
+	<testcase name="nothing at all is not a payload" time="0.000227" classname="test"/>
+	<testcase name="the late response from the previous book cannot land" time="0.000246" classname="test"/>
+	<testcase name="the cover line is the selected book's own, both ways" time="0.001151" classname="test"/>
+	<testcase name="the corporate cover line never says monthly" time="0.000192" classname="test"/>
+	<testcase name="switching back restores the first book's line" time="0.000115" classname="test"/>
+	<testcase name="corporate prompts are quarterly and retail prompts monthly" time="0.001201" classname="test"/>
+	<testcase name="no corporate chip says month and no retail chip says quarter" time="0.000388" classname="test"/>
+	<testcase name="the templates themselves name no calendar" time="0.000221" classname="test"/>
+	<testcase name="the calendar follows the payload, not the name of the book" time="0.000219" classname="test"/>
+	<testcase name="a release that states only its frequency still gets a noun" time="0.000117" classname="test"/>
+	<testcase name="a release that states only its periods still gets a frequency" time="0.001832" classname="test"/>
+	<testcase name="before the payload arrives nothing claims a calendar" time="0.000520" classname="test"/>
+	<testcase name="a payload missing this book states nothing about it" time="0.000198" classname="test"/>
+	<testsuite name="what the reader is offered next" time="0.006463" disabled="0" errors="0" tests="11" failures="0" skipped="0" hostname="vm">
+		<testcase name="opens a seeded thread on the questions the card carried (§31)" time="0.001024" classname="test"/>
+		<testcase name="shows between three and five openers, never more" time="0.000161" classname="test"/>
+		<testcase name="prefers the answer's own suggestions once there is an answer" time="0.001218" classname="test"/>
+		<testcase name="falls back to the book's own prompts when an answer offered none (§32)" time="0.000156" classname="test"/>
+		<testcase name="falls back to the RETAIL prompts in the retail book" time="0.000149" classname="test"/>
+		<testcase name="offers nothing rather than the wrong book's prompts" time="0.000145" classname="test"/>
+		<testcase name="offers nothing while a run is working" time="0.000109" classname="test"/>
+		<testcase name="drops blank and whitespace-only suggestions" time="0.000185" classname="test"/>
+		<testcase name="never mixes an opening set with a follow-up set" time="0.000264" classname="test"/>
+		<testcase name="caps follow-ups at four so the strip stays one or two lines" time="0.000353" classname="test"/>
+		<testcase name="has a fallback set for every book the Cockpit serves" time="0.000200" classname="test"/>
+	</testsuite>
+	<testcase name="the greeting follows the reader's own clock" time="0.005760" classname="test"/>
+	<testcase name="a display name is used when there is one" time="0.002634" classname="test"/>
+	<testcase name="no name means no name, never a placeholder person" time="0.000635" classname="test"/>
+	<testcase name="the name is trimmed, not reformatted" time="0.000283" classname="test"/>
+	<testcase name="the recorded run reconstructs a truthful trace, not '0s / not started'" time="0.005322" classname="test"/>
+	<testcase name="every stage the backend emitted is present, and none that it did not" time="0.000370" classname="test"/>
+	<testcase name="a failed attempt is not erased by the later success" time="0.000235" classname="test"/>
+	<testcase name="the second model attempt is visible as attempt 2" time="0.001312" classname="test"/>
+	<testcase name="a model response closes its attempt with a duration" time="0.000320" classname="test"/>
+	<testcase name="the real tool is named, not a generic label" time="0.000193" classname="test"/>
+	<testcase name="intent, answer validation and answer.ready are all reflected" time="0.000251" classname="test"/>
+	<testcase name="replay from cursor 0 reconstructs exactly the live state" time="0.000410" classname="test"/>
+	<testcase name="a run that completed before the browser subscribed still reconstructs" time="0.000487" classname="test"/>
+	<testcase name="a duplicate or replayed event does not double-count a substep" time="0.000533" classname="test"/>
+	<testcase name="an out-of-order event older than the cursor is ignored" time="0.000226" classname="test"/>
+	<testcase name="a missing event does not fabricate the stage it would have created" time="0.000115" classname="test"/>
+	<testcase name="a very fast run still renders its stages and a real duration" time="0.000129" classname="test"/>
+	<testcase name="the panel opens on the stage that failed, even after it recovered" time="0.000989" classname="test"/>
+	<testcase name="durations are formatted so a short run is still legible" time="0.000071" classname="test"/>
+	<testcase name="a heading, a paragraph and bullets parse as themselves" time="0.003178" classname="test"/>
+	<testcase name="a single-hash heading renders at the answer's top level" time="0.000379" classname="test"/>
+	<testcase name="bold and italic become nodes, not visible asterisks" time="0.000425" classname="test"/>
+	<testcase name="the module list style from a real answer renders cleanly" time="0.000390" classname="test"/>
+	<testcase name="numbered lists keep their start" time="0.002624" classname="test"/>
+	<testcase name="a table parses into a header and rows" time="0.000482" classname="test"/>
+	<testcase name="inline code and fenced code are distinguished" time="0.000240" classname="test"/>
+	<testcase name="a blockquote and a horizontal rule parse" time="0.000158" classname="test"/>
+	<testcase name="a wrapped bullet continuation stays in its own item" time="0.000480" classname="test"/>
+	<testcase name="markup in an answer is data, not markup" time="0.000618" classname="test"/>
+	<testcase name="only safe link schemes reach an href" time="0.000459" classname="test"/>
+	<testcase name="an unsafe link keeps its words and loses its href" time="0.000185" classname="test"/>
+	<testcase name="a safe link becomes a link node" time="0.000190" classname="test"/>
+	<testcase name="empty and whitespace input produce nothing rather than throwing" time="0.000111" classname="test"/>
+	<testcase name="unbalanced emphasis does not lose the text" time="0.000101" classname="test"/>
+	<testcase name="a plain answer with no markup is a single paragraph" time="0.000086" classname="test"/>
+	<testcase name="a run that has done nothing shows no steps at all" time="0.003788" classname="test"/>
+	<testcase name="a step appears when it starts, and only then" time="0.003012" classname="test"/>
+	<testcase name="an event from another run is ignored" time="0.000294" classname="test"/>
+	<testcase name="a replayed event does not duplicate a step" time="0.000296" classname="test"/>
+	<testcase name="a failed event marks the step and exposes its error id" time="0.000433" classname="test"/>
+	<testcase name="a settled status closes any step still marked running" time="0.000349" classname="test"/>
+	<testcase name="a stop is summarised as a stop, not as an answer" time="0.000445" classname="test"/>
+	<testcase name="V4-AT-082: connection loss is a client state, not a server failure" time="0.000275" classname="test"/>
+	<testcase name="V4-AT-068: the failed step is identifiable for auto-expansion" time="0.000665" classname="test"/>
+	<testcase name="V4-AT-069: substeps keep their operation and detail reference" time="0.000693" classname="test"/>
+	<testcase name="a step closes when the server says it closed, not by array order" time="0.000522" classname="test"/>
+	<testcase name="two passes through one stage are two rows, in the order they ran" time="0.000382" classname="test"/>
+	<testcase name="a terminal event leaves no step running" time="0.000227" classname="test"/>
+	<testcase name="replaying the whole stream lands where the live stream did" time="0.000437" classname="test"/>
+	<testcase name="an out-of-order frame cannot reorder the trace" time="0.000162" classname="test"/>
+	<testcase name="a stream from an older server still closes its stages" time="0.000211" classname="test"/>
+	<testcase name="a stated stage is not closed by one of its own operations" time="0.000113" classname="test"/>
+	<testcase name="a run that computed rows carries them into the view, narrative or not" time="0.000253" classname="test"/>
+	<testcase name="an accepted run that is still working is not an ending" time="0.001700" classname="test"/>
+	<testcase name="every working state reads as work, never as a stop" time="0.000349" classname="test"/>
+	<testcase name="every terminal state is still an ending" time="0.000270" classname="test"/>
+	<testcase name="a mid-run gap followed by a real settle ends exactly once" time="0.000105" classname="test"/>
+	<testcase name="the server's own terminal flag is honoured when it is sent" time="0.000073" classname="test"/>
+	<testcase name="a working status still refreshes the clock it does not end" time="0.000124" classname="test"/>
+	<testcase name="a ranked comparison of several categories is worth charting" time="0.001144" classname="test"/>
+	<testcase name="a single value is a number, and a chart of it is decoration" time="0.000158" classname="test"/>
+	<testcase name="no rows is not an empty chart" time="0.000103" classname="test"/>
+	<testcase name="a chart with no series to plot is not drawn" time="0.001615" classname="test"/>
+	<testcase name="a chart whose points carry no numbers is not drawn" time="0.000126" classname="test"/>
+	<testcase name="an absent chart is not useful" time="0.000095" classname="test"/>
+	<testcase name="a table shows a readable top slice before the whole result" time="0.000074" classname="test"/>
+	<testcase name="the displayed value is what the server wrote, not a local rounding" time="0.000155" classname="test"/>
+	<testcase name="a grid with filled cells is worth drawing" time="0.000359" classname="test"/>
+	<testcase name="a grid with no filled cell is not" time="0.000323" classname="test"/>
+	<testcase name="a grid is not judged by whether it has point series" time="0.000138" classname="test"/>
+	<testcase name="the axis keeps the order the result was returned in" time="0.001273" classname="test"/>
+	<testcase name="an absent cell is absent, not zero" time="0.000116" classname="test"/>
+	<testcase name="a box plot is worth drawing when it has a box" time="0.000104" classname="test"/>
+	<testcase name="every useful chart survives the choice, in the analyst's order" time="0.000217" classname="test"/>
+	<testcase name="a chart that is not worth drawing is dropped, not the ones after it" time="0.000078" classname="test"/>
+	<testcase name="charts and tables are peers, not two sides of a toggle" time="0.000104" classname="test"/>
+	<testcase name="the browser's vocabulary is the contract's vocabulary" time="0.000635" classname="test"/>
+	<testcase name="a download button names the chart's place in the ANSWER" time="0.000235" classname="test"/>
+	<testcase name="every index is kept when nothing is dropped" time="0.000137" classname="test"/>
+	<testcase name="there is an index for every chart that is rendered, always" time="0.000082" classname="test"/>
+	<testcase name="the busiest dataset is the centre of the map" time="0.002347" classname="test"/>
+	<testcase name="a ring is how many joins it takes to reach the centre" time="0.000390" classname="test"/>
+	<testcase name="the same model always draws the same picture" time="0.000378" classname="test"/>
+	<testcase name="boxes in a ring never overlap" time="0.000568" classname="test"/>
+	<testcase name="a dataset the centre cannot reach is still placed" time="0.000204" classname="test"/>
+	<testcase name="nothing declared draws nothing rather than throwing" time="0.000109" classname="test"/>
+	<testsuite name="ordering conditions inside one borrower" time="0.014555" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="puts what got worse in front of what merely persists" time="0.002210" classname="test"/>
+		<testcase name="breaks a lifecycle tie by severity, worst first" time="0.000251" classname="test"/>
+		<testcase name="is total, so the same evidence always renders the same way" time="0.011018" classname="test"/>
+	</testsuite>
+	<testsuite name="grouping by family" time="0.001594" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="tells one fact once rather than five times" time="0.000619" classname="test"/>
+		<testcase name="leads with the family carrying the worst condition" time="0.000263" classname="test"/>
+		<testcase name="takes the family's severity from its worst condition" time="0.000308" classname="test"/>
+	</testsuite>
+	<testsuite name="the wording a row leads with" time="0.002241" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="vm">
+		<testcase name="counts conditions and families, never a score" time="0.000615" classname="test"/>
+		<testcase name="says so plainly when nothing fires" time="0.000328" classname="test"/>
+		<testcase name="stays silent about movement when nothing moved" time="0.000372" classname="test"/>
+		<testcase name="names what moved, worst first" time="0.000425" classname="test"/>
+	</testsuite>
+	<testsuite name="what could not be tested" time="0.000680" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="never lets a thin standing present as a clean one" time="0.000411" classname="test"/>
+		<testcase name="says nothing when everything was testable" time="0.000138" classname="test"/>
+	</testsuite>
+	<testsuite name="the booked accounting position" time="0.000437" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="vm">
+		<testcase name="stays separable from the prediction" time="0.000284" classname="test"/>
+	</testsuite>
+	<testsuite name="evidence pointing the other way" time="0.000483" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="is named rather than dropped" time="0.000261" classname="test"/>
+		<testcase name="is empty when the evidence all points one way" time="0.000114" classname="test"/>
+	</testsuite>
+	<testsuite name="ordering borrowers on the overview" time="0.000759" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="ranks by breadth first, as the backend does" time="0.000334" classname="test"/>
+		<testcase name="falls through severity, persistence and worsening in that order" time="0.000180" classname="test"/>
+		<testcase name="is total, so two loads of the same book render the same order" time="0.000137" classname="test"/>
+	</testsuite>
+	<testsuite name="the lenses the overview offers" time="0.001056" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="vm">
+		<testcase name="offers questions rather than score bands" time="0.000452" classname="test"/>
+		<testcase name="matches new, worsening, persisting, severe and breadth correctly" time="0.000299" classname="test"/>
+		<testcase name="lets everything through the default lens" time="0.000100" classname="test"/>
+	</testsuite>
+	<testsuite name="severity presentation" time="0.000353" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="gives each of the three levels its own weight" time="0.000137" classname="test"/>
+		<testcase name="treats an unknown severity as the quietest, never the loudest" time="0.000082" classname="test"/>
+	</testsuite>
+	<testsuite name="joining a list into a sentence" time="0.000237" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="vm">
+		<testcase name="reads like English" time="0.000151" classname="test"/>
+	</testsuite>
+	<testcase name="§39 names eight answer kinds and the module knows all of them" time="0.000874" classname="test"/>
+	<testcase name="a refused plan is a controlled failure, not an unsupported question" time="0.000251" classname="test"/>
+	<testcase name="a clarification outranks unmatched" time="0.000145" classname="test"/>
+	<testcase name="an unmatched question is unsupported" time="0.000108" classname="test"/>
+	<testcase name="an agentic run is filed as agentic even when it produced steps" time="0.000126" classname="test"/>
+	<testcase name="an answer with no steps is metadata rather than an empty analysis" time="0.000097" classname="test"/>
+	<testcase name="an ordinary computed answer is an analysis" time="0.000075" classname="test"/>
+	<testcase name="a failed status is a controlled failure whatever else is set" time="0.000075" classname="test"/>
+	<testcase name="an empty run does not throw and lands somewhere real" time="0.000270" classname="test"/>
+	<testcase name="only PARTLY and NO open the detail panel" time="0.001563" classname="test"/>
+	<testcase name="a YES never opens a what-went-wrong panel" time="0.000200" classname="test"/>
+	<testcase name="the server's list wins where it has one" time="0.000156" classname="test"/>
+	<testcase name="the fallback list is the two ratings that carry a claim" time="0.001891" classname="test"/>
+	<testcase name="an acknowledgement that promises learning is not shown" time="0.000431" classname="test"/>
+	<testcase name="an honest acknowledgement is shown as written" time="0.000160" classname="test"/>
+	<testcase name="an empty acknowledgement stays empty rather than becoming a thank you" time="0.000217" classname="test"/>
+	<testcase name="a row is summarised by the fields worth scanning" time="0.000420" classname="test"/>
+	<testcase name="a row with no known field is shown whole rather than blank" time="0.000475" classname="test"/>
+	<testcase name="an empty row still renders something" time="0.000563" classname="test"/>
+	<testcase name="a metric that was never measured is not shown as zero" time="0.000268" classname="test"/>
+	<testcase name="a V4 payload is recognised as a reachable partial runtime" time="0.001070" classname="test"/>
+	<testcase name="an existing CreditProbe payload is completely unaffected" time="0.000144" classname="test"/>
+	<testcase name="an optional surface that IS working is not reported as absent" time="0.000131" classname="test"/>
+	<testcase name="an optional surface other than the dashboard does not claim one" time="0.000191" classname="test"/>
+	<testcase name="a genuine service fault is still a fault" time="0.000130" classname="test"/>
+	<testcase name="every node lands in exactly one cluster" time="0.001621" classname="test"/>
+	<testcase name="the clusters come back in the order an auditor asks for them" time="0.001345" classname="test"/>
+	<testcase name="a derivation and an execution are not the same cluster" time="0.000118" classname="test"/>
+	<testcase name="an unknown node type is still placed rather than dropped" time="0.000090" classname="test"/>
+	<testcase name="the reuse node types belong to the conversation cluster" time="0.000084" classname="test"/>
+	<testcase name="a failed invariant makes its whole cluster read as failed" time="0.000325" classname="test"/>
+	<testcase name="a cluster carrying an issue never opens collapsed" time="0.000229" classname="test"/>
+	<testcase name="the issue navigator lists the failures worst first" time="0.000211" classname="test"/>
+	<testcase name="a collapsed cluster says what it contains without being opened" time="0.000410" classname="test"/>
+	<testcase name="an edge across a collapsed boundary survives, pointing at the card" time="0.000813" classname="test"/>
+	<testcase name="collapsing a cluster does not leave a dangling edge" time="0.000489" classname="test"/>
+	<testcase name="a join that multiplied its rows marks its own edge" time="0.000159" classname="test"/>
+	<testcase name="expanding one cluster does not move the ones above it" time="0.001125" classname="test"/>
+	<testcase name="the same graph lays out identically every time" time="0.000420" classname="test"/>
+	<testcase name="isolating a cluster hides the others and their edges" time="0.000150" classname="test"/>
+	<testcase name="a step can be found by label, dataset or field" time="0.000168" classname="test"/>
+	<testcase name="a step that appeared is reported as added" time="0.001238" classname="test"/>
+	<testcase name="a step that disappeared is reported as removed" time="0.001316" classname="test"/>
+	<testcase name="a row count that moved is reported with both numbers" time="0.012559" classname="test"/>
+	<testcase name="a step whose status changed is reported" time="0.000311" classname="test"/>
+	<testcase name="a relabelled step is a change a reviewer needs to see" time="0.000361" classname="test"/>
+	<testcase name="an unchanged step produces no noise" time="0.000149" classname="test"/>
+	<testcase name="the arguments are not silently swapped" time="0.000412" classname="test"/>
+	<testcase name="two versions that computed the same thing say so" time="0.000348" classname="test"/>
+	<testcase name="the same steps with a different answer is called out" time="0.000368" classname="test"/>
+	<testcase name="the summary counts what changed" time="0.000537" classname="test"/>
+	<testcase name="a missing row count is not read as zero" time="0.000283" classname="test"/>
+	<testcase name="a blocked presentation does not fail the calculation validation" time="0.001456" classname="test"/>
+	<testcase name="the blocked presentation is still shown, in its own stage" time="0.000313" classname="test"/>
+	<testcase name="a genuinely failed invariant still fails the validation stage" time="0.000155" classname="test"/>
+	<testcase name="no stage ever prints FAILED beside its own all-passed count" time="0.000661" classname="test"/>
+	<testcase name="the same holds for the detailed cluster view" time="0.000887" classname="test"/>
+	<testcase name="a composed analysis has no method page" time="0.000793" classname="test"/>
+	<testcase name="a composed analysis links to the run that produced it instead" time="0.000158" classname="test"/>
+	<testcase name="a registered method still opens its definition" time="0.000161" classname="test"/>
+	<testcase name="a catalogue lookup is neither, and offers no dead link" time="0.000097" classname="test"/>
+	<testcase name="a registered-looking id on an uncertified run is still not a method" time="0.000093" classname="test"/>
+	<testcase name="a run without an id has nowhere to go, and says so" time="0.000093" classname="test"/>
+	<testcase name="Cockpit → Investigation → Trace → back to the exact turn" time="0.002880" classname="test"/>
+	<testcase name="Cockpit → Investigation → Method → back to the exact turn" time="0.000251" classname="test"/>
+	<testcase name="Project → Project Investigation → Trace → back to that investigation, then to the project" time="0.000227" classname="test"/>
+	<testcase name="Saved Analysis → Trace → back to the saved analysis" time="0.000201" classname="test"/>
+	<testcase name="Lens → Analysis → Trace → back to the lens" time="0.000311" classname="test"/>
+	<testcase name="Early Warning → Borrower → Investigation → back to that borrower" time="0.000161" classname="test"/>
+	<testcase name="Data Builder → Dataset → Relationship map → back to the dataset and period" time="0.000268" classname="test"/>
+	<testcase name="Trace → Open dataset in Data Builder → back to the same node in the same mode" time="0.000199" classname="test"/>
+	<testcase name="a dynamic Analysis Run links to its run, not to a Method page that does not exist" time="0.000460" classname="test"/>
+	<testcase name="a source that no longer exists falls back rather than stranding the reader" time="0.000363" classname="test"/>
+	<testcase name="every source type's fallback index is a real in-product path" time="0.000183" classname="test"/>
+	<testcase name="a return context survives being carried through two hops" time="0.000139" classname="test"/>
+	<testcase name="the link carries the borrower and the period" time="0.001119" classname="test"/>
+	<testcase name="a link with no period does not ask for a quarter called nothing" time="0.000167" classname="test"/>
+	<testcase name="no borrower means the landing table, not a broken query" time="0.000144" classname="test"/>
+	<testcase name="a borrower id that needs escaping is escaped" time="0.000180" classname="test"/>
+	<testcase name="the period survives the round trip" time="0.000286" classname="test"/>
+	<testcase name="both period spellings are read as the same quarter" time="0.000118" classname="test"/>
+	<testcase name="a year-first period is understood too" time="0.000185" classname="test"/>
+	<testcase name="something that is not a quarter is left alone" time="0.000120" classname="test"/>
+	<testcase name="the url spelling has no spaces to be mangled" time="0.000308" classname="test"/>
+	<testcase name="the older parameter name still opens the borrower" time="0.000404" classname="test"/>
+	<testcase name="the mandated name wins where both are present" time="0.000151" classname="test"/>
+	<testcase name="no params at all is a plain visit" time="0.000089" classname="test"/>
+	<testcase name="a rising risk measure is adverse and a falling one is favourable" time="0.001001" classname="test"/>
+	<testcase name="a rising performance measure is favourable" time="0.000159" classname="test"/>
+	<testcase name="the sign alone never decides" time="0.000134" classname="test"/>
+	<testcase name="nothing moved is neutral, whatever the measure" time="0.000105" classname="test"/>
+	<testcase name="an ungoverned measure is not coloured" time="0.000241" classname="test"/>
+	<testcase name="a missing or unusable change is neutral rather than an error" time="0.000112" classname="test"/>
+	<testcase name="assistive text carries what the colour carries" time="0.000172" classname="test"/>
+	<testsuite name="the contract has one ceiling" time="0.006017" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="vm">
+		<testcase name="is two" time="0.004901" classname="test"/>
+	</testsuite>
+	<testsuite name="every formatter respects it" time="5.062003" disabled="0" errors="0" tests="5" failures="0" skipped="0" hostname="vm">
+		<testcase name="money, at every decimals argument a caller could pass" time="0.497983" classname="test"/>
+		<testcase name="percent, delta, count and compact money" time="0.196132" classname="test"/>
+		<testcase name="byUnit, across every governed unit" time="0.169009" classname="test"/>
+		<testcase name="byContract, across every semantic and declared precision" time="3.698101" classname="test"/>
+		<testcase name="figure and deltaFigure, which feed KPIs and chart labels" time="0.500142" classname="test"/>
+	</testsuite>
+	<testsuite name="prose is scrubbed" time="0.013086" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="vm">
+		<testcase name="rewrites floating-point debris a backend formatter missed" time="0.001146" classname="test"/>
+		<testcase name="catches three decimals, not only four" time="0.000592" classname="test"/>
+		<testcase name="leaves a period, a version and an identifier alone" time="0.000277" classname="test"/>
+		<testcase name="never introduces debris of its own" time="0.010645" classname="test"/>
+	</testsuite>
+	<testsuite name="what the ceiling does not do" time="0.000682" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="vm">
+		<testcase name="does not round a value across a governed threshold" time="0.000309" classname="test"/>
+		<testcase name="keeps an integer count whole" time="0.000262" classname="test"/>
+	</testsuite>
+	<testcase name="the server's own filename is used" time="0.001204" classname="test"/>
+	<testcase name="the quoted name wins over the percent-encoded one" time="0.000252" classname="test"/>
+	<testcase name="the extended form is decoded when it is the only one" time="0.000254" classname="test"/>
+	<testcase name="a malformed encoding falls back to the raw value rather than throwing" time="0.000249" classname="test"/>
+	<testcase name="a missing header falls back to a name that still identifies the run" time="0.000283" classname="test"/>
+	<testcase name="the button says what it is doing, not only which icon it shows" time="0.000131" classname="test"/>
+	<testcase name="a failed download returns to its label rather than lying about success" time="0.000184" classname="test"/>
+	<testcase name="money is riyals, in millions, never bare" time="0.017972" classname="test"/>
+	<testcase name="money becomes billions when the millions stop reading" time="0.000274" classname="test"/>
+	<testcase name="a negative amount keeps its sign" time="0.000235" classname="test"/>
+	<testcase name="a very small amount does not round to nothing" time="0.000195" classname="test"/>
+	<testcase name="another deployment's currency is not renamed to riyals" time="0.000157" classname="test"/>
+	<testcase name="a percentage is a percentage" time="0.001084" classname="test"/>
+	<testcase name="a multiple is a multiple, not a percentage" time="0.000388" classname="test"/>
+	<testcase name="days are counted, and one day is singular" time="0.000141" classname="test"/>
+	<testcase name="notches are counted the same way" time="0.000221" classname="test"/>
+	<testcase name="a stage is named, not left as a number" time="0.000284" classname="test"/>
+	<testcase name="a flag is yes or no" time="0.000156" classname="test"/>
+	<testcase name="nothing is nothing, and zero is not nothing" time="0.000185" classname="test"/>
+	<testcase name="an unknown unit is a plain number, not a guessed currency" time="0.000121" classname="test"/>
+	<testcase name="a value that is not a number survives as itself" time="0.000049" classname="test"/>
+	<testcase name="a movement is signed" time="0.000184" classname="test"/>
+	<testcase name="a movement in a percentage is in POINTS" time="0.000081" classname="test"/>
+	<testcase name="a movement in money is money" time="0.000091" classname="test"/>
+	<testcase name="a movement in days or notches is counted" time="0.000047" classname="test"/>
+	<testcase name="a flag and a stage do not have a movement" time="0.000040" classname="test"/>
+	<testcase name="no movement is not a movement of zero" time="0.000090" classname="test"/>
+	<testcase name="return context survives a link that already has a query string" time="0.001010" classname="test"/>
+	<testcase name="the anchor identifying one turn is carried intact" time="0.000207" classname="test"/>
+	<testcase name="a label with an ampersand does not break the query string" time="0.000135" classname="test"/>
+	<testcase name="only same-origin paths are accepted as a destination" time="0.000176" classname="test"/>
+	<testcase name="a domain name containing a slash round-trips through its URL" time="0.000149" classname="test"/>
+	<testcase name="a domain name with no slash still produces one segment" time="0.000087" classname="test"/>
+	<testcase name="with nothing remembered the registry decides" time="0.001004" classname="test"/>
+	<testcase name="the reader's choice wins over the registry" time="0.000163" classname="test"/>
+	<testcase name="an unrelated remembered preference does not change the default" time="0.000154" classname="test"/>
+	<testcase name="with no governed decision the table opens" time="0.000117" classname="test"/>
+	<testcase name="a chart opens only when the gate said so" time="0.000156" classname="test"/>
+	<testcase name="the reader still overrides the opening view" time="0.000140" classname="test"/>
+	<testcase name="a parent is drawn above the borrower" time="0.001458" classname="test"/>
+	<testcase name="a subsidiary is drawn below the borrower" time="0.000232" classname="test"/>
+	<testcase name="a sister is drawn level with the borrower, not above or below" time="0.000177" classname="test"/>
+	<testcase name="every party is placed exactly once, and so is the centre" time="0.000175" classname="test"/>
+	<testcase name="an empty network still places the borrower" time="0.000273" classname="test"/>
+	<testcase name="parties in the same band do not overlap" time="0.000211" classname="test"/>
+	<testcase name="direct-only keeps the parents and drops the sisters" time="0.002318" classname="test"/>
+	<testcase name="direct-only keeps every band present, even the emptied ones" time="0.000202" classname="test"/>
+	<testcase name="money never prints a bare number" time="0.000328" classname="test"/>
+	<testcase name="money says nothing rather than zero when there is no figure" time="0.000320" classname="test"/>
+	<testcase name="the stake shows voting rights only when they differ from ownership" time="0.000222" classname="test"/>
+	<testcase name="a guarantee shows its amount and claims no ownership" time="0.000086" classname="test"/>
+	<testcase name="an edge with nothing on it says nothing rather than 0%" time="0.000062" classname="test"/>
+	<testcase name="an investigation carries the exact turn as its anchor" time="0.002418" classname="test"/>
+	<testcase name="turn zero is an anchor, not a missing one" time="0.000140" classname="test"/>
+	<testcase name="an investigation without a turn returns to the thread itself" time="0.000095" classname="test"/>
+	<testcase name="an untitled investigation still names something in the Back control" time="0.000082" classname="test"/>
+	<testcase name="a project carries the tab that was open" time="0.000191" classname="test"/>
+	<testcase name="a saved analysis returns to its row in the list" time="0.000105" classname="test"/>
+	<testcase name="the built-in CRO lens keeps its own route" time="0.000176" classname="test"/>
+	<testcase name="a borrower carries both the selection and the anchor" time="0.000132" classname="test"/>
+	<testcase name="a dataset carries the period being read" time="0.000301" classname="test"/>
+	<testcase name="a trace node carries the mode and the selected step" time="0.000427" classname="test"/>
+	<testcase name="every source type has an index to fall back to" time="0.000222" classname="test"/>
+	<testcase name="a link carries where it came from, what it says and what kind it is" time="0.000263" classname="test"/>
+	<testcase name="a link that already has a query string keeps it" time="0.000180" classname="test"/>
+	<testcase name="a source href with its own query and anchor survives the round trip" time="0.000191" classname="test"/>
+	<testcase name="a carried context is honoured" time="0.000119" classname="test"/>
+	<testcase name="nothing carried falls back to the caller's own default" time="0.000059" classname="test"/>
+	<testcase name="an off-site return is refused, not followed" time="0.000081" classname="test"/>
+	<testcase name="a carried context with no label still says something" time="0.000047" classname="test"/>
+	<testcase name="an unknown source type is recorded as unknown rather than trusted" time="0.000052" classname="test"/>
+	<testcase name="anchors are stable and unique per object" time="0.000049" classname="test"/>
+	<testcase name="a playbook run returns to the playbooks screen" time="0.000052" classname="test"/>
+	<testcase name="the module has the twelve tabs the brief names" time="0.002006" classname="test"/>
+	<testcase name="no approved limit is styled apart from pass and from not measured" time="0.001685" classname="test"/>
+	<testcase name="the limits table carries a source column" time="0.000519" classname="test"/>
+	<testcase name="an unavailable section renders its reason rather than a zero" time="0.000398" classname="test"/>
+	<testcase name="validation statistics and business figures use different formatters" time="0.000438" classname="test"/>
+	<testcase name="the three month notions are shown separately" time="0.000229" classname="test"/>
+	<testcase name="an immature month is labelled in the month picker" time="0.001036" classname="test"/>
+	<testcase name="the opinion is shown with its reasoning and its disclaimer" time="0.000253" classname="test"/>
+	<testcase name="the diagnostics panel shows the restated question and claim strength" time="0.000695" classname="test"/>
+	<testcase name="the module is reachable from the navigation" time="0.000474" classname="test"/>
+	<testcase name="the api client sends no rows and asks for summaries" time="0.001537" classname="test"/>
+	<testcase name="the reports tab offers both downloads and a way to record one" time="0.000311" classname="test"/>
+	<testcase name="the report panel shows coverage and refuses to claim certification" time="0.000277" classname="test"/>
+	<testcase name="a section that was not reported shows its reason in the section list" time="0.000342" classname="test"/>
+	<testcase name="the download link is a navigation, not a fetch-and-rename" time="0.001357" classname="test"/>
+	<testcase name="the answer puts the interpretation before the numbers, unboxed" time="0.001243" classname="test"/>
+	<testcase name="supporting analysis is collapsed and follow-ups come last" time="0.000462" classname="test"/>
+	<testcase name="an analysis header can carry a certification mark" time="0.000261" classname="test"/>
+	<testcase name="the navigation collapses and remembers the choice" time="0.002479" classname="test"/>
+	<testcase name="the page header is eyebrow, title and actions — and no paragraph" time="0.000259" classname="test"/>
+	<testcase name="data builder shows domains as tiles with a summary strip" time="0.000445" classname="test"/>
+	<testcase name="the data grid is period-aware" time="0.000312" classname="test"/>
+	<testcase name="the relationship map has a layout, a canvas and an inspector" time="0.000240" classname="test"/>
+	<testcase name="the method library is a compact grid, not a wall of prose" time="0.000565" classname="test"/>
+	<testcase name="outside a V4 runtime every path is served as before" time="0.001271" classname="test"/>
+	<testcase name="inside a V4 runtime the legacy paths are not requested" time="0.000313" classname="test"/>
+	<testcase name="inside a V4 runtime the V4 paths are served" time="0.000193" classname="test"/>
+	<testcase name="the runtime flag reads only the Cockpit variable" time="0.000221" classname="test"/>
+	<testcase name="the guard decides on the path, never on a response" time="0.000532" classname="test"/>
+	<testcase name="VIZ08 the stage Sankey reconciles counts and EAD to the book" time="0.002646" classname="test"/>
+	<testcase name="VIZ12 the heatmap places every cell and leaves absent cells empty (not zero)" time="0.000551" classname="test"/>
+	<testcase name="VIZ10 the Pareto ends at 100% cumulative" time="0.000429" classname="test"/>
+	<testcase name="VIZ11 the distribution plots moved exposures and leaves the unmoved out of the bars" time="0.001387" classname="test"/>
+	<testcase name="INV01 recharts is imported in exactly one legacy module" time="0.005968" classname="test"/>
+	<testcase name="INV02 only the documented legacy pages consume the Recharts building blocks" time="0.003684" classname="test"/>
+	<testcase name="INV03 no other chart library, and Plotly is loaded only through the one wrapper" time="0.037144" classname="test"/>
+	<testcase name="INV04 a Plotly chart outside ChartCard is a documented sparkline" time="0.001654" classname="test"/>
+	<testcase name="INV05 every file drawing a chart is named in CHART_INVENTORY.md" time="0.003259" classname="test"/>
+	<testcase name="INV06 legacy Recharts pages are gated: the guided flag redirects or swaps them" time="0.000456" classname="test"/>
+	<testcase name="DEC01 both scopes list every taxonomy component in the one order" time="0.003032" classname="test"/>
+	<testcase name="DEC02 a component has the same colour and label in both scope charts" time="0.001255" classname="test"/>
+	<testcase name="DEC03 the waterfall walks opening + movements to closing" time="0.000402" classname="test"/>
+	<testcase name="DEC04 the table beneath carries every plotted component, by id" time="0.000415" classname="test"/>
+	<testcase name="DEC05 N/A components are shown as N/A, never dropped or redefined" time="0.000613" classname="test"/>
+	<testcase name="DEC06 both identities hold on the published strings" time="0.000514" classname="test"/>
+	<testcase name="DEC07 KPIs, method comparison and stage figures read the server's values" time="0.000778" classname="test"/>
+	<testcase name="DEC08 a small movement on a large book cuts the axis and says so" time="0.000220" classname="test"/>
+	<testcase name="DEC09 a comparison plots every compared result, component by component, from the published values" time="0.000691" classname="test"/>
+	<testcase name="DEC10 selected scope = total book is proven component by component" time="0.001413" classname="test"/>
+	<testcase name="DEC11 one differing component, a non-zero rest of book, or no flag: not proven" time="0.001948" classname="test"/>
+	<testcase name="FIG01 sparkline emphasises the last point and formats hover in the metric's unit" time="0.003481" classname="test"/>
+	<testcase name="FIG02 trend scales money series to ONE shared unit and keeps the raw value in hover" time="0.000795" classname="test"/>
+	<testcase name="FIG03 trend shows a fraction metric as percent on the axis" time="0.000325" classname="test"/>
+	<testcase name="FIG04 contributions: sorted by magnitude, sign-coloured, label carried in customdata for drill" time="0.000783" classname="test"/>
+	<testcase name="FIG05 contributions never show more than twelve bars" time="0.000633" classname="test"/>
+	<testcase name="FIG06 stage mix uses the governed stage colours and stacks" time="0.000638" classname="test"/>
+	<testcase name="FIG07 category bars grey out what is not selected (cross-filter context)" time="0.000622" classname="test"/>
+	<testcase name="FMT02 narrative money is compact finance notation, never 'SAR million'" time="0.001798" classname="test"/>
+	<testcase name="FMT01 a table column carries its scale once in the header, plain numbers in cells" time="0.002193" classname="test"/>
+	<testcase name="FMT05 PD is a percentage, never 0.02x" time="0.000228" classname="test"/>
+	<testcase name="FMT06 the multiplier notation is reserved for scenario multipliers" time="0.000202" classname="test"/>
+	<testcase name="FMT07 small Retail money changes remain visible and do not round to zero" time="0.000462" classname="test"/>
+	<testcase name="FMT04/FMT08 the raw value is never altered by display" time="0.000178" classname="test"/>
+	<testcase name="counts, basis points and changes" time="0.000486" classname="test"/>
+	<testcase name="FMT10 a money column states its scale once, cells carry no unit, the CSV keeps raw SAR million" time="0.000593" classname="test"/>
+	<testcase name="VIZ14 the §10.2 semantic tokens are exactly the specification's" time="0.000747" classname="test"/>
+	<testcase name="driver identity is stable: unique ids, fixed order, colour by id" time="0.000213" classname="test"/>
+	<testcase name="increase and decrease are separable without hue (luminance differs)" time="0.000250" classname="test"/>
+	<testcase name="decomposition colours are varied: no two components share a colour" time="0.000141" classname="test"/>
+	<testcase name="TOR01 a Plotly tornado: two horizontal bar traces from zero, largest swing on top" time="0.001499" classname="test"/>
+	<testcase name="TOR02 values are the server's, signs as fitted (a negative slope is drawn negative)" time="0.000388" classname="test"/>
+	<testcase name="TOR03 PD and LGD are distinct in label and colour" time="0.000384" classname="test"/>
+	<testcase name="TOR04 hover carries MEV, series, shock, coefficient, parameter, movement, sign, status, method, window and the sign review" time="0.000240" classname="test"/>
+	<testcase name="EXS01 every part of the request is labelled in the order sent" time="0.002377" classname="test"/>
+	<testcase name="EXS02 counts cover all six kinds; a plain tool result is never called a validator" time="0.000322" classname="test"/>
+	<testcase name="EXS03 string system text and an empty request are handled" time="0.000140" classname="test"/>
+	<testcase name="LENS01 a worse move by the metric's own direction is 'bad', with a signed label" time="0.001606" classname="test"/>
+	<testcase name="LENS02 a category click becomes a cross-filter on that dimension and book" time="0.001736" classname="test"/>
+	<testcase name="LENS03 trends keep periods as categories (quarters and months never reinterpreted)" time="0.000388" classname="test"/>
+	<testcase name="LENS04 group charts drop nulls and sign-colour the rest" time="0.000283" classname="test"/>
+	<testcase name="context growth plots measured bytes and exact provider tokens per call" time="0.002276" classname="test"/>
+	<testcase name="composition stacks every component of every call, in a fixed order" time="0.000348" classname="test"/>
+	<testcase name="MLB01 every method is shown by its governed name" time="0.000778" classname="test"/>
+	<testcase name="MET01 values render by their governed unit" time="0.001547" classname="test"/>
+	<testcase name="MET02 breakdown bars sort, keep the raw value and drop nulls" time="0.002135" classname="test"/>
+	<testcase name="MET03 a trend draws one line per book" time="0.002304" classname="test"/>
+	<testcase name="MET04 only grid columns drill to rows" time="0.000299" classname="test"/>
+	<testcase name="SCN01 only overlaps still needing a decision are pending" time="0.001934" classname="test"/>
+	<testcase name="SCN02 a blank choice is never defaulted into a resolution" time="0.000239" classname="test"/>
+	<testcase name="SCN03 readiness tones never show a blocked scenario as ready" time="0.000112" classname="test"/>
+	<testcase name="SCN04 the component matrix names each carried component's source" time="0.000216" classname="test"/>
+	<testcase name="SCN05 derived macro rows keep the sign and the governed slope" time="0.000426" classname="test"/>
+	<testcase name="SCN06 the band figure plots the server's band mix, one bar per band" time="0.000647" classname="test"/>
+	<testcase name="SCN07 builder offers ratings only to Corporate and scores only to Retail" time="0.000392" classname="test"/>
+	<testcase name="TRC01 snapshot names are safe file stems the server accepts" time="0.001002" classname="test"/>
+	<testcase name="TRC02 hashes are shortened for display but never invented" time="0.000159" classname="test"/>
+	<testcase name="WIF01 a chart click adds its value as an `in` filter, a second click removes it" time="0.003463" classname="test"/>
+	<testcase name="WIF02 cross-filter keeps every other column's filter untouched" time="0.000360" classname="test"/>
+	<testcase name="WIF03 a box/lasso selection replaces that column's values; empty clears it" time="0.000330" classname="test"/>
+	<testcase name="WIF04 numeric categories (stage) match regardless of string/number form" time="0.000195" classname="test"/>
+	<testcase name="WIF05 each book offers its own governed dimensions, never the other's" time="0.000275" classname="test"/>
+	<testcase name="WIF06 a heatmap cell or flow link narrows to both coordinates; the same click clears them" time="0.000384" classname="test"/>
+	<!-- tests 666 -->
+	<!-- suites 47 -->
+	<!-- pass 666 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 7526.92915 -->
+</testsuites>

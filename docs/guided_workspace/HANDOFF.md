@@ -9,12 +9,16 @@
 | Record | `PHASE_LEDGER.md` (per phase, measured), `REQUIREMENT_MATRIX.md` (generated, 325 ids), `PROTECTED_EXTENSION_MAP.md`, `BASELINE_PROVENANCE.md` |
 | Acceptance gate still open | The Mac live-provider UAT (`MAC_LIVE_UAT.md`): a paid provider run, the user's decision |
 
-**Final regression of record:** the candidate and counts are recorded in `UAT_CANDIDATE.json`, `evidence/final_regression/` and `REQUIREMENT_MATRIX.md` by the evidence commit that follows the candidate.
+**Final regression of record:** candidate H `8b1592f46b06d03cec089d5b49cb93280b819993` (`evidence/final_regression_8b1592f46b06/`).
+- **Steps:** 16 of 17 PASS, 1 BLOCKED_ENV (emulator pickle bytes), 0 unexpected failures. Browser journeys: Guided Workspace 48/48, What-If 15/15 per book, accepted suite 76/76 with the flags off.
+- **Requirement matrix:** 325 ids; **293 PASS, 26 PARTIAL, 6 BLOCKED, 0 FAILED**.
+- **Mutation gates:** 14 of 14 killed.
+- **Candidate G** (`482d6030`, 1 journey FAIL, diagnosed as a harness click race) is kept as measured in `evidence/regression_candidate_G_482d603081a3/`.
 
 **Previous candidate F:** `f490ab9f` (historical; not amended).
 - **Steps:** 16 of 17 PASS.
 - **Requirement matrix:** 251 PASS, 67 PARTIAL, 7 BLOCKED, 0 FAILED.
-- **Evidence:** in commit `57e4cf4f`. P16 closed what was closable of the 67 PARTIAL; see `PARTIAL_CLOSURE_AUDIT.md`.
+- **Evidence:** in commit `57e4cf4f`. P16 closed 41 of its 67 PARTIAL; see `PARTIAL_CLOSURE_AUDIT.md`.
 
 Every browser journey in this round ran as MODEL MOCK, a scripted analyst. No
 provider credential exists in the container and no paid call was made.

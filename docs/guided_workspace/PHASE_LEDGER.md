@@ -959,8 +959,46 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
     * it clicked at computed coordinates after an "if needed" scroll;
     * the What-If selection bar is sticky and z-10, so it can cover the target bar.
   * **Fixed in candidate H.** The helper centres the chart, re-reads the box after layout settles and asserts that `elementFromPoint` hits the chart before clicking. A new candidate and a new full regression follow, since repository code changed.
-* **Candidate H and its final regression:** recorded by the evidence commit that follows the candidate.
-* **Status:** IN PROGRESS until the final regression of G is recorded
+* **Final regression of record: candidate H `8b1592f46b06d03cec089d5b49cb93280b819993`.** H is G plus the harness click fix and the record of G's run; there is no product change.
+  * **How it ran.** In a `--no-local` clone detached at H, outside the worktree. Before launch the tree was clean, no writer was running and tags were unchanged. No repository edit was made until every suite finished. Results are in `evidence/final_regression_8b1592f46b06/`, copied unchanged; F's `evidence/final_regression/` is untouched.
+  * **Result:** **16 of 17 PASS, 1 BLOCKED_ENV, 0 unexpected failures.**
+
+    | Step | Result |
+    |---|---|
+    | V4 backend + frontend-python | 4808 tests: 3 failures, all P0-recorded environment-bound; 39 skipped → PASS |
+    | What-If suite (`.venv-whatif`) | 1407 tests: 9 failures, all P0-recorded interpreter-bound (one fewer than F: the DECOMP10 test now passes); 2 skipped → PASS |
+    | V3 | 590 tests: 1 P0-recorded failure → PASS |
+    | LLM adapters | 25 tests, 0 failures, 8 skipped → PASS |
+    | Frontend | 666/666; `tsc` clean; eslint 0 outside the protected `cockpit-v4` files (15 pre-existing) → PASS |
+    | ruff, round code | → PASS |
+    | Protected baseline | changed 6 = mapped 6 → PASS |
+    | Release fingerprints | 4 books VERIFIED; compatibility release present → PASS |
+    | Report digests; sensitivity libraries rebuilt | → PASS |
+    | Emulator artifacts refitted | only pickle hashes differ (Corporate lightgbm; Retail additive_log and lightgbm); weights, gates, verdicts, splits reproduced → **BLOCKED_ENV**, as for F; nothing regenerated |
+    | GW journeys, clean store | **48 / 48** → PASS |
+    | What-If candidate browser | Corporate 15/15, Retail 15/15 → PASS |
+    | Accepted browser suite, flags off | **76 / 76** → PASS |
+* **Requirement matrix** (`REQUIREMENT_MATRIX.md` / `.json`, generated from this run, 0 generator errors):
+  * **Counts:** 325 ids: **293 PASS, 26 PARTIAL, 6 BLOCKED, 0 FAILED**. At F the counts were 251 / 67 / 7 / 0.
+  * **Collection interpreter.** The generator collects the cited pytest nodes with `--python .venv-whatif/bin/python`. On the accepted interpreter, `test_gw_ml_decomposition.py` skips at import, so its nodes would read as non-existent although they ran and passed in the candidate-interpreter suite. The first generation, with the default interpreter, reported exactly those 3 citations as missing; that is how this was found. The candidate interpreter collects every cited node.
+* **PARTIAL closure** (`PARTIAL_CLOSURE_AUDIT.md`): of the 67 PARTIAL at F, **41 are now PASS and 26 remain PARTIAL**, each with its stated reason:
+  * 13 Mac launch rows (Mac execution; live provider for the credential and price rows);
+  * UAT-03 and UAT-05 (protected Cockpit renderer: a protected-core decision);
+  * SCEN07, RET-04, RET-05, RET-08, RET-14, RET-17 (no governed translation: User-defined only);
+  * CORP-03 and RET-07 (fitted sign kept with SIGN_REVIEW);
+  * RET-02 (no Retail CCF);
+  * LENS-09 (no salary-credit feed: governed proxy shown);
+  * LENS-16 (scenario stage migration not modelled: DECOMP12).
+* **BLOCKED (6, measured):**
+  * ARCH05 and REG09: the earlier container's byte fingerprints;
+  * REG08: emulator pickle bytes;
+  * DECOMP12: no governed re-test rule;
+  * M017: no Retail CCF;
+  * REG12: the user's Mac live-provider UAT.
+
+  DECOMP10 left BLOCKED and is PASS.
+* **Status:** PASS. Candidate H is the UAT candidate (`UAT_CANDIDATE.json`). The Mac live-provider UAT remains the acceptance gate; no tag.
+
 
 ---
 

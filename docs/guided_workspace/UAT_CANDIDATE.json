@@ -1,6 +1,6 @@
 {
-  "expected_guided_uat_sha": "f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc",
-  "branch": "claude/eager-keller-7ue2yk",
+  "expected_guided_uat_sha": "8b1592f46b06d03cec089d5b49cb93280b819993",
+  "branch": "claude/guided-workspace-final-gap-closure",
   "tag": null,
   "regression_status": "PASS_WITH_BLOCKED_ENV",
   "regression_steps": {
@@ -22,16 +22,16 @@
     "whatif_candidate_browser": "PASS",
     "accepted_browser_suite_flags_off": "PASS"
   },
-  "regression_record": "docs/guided_workspace/evidence/final_regression/summary.json",
+  "regression_record": "docs/guided_workspace/evidence/final_regression_8b1592f46b06/summary.json",
   "seed_digests": {
     "scenario_templates": "b257bb00cb9636cefc3fb6d720dc6fa898370cdb0c0ac18969af6ff7a375e6da",
-    "lenses": "bff449cd1aa20ba16b58ace566099db98f7234fdd1e2ceaef4deb88ab9560ee5",
-    "metrics": "cf5105e95a90d017e4078408ccb2d644dae4a5673b3c0201e620a52a1fc9cc90"
+    "lenses": "055c4e6aaad7c7e6fbe32078c5ee99f63b0ee19a43f798988d4a82bdd59a6427",
+    "metrics": "c2d5722a03077c46020b029e750fefa930623d32c048560721bd99a847204a8b"
   },
   "seed_versions": {
     "scenario_templates": "gw-scenario-seed-1.0.0",
-    "lenses": "gw-lens-seed-1.0.0",
-    "metrics": "gw-metrics-1.0.0"
+    "lenses": "gw-lens-seed-1.1.0",
+    "metrics": "gw-metrics-1.1.0"
   },
   "guided_books": [
     "v4-saudi-corporate-20q-v4",

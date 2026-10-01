@@ -1,10 +1,10 @@
 {
-  "candidate_sha": "f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc",
+  "candidate_sha": "8b1592f46b06d03cec089d5b49cb93280b819993",
   "ids": 325,
   "counts": {
-    "PASS": 251,
-    "PARTIAL": 67,
-    "BLOCKED": 7,
+    "PASS": 293,
+    "PARTIAL": 26,
+    "BLOCKED": 6,
     "FAILED": 0
   },
   "rows": {
@@ -1483,8 +1483,8 @@
       ]
     },
     "DECOMP02": {
-      "status": "PARTIAL",
-      "reason": "calibration_gap component exists but no test shows it measured on an ML result (ML runtime tests skip on the accepted interpreter)",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
@@ -1493,12 +1493,16 @@
         [
           "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
           "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_ml_decomposition.py::test_decomp02_booked_and_model_baselines_are_both_published",
+          "PASS"
         ]
       ]
     },
     "DECOMP03": {
-      "status": "PARTIAL",
-      "reason": "M042 tested only on the no-ML path; separate calibration-gap bar on an ML result not asserted",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
@@ -1506,6 +1510,10 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_ml_decomposition.py::test_decomp03_the_gap_is_not_inside_the_scenario_effect",
           "PASS"
         ]
       ]
@@ -1595,8 +1603,8 @@
       ]
     },
     "DECOMP10": {
-      "status": "BLOCKED",
-      "reason": "measured BLOCKED_ENV in the final regression",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_decomposition.py::test_decomp10_no_shap_or_feature_attribution_is_in_the_accounting_contract",
@@ -1604,7 +1612,11 @@
         ],
         [
           "tests/cockpit_v4/test_whatif_bridge.py::test_p9b_a_feature_never_appears_as_an_attribution_driver",
-          "BLOCKED_ENV"
+          "PASS"
+        ],
+        [
+          "mutation:ML input labels apart from drivers (DECOMP10)",
+          "PASS"
         ]
       ]
     },
@@ -2776,7 +2788,15 @@
           "PASS"
         ],
         [
+          "tests/cockpit_v4/test_gw_p16_wiring.py::test_the_issue_card_has_no_decorative_controls",
+          "PASS"
+        ],
+        [
           "GW-P3-02",
+          "PASS"
+        ],
+        [
+          "GW-P16-02",
           "PASS"
         ]
       ]
@@ -2834,11 +2854,19 @@
       ]
     },
     "GX-08": {
-      "status": "PARTIAL",
-      "reason": "a complete Issue-to-Decision path by clicks only is not exercised",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
+          "tests/cockpit_v4/test_gw_p16_wiring.py::test_the_issue_card_has_no_decorative_controls",
+          "PASS"
+        ],
+        [
           "GW-P3-02",
+          "PASS"
+        ],
+        [
+          "GW-P16-01",
           "PASS"
         ]
       ]
@@ -2866,11 +2894,19 @@
           "PASS"
         ],
         [
+          "tests/cockpit_v4/test_gw_p16_wiring.py::test_the_issue_card_has_no_decorative_controls",
+          "PASS"
+        ],
+        [
           "GW-P3-04",
           "PASS"
         ],
         [
           "GW-P11-04",
+          "PASS"
+        ],
+        [
+          "GW-P16-02",
           "PASS"
         ],
         [
@@ -4140,8 +4176,8 @@
       ]
     },
     "LENS-04": {
-      "status": "PARTIAL",
-      "reason": "no overlay visual or metric (spec lists overlays)",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4149,13 +4185,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m065_m066_overlay_match_the_published_ifrs9_overlay",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_lens04_renders_the_overlay_and_reconciliation",
           "PASS"
         ]
       ]
     },
     "LENS-05": {
-      "status": "PARTIAL",
-      "reason": "no top-warning-reasons visual",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4163,13 +4207,25 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m069_reasons_match_each_rule_recomputed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_reason_visuals_render_and_honour_the_lens_filter",
+          "PASS"
+        ],
+        [
+          "mutation:EWS reasons evaluate each rule's own condition",
           "PASS"
         ]
       ]
     },
     "LENS-06": {
-      "status": "PARTIAL",
-      "reason": "no ECL metric bound (spec lists ECL)",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4177,6 +4233,10 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_lens06_shows_booked_ecl_and_its_sector_breakdown",
           "PASS"
         ]
       ]
@@ -4196,8 +4256,8 @@
       ]
     },
     "LENS-08": {
-      "status": "PARTIAL",
-      "reason": "no top-reasons visual",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4210,12 +4270,24 @@
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_default_filters_scope_a_product_lens",
           "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m069_reasons_match_each_rule_recomputed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_reason_visuals_render_and_honour_the_lens_filter",
+          "PASS"
+        ],
+        [
+          "mutation:EWS reasons evaluate each rule's own condition",
+          "PASS"
         ]
       ]
     },
     "LENS-09": {
       "status": "PARTIAL",
-      "reason": "no salary-signal visual (book has no salary feed)",
+      "reason": "DATA: the Retail book publishes no salary-credit feed. The Lens shows the governed salary-interruption PROXY (EWS rule R-SALARY: salaried, cyclical employer, payment ratio < 35%), labelled as a proxy; affordability, DPD, PD/ECL and default entry are complete.",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4223,6 +4295,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_the_salary_signal_is_the_labelled_governed_proxy",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_reason_visuals_render_and_honour_the_lens_filter",
           "PASS"
         ]
       ]
@@ -4256,8 +4336,8 @@
       ]
     },
     "LENS-12": {
-      "status": "PARTIAL",
-      "reason": "no recoveries visual or metric",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4265,6 +4345,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_recoveries_and_write_offs_match_the_published_rows",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_lens12_renders_recoveries_vs_write_offs",
           "PASS"
         ]
       ]
@@ -4317,7 +4405,7 @@
     },
     "LENS-16": {
       "status": "PARTIAL",
-      "reason": "no stage-migration, concentration or method-comparison visual",
+      "reason": "DATA/MODEL: scenario-induced STAGE MIGRATION is not modelled -- the stage policy holds stages and neither book publishes a SICR re-test rule (DECOMP12). The Lens shows ECL change by stage under the result's own policy, labelled as not migration; saved scenarios, ECL deltas, concentration (Pareto) and method comparison are complete.",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4329,6 +4417,10 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_scenario_metrics_only_count_results_the_viewer_can_open",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_lens16_method_concentration_and_stage_views_read_the_result",
           "PASS"
         ]
       ]
@@ -4348,8 +4440,8 @@
       ]
     },
     "LENS-18": {
-      "status": "PARTIAL",
-      "reason": "no top-breached-metrics or assigned-owner visual",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
@@ -4357,6 +4449,18 @@
         ],
         [
           "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_lens18_alert_groups_match_the_alert_store",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m050_is_hours_since_each_lens_last_successful_refresh",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m049_counts_the_material_changes_of_each_lens_latest_refresh",
           "PASS"
         ]
       ]
@@ -4408,8 +4512,8 @@
       ]
     },
     "M004": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4421,6 +4525,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M004]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
@@ -4468,8 +4580,8 @@
       ]
     },
     "M008": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4481,13 +4593,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M008]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M009": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4499,13 +4619,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M009]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M010": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4517,13 +4645,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M010]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M011": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4535,13 +4671,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M011]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M012": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4553,13 +4697,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M012]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M013": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4571,13 +4723,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M013]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M014": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4589,6 +4749,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M014]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
@@ -4662,8 +4830,8 @@
       ]
     },
     "M019": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4675,6 +4843,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M019]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
@@ -4708,8 +4884,8 @@
       ]
     },
     "M022": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4721,13 +4897,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M022]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M023": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4739,13 +4923,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M023]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M024": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4757,13 +4949,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M024]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M025": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4775,13 +4975,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M025]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M026": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4794,12 +5002,20 @@
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
           "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M026]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
+          "PASS"
         ]
       ]
     },
     "M027": {
-      "status": "PARTIAL",
-      "reason": "excluded from the value check in test_every_applicable_metric_evaluates_on_both_books; distribution not tested",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4807,6 +5023,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M027]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
@@ -4840,8 +5064,8 @@
       ]
     },
     "M030": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4853,13 +5077,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M030]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M031": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4871,13 +5103,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M031]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M032": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4889,13 +5129,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M032]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M033": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4907,13 +5155,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M033]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M034": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4925,13 +5181,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M034]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M035": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4943,13 +5207,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M035]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M036": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4961,13 +5233,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M036]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M037": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4979,13 +5259,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M037]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M038": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -4997,6 +5285,22 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M038]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_no_published_period_exceeds_a_limit",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_m038_counts_exactly_the_rows_over_their_limit",
           "PASS"
         ]
       ]
@@ -5044,8 +5348,8 @@
       ]
     },
     "M042": {
-      "status": "PARTIAL",
-      "reason": "value on an ML result not tested",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5058,12 +5362,16 @@
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
           "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_ml_decomposition.py::test_m042_reads_the_published_gap_per_ml_result",
+          "PASS"
         ]
       ]
     },
     "M043": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5075,13 +5383,17 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_m043_m044_match_the_published_sensitivity_relation",
           "PASS"
         ]
       ]
     },
     "M044": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5093,13 +5405,17 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_m043_m044_match_the_published_sensitivity_relation",
           "PASS"
         ]
       ]
     },
     "M045": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5111,13 +5427,21 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M045]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
     },
     "M046": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5129,13 +5453,17 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_m046_freshness_is_hours_since_the_release_publication",
           "PASS"
         ]
       ]
     },
     "M047": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5147,6 +5475,14 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M047]",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
           "PASS"
         ]
       ]
@@ -5166,8 +5502,8 @@
       ]
     },
     "M049": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5179,13 +5515,17 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m049_counts_the_material_changes_of_each_lens_latest_refresh",
           "PASS"
         ]
       ]
     },
     "M050": {
-      "status": "PARTIAL",
-      "reason": "formula not independently recomputed",
+      "status": "PASS",
+      "reason": "",
       "evidence": [
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
@@ -5197,6 +5537,10 @@
         ],
         [
           "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lens_content.py::test_m050_is_hours_since_each_lens_last_successful_refresh",
           "PASS"
         ]
       ]

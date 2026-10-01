@@ -1,0 +1,43 @@
+{
+  "evidence_class": "MODEL MOCK \u00b7 REAL DATABASE/RUNNER",
+  "paid_provider_calls": 0,
+  "what_is_measured": "CreditProbe's own time around the analyst turn: intake, context, validation, the bind proof, DuckDB, the artifact write, the finalizer and the event stream. The scripted analyst returns immediately.",
+  "what_is_not_measured": "provider latency. A live run adds the model's time on top of every figure here, and these are therefore a floor, not an end-to-end user-facing latency.",
+  "measurements": {
+    "analysis_end_to_end": {
+      "samples": 5,
+      "min_ms": 124.5,
+      "median_ms": 174.4,
+      "p90_ms": 199.2,
+      "max_ms": 199.2
+    },
+    "attention_feed": {
+      "samples": 5,
+      "min_ms": 26.1,
+      "median_ms": 29.7,
+      "p90_ms": 37.9,
+      "max_ms": 37.9
+    },
+    "bind_proof": {
+      "samples": 20,
+      "min_ms": 5.0,
+      "median_ms": 6.3,
+      "p90_ms": 7.6,
+      "max_ms": 21.6
+    },
+    "heaviest_analysis_end_to_end": {
+      "samples": 5,
+      "min_ms": 166.6,
+      "median_ms": 209.6,
+      "p90_ms": 228.0,
+      "max_ms": 228.0
+    },
+    "product_help_end_to_end": {
+      "samples": 5,
+      "min_ms": 83.3,
+      "median_ms": 101.5,
+      "p90_ms": 136.5,
+      "max_ms": 136.5
+    }
+  }
+}
