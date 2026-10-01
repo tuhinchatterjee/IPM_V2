@@ -38,6 +38,7 @@ No benchmark question is ever sent. Results: profiles/<id>.json (the pin),
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -52,6 +53,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import vllm_runtime as vr  # noqa: E402
+
 PROFILES = ROOT / "profiles"
 SUITE = PROFILES / "_runpod_suite.json"
 DEFAULT_RUNTIME = ROOT / "artifacts" / "model_comparison" / "runtime"
@@ -107,7 +111,69 @@ def resolve(raw: dict, fetch: Fetch, override: str | None = None
         return None, f"{repo}: not reachable ({type(exc).__name__}: {exc})"
     if not isinstance(info, dict) or not info.get("sha"):
         return None, f"{repo}: no immutable revision returned"
+    if override or not src.get("repository") or src.get("identity_required"):
+        ok, why, _ = verify_identity(repo, info, fetch, src)
+        if not ok:
+            return None, why
+    elif (info.get("author") or repo.split("/")[0]) != repo.split("/")[0]:
+        return None, f"{repo}: author {info.get('author')!r} differs"
     return repo, ""
+
+
+def verify_identity(repo: str, info: dict, fetch: Fetch, src: dict
+                    ) -> tuple[bool, str, dict[str, Any]]:
+    """Live identity check before an immutable pin of a repository that was
+    found by publisher + name (or named by the operator): the Hub's author
+    is the repository's organisation, the repository is listed by that
+    organisation, it has a model card at the pinned revision that names the
+    model, and the card does not declare itself a re-upload of a same-named
+    model elsewhere. Never accepted because a prompt or a note says so."""
+    org, name = repo.split("/", 1)
+    ev: dict[str, Any] = {"repository": repo, "revision": info.get("sha"),
+                          "author": info.get("author"),
+                          "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                      time.gmtime())}
+    if info.get("author") != org:
+        return False, (f"{repo}: Hub author {info.get('author')!r} is not "
+                       f"the organisation {org!r}"), ev
+    if info.get("disabled") or info.get("private"):
+        return False, f"{repo}: disabled or private", ev
+    pat = src.get("name_pattern")
+    if pat and not re.match(pat, name, re.I):
+        return False, f"{repo}: name does not match {pat!r}", ev
+    exp = src.get("expected_repository")
+    if exp and exp.lower() != repo.lower():
+        return False, (f"{repo}: differs from the externally reported "
+                       f"{exp}; operator decision needed"), ev
+    try:
+        listed = fetch(f"{HF}/api/models?author={urllib.parse.quote(org)}"
+                       f"&limit=500")
+        ev["listed_by_organisation"] = any(
+            (h.get("id") or "").lower() == repo.lower() for h in listed or [])
+    except Exception as exc:  # noqa: BLE001
+        ev["listed_by_organisation"] = f"unverifiable: {exc}"
+    if ev["listed_by_organisation"] is not True:
+        return False, f"{repo}: not listed by organisation {org}", ev
+    try:
+        card = fetch(f"{HF}/{repo}/raw/{info['sha']}/README.md")
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{repo}: no model card at {info['sha'][:12]} ({exc})", ev
+    card = card if isinstance(card, str) else json.dumps(card)
+    ev["model_card_sha256"] = hashlib.sha256(
+        card.encode()).hexdigest()
+    stem = re.sub(r"[-_.]", "", name.lower())
+    if stem not in re.sub(r"[-_.\s]", "", card.lower()):
+        return False, f"{repo}: model card does not name {name}", ev
+    base = (info.get("cardData") or {}).get("base_model") or []
+    base = [base] if isinstance(base, str) else list(base)
+    reup = [b for b in base if b.split("/")[-1].lower() == name.lower()
+            and b.lower() != repo.lower()]
+    ev["base_model"] = base
+    if reup:
+        return False, (f"{repo}: card declares base_model {reup[0]} with "
+                       f"the same name (a re-upload, not the original)"), ev
+    ev["verdict"] = "VERIFIED"
+    return True, "", ev
 
 
 # ---- 2/3. pin + licence ---------------------------------------------------------
@@ -141,16 +207,46 @@ def pin(repo: str, fetch: Fetch) -> dict[str, Any]:
     lic = _license(info)
     template = tok.get("chat_template")
     template_text = (json.dumps(template) if template else "")
+    template_source = "tokenizer_config.json" if template else None
+    names = {f["rfilename"] for f in files}
+    if not template and "chat_template.jinja" in names:
+        try:
+            got = fetch(f"{HF}/{repo}/resolve/{sha}/chat_template.jinja")
+            template_text = got if isinstance(got, str) else ""
+            template_source = "chat_template.jinja" if template_text else None
+        except Exception:  # noqa: BLE001
+            template_text = ""
+    card = info.get("cardData") or {}
+    licence_files = sorted(n for n in names
+                           if re.match(r"(?i)^(LICEN[CS]E|COPYING)", n))
     return {
         "repository": repo, "revision": sha,
         "tokenizer_revision": sha,
         "tokenizer_files": [f["rfilename"] for f in files
                             if "tokenizer" in f["rfilename"]],
-        "chat_template_present": bool(template),
+        "chat_template_present": bool(template_text),
         "chat_template_mentions_tools": "tool" in template_text.lower(),
+        "chat_template_source": template_source,
+        "chat_template_sha256": (hashlib.sha256(
+            template_text.encode()).hexdigest() if template_text else None),
+        "chat_template_markers": [m for m in vr.ALL_MARKERS
+                                  if m in template_text],
         "license": lic,
         "license_status": ("LICENSE_OK" if lic in OSI else
                            "LICENSE_REVIEW_REQUIRED"),
+        "license_evidence": {
+            "card_license": card.get("license"),
+            "license_name": card.get("license_name"),
+            "license_link": card.get("license_link"),
+            "hub_tags": [t for t in info.get("tags") or []
+                         if t.startswith("license:")],
+            "licence_files": [f"{HF}/{repo}/blob/{sha}/{n}"
+                              for n in licence_files],
+            "model_card": f"{HF}/{repo}/blob/{sha}/README.md",
+            "policy": "LICENSE_OK only for a machine-readable OSI-style "
+                      "licence id in the model card; anything else is "
+                      "LICENSE_REVIEW_REQUIRED until "
+                      "approve.py grant license:<profile-id>"},
         "parameters": (info.get("safetensors") or {}).get("total"),
         "architecture": config.get("architectures") or
         [config.get("model_type")],
@@ -236,7 +332,8 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
                       "architecture": art.get("architecture"),
                       "native_context": art.get("native_context"),
                       "fit": rp.get("fit"),
-                      "resource_status": rp.get("resource_status")}
+                      "resource_status": rp.get("resource_status"),
+                      "license_evidence": art.get("license_evidence")}
     repo, why = resolve(raw, fetch, override)
     if repo is None:
         art.update({"pin_status": "PIN_BLOCKED", "pin_reason": why})
@@ -245,6 +342,10 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
         _write(pid, raw)
         return rec | {"pin_status": "PIN_BLOCKED", "reason": why}
     p = pin(repo, fetch)
+    src = art.get("source") or {}
+    if override or not src.get("repository") or src.get("identity_required"):
+        p["identity"] = verify_identity(repo, fetch(
+            f"{HF}/api/models/{repo}?blobs=true"), fetch, src)[2]
     f = fit(p, context=int(rp.get("max_model_len") or 32768),
             max_output=int(raw.get("max_output_tokens") or 8192))
     art.update({"repository": repo, "revision": p["revision"],
@@ -258,6 +359,8 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
                 "weights_bytes": p["weights_bytes"],
                 "weights_sha256": {w["file"]: w["sha256"]
                                    for w in p["weights"]}})
+    if p.get("identity"):
+        art["identity_verification"] = p["identity"]
     raw["registry_id"] = repo
     raw["endpoint"]["model"] = repo
     raw["licence"] = p["license"] or "UNDETERMINED"
@@ -269,6 +372,10 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
     rp["runtime"] = "vllm"
     rp["chat_template_present"] = p["chat_template_present"]
     rp["chat_template_mentions_tools"] = p["chat_template_mentions_tools"]
+    for k in ("chat_template_markers", "chat_template_sha256",
+              "chat_template_source"):
+        rp[k] = p[k]
+    art["license_evidence"] = p["license_evidence"]
     if f["computable"] and not f["fits"]:
         rp["resource_status"] = "RESOURCE_BLOCKED_A40"
         raw["status"] = "BLOCKED_RESOURCE"
@@ -331,32 +438,90 @@ def stop_server(srv: subprocess.Popen) -> None:
         pass
 
 
+def assign_parsers(pid: str, runtime: Path, fetch: Fetch | None = None
+                   ) -> dict[str, Any]:
+    """Choose the tool parser from the family's registered candidates and
+    the markers in the model's own chat template, and verify it against the
+    parser registry of the INSTALLED vLLM when the runtime manifest exists
+    (else the vLLM 0.30.0 source list, re-checked by the preflight)."""
+    path = PROFILES / f"{pid}.json"
+    raw = json.loads(path.read_text())
+    rp, art = raw.setdefault("runpod", {}), raw.get("artifact") or {}
+    markers = rp.get("chat_template_markers")
+    if markers is None and art.get("revision") and fetch is not None and \
+            not rp.get("template_from_mistral_common"):
+        try:                       # an earlier pin predates marker capture
+            got = pin(art["repository"], fetch)
+            if got["revision"] == art["revision"]:
+                markers = got["chat_template_markers"]
+                for k in ("chat_template_markers", "chat_template_sha256",
+                          "chat_template_source"):
+                    rp[k] = got[k]
+        except Exception:  # noqa: BLE001
+            markers = None
+    man = vr.load_manifest(runtime)
+    parsers = (man or {}).get("parsers") or {}
+    tool_reg = parsers.get("tool") or vr.STATIC_TOOL_PARSERS
+    reason_reg = parsers.get("reasoning") or vr.STATIC_REASONING_PARSERS
+    plan = vr.parser_plan(rp, markers, tool_reg, reason_reg)
+    rp["tool_call_parser"] = plan["tool_call_parser"]
+    rp["suggested_tool_call_parser"] = plan["tool_call_parser"]
+    rp["parser_status"] = plan["status"]
+    rp["parser_evidence"] = plan["evidence"] or plan["detail"]
+    rp["parser_registry_source"] = ("installed vLLM (runtime manifest)"
+                                    if parsers.get("tool") else
+                                    "vLLM 0.30.0 source (unverified on host)")
+    _write(pid, raw)
+    return plan
+
+
 def serve_and_probe(pid: str, runtime: Path, *, keep: bool = False
                     ) -> dict[str, Any]:
     """Serve, probe with the dummy tool, and stop (or keep, for the
-    runner). No benchmark question is ever sent here."""
+    runner). No benchmark question is ever sent here. Every failure carries
+    its own class (vllm_runtime.TAXONOMY); nothing is a generic failure."""
     from backend.model_lab import probe, registry
 
     raw = json.loads((PROFILES / f"{pid}.json").read_text())
+    man = vr.load_manifest(runtime)
+    if man and man["verdict"]["status"] != "COMPATIBLE":
+        return {"probe_status": vr.HOST_DRIVER_INCOMPATIBLE,
+                "failure": "; ".join(man["verdict"]["reasons"]) + " -- "
+                           + man["verdict"]["remediation"]}
     if not (raw.get("runpod") or {}).get("suggested_tool_call_parser"):
-        return {"probe_status": "PROBE_FAILED",
-                "failure": "no tool-call parser is configured for this "
-                           "family: check the model card's documented tool "
-                           "format, set runpod.suggested_tool_call_parser, "
-                           "then re-run with --probe"}
+        return {"probe_status": vr.TOOL_PARSER_MISSING,
+                "failure": "no tool-call parser is assigned for this model: "
+                           + str((raw.get("runpod") or {}).get(
+                               "parser_evidence") or "no registered parser "
+                               "for this family and no known tool-call "
+                               "marker in its chat template")}
+    gate = vr.profile_gate(man, pid)
+    if gate:
+        return gate
     srv = start_server(pid, runtime)
     kept = False
     try:
         why = wait_ready(srv)
         if why:
-            return {"probe_status": "PROBE_FAILED", "failure": why}
+            log = Path(srv.log_path).read_text(errors="replace")[-20000:] \
+                if Path(srv.log_path).exists() else ""
+            cls = vr.classify_server_log(log)
+            dl = vr.verify_download(
+                (raw.get("artifact") or {}) | {"weights": _pinned_weights(
+                    runtime, pid)},
+                Path(os.environ.get("MODEL_CACHE_DIR", "")) if
+                os.environ.get("MODEL_CACHE_DIR") else Path("/nonexistent"))
+            if cls == vr.MODEL_DOWNLOAD_FAILED and dl["ok"]:
+                cls = vr.MODEL_SERVER_START_FAILED   # the files are complete
+            return {"probe_status": cls, "failure": why, "download": dl}
         prof = registry.load_profiles()[pid]
         res = probe.probe_profile(prof, base_url="http://127.0.0.1:8000/v1")
         probe.save(runtime, res)
         st = registry.readiness(prof, approvals=registry.load_approvals(
             runtime), probes={pid: res})
         ok = st.status == "READY_E2E"
-        out = {"probe_status": "READY_E2E" if ok else "PROBE_FAILED",
+        out = {"probe_status": "READY_E2E" if ok else
+               vr.MODEL_TOOL_ROUNDTRIP_FAILED,
                "readiness": st.status, "failure": "" if ok else
                "; ".join(st.reasons) + (f" | {res.get('error')}"
                                         if res.get("error") else ""),
@@ -369,6 +534,15 @@ def serve_and_probe(pid: str, runtime: Path, *, keep: bool = False
     finally:
         if not kept:
             stop_server(srv)
+
+
+def _pinned_weights(runtime: Path, pid: str) -> list[dict]:
+    p = runtime / "pins" / f"{pid}.json"
+    try:
+        return (json.loads(p.read_text()).get("pin") or {}).get("weights") \
+            or []
+    except (OSError, ValueError):
+        return []
 
 
 def _gpu_mem() -> int | None:
@@ -403,6 +577,11 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
         except Exception as exc:  # noqa: BLE001 - record and continue
             rec = {"profile_id": pid, "pin_status": "PIN_BLOCKED",
                    "reason": f"{type(exc).__name__}: {exc}"[:400]}
+        if rec.get("pin_status") == "PINNED":
+            plan = assign_parsers(pid, runtime, fetch)
+            rec["tool_call_parser"] = plan["tool_call_parser"]
+            rec["reasoning_parser"] = plan["reasoning_parser"]
+            rec["parser_status"] = plan["status"]
         approvals = registry.load_approvals(runtime)
         licence_ok = rec.get("license_status") == "LICENSE_OK" or \
             f"license:{pid}" in approvals
@@ -411,12 +590,23 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
                 licence_ok:
             rec |= serve_and_probe(pid, runtime)
         elif do_probe:
-            rec["probe_status"] = "NOT_PROBED"
+            rec["probe_status"] = (
+                vr.PIN_BLOCKED if rec.get("pin_status") != "PINNED" else
+                vr.RESOURCE_BLOCKED if rec.get("resource_status") ==
+                "RESOURCE_BLOCKED_A40" else vr.LICENSE_REVIEW_REQUIRED)
             rec["probe_skipped_because"] = (
                 rec.get("reason") or rec.get("resource_status")
                 if rec.get("pin_status") != "PINNED" or rec.get(
                     "resource_status") == "RESOURCE_BLOCKED_A40"
                 else "LICENSE_REVIEW_REQUIRED")
+        if rec.get("license_status") == "LICENSE_REVIEW_REQUIRED" and \
+                f"license:{pid}" not in approvals:
+            ev = (rec.get("pin") or {}).get("license_evidence") or \
+                rec.get("license_evidence") or {}
+            print(f"  LICENSE_REVIEW_REQUIRED {pid}: licence "
+                  f"{rec.get('license')!r} name={ev.get('license_name')!r} "
+                  f"link={ev.get('license_link')!r} files="
+                  f"{ev.get('licence_files')} card={ev.get('model_card')}")
         (out_dir / f"{pid}.json").write_text(json.dumps(rec, indent=1,
                                                         default=str))
         roster.append({k: v for k, v in rec.items() if k != "pin"})

@@ -90,7 +90,7 @@ def fake_fetch(url: str):
         repo = url[len(f"{hf}/api/models/"):].split("?")[0]
         if repo not in SHA:
             raise OSError(f"404 {repo}")
-        return {"id": repo, "sha": SHA[repo],
+        return {"id": repo, "sha": SHA[repo], "author": repo.split("/")[0],
                 "cardData": {"license": LIC.get(repo, "apache-2.0")},
                 "safetensors": {"total": int(WEIGHTS[repo] / 2)},
                 "siblings": [{"rfilename": "model.safetensors",
@@ -98,6 +98,9 @@ def fake_fetch(url: str):
                               "lfs": {"sha256": "f" * 64}},
                              {"rfilename": "tokenizer.json"},
                              {"rfilename": "tokenizer_config.json"}]}
+    if "/raw/" in url and url.endswith("/README.md"):
+        repo = url[len(f"{hf}/"):].split("/raw/")[0]
+        return f"# {repo.split('/')[1]}\n\nModel card.\n"
     if url.endswith("/config.json"):
         return CFG
     if url.endswith("/tokenizer_config.json"):
@@ -216,11 +219,20 @@ def test_exact_revision_and_probe_are_both_required(pinned):
                               probes=ok).status == "NOT_INSTALLED"
 
 
-def test_probe_without_a_tool_parser_fails_explicitly(pinned, tmp_path):
+def test_probe_without_a_tool_parser_fails_explicitly(pinned, tmp_path,
+                                                      monkeypatch):
     pp, _, runtime, _ = pinned
-    res = pp.serve_and_probe("lfm2.5-vl-3b-runpod", runtime)
-    assert res["probe_status"] == "PROBE_FAILED"
+
+    def no_server(*a, **k):
+        raise AssertionError("a model server was started")
+    monkeypatch.setattr(pp, "start_server", no_server)
+    res = pp.serve_and_probe("ornith-1.5-9b-runpod", runtime)
+    assert res["probe_status"] == "TOOL_PARSER_MISSING"
     assert "tool-call parser" in res["failure"]
+    # a parser is assigned, but the runtime preflight has not run here
+    res = pp.serve_and_probe("lfm2.5-vl-3b-runpod", runtime)
+    assert res["probe_status"] == "VLLM_RUNTIME_INCOMPATIBLE"
+    assert "preflight" in res["failure"]
 
 
 # ---- runner: skip, continue, checkpoint, resume, report --------------------

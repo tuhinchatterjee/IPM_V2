@@ -32,9 +32,22 @@ if p.get("status") in ("DISCOVERED", "BLOCKED_RESOURCE", "DISABLED", "PIN_BLOCKE
 if not a.get("repository") or not a.get("revision"):
     sys.exit("refusing: no pinned repository@revision (runpod/pin_and_probe_models.py)")
 if not r.get("suggested_tool_call_parser"):
-    sys.exit("refusing: no tool-call parser qualified for this family")
+    sys.exit("refusing: TOOL_PARSER_MISSING (no registered tool-call parser "
+             "assigned; pin_and_probe_models.py assigns and verifies it)")
+import os, pathlib
+man = pathlib.Path(os.environ["MODEL_LAB_RUNTIME_DIR"]) / "vllm_runtime" / "RUNTIME_MANIFEST.json"
+if man.exists():
+    v = json.loads(man.read_text())["verdict"]
+    if v["status"] != "COMPATIBLE":
+        sys.exit(f"refusing: VLLM_HOST_DRIVER_INCOMPATIBLE: driver "
+                 f"{v['driver_version']} < {v['minimum_required_driver']} "
+                 f"for vLLM {v['vllm_version']} (CUDA {v['vllm_cuda']}); "
+                 f"{v['remediation']}")
+extra = list(r.get("extra_args") or [])
+if r.get("reasoning_parser"):
+    extra += ["--reasoning-parser", r["reasoning_parser"]]
 print(a["repository"], a["revision"], p["context_tokens"],
-      r["suggested_tool_call_parser"], " ".join(r.get("extra_args") or []) or "-")
+      r["suggested_tool_call_parser"], " ".join(extra) or "-")
 EOF
 )
 [ "$EXTRA" = "-" ] && EXTRA=""

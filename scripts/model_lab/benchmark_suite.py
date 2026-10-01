@@ -393,7 +393,9 @@ def main(argv: list[str] | None = None) -> int:
             pp = _pin_module()
             res = pp.serve_and_probe(pid, runtime, keep=True)
             if res["probe_status"] != "READY_E2E":
-                cp["models"][pid] = {"status": "PROBE_FAILED",
+                # the exact class (HOST_DRIVER_INCOMPATIBLE, TOOL_PARSER_
+                # MISSING, ...); the suite continues with the next model
+                cp["models"][pid] = {"status": res["probe_status"],
                                      "reason": res.get("failure")}
                 save_checkpoint(runtime, suite, cp)
                 print(f"  PROBE_FAILED: {res.get('failure')}")

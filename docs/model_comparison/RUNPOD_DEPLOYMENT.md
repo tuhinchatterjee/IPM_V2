@@ -108,9 +108,23 @@ source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE
 4. Runs the protected-manifest check (`--check-bundle`).
 5. Runs the offline fixture smoke test: trace, neutrality, saved reference, ASSISTED_V1, oracles and suite runner.
 6. **Prepares the suite.** It materialises the independent oracle artifacts to `<runtime>/oracles/lab-oracle-suite-1/`: one JSON per question plus `ORACLE_MANIFEST.json` with the code hash and the snapshot id.
-7. Installs vLLM into `$CREDITPROBE_VENV_DIR/vllm` (Pod-local); checkpoints download into `$MODEL_CACHE_DIR` (persistent).
-8. **Pins checkpoints and checks A40 fit** (`pin_and_probe_models.py`): metadata only, no weights.
-9. **Probes each model** (`--probe`) that is pinned, licence-clear and fits the A40. Each is served with vLLM from its pinned revision, which downloads that checkpoint, and gets the harmless dummy-tool probe. The result is `READY_E2E` or `PROBE_FAILED` with the exact failure, and the next model follows.
+7. **GPU driver / CUDA gate** (`vllm_runtime.py host`). It runs before vLLM is installed and before any model is served. It records the GPU, driver and host CUDA in the runtime manifest. If the driver is too old, it stops vLLM install and probing with `VLLM_HOST_DRIVER_INCOMPATIBLE`; pinning and the Opus preflight still run.
+8. **vLLM environment** (Pod-local `$CREDITPROBE_VENV_DIR/vllm`):
+   - Python 3.12;
+   - the vLLM 0.30.0 wheel, with its sha256 verified;
+   - `vllm-0.30.0-constraints.txt`.
+9. **Pins checkpoints and checks A40 fit** (`pin_and_probe_models.py`): metadata only, no weights. It also does the following:
+   - assigns each model's tool parser (see below);
+   - records licence evidence;
+   - verifies the identity of any repository found by publisher and name.
+   A pin that already exists is kept.
+9b. **Runtime preflight** (`vllm_runtime.py preflight`, no model, no weights):
+   - records the installed versions;
+   - reads the tool and reasoning parser registries of the installed vLLM and loads every assigned parser class;
+   - imports each pinned architecture's vLLM model module;
+   - initialises CUDA from torch.
+   The results go to `runtime/vllm_runtime/RUNTIME_MANIFEST.json` on the volume.
+9c. **Probes** (`--probe`) each runtime-ready, pinned, licence-clear model that fits. Each is served from its pinned revision; the weights download into the persistent `MODEL_CACHE_DIR`. Each model gets the harmless dummy-tool probe and ends `READY_E2E` or one of the failure classes below. The next model always follows.
 10. **Opus reference preflight** (`opus_reference_set.py preflight`, no model call). It prints which of Q01–Q15 have a valid saved Opus reference, the missing ones, the current `opus_spend` cap, the available and the required spend, and whether the key is present.
     - Set `IMPORT_RUNTIME_FROM=<dir>` to import a prior runtime, for example the Mac runtime holding Q01 `cmp-f364d8b6901a`, into the empty pod runtime first.
     - If references are missing, it prints the explicit grant, build and verify commands. **It never runs the paid build itself.**
@@ -123,6 +137,76 @@ source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE
 - The scripts check presence only.
 - The Model I/O Trace, the reference set, the store and the export packs never contain it; the secret-scrubbing tests cover this.
 
+## vLLM runtime on RunPod (live findings and how they are handled)
+
+**What the live A40 host showed.** The host had NVIDIA driver 570.211.01, which supports CUDA 12.8. The standard vLLM 0.30.0 wheel pins `torch==2.13.0`, and its PyPI build depends on `cuda-toolkit==13.0.3`, a CUDA 13.0 runtime. Every model therefore failed with "The NVIDIA driver on your system is too old (found version 12080)". CUDA 13.0 requires Linux driver **>= 580.65.06** (NVIDIA CUDA Toolkit release notes).
+
+**How it is handled now:**
+- The bootstrap stops before installing or probing vLLM and prints:
+  - `VLLM_HOST_DRIVER_INCOMPATIBLE`;
+  - `driver_version`, `host_cuda`, `vllm_version`, `vllm_cuda` and `minimum_required_driver`;
+  - remediation: redeploy the Pod on a RunPod host with a compatible driver.
+- Nothing is worked around:
+  - no CUDA compatibility package is installed;
+  - the driver is not changed;
+  - vLLM is not downgraded;
+  - no other engine is used.
+- The verdict is also checked empirically: the preflight initialises CUDA from the installed torch, without loading a model.
+
+**Ministral / Transformers.**
+- vLLM 0.30.0 declares only `transformers >= 5.10.4`, so an unpinned install takes the newest version.
+- Transformers 5.17.0 removed `PixtralRotaryEmbedding` and `position_ids_in_meshgrid`, which vLLM's `pixtral.py` imports. That removal caused the live Ministral `ImportError`. Every 5.10.4–5.18.0 wheel was checked.
+- vLLM's own CI lock for cu130 / Python 3.12 (`requirements/test/cuda.txt` at v0.30.0) pins `transformers==5.16.1`, which still exports both names. The constraints file pins that full CI set: torch 2.13.0, transformers 5.16.1, tokenizers 0.23.1, huggingface-hub 1.31.0, mistral-common 1.11.6, xgrammar 0.2.3 and safetensors 0.8.0.
+- This is one environment for every model; nothing is model-specific.
+- The preflight imports `PixtralForConditionalGeneration` and `Mistral3ForConditionalGeneration` before any download. If an import fails, the model is `TRANSFORMERS_INCOMPATIBLE` and the other models continue.
+
+**Tool parsers.** Every name below is registered in vLLM 0.30.0 and documented there for the family. Each is re-read from the installed vLLM on the Pod and must still pass the READY_E2E probe.
+
+| Model | Tool parser | Reasoning parser | Note |
+|---|---|---|---|
+| MiniCPM5-2B | `minicpm5` (MiniCPM5 XML) | none | |
+| LFM2.5-VL-3B | `lfm2` | none | |
+| Qwen3.5-4B, Qwen3.5-9B | `qwen3_coder` or `hermes` | `qwen3` | Chosen by the markers in the model's own chat template (`<function=`/`<parameter=` for XML; `<tool_call>` for JSON) |
+| Fin-R1 | `hermes` | none | |
+| Granite 4.2-8B | `granite4` | none | vLLM documents it for Granite 4.x; the old `granite` setting was for 3.x |
+| Ministral 3 8B | `mistral` | none | Uses `--tokenizer-mode mistral` |
+| Gemma 4 12B | `gemma4` | `gemma4` | vLLM does not require a separate chat template |
+| Ornith-1.5-9B | detected from its template markers after identity verification | none | |
+
+**Repository identity (Ornith).** A repository found by publisher and name, or named by the operator, is pinned only after all of these hold:
+- the Hub author equals the organisation;
+- the organisation lists the repository;
+- a model card at the pinned revision names the model;
+- the card does not declare a same-named `base_model` elsewhere, which would make it a re-upload.
+
+The externally reported `ornith-ai/Ornith-1.5-9B` is recorded as `expected_repository` and is never accepted on that basis alone. Hugging Face is unreachable from the build environment, so this check runs on the Pod.
+
+**Licences.** The pin records the source as `license_evidence`:
+- the model card's licence id, name and link;
+- the Hub licence tags;
+- links to the LICENSE files at the pinned revision.
+
+Only a machine-readable OSI-style id is `LICENSE_OK`. Anything else stays `LICENSE_REVIEW_REQUIRED`, and the exact evidence is printed for human review.
+
+**Failure classes (never a generic `PROBE_FAILED`).**
+
+| Class | Meaning |
+|---|---|
+| `HOST_DRIVER_INCOMPATIBLE` | The host's NVIDIA driver is too old for the CUDA 13.0 runtime. |
+| `VLLM_RUNTIME_INCOMPATIBLE` | The installed environment differs from the lock, an architecture is unsupported, or the runtime preflight has not run. |
+| `TRANSFORMERS_INCOMPATIBLE` | The model's vLLM module fails to import because of Transformers. |
+| `TOOL_PARSER_MISSING` | No parser is assigned, or the assigned parser is not registered or not loadable. |
+| `MODEL_SERVER_START_FAILED` | vLLM did not start for another reason. |
+| `MODEL_DOWNLOAD_FAILED` | The download failed (Hub or network errors, or a full disk) and the pinned files are incomplete. |
+| `MODEL_TOOL_ROUNDTRIP_FAILED` | The server started but the dummy-tool probe failed. |
+| `RESOURCE_BLOCKED` | The model does not fit the A40. |
+| `LICENSE_REVIEW_REQUIRED` | The licence needs human review before the model runs. |
+| `PIN_BLOCKED` | The repository identity or revision could not be pinned. |
+
+**geesefs chmod warnings.** Hugging Face's "Could not set the permissions … Continuing without setting permissions" lines come from the Global Volume refusing chmod. They are ignored. A download counts as valid when every pinned weight file is present at the pinned revision with the pinned size.
+
+**Fit results.** Measured A40 fit results recorded on the Pod are kept, for example `gpt-oss-20b` and Qwen ~27B bf16 as `RESOURCE_BLOCKED_A40`. A quantised model is only ever a separate child profile.
+
 ## Gates (nothing is substituted or run silently)
 
 | Gate | Status when it fails | How to clear it |
@@ -131,7 +215,9 @@ source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE
 | Immutable revision | not runnable (`NOT_INSTALLED`, "not pinned") | Pinning records the commit sha; "main" or "latest" is never used |
 | Licence | `LICENSE_REVIEW_REQUIRED`, which shows as `NEEDS_APPROVAL` | Review the terms, then `approve.py grant license:<profile-id>` |
 | A40 fit | `RESOURCE_BLOCKED_A40` (weights + KV cache at the served context + 3 GB overhead > 90 % of 48 GB) | Only a separately registered quantised variant, e.g. `qwen3.8-27b-runpod--awq-4bit`, with its own pin |
-| Tool calling | `PROBE_FAILED` (no parser, forced tool use, round trip, stop mapping, identity) | Fix the parser or template per the model card, then re-probe |
+| Host driver | `HOST_DRIVER_INCOMPATIBLE` (driver below 580.65.06 for the CUDA 13.0 runtime) | Redeploy the Pod on a host with a compatible driver |
+| Runtime | `VLLM_RUNTIME_INCOMPATIBLE` / `TRANSFORMERS_INCOMPATIBLE` (environment differs from the lock; model module fails to import) | Rebuild the Pod-local vLLM venv from the bundle; never patch site-packages |
+| Tool calling | `TOOL_PARSER_MISSING` / `MODEL_TOOL_ROUNDTRIP_FAILED` (no registered parser; forced tool use, round trip, stop mapping) | Fix the parser assignment per the model card and the vLLM registry, then re-probe |
 
 A blocked model is skipped with its reason, and the suite continues.
 

@@ -199,7 +199,25 @@ def build(runtime: Path, suite: dict) -> dict[str, Any]:
             b, a = pair.get("FROZEN_BASELINE"), pair.get("ASSISTED_V1")
             if a is not None and b is not None:
                 a["vs_baseline"] = _delta(b, a)
-    return {"suite_id": suite["suite_id"], "models": models,
+    mp = runtime / "vllm_runtime" / "RUNTIME_MANIFEST.json"
+    man = json.loads(mp.read_text()) if mp.exists() else None
+    hardware = None if man is None else {
+        "gpu": man["host"].get("gpu"),
+        "driver_version": man["host"].get("driver_version"),
+        "host_cuda": man["host"].get("host_cuda"),
+        "vllm_version": man["verdict"].get("vllm_version"),
+        "vllm_cuda": man["verdict"].get("vllm_cuda"),
+        "minimum_required_driver": man["verdict"].get(
+            "minimum_required_driver"),
+        "cuda_compatibility": man["verdict"].get("status"),
+        "remediation": man["verdict"].get("remediation"),
+        "installed": man.get("installed"),
+        "lock_mismatches": man.get("lock_mismatches"),
+        "runtime_profiles": {pid: r.get("status") for pid, r in
+                             (man.get("profiles") or {}).items()},
+        "manifest": str(mp)}
+    return {"suite_id": suite["suite_id"], "hardware": hardware,
+            "models": models,
             "cells": cells,
             "reference_set": cp.get("reference_set"),
             "policy": "factual comparative metrics only; no overall winner; "
@@ -227,6 +245,9 @@ def _html(rep: dict) -> str:
             f"{{border:1px solid #aaa;padding:3px 5px;vertical-align:top}}"
             f"table{{border-collapse:collapse}}</style>"
             f"<h1>{e(rep['suite_id'])}</h1><p>{e(rep['policy'])}</p>"
+            f"<h2>Hardware and runtime</h2><pre>"
+            f"{e(json.dumps(rep.get('hardware'), indent=1, default=str))}"
+            f"</pre>"
             f"<h2>Models</h2><table><tr>"
             + "".join(f"<th>{e(h)}</th>" for h in mh) + f"</tr>{rows}</table>"
             "<h2>Cells</h2><table><tr>"

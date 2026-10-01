@@ -67,9 +67,19 @@
   "server": "vllm",
   "served_model_name": "mistralai/Ministral-3-8B-Instruct-2512",
   "max_model_len": 32768,
-  "suggested_tool_call_parser": "mistral",
+  "tool_parser_candidates": [
+   "mistral"
+  ],
+  "tool_call_parser": null,
+  "suggested_tool_call_parser": null,
+  "reasoning_parser": null,
   "suggested_reasoning_parser": null,
-  "parser_status": "UNQUALIFIED until the probe passes",
+  "parser_status": "UNASSIGNED: chosen on the pod from the candidates, the model's chat template and the installed vLLM registry, then proven by the probe",
+  "template_from_mistral_common": true,
+  "preflight_architectures": [
+   "PixtralForConditionalGeneration",
+   "Mistral3ForConditionalGeneration"
+  ],
   "extra_args": [
    "--tokenizer-mode",
    "mistral"

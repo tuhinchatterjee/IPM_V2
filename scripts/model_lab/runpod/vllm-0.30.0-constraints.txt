@@ -1,0 +1,23 @@
+# Exact dependency set for the Pod-local vLLM 0.30.0 environment.
+#
+# Source (authoritative): vLLM v0.30.0, requirements/test/cuda.txt -- the
+# CI lock produced by
+#   uv pip compile requirements/test/cuda.in -c requirements/cuda.txt
+#     --torch-backend cu130 --python-platform x86_64-manylinux_2_28
+#     --python-version 3.12
+# vLLM's published wheel declares only `transformers >= 5.10.4`, so an
+# unconstrained install resolves the newest Transformers. Transformers 5.17.0
+# removed PixtralRotaryEmbedding and position_ids_in_meshgrid from
+# transformers.models.pixtral.modeling_pixtral, which vLLM 0.30.0's
+# pixtral.py imports (the live Ministral failure). 5.16.1 -- the version
+# vLLM's own CI tested -- still provides them (checked in every 5.10.4..5.18.0
+# wheel). One environment for every model; nothing is model-specific.
+torch==2.13.0
+torchaudio==2.11.0
+torchvision==0.28.0
+transformers==5.16.1
+tokenizers==0.23.1
+huggingface-hub==1.31.0
+mistral-common==1.11.6
+xgrammar==0.2.3
+safetensors==0.8.0

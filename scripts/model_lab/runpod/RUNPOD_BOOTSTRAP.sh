@@ -35,10 +35,14 @@
 #   --storage-check  stop after the storage verdict
 #   --prepare-only   stop after deployment + app rebuild (before installs)
 #
-# Then: GPU check, Python/Node/vLLM installs (app root only), seeding,
-# protected-manifest check, offline smoke test, oracle artifacts, pin + A40
-# fit, probes (downloads pinned checkpoints into the persistent model
-# cache), OPUS REFERENCE preflight, suite plan, lab start.
+# Then: GPU check, Python/Node installs (app root only), seeding,
+# protected-manifest check, offline smoke test, oracle artifacts, the
+# GPU DRIVER / CUDA gate for vLLM 0.30.0 (VLLM_HOST_DRIVER_INCOMPATIBLE stops
+# before any vLLM install or probe; nothing is worked around), the vLLM
+# environment (verified wheel, CI-locked dependencies), pin + A40 fit, the
+# runtime preflight (versions, parser registry, model imports; manifest on
+# the volume), probes (downloads pinned checkpoints into the persistent
+# model cache), OPUS REFERENCE preflight, suite plan, lab start.
 #
 # It makes NO paid call and sends NO benchmark question to any model.
 # Building missing Opus references and running the suite are separate,
@@ -176,7 +180,7 @@ env -u MODEL_LAB_RUNTIME_DIR -u MODEL_LAB_REFERENCE_SET_DIR -u LAB_EVIDENCE_DIR 
   tests/model_lab/test_saved_reference.py tests/model_lab/test_assisted_lane.py \
   tests/model_lab/test_benchmark_oracles.py tests/model_lab/test_runpod_suite.py \
   tests/model_lab/test_opus_reference_set.py tests/model_lab/test_runpod_storage.py \
-  tests/model_lab/test_runpod_execution_storage.py \
+  tests/model_lab/test_runpod_execution_storage.py tests/model_lab/test_vllm_runtime.py \
   || die "fixture smoke test failed"
 ok "fixture smoke test passed (full Model I/O Trace, oracles, ASSISTED_V1, suite runner, Opus reference gate)"
 
@@ -191,24 +195,54 @@ print(f'  {len(h)} oracle artifacts -> {out}; snapshot {bo.snapshot_id()}')
 " "$RUNTIME"
 ok "oracles materialised (evaluation-side only; never sent to a model)"
 
-echo "== 9. vLLM runtime"
-if [ "$WITH_VLLM" = 1 ] || [ "$PROBE" = 1 ]; then
-  VENV_VLLM="$CREDITPROBE_VENV_DIR/vllm"
-  [ -x "$VENV_VLLM/bin/vllm" ] || { python3 -m venv "$VENV_VLLM" && "$VENV_VLLM/bin/pip" install -q vllm; }
-  ok "vLLM $("$VENV_VLLM/bin/python" -c 'import vllm; print(vllm.__version__)' 2>/dev/null) in $VENV_VLLM"
-else
-  echo "  vLLM not installed (--skip-vllm); serve.sh expects $CREDITPROBE_VENV_DIR/vllm/bin/vllm"
+echo "== 9. GPU driver / CUDA preflight for vLLM (before any vLLM install or probe; no model)"
+VLLM_STATE=READY; HOST_RC=0
+.venv/bin/python scripts/model_lab/runpod/vllm_runtime.py host --runtime-dir "$RUNTIME" || HOST_RC=$?
+if [ "$HOST_RC" = 7 ]; then
+  VLLM_STATE=VLLM_HOST_DRIVER_INCOMPATIBLE
+  echo "  STOP before vLLM install and model probe: VLLM_HOST_DRIVER_INCOMPATIBLE"
+  echo "  (recorded in $RUNTIME/vllm_runtime/RUNTIME_MANIFEST.json; pinning and the Opus preflight still run)"
+elif [ "$HOST_RC" != 0 ]; then
+  VLLM_STATE=HOST_CHECK_FAILED; echo "  WARN host check failed (exit $HOST_RC); no probe"
+fi
+
+VENV_VLLM="$CREDITPROBE_VENV_DIR/vllm"
+if [ "$VLLM_STATE" = READY ] && { [ "$WITH_VLLM" = 1 ] || [ "$PROBE" = 1 ]; }; then
+  echo "== 9b. vLLM 0.30.0 environment (Pod-local; Python 3.12; verified wheel; CI-locked dependencies)"
+  [ -x "$VENV_VLLM/bin/python" ] || uv venv -q -p 3.12 "$VENV_VLLM"
+  WHEEL="$(.venv/bin/python scripts/model_lab/runpod/vllm_runtime.py fetch-wheel --dest "$CREDITPROBE_APP_ROOT/cache/wheels")" \
+    || die "vLLM wheel sha256 does not match the recorded identity"
+  uv pip install -q -p "$VENV_VLLM/bin/python" "$WHEEL" \
+    -c scripts/model_lab/runpod/vllm-0.30.0-constraints.txt || die "vLLM environment install failed"
+  ok "vLLM installed in $VENV_VLLM (wheel $(basename "$WHEEL"), sha256 verified)"
+elif [ "$VLLM_STATE" = READY ]; then
+  echo "  vLLM not installed (--skip-vllm); serve.sh expects $VENV_VLLM/bin/vllm"
 fi
 
 echo "== 10. Checkpoint pin + A40 fit preflight (metadata only, no weights)"
 .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir "$RUNTIME" \
   || echo "  WARN pinning reported errors; see $RUNTIME/pins/ROSTER.json"
 
-if [ "$PROBE" = 1 ]; then
-  echo "== 11. Capability probe: pinned, licence-clear, fitting models only"
+if [ "$VLLM_STATE" = READY ] && [ -x "$VENV_VLLM/bin/python" ]; then
+  echo "== 10b. vLLM runtime preflight: versions, parser registry, model imports (no model, no weights)"
+  PRE_RC=0
+  .venv/bin/python scripts/model_lab/runpod/vllm_runtime.py preflight --runtime-dir "$RUNTIME" \
+    --venv-python "$VENV_VLLM/bin/python" || PRE_RC=$?
+  case "$PRE_RC" in
+    0) ;;
+    7) VLLM_STATE=VLLM_HOST_DRIVER_INCOMPATIBLE; echo "  STOP before model probe: VLLM_HOST_DRIVER_INCOMPATIBLE (CUDA init on this host)" ;;
+    9) VLLM_STATE=VLLM_RUNTIME_INCOMPATIBLE; echo "  STOP before model probe: installed environment differs from the lock" ;;
+    *) VLLM_STATE=VLLM_RUNTIME_INCOMPATIBLE; echo "  STOP before model probe: runtime preflight failed (exit $PRE_RC)" ;;
+  esac
+fi
+
+if [ "$PROBE" = 1 ] && [ "$VLLM_STATE" = READY ]; then
+  echo "== 11. Capability probe: runtime-ready, pinned, licence-clear, fitting models only"
   echo "   downloads each such checkpoint into $MODEL_CACHE_DIR (HF_HOME=$HF_HOME); dummy tool only; no benchmark question"
   .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir "$RUNTIME" --probe \
     || echo "  WARN probe step reported errors; see $RUNTIME/pins/ROSTER.json"
+elif [ "$PROBE" = 1 ]; then
+  echo "== 11. Capability probe NOT run: $VLLM_STATE"
 else
   echo "== 11. Probe deferred (--skip-probe). Run before the benchmark:"
   echo "   .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --probe"
@@ -247,7 +281,10 @@ if [ "$START" = 1 ]; then
   echo "  then open http://127.0.0.1:5424/cockpit/lab"
 fi
 
-if [ "$REF_STATE" = READY ]; then
+if [ "$VLLM_STATE" != READY ]; then
+  HEAD_LINE="$VLLM_STATE — NO MODEL PROBED; NO MODEL CALLS"
+  .venv/bin/python scripts/model_lab/runpod/vllm_runtime.py show --runtime-dir "$RUNTIME" 2>/dev/null | sed 's/^/  /' || true
+elif [ "$REF_STATE" = READY ]; then
   HEAD_LINE="READY FOR REAL BENCHMARK — NO MODEL BENCHMARK CALLS YET"
 else
   HEAD_LINE="OPUS REFERENCES INCOMPLETE — BUILD THEM (step 12) BEFORE THE BENCHMARK; NO MODEL CALLS YET"
@@ -271,6 +308,7 @@ POD-LOCAL executables  $CREDITPROBE_APP_ROOT  (may vanish with the Pod)
   caches       VLLM_CACHE_ROOT=$VLLM_CACHE_ROOT  PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH
 
 $HEAD_LINE
+  vLLM runtime: $VLLM_STATE ($RUNTIME/vllm_runtime/RUNTIME_MANIFEST.json)
   opus refs: $REF_STATE (.venv/bin/python scripts/model_lab/opus_reference_set.py verify --runtime-dir $RUNTIME)
   roster:    $RUNTIME/pins/ROSTER.json
   licences:  review each LICENSE_REVIEW_REQUIRED model's terms, then

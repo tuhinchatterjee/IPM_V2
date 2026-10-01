@@ -31,41 +31,56 @@ ROOT = Path(__file__).resolve().parents[3]
 OUT = ROOT / "profiles"
 
 #: Run order: smallest / cheapest first.
-#: (stem, display, family, source, params, bf16 GB estimate, tool parser,
-#:  reasoning parser, extra vLLM args, note)
+#: (stem, display, family, source, params, bf16 GB estimate,
+#:  tool-parser candidates, reasoning parser, extra vLLM args, note[, opts])
+#:
+#: Parser names are those REGISTERED in vLLM 0.30.0 (vllm/tool_parsers and
+#: vllm/reasoning at tag v0.30.0) and documented for the family there:
+#: granite4 for Granite 4.x, gemma4 (tool + reasoning) for Gemma 4, lfm2,
+#: minicpm5 (MiniCPM5 XML), mistral (mistral-common tokenizer). Qwen3.5 has
+#: two registered candidates (qwen3_coder XML, hermes JSON); the model's own
+#: chat template decides which, by the markers each parser extracts. On the
+#: pod the installed vLLM's registry is re-read and every parser must still
+#: pass the harmless READY_E2E probe.
 MODELS = [
     ("minicpm5-2b", "MiniCPM5-2B", "MiniCPM",
      {"org": "openbmb", "name_pattern": r"^MiniCPM5[-_.]?2B$"}, "2B", 5,
-     None, None, [], "exact repository resolved on the pod"),
+     ["minicpm5"], None, [], "exact repository resolved on the pod"),
     ("lfm2.5-vl-3b", "LFM2.5-VL-3B", "LFM",
      {"org": "LiquidAI", "name_pattern": r"^LFM2\.5-VL-3B$"}, "3B", 7,
-     None, None, [], "vision-language model, used text-only"),
+     ["lfm2"], None, [], "vision-language model, used text-only"),
     ("qwen3.5-4b", "Qwen3.5-4B", "Qwen", {"repository": "Qwen/Qwen3.5-4B"},
-     "4B", 9, "hermes", "qwen3", [], ""),
+     "4B", 9, ["qwen3_coder", "hermes"], "qwen3", [], ""),
     ("fin-r1-7b", "Fin-R1 7B", "Fin-R1",
-     {"repository": "SUFE-AIFLM-Lab/Fin-R1"}, "7B", 16, "hermes", None, [],
+     {"repository": "SUFE-AIFLM-Lab/Fin-R1"}, "7B", 16, ["hermes"], None, [],
      "diagnostic-only until the mandatory controls pass"),
     ("granite-4.2-8b", "Granite 4.2 8B", "Granite",
-     {"repository": "ibm-granite/granite-4.2-8b"}, "8B", 17, "granite",
+     {"repository": "ibm-granite/granite-4.2-8b"}, "8B", 17, ["granite4"],
      None, [], ""),
     ("ministral-3-8b", "Ministral 3 8B", "Mistral",
      {"repository": "mistralai/Ministral-3-8B-Instruct-2512"}, "8B", 17,
-     "mistral", None, ["--tokenizer-mode", "mistral"], ""),
+     ["mistral"], None, ["--tokenizer-mode", "mistral"], "",
+     {"template_from_mistral_common": True,
+      "preflight_architectures": ["PixtralForConditionalGeneration",
+                                  "Mistral3ForConditionalGeneration"]}),
     ("qwen3.5-9b", "Qwen3.5-9B", "Qwen", {"repository": "Qwen/Qwen3.5-9B"},
-     "9B", 19, "hermes", "qwen3", [], ""),
+     "9B", 19, ["qwen3_coder", "hermes"], "qwen3", [], ""),
     ("ornith-1.5-9b", "Ornith-1.5-9B", "Ornith",
-     {"org": None, "name_pattern": r"^Ornith-1\.5-9B$"}, "9B", 19, None,
-     None, [], "publisher organisation unknown: PIN_BLOCKED until the "
-                "operator names the official repository"),
+     {"org": "ornith-ai", "name_pattern": r"^Ornith-1\.5-9B$",
+      "expected_repository": "ornith-ai/Ornith-1.5-9B",
+      "identity_required": True}, "9B", 19, [], None, [],
+     "repository identity (publisher, model card) is verified live on the "
+     "pod before the immutable pin; tool parser detected from its chat "
+     "template"),
     ("gemma-4-12b", "Gemma 4 12B", "Gemma",
-     {"repository": "google/gemma-4-12B-it"}, "12B", 25, None, None, [],
-     "tool-call parser for this family unqualified"),
+     {"repository": "google/gemma-4-12B-it"}, "12B", 25, ["gemma4"],
+     "gemma4", [], ""),
     ("gpt-oss-20b", "gpt-oss-20b", "gpt-oss",
-     {"repository": "openai/gpt-oss-20b"}, "21B (MoE)", 14, "openai", None,
+     {"repository": "openai/gpt-oss-20b"}, "21B (MoE)", 14, ["openai"], None,
      [], "publisher MXFP4 weights"),
     ("qwen3.8-27b", "Qwen3.8-27B", "Qwen",
-     {"repository": "Qwen/Qwen3.8-27B"}, "27B", 55, "hermes", "qwen3", [],
-     "RESOURCE_BLOCKED_A40: bf16 weights ~55 GB exceed 48 GB"),
+     {"repository": "Qwen/Qwen3.8-27B"}, "27B", 55, ["qwen3_coder", "hermes"],
+     "qwen3", [], "RESOURCE_BLOCKED_A40: bf16 weights ~55 GB exceed 48 GB"),
 ]
 
 #: Explicit quantised deployment variants (never substitutes).
@@ -79,13 +94,14 @@ VARIANTS = [
 ]
 
 
-def _base(stem, display, family, source, params, gb, parser, rparser,
-          extra, note) -> dict:
+def _base(stem, display, family, source, params, gb, parsers, rparser,
+          extra, note, opts=None) -> dict:
     pid = f"{stem}-runpod"
     blocked = "RESOURCE_BLOCKED_A40" in note
     known = "repository" in source
-    extra_args = list(extra) + (["--reasoning-parser", rparser]
-                                if rparser else [])
+    extra_args = list(extra)      # serve.sh adds --tool-call-parser and
+    #                               --reasoning-parser from the fields below
+    opts = opts or {}
     return {
         "profile_id": pid, "display_name": f"{display} (RunPod A40, vLLM)",
         "role": "candidate", "family": family,
@@ -137,9 +153,19 @@ def _base(stem, display, family, source, params, gb, parser, rparser,
         "runpod": {"server": "vllm",
                    "served_model_name": source.get("repository"),
                    "max_model_len": 32768,
-                   "suggested_tool_call_parser": parser,
+                   "tool_parser_candidates": list(parsers),
+                   "tool_call_parser": None,
+                   "suggested_tool_call_parser": None,
+                   "reasoning_parser": rparser,
                    "suggested_reasoning_parser": rparser,
-                   "parser_status": "UNQUALIFIED until the probe passes",
+                   "parser_status": ("UNASSIGNED: chosen on the pod from "
+                                     "the candidates, the model's chat "
+                                     "template and the installed vLLM "
+                                     "registry, then proven by the probe"),
+                   "template_from_mistral_common": bool(
+                       opts.get("template_from_mistral_common")),
+                   "preflight_architectures": list(
+                       opts.get("preflight_architectures") or []),
                    "extra_args": extra_args,
                    "host": "127.0.0.1", "port": 8000,
                    "fit": None, "resource_status": (
@@ -185,11 +211,26 @@ def _keep_pin(new: dict, path: Path) -> dict:
         return new
     old = json.loads(path.read_text())
     if (old.get("artifact") or {}).get("revision"):
-        for k in ("registry_id", "endpoint", "artifact", "runpod", "status",
-                  "status_reason", "licence", "provenance_status",
-                  "identity_source", "context_tokens"):
-            new[k] = old[k]
+        for k in ("registry_id", "artifact", "status", "status_reason",
+                  "licence", "provenance_status", "identity_source",
+                  "context_tokens"):
+            if k in old:
+                new[k] = old[k]
+        # identity / fit only: parser and serving settings come from here
+        new["endpoint"]["model"] = (old.get("endpoint") or {}).get(
+            "model", new["endpoint"]["model"])
+        for k in RUNPOD_PIN_KEYS:
+            if k in (old.get("runpod") or {}):
+                new["runpod"][k] = old["runpod"][k]
     return new
+
+
+#: The runpod.* fields a pin owns; everything else (parsers, extra args,
+#: context) is serving configuration and follows the code.
+RUNPOD_PIN_KEYS = ("served_model_name", "fit", "resource_status", "runtime",
+                   "chat_template_present", "chat_template_mentions_tools",
+                   "chat_template_markers", "chat_template_sha256",
+                   "chat_template_source")
 
 
 def main() -> int:

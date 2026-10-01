@@ -116,10 +116,15 @@ DEPLOY_FILES = ("CreditProbe_Model_Lab_RunPod_FullTrace.zip",
                 "RUNPOD_BOOTSTRAP.sh", "runpod_storage.py",
                 "DEPLOYMENT_MANIFEST.json", "checksums.sha256")
 ZIP_NAME = DEPLOY_FILES[0]
-#: Profile fields a pin owns (same set the suite generator keeps).
-PIN_KEYS = ("registry_id", "endpoint", "artifact", "runpod", "status",
-            "status_reason", "licence", "provenance_status",
-            "identity_source", "context_tokens")
+#: Profile fields a pin owns (same set the suite generator keeps). Of
+#: `runpod` and `endpoint` only the identity/fit parts are restored: parser
+#: and serving settings always come from the current bundle.
+PIN_KEYS = ("registry_id", "artifact", "status", "status_reason", "licence",
+            "provenance_status", "identity_source", "context_tokens")
+RUNPOD_PIN_KEYS = ("served_model_name", "fit", "resource_status", "runtime",
+                   "chat_template_present", "chat_template_mentions_tools",
+                   "chat_template_markers", "chat_template_sha256",
+                   "chat_template_source")
 #: Kept across an app rebuild on the same Pod (rebuilt if absent).
 PRESERVE_IN_SOURCE = (".venv", "frontend/node_modules")
 NOT_EXECUTABLE = "APP_ROOT_NOT_EXECUTABLE"
@@ -565,6 +570,11 @@ def restore_pins(paths: dict[str, str]) -> list[str]:
         for k in PIN_KEYS:
             if k in saved:
                 cur[k] = saved[k]
+        if (saved.get("endpoint") or {}).get("model"):
+            cur.setdefault("endpoint", {})["model"] = saved["endpoint"]["model"]
+        for k in RUNPOD_PIN_KEYS:
+            if k in (saved.get("runpod") or {}):
+                cur.setdefault("runpod", {})[k] = saved["runpod"][k]
         target.write_text(json.dumps(cur, indent=1, ensure_ascii=False)
                           + "\n")
         restored.append(f.stem)
