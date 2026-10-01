@@ -1,0 +1,8 @@
+CHANGED  backend/cockpit_v4/app.py
+CHANGED  backend/cockpit_v4/run_store.py
+CHANGED  backend/cockpit_v4/worker.py
+CHANGED  frontend/src/app/cockpit/trace/[runId]/page.tsx
+CHANGED  frontend/src/components/cockpit-v4/cockpit-v4-home.tsx
+CHANGED  frontend/src/components/cockpit-v4/thread-view.tsx
+
+6 changed, 0 removed, 0 added against H2 feb80f58982a.

@@ -1,0 +1,248 @@
+{
+  "commit": "f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc",
+  "steps": [
+    {
+      "name": "v4_backend_and_frontend_py_accepted",
+      "requirement": "REG02",
+      "cmd": "/home/user/.venv312/bin/python -m pytest tests/cockpit_v4 tests/frontend -o addopts= -p no:cacheprovider -q --junitxml=/home/user/gw_final_out_f490ab9fad8f/v4_accepted.xml",
+      "rc": 1,
+      "seconds": 2330.9,
+      "log": "v4_backend_and_frontend_py_accepted.log",
+      "junit": "v4_accepted.xml",
+      "counts": {
+        "tests": 4731,
+        "failures": 3,
+        "errors": 0,
+        "skipped": 38
+      },
+      "failed": [
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries"
+      ],
+      "env_bound": [
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries"
+      ],
+      "unexpected_failures": [],
+      "status": "PASS"
+    },
+    {
+      "name": "whatif_suite_whatif_venv",
+      "requirement": "REG01",
+      "cmd": "bash -c /home/user/gw_final_f490ab9fad8f/.venv-whatif/bin/python -m pytest tests/cockpit_v4/test_whatif_*.py tests/cockpit_v4/test_gw_*.py -o addopts= -p no:cacheprovider -q --junitxml=/home/user/gw_final_out_f490ab9fad8f/whatif_venv.xml",
+      "rc": 1,
+      "seconds": 662.7,
+      "log": "whatif_suite_whatif_venv.log",
+      "junit": "whatif_venv.xml",
+      "counts": {
+        "tests": 1328,
+        "failures": 10,
+        "errors": 0,
+        "skipped": 2
+      },
+      "failed": [
+        "tests.cockpit_v4.test_whatif_bridge::test_p9b_a_feature_never_appears_as_an_attribution_driver",
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_importing_the_ml_package_needs_none_of_those_libraries"
+      ],
+      "env_bound": [
+        "tests.cockpit_v4.test_whatif_bridge::test_p9b_a_feature_never_appears_as_an_attribution_driver",
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_candidate_release::test_the_accepted_releases_are_byte_identical",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_the_accepted_environment_carries_none_of_the_ml_libraries",
+        "tests.cockpit_v4.test_whatif_ml::test_importing_the_ml_package_needs_none_of_those_libraries"
+      ],
+      "unexpected_failures": [],
+      "status": "PASS"
+    },
+    {
+      "name": "v3_cockpit_agentic",
+      "requirement": "REG03",
+      "cmd": "/home/user/.venv312/bin/python -m pytest tests/cockpit_agentic -o addopts= -p no:cacheprovider -q --junitxml=/home/user/gw_final_out_f490ab9fad8f/v3.xml",
+      "rc": 1,
+      "seconds": 241.1,
+      "log": "v3_cockpit_agentic.log",
+      "junit": "v3.xml",
+      "counts": {
+        "tests": 590,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failed": [
+        "tests.cockpit_agentic.test_data::test_the_namespace_is_where_the_release_actually_goes"
+      ],
+      "env_bound": [
+        "tests.cockpit_agentic.test_data::test_the_namespace_is_where_the_release_actually_goes"
+      ],
+      "unexpected_failures": [],
+      "status": "PASS"
+    },
+    {
+      "name": "llm_adapters",
+      "requirement": "REG02",
+      "cmd": "/home/user/.venv312/bin/python -m pytest tests/llm -o addopts= -p no:cacheprovider -q --junitxml=/home/user/gw_final_out_f490ab9fad8f/llm.xml",
+      "rc": 0,
+      "seconds": 9.3,
+      "log": "llm_adapters.log",
+      "junit": "llm.xml",
+      "counts": {
+        "tests": 25,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 8
+      },
+      "failed": [],
+      "env_bound": [],
+      "unexpected_failures": [],
+      "status": "PASS"
+    },
+    {
+      "name": "frontend_unit",
+      "requirement": "REG04",
+      "cmd": "bash -c node --test --experimental-strip-types --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=/home/user/gw_final_out_f490ab9fad8f/frontend.junit.xml 'src/**/*.test.ts'",
+      "rc": 0,
+      "seconds": 12.3,
+      "log": "frontend_unit.log",
+      "junit": "frontend.junit.xml",
+      "counts": {
+        "tests": 666,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failed": [],
+      "env_bound": [],
+      "unexpected_failures": [],
+      "status": "PASS"
+    },
+    {
+      "name": "frontend_typecheck",
+      "requirement": "REG04",
+      "cmd": "npx tsc --noEmit -p .",
+      "rc": 0,
+      "seconds": 24.4,
+      "log": "frontend_typecheck.log",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend_lint_new_code",
+      "requirement": "REG04",
+      "cmd": "bash -c npx eslint src -f json -o /home/user/gw_final_out_f490ab9fad8f/eslint.json ; exit 0",
+      "rc": 0,
+      "seconds": 52.0,
+      "log": "frontend_lint_new_code.log",
+      "status": "PASS",
+      "detail": "outside protected: 0; protected cockpit-v4 (pre-existing): 15; []"
+    },
+    {
+      "name": "python_lint_round_code",
+      "requirement": "REG02",
+      "cmd": "/home/user/.venv312/bin/ruff check backend/workspace backend/llm/exchange.py backend/llm/openai_compatible.py scripts/guided_workspace tests/cockpit_v4/test_gw_charts.py tests/cockpit_v4/test_gw_decomposition.py tests/cockpit_v4/test_gw_decomposition_palette.py tests/cockpit_v4/test_gw_grid.py tests/cockpit_v4/test_gw_guided.py tests/cockpit_v4/test_gw_lenses.py tests/cockpit_v4/test_gw_llm_exchange.py tests/cockpit_v4/test_gw_macro_tornado.py tests/cockpit_v4/test_gw_messages.py tests/cockpit_v4/test_gw_method_gate.py tests/cockpit_v4/test_gw_metrics.py tests/cockpit_v4/test_gw_monitoring.py tests/cockpit_v4/test_gw_objects.py tests/cockpit_v4/test_gw_runs.py tests/cockpit_v4/test_gw_scenarios.py tests/cockpit_v4/test_gw_secret_leak.py tests/cockpit_v4/test_gw_trace.py tests/cockpit_v4/test_gw_uat_preflight.py tests/cockpit_v4/test_gw_v4_secret_persistence.py tests/cockpit_v4/test_gw_whatif.py",
+      "rc": 0,
+      "seconds": 0.1,
+      "log": "python_lint_round_code.log",
+      "status": "PASS"
+    },
+    {
+      "name": "protected_baseline_round",
+      "requirement": "REG10",
+      "cmd": "/home/user/.venv312/bin/python scripts/guided_workspace/protected_baseline.py --check",
+      "rc": 1,
+      "seconds": 0.8,
+      "log": "protected_baseline_round.log",
+      "status": "PASS",
+      "detail": "changed 6 = mapped 6: True; unmapped []; unchanged-but-mapped []; removed/added []"
+    },
+    {
+      "name": "protected_hashes_accepted_tool",
+      "requirement": "REG10",
+      "cmd": "/home/user/.venv312/bin/python scripts/whatif/protected_hashes.py --check",
+      "rc": 1,
+      "seconds": 1.1,
+      "log": "protected_hashes_accepted_tool.log",
+      "status": "PASS",
+      "detail": "reported; differences vs 245c50e are the P0-recorded set plus the round's mapped files (see log)"
+    },
+    {
+      "name": "release_fingerprints",
+      "requirement": "REG09/ARCH05",
+      "cmd": "/home/user/.venv312/bin/python -c from backend.cockpit_v4 import lake\nfrom backend.cockpit_agentic import store as v3\nrs=['v4-saudi-corporate-20q-v4','v4-saudi-retail-20m-v5','v4-whatif-corporate-20q-s1','v4-whatif-retail-20m-s1']\nbad=[r for r in rs if not lake.verify(r)]\n[print(r, lake.read_manifest(r).get('release_fingerprint'), 'VERIFIED' if r not in bad else 'MISMATCH') for r in rs]\nm=v3.read_manifest('v4-saudi-20q-v1')\nprint('v4-saudi-20q-v1 (V3 store, compatibility) PRESENT', m.get('dataset_release_id'))\nraise SystemExit(1 if bad else 0)",
+      "rc": 0,
+      "seconds": 1.6,
+      "log": "release_fingerprints.log",
+      "status": "PASS"
+    },
+    {
+      "name": "release_report_digests",
+      "requirement": "REG09/ARCH05",
+      "cmd": "/home/user/.venv312/bin/python scripts/cockpit_v4/release_report.py --no-values",
+      "rc": 0,
+      "seconds": 51.0,
+      "log": "release_report_digests.log",
+      "status": "PASS"
+    },
+    {
+      "name": "sensitivity_libraries_reproduce",
+      "requirement": "REG08",
+      "cmd": "/home/user/.venv312/bin/python scripts/whatif/build_sensitivities.py --out /home/user/gw_final_out_f490ab9fad8f/sensitivity_rebuild --evidence /home/user/gw_final_out_f490ab9fad8f/sensitivity_rebuild/evidence.json",
+      "rc": 0,
+      "seconds": 91.0,
+      "log": "sensitivity_libraries_reproduce.log",
+      "status": "PASS",
+      "detail": "evidence written to /home/user/gw_final_out_f490ab9fad8f/sensitivity_rebuild/evidence.json"
+    },
+    {
+      "name": "emulator_artifacts_reproduce",
+      "requirement": "REG08",
+      "cmd": "/home/user/gw_final_f490ab9fad8f/.venv-whatif/bin/python scripts/whatif/verify_artifacts.py --domain all",
+      "rc": 1,
+      "seconds": 932.8,
+      "log": "emulator_artifacts_reproduce.log",
+      "status": "BLOCKED_ENV",
+      "detail": "only component pickle hashes differ (refit nondeterminism); weights, gates, verdicts, versions, seeds and splits reproduced: corporate: ['lightgbm']; retail: ['additive_log', 'lightgbm']"
+    },
+    {
+      "name": "gw_browser_journeys_clean_store",
+      "requirement": "REG05/REG06",
+      "cmd": "bash -c rm -rf /tmp/cockpit_v4_gw_8444 && /home/user/.venv312/bin/python scripts/guided_workspace/browser_evidence.py",
+      "rc": 0,
+      "seconds": 497.0,
+      "log": "gw_browser_journeys_clean_store.log",
+      "status": "PASS",
+      "detail": "  46/46 journeys passed this run |   stopped UI |   stopped guided-workspace stub API"
+    },
+    {
+      "name": "whatif_candidate_browser",
+      "requirement": "REG05/REG06",
+      "cmd": "/home/user/.venv312/bin/python scripts/whatif/browser_evidence.py --domain all",
+      "rc": 0,
+      "seconds": 179.4,
+      "log": "whatif_candidate_browser.log",
+      "status": "PASS"
+    },
+    {
+      "name": "accepted_browser_suite_flags_off",
+      "requirement": "REG07/ARCH-03",
+      "cmd": "/home/user/.venv312/bin/python scripts/cockpit_v4/browser_evidence.py",
+      "rc": 0,
+      "seconds": 258.0,
+      "log": "accepted_browser_suite_flags_off.log",
+      "status": "PASS"
+    }
+  ]
+}

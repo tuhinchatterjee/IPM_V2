@@ -776,8 +776,40 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
   * GW backend suites, label rule, launcher and tenancy suites: **401 passed, 3 skipped**;
   * eslint clean on new code; `tsc` clean;
   * GW-P7 and GW-P13 journeys 9/9 (evidence restored afterwards).
-* **Final regression of record:** run by `final_regression.sh` on the frozen candidate SHA, with zero repository edits while it runs. Its measured results, the generated `REQUIREMENT_MATRIX.md` and `UAT_CANDIDATE.json` are recorded by the evidence commit that follows the candidate.
-* **Status:** IN PROGRESS until the final regression is recorded
+* **Final regression of record — candidate `f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc`.**
+  * **How it ran.** `final_regression.sh` made a `--no-local` clone detached at that SHA, outside the worktree, and found the clone clean. Before launch the worktree was clean and no writer was running. **No repository edit was made until every suite had finished.** Results were then copied unchanged into `evidence/final_regression/`; the clone's suite outputs are under `suite_outputs/`.
+  * **Result:** 16 of 17 steps PASS, 1 BLOCKED_ENV, **0 unexpected failures**.
+
+    | Step | Result |
+    |---|---|
+    | V4 backend + frontend-python (accepted interpreter) | 4731 tests: 3 failures, all P0-recorded environment-bound; 38 skipped → PASS |
+    | What-If suite (`.venv-whatif`) | 1328 tests: 10 failures, all P0-recorded interpreter-bound; 2 skipped → PASS |
+    | V3 | 590 tests: 1 failure, P0-recorded (namespace) → PASS |
+    | LLM adapters | 25 tests, 0 failures, 8 skipped → PASS |
+    | Frontend unit | 666 / 666 → PASS |
+    | `tsc` | clean → PASS |
+    | eslint, new code | 0 outside protected; 15 pre-existing in protected `cockpit-v4` → PASS |
+    | ruff, round code | clean → PASS |
+    | Protected baseline vs H2 | changed 6 = mapped 6 → PASS |
+    | Accepted protected tool | P0-recorded set plus the mapped files → PASS |
+    | Release fingerprints | 4 V4 books VERIFIED; compatibility release present → PASS |
+    | Release report digests | → PASS |
+    | Sensitivity libraries rebuilt | no disagreement → PASS |
+    | Emulator artifacts refitted | weights, gates, verdicts, versions, seeds and splits reproduced. Only pickle hashes differ: Corporate lightgbm; Retail additive_log **and lightgbm** → **BLOCKED_ENV** (as in the diagnostic; nothing regenerated) |
+    | GW journeys, clean store | **46 / 46** → PASS |
+    | What-If candidate browser | Corporate 15/15, Retail 15/15 → PASS |
+    | Accepted browser suite, flags off | **76 / 76** → PASS |
+* **Requirement matrix** (`REQUIREMENT_MATRIX.md` / `.json`, generated from this run with 0 generator errors):
+  * **Counts:** 325 ids: **251 PASS, 67 PARTIAL, 7 BLOCKED, 0 FAILED**. Every cited test ran; none is NOT RUN.
+  * **BLOCKED (7):**
+    * ARCH05, REG09: earlier container's byte fingerprints;
+    * REG08: emulator pickles;
+    * DECOMP10: `test_p9b_a_feature_never_appears_as_an_attribution_driver` passes on the accepted interpreter but is P0-recorded as failing on `.venv-whatif`. The generator classes any env-bound failure as BLOCKED_ENV and does not promote it;
+    * DECOMP12: data;
+    * M017: Retail data;
+    * REG12: the Mac UAT approval.
+  * **Where the counts come from:** the generator, not edited by hand.
+* **Status:** PASS. The regression of record is green apart from the measured BLOCKED_ENV, and every limitation is stated in the matrix.
 
 ## P14 — Mac live-provider UAT
 * **Package delivered (not run on a Mac):**

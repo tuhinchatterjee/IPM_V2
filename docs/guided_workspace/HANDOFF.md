@@ -9,6 +9,10 @@
 | Record | `PHASE_LEDGER.md` (per phase, measured), `REQUIREMENT_MATRIX.md` (generated, 325 ids), `PROTECTED_EXTENSION_MAP.md`, `BASELINE_PROVENANCE.md` |
 | Acceptance gate still open | The Mac live-provider UAT (`MAC_LIVE_UAT.md`): a paid provider run, the user's decision |
 
+**Final regression of record** on `f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc` (`evidence/final_regression/`):
+- **Steps:** 16 of 17 PASS. 1 BLOCKED_ENV (emulator pickle bytes). 0 unexpected failures.
+- **Requirement matrix:** 325 ids; 251 PASS, 67 PARTIAL, 7 BLOCKED, 0 FAILED.
+
 Every browser journey in this round ran as MODEL MOCK, a scripted analyst. No
 provider credential exists in the container and no paid call was made.
 

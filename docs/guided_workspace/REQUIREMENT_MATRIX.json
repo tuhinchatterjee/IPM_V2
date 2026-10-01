@@ -1,0 +1,5206 @@
+{
+  "candidate_sha": "f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc",
+  "ids": 325,
+  "counts": {
+    "PASS": 251,
+    "PARTIAL": 67,
+    "BLOCKED": 7,
+    "FAILED": 0
+  },
+  "rows": {
+    "UAT-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_uat01_confirmed_scenario_with_no_method_is_not_executed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ],
+        [
+          "GW-P6-04",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC01..DEC09",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-03": {
+      "status": "PARTIAL",
+      "reason": "protected Cockpit thread stage display (cockpit-v4/visuals.tsx) not migrated; no Sankey of scenario-induced migration (re-test runs not exercised)",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/advanced.test.ts::VIZ08",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC07",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base01_a_second_scenario_asks_original_baseline_or_on_top",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline",
+          "PASS"
+        ],
+        [
+          "GW-P6-03",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-05": {
+      "status": "PARTIAL",
+      "reason": "Governed surfaces (What-If, results, comparison, preview, Lenses, Early Warning, issues) now state the scale once per column via moneyCol and keep raw SAR million for the CSV. The protected Cockpit thread renderer (components/cockpit-v4) and the legacy flags-off pages keep their own formatting; changing them needs a protected-core decision.",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT01/FMT02/FMT10",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/figures.test.ts::FIG02",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P5-01",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ],
+        [
+          "GW-P5-05",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-07": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_pinned_clean_candidate_is_accepted",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_hands_over_to_the_established_lifecycle",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_launcher_turns_on_every_round_flag",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_oracles.py::test_o01_a_full_book_proportional_pd_stress",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_oracles.py::test_o05_a_ccf_move_has_two_answers_and_they_differ",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_meth05_results_carry_the_governed_method_names",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/method-labels.test.ts::MLB01",
+          "PASS"
+        ],
+        [
+          "GW-P13-04",
+          "PASS"
+        ]
+      ]
+    },
+    "UAT-09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_errors.py::test_a04_only_the_recorded_core_files_reach_this_package",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_llm_exchange.py::test_the_workspace_router_is_absent_when_its_flag_is_off",
+          "PASS"
+        ],
+        [
+          "regression:accepted_browser_suite_flags_off",
+          "PASS"
+        ],
+        [
+          "regression:v4_backend_and_frontend_py_accepted",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_switching_corporate_to_retail_changes_the_release_not_the_tenant",
+          "PASS"
+        ],
+        [
+          "GW-P5-01",
+          "PASS"
+        ],
+        [
+          "GW-P3-01-CORP",
+          "PASS"
+        ],
+        [
+          "GW-P3-01-RET",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_grid_filter_selection_and_conversation_filters_give_one_membership",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_cockpit_execution_opens_as_the_same_governed_result",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base08_layering_never_writes_a_source_row",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_alert_actions_do_not_touch_source_data",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH05": {
+      "status": "BLOCKED",
+      "reason": "ENVIRONMENT: the accepted books reproduce their in-container P0 fingerprints and content digests (verified by lake.verify), but the earlier container's recorded byte fingerprints cannot be reproduced with the pinned pandas/pyarrow writer (BASELINE_PROVENANCE section 3); test_the_accepted_releases_are_byte_identical stays an env-bound failure. Nothing in this round writes to a published release.",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_candidate_release.py::test_the_accepted_releases_are_byte_identical",
+          "BLOCKED_ENV"
+        ],
+        [
+          "regression:release_fingerprints",
+          "PASS"
+        ],
+        [
+          "regression:release_report_digests",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "git:no_tags_moved",
+          "PASS"
+        ]
+      ]
+    },
+    "METH01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_uat01_confirmed_scenario_with_no_method_is_not_executed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "METH02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth02_meth03_it_enters_method_selection_and_says_confirmed_not_executed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ]
+      ]
+    },
+    "METH03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth02_meth03_it_enters_method_selection_and_says_confirmed_not_executed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_preview.py::test_a_preview_with_no_method_confirms_the_scenario_only",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "METH04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth04_meth05_choosing_delta_runs_delta_only_on_the_same_confirmation",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+          "PASS"
+        ]
+      ]
+    },
+    "METH05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth04_meth05_choosing_delta_runs_delta_only_on_the_same_confirmation",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_meth05_results_carry_the_governed_method_names",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/method-labels.test.ts::MLB01",
+          "PASS"
+        ],
+        [
+          "GW-P13-04",
+          "PASS"
+        ]
+      ]
+    },
+    "METH06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth06_corporate_ml_runs_when_every_gate_passes",
+          "PASS"
+        ]
+      ]
+    },
+    "METH07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth07_meth08_direct_retail_ml_is_refused_without_a_delta_fallback",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_context_shows_retail_ml_unavailable_with_g4",
+          "PASS"
+        ],
+        [
+          "GW-P6-02",
+          "PASS"
+        ]
+      ]
+    },
+    "METH08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth07_meth08_direct_retail_ml_is_refused_without_a_delta_fallback",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_retail_ml_is_visibly_unavailable_and_never_substituted",
+          "PASS"
+        ],
+        [
+          "GW-P6-02",
+          "PASS"
+        ]
+      ]
+    },
+    "METH09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth09_user_defined_without_input_asks_instead_of_guessing",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_user_defined_asks_for_its_input_then_runs",
+          "PASS"
+        ]
+      ]
+    },
+    "METH10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth10_user_defined_runs_once_its_input_is_supplied",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_user_defined_asks_for_its_input_then_runs",
+          "PASS"
+        ]
+      ]
+    },
+    "METH11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth11_compare_uses_one_contract_cohort_and_baseline",
+          "PASS"
+        ]
+      ]
+    },
+    "METH12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth12_all_methods_runs_the_available_and_keeps_ml_unavailable",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_compare_on_retail_runs_the_available_and_names_ml_unavailable",
+          "PASS"
+        ]
+      ]
+    },
+    "METH13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth13_a_first_turn_scenario_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "GW-P6-04",
+          "PASS"
+        ]
+      ]
+    },
+    "METH14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth14_an_explicit_delta_is_not_asked_again",
+          "PASS"
+        ]
+      ]
+    },
+    "METH15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth15_an_explicit_compare_is_not_asked_again",
+          "PASS"
+        ]
+      ]
+    },
+    "METH16": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_no_default_method_survives_in_the_request_parser",
+          "PASS"
+        ],
+        [
+          "mutation:method selection (no silent Delta)",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base01_a_second_scenario_asks_original_baseline_or_on_top",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline",
+          "PASS"
+        ],
+        [
+          "GW-P6-03",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base02_on_top_of_the_previous_scenario_layers_on_its_result",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+          "PASS"
+        ],
+        [
+          "GW-P6-03",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base03_explicit_original_baseline_branches_from_the_source",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_original_baseline_choice_runs_on_the_booked_book",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base04_a_specific_earlier_scenario_can_be_the_parent",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_spec.py::test_revise_makes_a_new_version_with_the_old_one_as_parent",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_revise_creates_a_new_version_and_keeps_the_old",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_base05_an_assumption_before_execution_amends_the_same_run",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_base06_changing_only_the_method_reuses_the_confirmed_contract",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_rerun_with_another_method_reuses_the_confirmed_contract",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_spec.py::test_the_method_is_not_part_of_the_scenario_contract",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_trace_shows_versions_hashes_lineage_and_method_decisions",
+          "PASS"
+        ],
+        [
+          "GW-P6-03",
+          "PASS"
+        ]
+      ]
+    },
+    "BASE08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base08_layering_never_writes_a_source_row",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P5-01",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/chart-inventory.test.ts::INV06",
+          "PASS"
+        ],
+        [
+          "GW-P5-01",
+          "PASS"
+        ],
+        [
+          "GW-P11-05",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P5-01",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_context_shows_retail_ml_unavailable_with_g4",
+          "PASS"
+        ],
+        [
+          "GW-P5-01",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_selection_modes_summarise_on_the_server",
+          "PASS"
+        ],
+        [
+          "GW-P5-01",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_http_summary_and_context",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_context_shows_retail_ml_unavailable_with_g4",
+          "PASS"
+        ],
+        [
+          "GW-P5-01",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_grid07_every_visible_column_declares_a_filter_the_ui_can_edit",
+          "PASS"
+        ],
+        [
+          "GW-P13-01",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_bound_predicates_never_carry_user_text",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_a_warning_reason_cross_filters_bands_segments_and_the_cohort",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_a_joined_column_filter_freezes_through_the_engine",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/whatif-filters.test.ts::WIF03",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_bound_predicates_never_carry_user_text",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_grid11_boolean_and_null_filters_partition_the_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_grid11_through_http",
+          "PASS"
+        ],
+        [
+          "GW-P13-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_a_joined_column_filter_cohort_is_bound_exactly_by_reference",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/whatif-filters.test.ts::WIF02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_grid13_server_sort_is_deterministic_across_pages",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_grid13_an_unknown_sort_column_falls_back_and_says_so",
+          "PASS"
+        ],
+        [
+          "GW-P13-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_paging_is_server_side_and_capped",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_http_aggregate_is_small_and_row_free",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ],
+        [
+          "GW-P13-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_selection_modes_summarise_on_the_server",
+          "PASS"
+        ],
+        [
+          "GW-P5-03",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID16": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_manual_row_selection_named_in_conversation_is_the_same_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P5-03",
+          "PASS"
+        ],
+        [
+          "GW-P5-04",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID17": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_select_all_filtered_binds_the_complete_filtered_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID18": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_selection_modes_summarise_on_the_server",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID19": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P5-03",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID20": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_active_context_names_the_cohort_by_reference_only",
+          "PASS"
+        ],
+        [
+          "GW-P5-04",
+          "PASS"
+        ]
+      ]
+    },
+    "GRID21": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_grid_export_carries_the_filter_definition",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_cohort_export_carries_the_cohort_definition",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_grid.py::test_a_conversation_cohort_exports_exactly_its_members",
+          "PASS"
+        ],
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_units.py::test_o06_twenty_percent_relative_is_a_multiplication",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_oracles.py::test_o01_a_full_book_proportional_pd_stress",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_units.py::test_o06_twenty_basis_points_is_not_twenty_percent",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_units_are_never_confused",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_retail_lgd_delta_runs_on_charged_off_rows_without_a_key_error",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_oracles.py::test_o05_a_ccf_move_has_two_answers_and_they_differ",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_ccf_runs_on_the_derived_conversion_factor",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s12_one_notch_steps_the_published_order",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_rating_moves_along_the_masterscale_not_the_string",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s13_fifty_points_is_fifty_points_not_fifty_per_cent",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_units.py::test_score_points_are_not_a_percentage",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN07": {
+      "status": "PARTIAL",
+      "reason": "recognised and kept separate, but status TRANSLATION_ONLY; no governed PD mapping, runs only as User-defined",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_the_candidate_origination_score_is_still_not_movable",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s15_discovery_returns_actual_categories_with_counts_and_totals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_grid_filter_selection_and_conversation_filters_give_one_membership",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_a_corporate_dimension_is_not_a_retail_one",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s15_a_retail_product_is_not_an_employer_sector",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_bind_refuses_a_cohort_from_the_other_book",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/whatif-filters.test.ts::WIF05",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_rules.py::test_c07_the_question_offers_exactly_the_three_compositions",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_rules.py::test_two_rules_on_one_field_compound_in_the_order_given",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_overlap_blocks_until_policy_is_explicit",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s14_an_explicit_move_with_the_contract_uses_the_published_figures",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_scen12_a_stage_retest_policy_persists_into_execution",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_run.py::test_d02_every_cohort_row_is_in_the_total_including_the_untouched",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_select_all_filtered_binds_the_complete_filtered_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth13_a_first_turn_scenario_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "GW-P6-04",
+          "PASS"
+        ]
+      ]
+    },
+    "SCEN15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_manual_row_selection_named_in_conversation_is_the_same_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P5-04",
+          "PASS"
+        ],
+        [
+          "GW-P5-05",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_s01_all_twenty_candidates_appear_with_a_support_status",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_every_candidate_factor_has_a_row_for_every_parameter",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_s01_all_twenty_candidates_appear_with_a_support_status",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_every_candidate_factor_has_a_row_for_every_parameter",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_a_supported_row_carries_everything_needed_to_use_it",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_s04_the_lag_is_chosen_on_forward_validation_not_on_fit_quality",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_absent_factors_are_unavailable_and_never_a_zero_slope",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_a_diagnostic_row_is_refused_for_automatic_translation",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_diagnostic_only_sensitivity_is_not_applied",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_s06_reduce_unemployment_by_ten_percent_is_six_to_five_point_four",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_sensitivity.py::test_s07_a_two_tenths_slope_takes_three_percent_to_two_point_eight_eight",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_macro_translation_equals_the_governed_artifact",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_macro_translation_equals_the_governed_artifact",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/scenario-figures.test.ts::SCN05",
+          "PASS"
+        ]
+      ]
+    },
+    "MAC07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_bars_are_the_governed_translation_exactly",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_rows_are_ranked_by_swing_and_capped",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_pd_and_lgd_are_explicit_and_filterable",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_signs_are_preserved_as_fitted",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_collateral_sign_review_is_carried_not_corrected",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_diagnostic_only_estimates_are_listed_not_drawn",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_hover_fields_are_all_present",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_macro_tornado.py::test_the_accepted_chat_path_keeps_its_tornado_substitute",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/tornado.test.ts::TOR01..TOR04",
+          "PASS"
+        ],
+        [
+          "GW-P13-03",
+          "PASS"
+        ],
+        [
+          "mutation:tornado sign preservation",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT01",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT10",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT02",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/figures.test.ts::FIG02",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/figures.test.ts::FIG03",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT04/FMT08",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/figures.test.ts::FIG02",
+          "PASS"
+        ],
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT05",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT06",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT07",
+          "PASS"
+        ]
+      ]
+    },
+    "FMT08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/format.test.ts::FMT04/FMT08",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC03",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP02": {
+      "status": "PARTIAL",
+      "reason": "calibration_gap component exists but no test shows it measured on an ML result (ML runtime tests skip on the accepted interpreter)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP03": {
+      "status": "PARTIAL",
+      "reason": "M042 tested only on the no-ML path; separate calibration-gap bar on an ML result not asserted",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_ccf_runs_on_the_derived_conversion_factor",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_scen12_a_stage_retest_policy_persists_into_execution",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_collateral_sign_warning_survives_into_the_result",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC03",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_decomp08_rating_and_macro_contributions_are_measured",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_results.py::test_r06_the_residual_is_its_own_row_and_is_not_spread",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP10": {
+      "status": "BLOCKED",
+      "reason": "measured BLOCKED_ENV in the final regression",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp10_no_shap_or_feature_attribution_is_in_the_accounting_contract",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_bridge.py::test_p9b_a_feature_never_appears_as_an_attribution_driver",
+          "BLOCKED_ENV"
+        ]
+      ]
+    },
+    "DECOMP11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s14_a_move_without_the_contract_reports_unsupported_not_zero",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s14_a_lifetime_figure_is_never_the_annual_one_times_the_years",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_reference_ecl.py::test_lifetime_is_not_the_annual_figure_times_a_number_of_years",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP12": {
+      "status": "BLOCKED",
+      "reason": "BLOCKED by data: neither book publishes a SICR re-test rule or a lifetime ECL curve for re-staged exposures (scenario.mappings.stages). A re-test is carried into execution and the stage components are N/A with that reason; computing migrated EAD would require inventing the staging rule.",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_mappings.py::test_s14_unsupported_rows_are_counted_separately_from_unchanged_ones",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_scen12_a_stage_retest_policy_persists_into_execution",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_scope_binds_one_customer_list_segment_top_n_or_whole_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_decomp14_a_single_customer_scenario_decomposes_customer_then_book",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP16": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC06",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP17": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC06",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP18": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC06",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP19": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP20": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_the_same_components_match_between_scopes",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP21": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_whole_book_scope_is_labelled_selected_equals_total",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_decomp21_selected_scope_equal_to_the_book_is_one_population",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_decomp21_a_true_subset_is_never_called_the_whole_book",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC10/DEC11",
+          "PASS"
+        ],
+        [
+          "GW-P13-04",
+          "PASS"
+        ],
+        [
+          "mutation:selected scope = total book",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP22": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC01/DEC02",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_decomposition_palette.py::test_palette_ids_and_order_are_the_server_taxonomy",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP23": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC04",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+          "PASS"
+        ],
+        [
+          "GW-P12-01",
+          "PASS"
+        ]
+      ]
+    },
+    "DECOMP24": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth11_compare_uses_one_contract_cohort_and_baseline",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_user_defined_is_a_management_overlay_not_a_driver_split",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_decomp24_method_comparison_keeps_a_dual_scope_bridge_per_method",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/chart-inventory.test.ts::INV01..INV05",
+          "PASS"
+        ],
+        [
+          "GW-P11-05",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P13-05",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/figures.test.ts::FIG01/FIG02",
+          "PASS"
+        ],
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/chart-inventory.test.ts::INV04",
+          "PASS"
+        ],
+        [
+          "GW-P3-03",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC03",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/advanced.test.ts::VIZ08",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_stage_flow_reconciles_to_the_whole_book",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC07",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/advanced.test.ts::VIZ10",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_pareto_and_distribution_reconcile_to_the_selected_change",
+          "PASS"
+        ],
+        [
+          "GW-P11-03",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/advanced.test.ts::VIZ11",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_pareto_and_distribution_reconcile_to_the_selected_change",
+          "PASS"
+        ],
+        [
+          "GW-P11-03",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/advanced.test.ts::VIZ12",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_heatmap_under_a_filter_matches_the_selection_summary",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC07",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_results.py::test_r07_the_method_comparison_keeps_an_unavailable_method_visible",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_retail_not_ready.py::test_the_emulators_cells_are_empty_and_not_zero",
+          "PASS"
+        ]
+      ]
+    },
+    "VIZ14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/palette.test.ts::VIZ14",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/palette.test.ts::increase and decrease are separable without hue",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_decomposition_palette.py::test_palette_ids_and_order_are_the_server_taxonomy",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_create_saves_without_execution",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_every_object_kind_round_trips_with_its_hash",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_thread_context.py::test_a_confirmed_scenario_survives_the_round_trip",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_thread_context.py::test_the_confirmation_digest_is_stored_as_it_was_not_recomputed",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+          "PASS"
+        ],
+        [
+          "GW-P6-03",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_trace_shows_versions_hashes_lineage_and_method_decisions",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_meth02_meth03_it_enters_method_selection_and_says_confirmed_not_executed",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_retail_ml_is_visibly_unavailable_and_never_substituted",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_session_listing_shows_state_and_result",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+          "PASS"
+        ],
+        [
+          "GW-P6-04",
+          "PASS"
+        ],
+        [
+          "GW-P7-02",
+          "PASS"
+        ],
+        [
+          "GW-P12-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_persist09_a_tampered_parent_contract_is_refused",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_trace_shows_versions_hashes_lineage_and_method_decisions",
+          "PASS"
+        ],
+        [
+          "GW-P12-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+          "PASS"
+        ],
+        [
+          "GW-P12-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PERSIST12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/viz/decomposition.test.ts::DEC04/DEC06",
+          "PASS"
+        ],
+        [
+          "GW-P12-01",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_filters_refuse_unknown_columns_operators_and_unsafe_text",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_injection_through_a_filter_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_selection_refuses_injection_and_oversize",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_a_tenant_cannot_be_named_in_a_request",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_a_request_cannot_name_its_own_tenant",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_another_tenants_cohort_cannot_be_named",
+          "PASS"
+        ],
+        [
+          "mutation:tenant isolation (access rule)",
+          "PASS"
+        ],
+        [
+          "mutation:tenant isolation (store scope)",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_one_book_never_answers_with_the_others_release",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_bridge.py::test_the_domains_route_never_pairs_one_id_with_another_fingerprint",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_a_retail_cohort_cannot_be_named_on_the_corporate_book",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_a_named_cohort_whose_rows_moved_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_a_cohort_id_cannot_ride_with_filters",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_bridge.py::test_a_cohort_cannot_carry_a_predicate",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_routes.py::test_a_genuinely_superseded_release_is_still_refused",
+          "SKIP"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_thread_context.py::test_a_different_release_id_invalidates_and_says_so",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_a_cohort_id_is_refused_when_no_workspace_is_registered",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_method_gate.py::test_sec06_an_unavailable_method_cannot_be_forced_by_a_crafted_request",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base08_layering_never_writes_a_source_row",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_alert_actions_do_not_touch_source_data",
+          "PASS"
+        ]
+      ]
+    },
+    "SEC08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_secret_leak.py::test_no_canary_reaches_any_store_file",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_credentials_are_never_persisted",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_llm_exchange.py::test_no_credential_reaches_the_store",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_bytes_in_the_database_wal_or_shm",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_on_any_logical_read_path",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_in_any_export",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_reopening_makes_zero_model_calls_and_restores_nothing",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_the_model_still_receives_the_question_as_typed",
+          "PASS"
+        ],
+        [
+          "mutation:LLM Exchange sanitisation",
+          "PASS"
+        ],
+        [
+          "mutation:V4 persistence boundary (approved fix)",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH01": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_an_old_python_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_requires_the_declared_python",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH02": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_broken_pip_check_is_refused",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH03": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_refuses_when_the_frontend_is_not_installed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_accepts_an_installed_frontend",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH04": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_both_books_and_the_compatibility_release_are_checked",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_pinned_clean_candidate_is_accepted",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_any_other_head_is_refused_with_the_exact_checkout",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_dirty_tree_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_no_manifest_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_seed_definitions_that_moved_are_refused",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH05": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_both_books_and_the_compatibility_release_are_checked",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH06": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_shell_credential_needs_the_explicit_flag",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_launcher_drops_a_shell_credential_without_the_flag",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_credential_value_is_never_printed",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH07": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_price_card_inside_the_checkout_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_no_model_is_refused",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH08": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_runtime_dir_from_another_build_needs_fresh",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_same_build_reuses_its_runtime_dir",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_stop_and_status_share_one_dedicated_runtime",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH09": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_launcher_safety.py::test_a_busy_port_is_reported_and_never_freed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_hands_over_to_the_established_lifecycle",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH10": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_hands_over_to_the_established_lifecycle",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH11": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_launcher_safety.py::test_the_stop_script_contains_no_broad_kill",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_launcher_safety.py::test_a_reused_pid_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_launcher_safety.py::test_a_process_in_another_directory_is_refused",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_stop_and_status_share_one_dedicated_runtime",
+          "PASS"
+        ]
+      ]
+    },
+    "LAUNCH12": {
+      "status": "PARTIAL",
+      "reason": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_stop_and_status_share_one_dedicated_runtime",
+          "PASS"
+        ]
+      ]
+    },
+    "REG01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:whatif_suite_whatif_venv",
+          "PASS"
+        ]
+      ]
+    },
+    "REG02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:v4_backend_and_frontend_py_accepted",
+          "PASS"
+        ]
+      ]
+    },
+    "REG03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:v3_cockpit_agentic",
+          "PASS"
+        ]
+      ]
+    },
+    "REG04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:frontend_unit",
+          "PASS"
+        ],
+        [
+          "regression:frontend_typecheck",
+          "PASS"
+        ],
+        [
+          "regression:frontend_lint_new_code",
+          "PASS"
+        ]
+      ]
+    },
+    "REG05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:gw_browser_journeys_clean_store",
+          "PASS"
+        ],
+        [
+          "regression:whatif_candidate_browser",
+          "PASS"
+        ]
+      ]
+    },
+    "REG06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:gw_browser_journeys_clean_store",
+          "PASS"
+        ],
+        [
+          "regression:whatif_candidate_browser",
+          "PASS"
+        ]
+      ]
+    },
+    "REG07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:accepted_browser_suite_flags_off",
+          "PASS"
+        ]
+      ]
+    },
+    "REG08": {
+      "status": "BLOCKED",
+      "reason": "measured BLOCKED_ENV in the final regression; regression:emulator_artifacts_reproduce: only component pickle hashes differ (refit nondeterminism); weights, gates, verdicts, versions, seeds and splits reproduced: corporate: ['lightgbm']; retail: ['additive_log', 'lightgbm']",
+      "evidence": [
+        [
+          "regression:sensitivity_libraries_reproduce",
+          "PASS"
+        ],
+        [
+          "regression:emulator_artifacts_reproduce",
+          "BLOCKED_ENV"
+        ]
+      ]
+    },
+    "REG09": {
+      "status": "BLOCKED",
+      "reason": "ENVIRONMENT: in-container fingerprints verify; the earlier container's accepted byte fingerprints are not reproducible with the pinned writer (BASELINE_PROVENANCE section 3).",
+      "evidence": [
+        [
+          "regression:release_fingerprints",
+          "PASS"
+        ]
+      ]
+    },
+    "REG10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "regression:protected_baseline_round",
+          "PASS"
+        ]
+      ]
+    },
+    "REG11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "generator:self_check",
+          "PASS"
+        ]
+      ]
+    },
+    "REG12": {
+      "status": "BLOCKED",
+      "reason": "APPROVAL: the real Mac live-provider UAT is the user's acceptance gate and a paid provider run; it was not run in this round by instruction. The package (pinned-SHA preflight, launchers, evidence collector) is prepared and dry-run here.",
+      "evidence": []
+    },
+    "GX-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_requires_attention_is_populated_in_both_books",
+          "PASS"
+        ],
+        [
+          "GW-P3-01-CORP",
+          "PASS"
+        ],
+        [
+          "GW-P3-01-RET",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_every_issue_card_carries_the_contract",
+          "PASS"
+        ],
+        [
+          "GW-P3-01-CORP",
+          "PASS"
+        ],
+        [
+          "GW-P3-03",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_the_seed_gives_the_analyst_the_evidence_without_retyping",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_investigate_opens_a_seeded_cockpit_thread_with_a_frozen_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P3-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_a_suggestion_is_submitted_as_an_ordinary_turn_in_the_same_thread",
+          "PASS"
+        ],
+        [
+          "GW-P3-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_every_suggestion_names_its_source_and_rationale",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_a_guided_click_records_what_was_suggested_and_why",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_answered_questions_are_suppressed_until_the_cohort_changes",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P3-01-CORP",
+          "PASS"
+        ],
+        [
+          "GW-P3-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-08": {
+      "status": "PARTIAL",
+      "reason": "a complete Issue-to-Decision path by clicks only is not exercised",
+      "evidence": [
+        [
+          "GW-P3-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_guided.py::test_a_whatif_suggestion_needs_a_finding_first",
+          "PASS"
+        ],
+        [
+          "GW-P3-02",
+          "PASS"
+        ]
+      ]
+    },
+    "GX-10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_a_warning_reason_cross_filters_bands_segments_and_the_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P3-04",
+          "PASS"
+        ],
+        [
+          "GW-P11-04",
+          "PASS"
+        ],
+        [
+          "mutation:cohort identity",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/viz/chart-inventory.test.ts::INV01..INV06",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_a_category_click_cross_filters_every_compatible_visual",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/whatif-filters.test.ts::WIF01/WIF02",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ],
+        [
+          "GW-P9-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "frontend/src/lib/workspace/whatif-filters.test.ts::WIF03",
+          "PASS"
+        ],
+        [
+          "GW-P5-02",
+          "PASS"
+        ],
+        [
+          "GW-P9-03",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P11-02",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_http_aggregate_is_small_and_row_free",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_charts.py::test_the_cell_cap_truncates_and_says_so",
+          "PASS"
+        ],
+        [
+          "GW-P11-01",
+          "PASS"
+        ]
+      ]
+    },
+    "PV-07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+          "PASS"
+        ],
+        [
+          "GW-P11-02",
+          "PASS"
+        ]
+      ]
+    },
+    "CO-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_cohort_api_round_trip_verify_and_rows",
+          "PASS"
+        ]
+      ]
+    },
+    "CO-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_refreshing_a_cohort_makes_a_new_version",
+          "PASS"
+        ]
+      ]
+    },
+    "CO-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_the_same_cohort_is_the_same_population_in_every_module",
+          "PASS"
+        ],
+        [
+          "GW-P3-04",
+          "PASS"
+        ],
+        [
+          "GW-P7-04",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_create_saves_without_execution",
+          "PASS"
+        ],
+        [
+          "GW-P4-02",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_definition_is_independent_of_method",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_whatif_spec.py::test_the_method_is_not_part_of_the_scenario_contract",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_listing_shows_owner_version_status_components_scope_methods_results",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_combine_creates_new_scenario_and_leaves_parents_unchanged",
+          "PASS"
+        ],
+        [
+          "GW-P4-02",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_overlap_blocks_until_policy_is_explicit",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_no_policy_is_ever_assumed",
+          "PASS"
+        ],
+        [
+          "GW-P4-02",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_combined_scenario_persists_parent_lineage",
+          "PASS"
+        ],
+        [
+          "mutation:scenario lineage",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_scope_binds_one_customer_list_segment_top_n_or_whole_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_bind_to_cohort_template_creates_new_scenario_own_creates_version",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_decomposition.py::test_base01_a_second_scenario_asks_original_baseline_or_on_top",
+          "PASS"
+        ],
+        [
+          "GW-P6-03",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_messages.py::test_the_session_tree_shows_baseline_layered_and_method_variants",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_messages.py::test_incompatible_results_are_not_compared",
+          "PASS"
+        ],
+        [
+          "GW-P7-03",
+          "PASS"
+        ]
+      ]
+    },
+    "SC-10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_messages.py::test_recipient_runs_a_shared_definition_as_their_own_linked_run",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_share_carries_reference_not_data_and_respects_tenant",
+          "PASS"
+        ],
+        [
+          "GW-P7-01",
+          "PASS"
+        ]
+      ]
+    },
+    "MSG-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_share_carries_reference_not_data_and_respects_tenant",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_share_a_cohort_by_reference",
+          "PASS"
+        ],
+        [
+          "GW-P4-04",
+          "PASS"
+        ]
+      ]
+    },
+    "MSG-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_messages.py::test_a_message_never_grants_access_beyond_the_recipient",
+          "PASS"
+        ]
+      ]
+    },
+    "MSG-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_messages.py::test_comments_attach_to_the_shared_version_and_both_sides_see_them",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_messages.py::test_a_pinned_share_stays_openable_after_the_object_moves_on",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_comments_attach_to_an_object_version",
+          "PASS"
+        ],
+        [
+          "mutation:governance ledger",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_a_prompt_returns_a_preview_and_nothing_is_saved",
+          "PASS"
+        ],
+        [
+          "GW-P9-02",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_save_an_investigation_as_a_lens_keeps_its_cohort",
+          "PASS"
+        ],
+        [
+          "GW-P9-03",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_no_anonymous_kpi_every_binding_is_a_pinned_catalogue_metric",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_objects.py::test_every_object_kind_round_trips_with_its_hash",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_editing_writes_a_version_and_a_library_lens_is_copied",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_a_category_click_cross_filters_every_compatible_visual",
+          "PASS"
+        ],
+        [
+          "frontend/src/lib/workspace/lens-figures.test.ts::LENS02",
+          "PASS"
+        ],
+        [
+          "GW-P9-01",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_drill_to_rows_honours_the_clicked_dimension",
+          "PASS"
+        ],
+        [
+          "GW-P9-01",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "GW-P9-03",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_refresh_records_an_immutable_observation_with_what_changed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_scheduled_refresh_replays_deterministically",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_cadences_decide_what_is_due",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_refresh_records_an_immutable_observation_with_what_changed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_a_material_move_is_reported",
+          "PASS"
+        ]
+      ]
+    },
+    "LN-09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_a_failed_refresh_is_recorded_and_never_shown_as_current",
+          "PASS"
+        ]
+      ]
+    },
+    "AL-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_first_launch_shows_live_breaches_and_labelled_historical_replay",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_threshold_comparisons_are_exact",
+          "PASS"
+        ],
+        [
+          "GW-P10-01",
+          "PASS"
+        ],
+        [
+          "mutation:breach evaluation",
+          "PASS"
+        ]
+      ]
+    },
+    "AL-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_cooldown_suppresses_a_duplicate_delivery",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_worsening_is_delivered_through_cooldown_and_recovery_resolves",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_a_persisting_breach_is_one_alert_new_then_active",
+          "PASS"
+        ]
+      ]
+    },
+    "AL-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_the_alert_state_machine",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_worsening_is_delivered_through_cooldown_and_recovery_resolves",
+          "PASS"
+        ],
+        [
+          "GW-P10-01",
+          "PASS"
+        ]
+      ]
+    },
+    "AL-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_opening_an_alert_restores_the_lens_at_its_trigger",
+          "PASS"
+        ],
+        [
+          "GW-P10-01",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_cockpit_execution_opens_as_the_same_governed_result",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_whatif.py::test_grid_filter_selection_and_conversation_filters_give_one_membership",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_arch02_cockpit_and_whatif_build_the_identical_contract",
+          "PASS"
+        ]
+      ]
+    },
+    "ARCH-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_llm_exchange.py::test_the_workspace_router_is_absent_when_its_flag_is_off",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_llm_exchange.py::test_bind_returns_the_same_provider_object_when_the_flag_is_off",
+          "PASS"
+        ],
+        [
+          "regression:accepted_browser_suite_flags_off",
+          "PASS"
+        ],
+        [
+          "regression:protected_baseline_round",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "GW-P6-01",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-03": {
+      "status": "PARTIAL",
+      "reason": "collateral translation flagged SIGN_REVIEW (LGD falls when collateral falls), shown not corrected (PHASE_LEDGER P6)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-04": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-05": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_overlap_blocks_until_policy_is_explicit",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_rating_moves_along_the_masterscale_not_the_string",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-08": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_ccf_runs_on_the_derived_conversion_factor",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_search_and_filters",
+          "PASS"
+        ],
+        [
+          "GW-P4-01",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_macro_with_macro_uses_the_governed_linear_sum",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-16": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-17": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "CORP-18": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_seeded_conflict_templates_stay_blocked_until_chosen",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_retail_ml_is_visibly_unavailable_and_never_substituted",
+          "PASS"
+        ],
+        [
+          "GW-P6-02",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-02": {
+      "status": "PARTIAL",
+      "reason": "Retail CCF component UNSUPPORTED; template BLOCKED",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_unsupported_field_is_labelled_not_dropped",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-04": {
+      "status": "PARTIAL",
+      "reason": "application score TRANSLATION_ONLY; no governed mapping, User-defined only",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-05": {
+      "status": "PARTIAL",
+      "reason": "delinquency shift NEEDS_USER_MAPPING; Delta BLOCKED, User-defined only",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_needs_mapping_is_never_guessed",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_a_component_without_governed_translation_blocks_delta_by_name",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-06": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-07": {
+      "status": "PARTIAL",
+      "reason": "SIGN_REVIEW \u2014 LGD falls when property value falls; shown, not corrected",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_collateral_sign_review_is_flagged",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_runs.py::test_the_collateral_sign_warning_survives_into_the_result",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-08": {
+      "status": "PARTIAL",
+      "reason": "vehicle collateral NEEDS_USER_MAPPING; User-defined only",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_needs_mapping_is_never_guessed",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-09": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-12": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-14": {
+      "status": "PARTIAL",
+      "reason": "delinquency component has no governed translation; User-defined only (PHASE_LEDGER P4)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-16": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-17": {
+      "status": "PARTIAL",
+      "reason": "DPD-improvement component has no governed translation; User-defined only (PHASE_LEDGER P4)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ]
+      ]
+    },
+    "RET-18": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_scenarios.py::test_seeded_conflict_templates_stay_blocked_until_chosen",
+          "PASS"
+        ],
+        [
+          "GW-P4-03",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-01": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "GW-P11-05",
+          "PASS"
+        ],
+        [
+          "GW-P12-02",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-02": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "GW-P9-01",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-03": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "GW-P10-02",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-04": {
+      "status": "PARTIAL",
+      "reason": "no overlay visual or metric (spec lists overlays)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-05": {
+      "status": "PARTIAL",
+      "reason": "no top-warning-reasons visual",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-06": {
+      "status": "PARTIAL",
+      "reason": "no ECL metric bound (spec lists ECL)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-07": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-08": {
+      "status": "PARTIAL",
+      "reason": "no top-reasons visual",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_default_filters_scope_a_product_lens",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-09": {
+      "status": "PARTIAL",
+      "reason": "no salary-signal visual (book has no salary feed)",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-10": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-11": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-12": {
+      "status": "PARTIAL",
+      "reason": "no recoveries visual or metric",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-13": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-14": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-15": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_opening_an_alert_restores_the_lens_at_its_trigger",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-16": {
+      "status": "PARTIAL",
+      "reason": "no stage-migration, concentration or method-comparison visual",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_scenario_metrics_only_count_results_the_viewer_can_open",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-17": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "LENS-18": {
+      "status": "PARTIAL",
+      "reason": "no top-breached-metrics or assigned-owner visual",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+          "PASS"
+        ]
+      ]
+    },
+    "M001": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ],
+        [
+          "mutation:metric formula",
+          "PASS"
+        ]
+      ]
+    },
+    "M002": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_a_movement_metric_is_the_difference_of_its_base",
+          "PASS"
+        ]
+      ]
+    },
+    "M003": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_a_movement_metric_is_the_difference_of_its_base",
+          "PASS"
+        ]
+      ]
+    },
+    "M004": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M005": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M006": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M007": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M008": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M009": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M010": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M011": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M012": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M013": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M014": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M015": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M016": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M017": {
+      "status": "BLOCKED",
+      "reason": "Retail BLOCKED by the governed data: the Retail release publishes no CCF field and its EAD equals the balance on 6,702 of 6,702 accounts, so a Retail CCF would be 0 by construction. Corporate is computed; Retail is refused (no cross-book substitution); the pinning test fails the day Retail data could support it.",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_m017_corporate_is_computed_on_its_own_grain_and_period",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_m017_retail_incompatibility_is_measured_not_assumed",
+          "PASS"
+        ]
+      ]
+    },
+    "M018": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M019": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M020": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M021": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation",
+          "PASS"
+        ]
+      ]
+    },
+    "M022": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M023": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M024": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M025": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M026": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M027": {
+      "status": "PARTIAL",
+      "reason": "excluded from the value check in test_every_applicable_metric_evaluates_on_both_books; distribution not tested",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ]
+      ]
+    },
+    "M028": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_retail_delinquency_rates_reconcile",
+          "PASS"
+        ]
+      ]
+    },
+    "M029": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_retail_delinquency_rates_reconcile",
+          "PASS"
+        ]
+      ]
+    },
+    "M030": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M031": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M032": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M033": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M034": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M035": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M036": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M037": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M038": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M039": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+          "PASS"
+        ]
+      ]
+    },
+    "M040": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+          "PASS"
+        ]
+      ]
+    },
+    "M041": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+          "PASS"
+        ]
+      ]
+    },
+    "M042": {
+      "status": "PARTIAL",
+      "reason": "value on an ML result not tested",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+          "PASS"
+        ]
+      ]
+    },
+    "M043": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M044": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M045": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M046": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M047": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M048": {
+      "status": "PASS",
+      "reason": "",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_monitoring.py::test_m048_counts_live_breaches_the_viewer_can_open",
+          "PASS"
+        ]
+      ]
+    },
+    "M049": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    },
+    "M050": {
+      "status": "PARTIAL",
+      "reason": "formula not independently recomputed",
+      "evidence": [
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+          "PASS"
+        ],
+        [
+          "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+          "PASS"
+        ]
+      ]
+    }
+  },
+  "errors": []
+}

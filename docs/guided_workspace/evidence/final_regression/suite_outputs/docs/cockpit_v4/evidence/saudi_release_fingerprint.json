@@ -1,0 +1,8 @@
+{
+  "release_id": "v4-saudi-20q-v1",
+  "relations": 11,
+  "fingerprint": "db591dc0f2c1361d4bc20649178b21867e628b40e0a6503181e18e806a9ecebd",
+  "currency": "SAR",
+  "amount_scale": "million",
+  "amounts_converted": false
+}

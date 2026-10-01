@@ -1,0 +1,12 @@
+
+corporate
+  refitting into /tmp/whatif-verify-corporate-qpslu94x ...
+  refit in 306s
+  DIFFERS  component_hashes: published {'additive_log': '7b9846aff63038dccf9849fb01f40507c4c0a50d4bb5e1ebc57c0ad556983964', 'lightgbm': '5f4578333d6230b8c076fe1455d78d30bad92050c9fafd933d67866eaca7c6b2', 'xgboost': 'd80c57b50de2b864e16b49e7caada09b2a0916a96b6cc919c5238a8a3abe0082'} but the rebuild produced {'additive_log': '7b9846aff63038dccf9849fb01f40507c4c0a50d4bb5e1ebc57c0ad556983964', 'lightgbm': '998c4afec676f446409e99ce75d9118f7d76e2e1118939c297e1b997f72ba842', 'xgboost': 'd80c57b50de2b864e16b49e7caada09b2a0916a96b6cc919c5238a8a3abe0082'}
+
+retail
+  refitting into /tmp/whatif-verify-retail-ggl570wv ...
+  refit in 491s
+  DIFFERS  component_hashes: published {'additive_log': '7996d8a967e4c1c17c42f43114bdefb31d2b63449011def6ce90329131154c5e', 'lightgbm': '5cd49a5773acc5aed730e9aa3735ac91a3d0eacda484d140476b1b19745b15ce', 'xgboost': '12e24f8ea5e81c81daa3a153c51f263cc364b7d4bda07e7aeb044a9ee87ff4a2'} but the rebuild produced {'additive_log': 'e3d0f70e2c56f6f398d8cde03955fb2e139fe2bfa6adb8dca413d0be836b818a', 'lightgbm': '48cf0ac0c9d8eaed8d4395797be89fdc19eba40ef2d496b240d6511fe81bfa1c', 'xgboost': '12e24f8ea5e81c81daa3a153c51f263cc364b7d4bda07e7aeb044a9ee87ff4a2'}
+
+2 difference(s). The published artifacts were NOT reproduced by this code, and nothing was regenerated to hide that.
