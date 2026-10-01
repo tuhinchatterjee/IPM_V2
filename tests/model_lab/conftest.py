@@ -20,6 +20,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
+# On a RunPod Pod the operator's env.sh points these at the persistent
+# volume. Tests use their own temporary stores and must never write into
+# the real runtime, reference set, evidence dir or pinned identities.
+for _k in ("MODEL_LAB_RUNTIME_DIR", "MODEL_LAB_REFERENCE_SET_DIR",
+           "LAB_EVIDENCE_DIR", "MODEL_LAB_PINNED_PROFILES_DIR",
+           "CREDITPROBE_APP_ROOT"):
+    os.environ.pop(_k, None)
 
 QUESTION = "What is Stage 2 exposure by sector for the latest quarter?"
 ALL_FIXTURES = ["fixture-reference", "fixture-alternate-plan",

@@ -168,8 +168,9 @@ echo "== 6. Protected manifest (frozen AdvancedCockpit unchanged)"
 
 echo "== 7. Offline fixture smoke test (no model)"
 # The smoke tests use their own temporary stores: never the persistent
-# runtime, reference set or evidence directory.
+# runtime, reference set, evidence directory or pinned identities.
 env -u MODEL_LAB_RUNTIME_DIR -u MODEL_LAB_REFERENCE_SET_DIR -u LAB_EVIDENCE_DIR \
+  -u MODEL_LAB_PINNED_PROFILES_DIR -u CREDITPROBE_APP_ROOT \
   .venv/bin/python -m pytest -q -p no:cacheprovider \
   tests/model_lab/test_model_io_trace.py tests/model_lab/test_observer_neutrality.py \
   tests/model_lab/test_saved_reference.py tests/model_lab/test_assisted_lane.py \

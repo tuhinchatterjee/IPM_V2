@@ -242,7 +242,8 @@ def test_env_sh_exports_both_areas_and_never_a_secret(pod):
             assert CANARY.encode() not in f.read_bytes(), f
 
 
-def test_state_is_persistent_and_executables_are_pod_local():
+def test_state_is_persistent_and_executables_are_pod_local(monkeypatch):
+    monkeypatch.delenv("CREDITPROBE_APP_ROOT", raising=False)  # the default
     p = rs.paths_for("/workspace-global")
     home, app = "/workspace-global/creditprobe-model-lab", \
         "/workspace/creditprobe-model-lab"
@@ -434,3 +435,14 @@ def test_existing_pins_are_kept_and_mirrored_to_the_volume(tmp_path,
     assert rec["kept_existing_pin"] is True and rec["revision"] == "b" * 40
     mirrored = json.loads((keep / "qwen3.5-4b-runpod.json").read_text())
     assert mirrored["artifact"]["revision"] == "b" * 40
+
+
+def test_tests_never_write_into_the_operators_volume():
+    """conftest drops the operator's storage variables, so a smoke test run
+    on a Pod (env.sh sourced) cannot touch real pins, runtime or refs."""
+    for k in ("MODEL_LAB_RUNTIME_DIR", "MODEL_LAB_REFERENCE_SET_DIR",
+              "LAB_EVIDENCE_DIR", "MODEL_LAB_PINNED_PROFILES_DIR",
+              "CREDITPROBE_APP_ROOT"):
+        assert k not in os.environ, k
+    boot = (RUNPOD / "RUNPOD_BOOTSTRAP.sh").read_text()
+    assert "-u MODEL_LAB_PINNED_PROFILES_DIR" in boot
