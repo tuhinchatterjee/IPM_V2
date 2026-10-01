@@ -18,7 +18,10 @@ PY="${MODEL_LAB_PYTHON:-.venv/bin/python}"
 : "${MODEL_CACHE_DIR:?not set: source \$CREDITPROBE_HOME/env.sh}"
 : "${MODEL_LAB_RUNTIME_DIR:?not set: source \$CREDITPROBE_HOME/env.sh}"
 : "${HF_HOME:?not set: source \$CREDITPROBE_HOME/env.sh}"
-VLLM="${VLLM_BIN:-$CREDITPROBE_HOME/venvs/vllm/bin/vllm}"
+: "${CREDITPROBE_VENV_DIR:?not set: source \$CREDITPROBE_HOME/env.sh}"
+# The vLLM executable is Pod-local (app root); the weights it downloads go
+# to the persistent model cache on the volume.
+VLLM="${VLLM_BIN:-$CREDITPROBE_VENV_DIR/vllm/bin/vllm}"
 
 read -r REPO REV CTX PARSER EXTRA < <("$PY" - "$PID" <<'EOF'
 import json, sys

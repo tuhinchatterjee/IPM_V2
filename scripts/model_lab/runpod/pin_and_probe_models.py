@@ -201,18 +201,42 @@ def fit(p: dict[str, Any], *, context: int, max_output: int,
 # ---- apply -------------------------------------------------------------------------
 
 def _write(pid: str, raw: dict) -> None:
-    (PROFILES / f"{pid}.json").write_text(
-        json.dumps(raw, indent=1, ensure_ascii=False) + "\n")
+    text = json.dumps(raw, indent=1, ensure_ascii=False) + "\n"
+    (PROFILES / f"{pid}.json").write_text(text)
+    # On RunPod the source tree is Pod-local; the pinned identity is also
+    # kept on the persistent volume so a new Pod resumes on the SAME exact
+    # revisions (RUNPOD_BOOTSTRAP.sh restores it after unpacking).
+    keep = os.environ.get("MODEL_LAB_PINNED_PROFILES_DIR")
+    if keep:
+        Path(keep).mkdir(parents=True, exist_ok=True)
+        tmp = Path(keep) / f".{pid}.json.part"
+        tmp.write_text(text)
+        os.replace(tmp, Path(keep) / f"{pid}.json")
 
 
-def qualify(pid: str, fetch: Fetch, *, override: str | None = None
-            ) -> dict[str, Any]:
+def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
+            repin: bool = False) -> dict[str, Any]:
     path = PROFILES / f"{pid}.json"
     raw = json.loads(path.read_text())
     art, rp = raw["artifact"], raw["runpod"]
     rec: dict[str, Any] = {"profile_id": pid,
                            "parent_profile_id": raw.get("parent_profile_id"),
                            "quantization": art.get("quantization")}
+    if art.get("pin_status") == "PINNED" and art.get("revision") and \
+            not override and not repin:
+        # An existing pin is never re-resolved silently: a resumed suite
+        # keeps the exact revision it started with (--repin to change).
+        _write(pid, raw)
+        return rec | {"pin_status": "PINNED", "kept_existing_pin": True,
+                      "repository": art.get("repository"),
+                      "revision": art["revision"],
+                      "license": art.get("license"),
+                      "license_status": art.get("license_status"),
+                      "parameters": art.get("parameters"),
+                      "architecture": art.get("architecture"),
+                      "native_context": art.get("native_context"),
+                      "fit": rp.get("fit"),
+                      "resource_status": rp.get("resource_status")}
     repo, why = resolve(raw, fetch, override)
     if repo is None:
         art.update({"pin_status": "PIN_BLOCKED", "pin_reason": why})
@@ -365,7 +389,8 @@ def suite_profiles() -> list[str]:
 
 
 def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
-        overrides: dict[str, str]) -> list[dict[str, Any]]:
+        overrides: dict[str, str], repin: bool = False
+        ) -> list[dict[str, Any]]:
     from backend.model_lab import registry
 
     out_dir = runtime / "pins"
@@ -373,7 +398,8 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
     roster = []
     for pid in ids:
         try:
-            rec = qualify(pid, fetch, override=overrides.get(pid))
+            rec = qualify(pid, fetch, override=overrides.get(pid),
+                          repin=repin)
         except Exception as exc:  # noqa: BLE001 - record and continue
             rec = {"profile_id": pid, "pin_status": "PIN_BLOCKED",
                    "reason": f"{type(exc).__name__}: {exc}"[:400]}
@@ -412,6 +438,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="PROFILE=OWNER/REPO: operator names the official "
                          "repository for a profile that cannot be resolved")
     ap.add_argument("--probe", action="store_true")
+    ap.add_argument("--repin", action="store_true",
+                    help="re-resolve revisions even for already pinned "
+                         "profiles (operator decision; changes identities)")
     ap.add_argument("--runtime-dir", default=os.environ.get(
         "MODEL_LAB_RUNTIME_DIR", str(DEFAULT_RUNTIME)))
     args = ap.parse_args(argv)
@@ -419,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
     overrides = dict(x.split("=", 1) for x in args.repo)
     ids = args.profile or suite_profiles()
     run(ids, http_fetch, Path(args.runtime_dir).expanduser().resolve(),
-        do_probe=args.probe, overrides=overrides)
+        do_probe=args.probe, overrides=overrides, repin=args.repin)
     return 0
 
 

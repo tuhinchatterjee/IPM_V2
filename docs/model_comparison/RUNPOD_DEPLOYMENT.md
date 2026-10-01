@@ -42,39 +42,73 @@ The RunPod Global Volume `creditprobe-model-lab` is mounted at `/workspace-globa
 
 The container overlay or root disk is never used.
 
-The bootstrap prints `PERSIST_ROOT:`, `filesystem:`, `free_space:` and `persistence_verified: YES`, plus a volume marker that shows when state survived a restart. It then writes `<root>/creditprobe-model-lab/env.sh`. **Source that file in every new shell**; `serve.sh` refuses to run without it.
+The bootstrap prints `PERSIST_ROOT:`, `filesystem:`, `free_space:` and `persistence_verified: YES`, plus a volume marker that shows when state survived a restart.
 
-All state lives under `<root>/creditprobe-model-lab/`:
+## Two storage areas: persistent data, Pod-local executables
+
+On the live Global Volume the filesystem is `fuse.geesefs`, and `chmod` there fails with "Operation not permitted". So the volume holds **data only**, and nothing on it is ever chmod-ed. Executables live on the Pod's own `/workspace`. They may vanish with the Pod, and the bootstrap rebuilds them from the bundle copy kept on the volume.
+
+**Persistent data:** `<persist>/creditprobe-model-lab` (`CREDITPROBE_PERSIST_ROOT`).
 
 | Path | Contents | Variable |
 |---|---|---|
-| `source/` | the unpacked lab, its `.venv` and `node_modules` | `CREDITPROBE_SOURCE_DIR` |
-| `runtime/` | lab store; Full Model I/O Traces; comparison exports; oracle artifacts; suite checkpoints and reports; pins; run and vLLM logs | `MODEL_LAB_RUNTIME_DIR` |
+| `deployment/` | zip, bootstrap, `runpod_storage.py`, manifest, checksums; earlier bundles in `deployment/archive/` | `CREDITPROBE_DEPLOYMENT_DIR` |
+| `runtime/` | lab store and frozen run DB (SQLite WAL); Model I/O traces; exports; answers; SQL/Python; tables; charts; oracles; checkpoints; reports; probes; resource samples; run and vLLM logs | `MODEL_LAB_RUNTIME_DIR` |
 | `reference_sets/` | `OPUS_REFERENCE_SET_V1.json` and its answer snapshots | `MODEL_LAB_REFERENCE_SET_DIR` |
-| `results/`, `results/screenshots/` | results and browser screenshots | `CREDITPROBE_RESULTS_DIR`, `LAB_EVIDENCE_DIR` |
+| `results/`, `results/screenshots/` | results and screenshots | `CREDITPROBE_RESULTS_DIR`, `LAB_EVIDENCE_DIR` |
 | `logs/` | bootstrap logs | `CREDITPROBE_LOG_DIR` |
-| `cache/models` | vLLM `--download-dir` | `MODEL_CACHE_DIR` |
-| `cache/huggingface` | Hugging Face | `HF_HOME`, `HF_HUB_CACHE`, `TRANSFORMERS_CACHE` |
-| `cache/vllm` | vLLM | `VLLM_CACHE_ROOT` |
-| `cache/{torch,triton,pip,uv,npm,ms-playwright,xdg}` | tool caches | their standard variables |
-| `venvs/vllm` | the vLLM virtualenv | `VLLM_BIN` |
+| `state/pinned_profiles/` | pinned model identities | `MODEL_LAB_PINNED_PROFILES_DIR` |
+| `cache/models` | model weights (vLLM `--download-dir`) | `MODEL_CACHE_DIR` |
+| `cache/huggingface` | Hugging Face downloads | `HF_HOME`, `HF_HUB_CACHE`, `TRANSFORMERS_CACHE` |
+| `env.sh` | the environment for both areas; never contains `COCKPIT_ANTHROPIC_API_KEY` | |
 
-`env.sh` never contains `COCKPIT_ANTHROPIC_API_KEY`.
+**Pod-local executables:** `/workspace/creditprobe-model-lab` (`CREDITPROBE_APP_ROOT`). When the persistent root is the `/workspace` Network Volume itself, the app root is `<persist>/creditprobe-model-lab/app`; `CREDITPROBE_APP_ROOT` overrides both.
+
+| Path | Contents | Variable |
+|---|---|---|
+| `source/` | the unpacked lab, `.venv`, `frontend/node_modules`, launchers | `CREDITPROBE_SOURCE_ROOT` |
+| `venvs/vllm` | the vLLM executable environment | `VLLM_BIN` |
+| `cache/{vllm,torch,triton}` | compiled kernels (loaded as code) | `VLLM_CACHE_ROOT`, `TORCH_HOME`, `TRITON_CACHE_DIR` |
+| `cache/{pip,uv,npm,ms-playwright,xdg}`, `tmp/` | build caches, Playwright browsers, temporary files | their standard variables |
+
+**Guards, each with its own exit code:**
+- No persistent volume: `PERSISTENT_STORAGE_NOT_FOUND` (exit 3).
+- The app root fails the executable probe (write, `chmod +x`, run), or it overlaps the persistent root: `APP_ROOT_NOT_EXECUTABLE` (exit 4).
+- SQLite in WAL mode does not work on the persistent runtime: `PERSISTENT_SQLITE_UNSUPPORTED` (exit 5).
+
+**Bootstrap flow:**
+1. Detect and verify the volume, probe the app root and SQLite, and write `env.sh`.
+2. Byte-copy and verify the bundle into `deployment/`. A different earlier bundle is archived, never overwritten.
+3. Rebuild `source/` on the app root. It unpacks into `source.new`, carries over a same-Pod `.venv` and `node_modules`, and swaps them in.
+4. Set the executable bit only under the app root.
+5. Verify the manifest, then restore pinned identities from the volume.
+6. Run the GPU check and the installs (app root only), seeding, tests, pin/fit and probe (weights download to the volume), and the Opus reference preflight.
+7. Stop before any paid call.
+
+**Pins are kept.** An already pinned profile is never re-resolved, so a resumed suite keeps the exact revisions it started with; `--repin` is an explicit operator decision.
+
+**A new Pod on the same volume** (empty `/workspace`) runs:
+
+```bash
+bash /workspace-global/creditprobe-model-lab/deployment/RUNPOD_BOOTSTRAP.sh
+```
+
+The app root is rebuilt, and every checkpoint, reference, result, model download and probe on the volume is kept. The suite runner then resumes from its checkpoint.
 
 ## On the pod
 
 ```bash
-cd <directory holding the bundle files> && bash RUNPOD_BOOTSTRAP.sh   # --storage-check: stop after the storage verdict; --skip-probe: defer weight downloads
-source /workspace-global/creditprobe-model-lab/env.sh               # or the root it printed
+cd <directory holding the five bundle files> && bash RUNPOD_BOOTSTRAP.sh   # --storage-check | --prepare-only | --skip-probe
+source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE_ROOT"
 ```
 
-1. **Persistent storage.** Detects the root as above and stops with `PERSISTENT_STORAGE_NOT_FOUND` if there is none. It then tees the bootstrap log to `logs/`, checks for the A40 GPU, verifies the checksums, unpacks into `source/`, and re-verifies every file.
+1. **Storage, deployment, app.** Detects the volume and probes the app root and SQLite. It tees the bootstrap log to `logs/`, installs and verifies the bundle in `deployment/`, rebuilds `source/` on the app root and re-verifies every file, then checks for the A40 GPU.
 2. Installs Python 3.12 (uv), Node 22, `npm ci` and Playwright.
 3. Seeds and verifies the synthetic releases.
 4. Runs the protected-manifest check (`--check-bundle`).
 5. Runs the offline fixture smoke test: trace, neutrality, saved reference, ASSISTED_V1, oracles and suite runner.
 6. **Prepares the suite.** It materialises the independent oracle artifacts to `<runtime>/oracles/lab-oracle-suite-1/`: one JSON per question plus `ORACLE_MANIFEST.json` with the code hash and the snapshot id.
-7. Installs vLLM into `$CREDITPROBE_VENV_DIR/vllm`; checkpoints download into `$MODEL_CACHE_DIR`.
+7. Installs vLLM into `$CREDITPROBE_VENV_DIR/vllm` (Pod-local); checkpoints download into `$MODEL_CACHE_DIR` (persistent).
 8. **Pins checkpoints and checks A40 fit** (`pin_and_probe_models.py`): metadata only, no weights.
 9. **Probes each model** (`--probe`) that is pinned, licence-clear and fits the A40. Each is served with vLLM from its pinned revision, which downloads that checkpoint, and gets the harmless dummy-tool probe. The result is `READY_E2E` or `PROBE_FAILED` with the exact failure, and the next model follows.
 10. **Opus reference preflight** (`opus_reference_set.py preflight`, no model call). It prints which of Q01–Q15 have a valid saved Opus reference, the missing ones, the current `opus_spend` cap, the available and the required spend, and whether the key is present.
@@ -104,7 +138,7 @@ A blocked model is skipped with its reason, and the suite continues.
 ## Opus references, then run and report
 
 ```bash
-source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE_DIR"
+source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE_ROOT"
 .venv/bin/python scripts/model_lab/opus_reference_set.py preflight --runtime-dir "$MODEL_LAB_RUNTIME_DIR"
 .venv/bin/python scripts/model_lab/approve.py grant opus_spend --cap-usd <required_cap_usd> --runtime-dir "$MODEL_LAB_RUNTIME_DIR"
 .venv/bin/python scripts/model_lab/opus_reference_set.py build --runtime-dir "$MODEL_LAB_RUNTIME_DIR" --confirm-paid-opus-calls

@@ -227,6 +227,16 @@ def cmd_build(args, svc) -> int:
     return 0 if pre["all_ready"] else 6
 
 
+def _copy_tree_bytes(src: Path, dst: Path) -> None:
+    """Copy file bytes only: no chmod / copystat, which the RunPod Global
+    Volume (fuse.geesefs) refuses."""
+    for f in src.rglob("*"):
+        if f.is_file():
+            out = dst / f.relative_to(src)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f, out)
+
+
 def cmd_import(args, runtime: Path) -> int:
     """Seed an EMPTY runtime with another runtime's saved comparisons (for
     example the Mac runtime holding the Q01 Opus run), so that they can be
@@ -254,7 +264,7 @@ def cmd_import(args, runtime: Path) -> int:
             d.close()
     for name in ("blobs", "frozen", "exports"):
         if (src / name).is_dir():
-            shutil.copytree(src / name, runtime / name, dirs_exist_ok=True)
+            _copy_tree_bytes(src / name, runtime / name)
     print(f"imported comparisons from {src} into {runtime} (approvals, "
           f"probes, pins and logs NOT copied). Next: preflight")
     return 0

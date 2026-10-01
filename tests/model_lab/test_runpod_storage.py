@@ -125,29 +125,35 @@ def test_read_only_or_unwritable_volume_is_refused(vols):
     assert "write probe failed" in r["rejected"][0]["reason"]
 
 
-def test_every_state_path_lives_under_the_persistent_app_dir(vols):
+def test_every_state_path_lives_under_the_persistent_app_dir(vols, tmp_path):
     g, w, cands = vols
+    app = tmp_path / "pod" / "creditprobe-model-lab"
     r = rs.prepare(rs.detect(mountinfo_text=_mi(_mount(40, g, "fuse")),
-                             candidates=cands))
+                             candidates=cands), str(app))
     home = g / "creditprobe-model-lab"
-    assert r["paths"]["CREDITPROBE_HOME"] == str(home)
-    for k in ("CREDITPROBE_SOURCE_DIR", "MODEL_LAB_RUNTIME_DIR",
-              "MODEL_LAB_REFERENCE_SET_DIR", "LAB_EVIDENCE_DIR",
-              "CREDITPROBE_RESULTS_DIR", "CREDITPROBE_LOG_DIR",
-              "MODEL_CACHE_DIR", "HF_HOME", "HF_HUB_CACHE",
-              "VLLM_CACHE_ROOT", "TORCH_HOME", "PIP_CACHE_DIR",
-              "UV_CACHE_DIR", "npm_config_cache", "PLAYWRIGHT_BROWSERS_PATH",
-              "CREDITPROBE_VENV_DIR"):
+    assert r["paths"]["CREDITPROBE_PERSIST_ROOT"] == str(home)
+    for k in ("MODEL_LAB_RUNTIME_DIR", "MODEL_LAB_REFERENCE_SET_DIR",
+              "LAB_EVIDENCE_DIR", "CREDITPROBE_RESULTS_DIR",
+              "CREDITPROBE_LOG_DIR", "CREDITPROBE_DEPLOYMENT_DIR",
+              "MODEL_LAB_PINNED_PROFILES_DIR", "MODEL_CACHE_DIR", "HF_HOME",
+              "HF_HUB_CACHE"):
         p = Path(r["paths"][k])
         assert p.is_dir() and home in (p, *p.parents), k
+    for k in ("CREDITPROBE_SOURCE_ROOT", "CREDITPROBE_VENV_DIR",
+              "VLLM_CACHE_ROOT", "PIP_CACHE_DIR", "UV_CACHE_DIR",
+              "npm_config_cache", "PLAYWRIGHT_BROWSERS_PATH", "TMPDIR"):
+        p = Path(r["paths"][k])                  # executables: Pod-local
+        assert app in (p, *p.parents), k
+        assert not p.exists()                    # prepare() never builds them
     assert r["marker"]["new"] is True
     again = rs.prepare(rs.detect(mountinfo_text=_mi(_mount(40, g, "fuse")),
-                                 candidates=cands))
+                                 candidates=cands), str(app))
     assert again["marker"]["new"] is False            # state survived
     assert again["marker"]["volume_id"] == r["marker"]["volume_id"]
     ex = rs.shell_exports(again)
     assert f"export HF_HOME={home}/cache/huggingface" in ex
     assert f"export MODEL_LAB_RUNTIME_DIR={home}/runtime" in ex
+    assert f"export CREDITPROBE_APP_ROOT={app}" in ex
 
 
 # ---- the bootstrap, end to end up to its storage verdict ---------------------------
@@ -164,6 +170,7 @@ def _boot(tmp: Path, mountinfo: str, cands) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(("MODEL_LAB_", "CREDITPROBE_", "HF_"))}
     env |= {"CREDITPROBE_STORAGE_TEST_ARGS": args,
+            "CREDITPROBE_APP_ROOT": str(tmp / "pod" / "creditprobe-model-lab"),
             "COCKPIT_ANTHROPIC_API_KEY": CANARY}
     return subprocess.run(["bash", str(d / "RUNPOD_BOOTSTRAP.sh"),
                            "--storage-check"], capture_output=True,
@@ -183,7 +190,7 @@ def test_bootstrap_prints_the_verified_persistent_root(vols, scenario):
     assert "filesystem: " in out and "free_space: " in out
     assert "persistence_verified: YES" in out
     env_sh = (root / "creditprobe-model-lab" / "env.sh").read_text()
-    for k in ("HF_HOME", "MODEL_CACHE_DIR", "VLLM_CACHE_ROOT",
+    for k in ("HF_HOME", "MODEL_CACHE_DIR",
               "MODEL_LAB_RUNTIME_DIR", "MODEL_LAB_REFERENCE_SET_DIR",
               "LAB_EVIDENCE_DIR", "CREDITPROBE_LOG_DIR"):
         assert f"export {k}={root}/creditprobe-model-lab" in env_sh, k

@@ -64,7 +64,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         data.pop(args.key, None)
     path.write_text(json.dumps(data, indent=1))
-    os.chmod(path, 0o600)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:   # e.g. the RunPod Global Volume (fuse.geesefs)
+        print(f"note: {path.parent} does not support chmod; the file keeps "
+              f"the volume's default permissions")
     print(f"{args.action}ed {args.key} -> {path}")
     return 0
 
