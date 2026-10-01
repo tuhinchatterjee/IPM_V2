@@ -55,3 +55,17 @@ test("counts, basis points and changes", () => {
   assert.equal(pctChange(0.182), "+18.2%");
   assert.equal(scaleFor([]), "SAR m");
 });
+
+test("FMT10 a money column states its scale once, cells carry no unit, the CSV keeps raw SAR million", async () => {
+  const { moneyCol } = await import("./format.ts");
+  const rows = [{ ead: "1250.5" }, { ead: "3400" }, { ead: "980.25" }, { ead: null }];
+  const col = moneyCol("ead", "EAD", rows);
+  assert.equal(col.label, "EAD (SAR bn)");
+  assert.equal(col.csvLabel, "EAD (SAR million, raw)");
+  assert.equal(col.format("3400"), "3.40");
+  assert.equal(col.format(null), "—");
+  assert.ok(!col.format("1250.5").includes("SAR"));
+  const small = moneyCol("ecl", "ECL", [{ ecl: 12.5 }, { ecl: 40.25 }]);
+  assert.equal(small.label, "ECL (SAR m)");
+  assert.equal(small.format(40.25), "40.3");
+});

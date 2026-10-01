@@ -25,6 +25,7 @@ import { count, sar } from "@/lib/viz/format";
 import { SEVERITY_COLORS, SEMANTIC } from "@/lib/viz/palette";
 import { workspaceUrl, wsGet, wsSend } from "@/lib/workspace/client";
 import type { DomainId, Filter } from "@/lib/workspace/objects";
+import { moneyCol } from "@/lib/viz/format";
 
 interface EwFeed {
   domain_id: DomainId;
@@ -178,7 +179,7 @@ export function EarlyWarningV4() {
                 data={severeTrend.data}
                 layout={severeTrend.layout}
                 testId="ew-trend"
-                table={{ columns: [{ key: "period", label: "Period" }, { key: "value", label: "EAD (SAR million, raw)", align: "right" }], rows: feed.severe_ead_trend as unknown as Record<string, unknown>[] }}
+                table={{ columns: [{ key: "period", label: "Period" }, moneyCol("value", "EAD", feed.severe_ead_trend as unknown as Record<string, unknown>[])], rows: feed.severe_ead_trend as unknown as Record<string, unknown>[] }}
               />
             )}
             <ChartCard
@@ -206,7 +207,7 @@ export function EarlyWarningV4() {
                 if (r) toggleReason(r);
               }}
               table={{
-                columns: [{ key: "reason", label: "Rule" }, { key: "n", label: "Exposures", align: "right" }, { key: "ead", label: "EAD (SAR million)", align: "right" }],
+                columns: [{ key: "reason", label: "Rule" }, { key: "n", label: "Exposures", align: "right" }, moneyCol("ead", "EAD", feed.reasons as unknown as Record<string, unknown>[])],
                 rows: feed.reasons as unknown as Record<string, unknown>[],
                 onRowActivate: (row) => toggleReason(String(row.reason)),
                 activateLabel: "Filter the page to the rule",

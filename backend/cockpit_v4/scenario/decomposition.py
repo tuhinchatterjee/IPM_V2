@@ -216,6 +216,10 @@ def _row(comp: Component, value: Decimal | None, status: str, *,
             "detail": detail or []}
 
 
+#: DECOMP21: the label when the selected population is the whole book.
+SCOPE_EQUALS_BOOK = "Selected scope = Total book"
+
+
 def dual_scope(*, method: str, method_label: str,
                selected: Mapping[str, Any], book_opening: Decimal,
                selected_label: str, book_label: str,
@@ -271,10 +275,17 @@ def dual_scope(*, method: str, method_label: str,
                 str((sel_delta / total_delta * 100)
                     .quantize(Decimal("0.01"))) if total_delta else None),
             "rest_of_book_reason": (
+                SCOPE_EQUALS_BOOK + ": the selected population IS the whole "
+                "active book, so there is no rest of book; its ECL delta is "
+                "zero by definition and the selected-scope and total-book "
+                "bridges are one bridge of the same population."
+                if selected_equals_total else
                 "The scenario is applied to the selected scope only; every "
                 "exposure outside it keeps its booked ECL exactly, so the "
                 "rest of the book contributes zero. No portfolio-wide stage, "
                 "macro or overlay logic moves it."),
+            **({"scope_equivalence": SCOPE_EQUALS_BOOK}
+               if selected_equals_total else {}),
             "tolerance": str(tolerance),
         },
         "taxonomy": [{"id": c.id, "label": c.label, "kind": c.kind,

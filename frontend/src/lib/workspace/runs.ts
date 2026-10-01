@@ -80,6 +80,8 @@ export interface RunBody {
     shocks: { field: string; operation: string; value: string; origin: string; reach: number }[];
     compositions: number;
     stage_policy: string;
+    stage_policy_requested?: string;
+    stage_policy_text?: string;
     overlay_policy: string;
     notes: string[];
     blockers: Record<string, string[]>;
@@ -128,6 +130,8 @@ export interface ResultBody {
   change_distribution?: { label: string; lo: number | null; hi: number | null; n: number; ead: string }[];
   notes: string[];
   stage_policy: string;
+  /** The scenario's own stage policy (e.g. retest_sicr), carried into execution. */
+  stage_policy_requested?: string;
   evidence: string;
 }
 

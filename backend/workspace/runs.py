@@ -60,10 +60,17 @@ STATES = (WAITING_BASELINE_CHOICE, SCENARIO_PREVIEW, SCENARIO_CONFIRMED,
 
 #: What the reader may choose. "compare" is several methods on one contract.
 CHOICES = (sp.DELTA, sp.ML, sp.USER_DEFINED)
-LABELS = {sp.DELTA: "Delta", sp.ML: "ML emulator",
-          sp.USER_DEFINED: "User-defined", "compare": "Compare methods"}
+LABELS = {sp.DELTA: "Method 1 — Delta", sp.ML: "Method 2 — ML emulator",
+          sp.USER_DEFINED: "Method 3 — User-defined",
+          "compare": "Compare methods"}
 
 TOP_CONTRIBUTORS = 12
+
+
+def sl_stage_text(policy: str) -> str:
+    from backend.workspace import scenario_library
+
+    return scenario_library.STAGE_POLICIES.get(policy, policy)
 
 
 def _refuse(status: int, code: str, message: str, **extra: Any) -> None:
@@ -214,6 +221,9 @@ def _preview(built: se.Built, frozen: ch.Frozen,
         "shocks": shocks,
         "compositions": len(built.spec.compositions),
         "stage_policy": built.spec.stage_policy,
+        "stage_policy_requested": definition.get("stage_policy", "frozen"),
+        "stage_policy_text": sl_stage_text(definition.get("stage_policy",
+                                                          "frozen")),
         "overlay_policy": built.spec.overlay_policy,
         "notes": list(built.notes),
         "blockers": built.blockers,
@@ -723,7 +733,11 @@ def execute(svc: ObjectService, who_raw: dict[str, Any], run_id: str
     decomposition = dc.from_computed(
         done, component_of=built.component_of, details=built.details,
         selected_label=frozen.describe()[:120], book_label="Total active book",
-        selected_equals_total=not frozen.predicate and not chain)
+        # DECOMP21: by population identity, not by the absence of a
+        # filter -- a filter that selects every exposure is the whole book.
+        selected_equals_total=not chain and (
+            not frozen.predicate
+            or frozen.ref.entity_count == done.book_rows))
     for d in decomposition.values():
         dc.check(d)
     outcomes = {m: _outcome(o) for m, o in done.outcome.outcomes.items()}
@@ -763,6 +777,10 @@ def execute(svc: ObjectService, who_raw: dict[str, Any], run_id: str
         if sp.DELTA in ran else [],
         "notes": [*b["preview"]["notes"], *done.outcome.notes],
         "stage_policy": spec.stage_policy,
+        # SCEN12: the policy the scenario asked for, carried into the
+        # result (the engine's "explicit" is any non-frozen request).
+        "stage_policy_requested": b["preview"].get("stage_policy_requested",
+                                                   spec.stage_policy),
         "evidence": "Engine computation on the governed book; no model call.",
         "entry": b.get("entry", "whatif"),
         "shared_from": b.get("shared_from") or {},

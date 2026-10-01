@@ -24,6 +24,7 @@ import {
   type Issue,
 } from "@/lib/workspace/guided";
 import type { Filter } from "@/lib/workspace/objects";
+import { moneyCol } from "@/lib/viz/format";
 
 export function IssueDetail({ issueId }: { issueId: string }) {
   const router = useRouter();
@@ -140,7 +141,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
           layout={eclFig.layout}
           testId="issue-ecl-trend"
           context={{ releaseId: issue.release_id, fingerprint: issue.fingerprint, source: "M001" }}
-          table={{ columns: [{ key: "period", label: "Period" }, { key: "value", label: "Booked ECL (SAR million, raw)", align: "right" }], rows: issue.evidence.ecl_series as unknown as Record<string, unknown>[] }}
+          table={{ columns: [{ key: "period", label: "Period" }, moneyCol("value", "Booked ECL", issue.evidence.ecl_series as unknown as Record<string, unknown>[])], rows: issue.evidence.ecl_series as unknown as Record<string, unknown>[] }}
         />
         <ChartCard
           title={`What contributed, by ${issue.evidence.breakdown_dimension.replace(/_/g, " ")}`}
@@ -171,7 +172,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
             if (stage) setDrill([{ column: "stage", op: "in", values: [stage] }]);
           }}
           table={{
-            columns: [{ key: "stage", label: "Stage" }, { key: "n", label: "Exposures", align: "right" }, { key: "ead", label: "EAD (SAR million)", align: "right" }, { key: "ecl", label: "ECL (SAR million)", align: "right" }],
+            columns: [{ key: "stage", label: "Stage" }, { key: "n", label: "Exposures", align: "right" }, moneyCol("ead", "EAD", issue.evidence.stage_mix as unknown as Record<string, unknown>[]), moneyCol("ecl", "ECL", issue.evidence.stage_mix as unknown as Record<string, unknown>[])],
             rows: issue.evidence.stage_mix as unknown as Record<string, unknown>[],
             onRowActivate: (row) => setDrill([{ column: "stage", op: "in", values: [Number(row.stage)] }]),
             activateLabel: "Show the rows for stage",

@@ -28,6 +28,8 @@ import {
   statusTone,
 } from "@/lib/workspace/scenario-figures";
 import type { Definition, Preview, Resolution } from "@/lib/workspace/scenarios";
+import { methodLabel } from "@/lib/workspace/method-labels";
+import { moneyCol } from "@/lib/viz/format";
 
 export function PreviewPanel({
   preview,
@@ -101,8 +103,8 @@ export function PreviewPanel({
             columns: [
               { key: "stage", label: "Stage" },
               { key: "n", label: "Exposures", align: "right" },
-              { key: "ead", label: "EAD (SAR million)", align: "right" },
-              { key: "ecl", label: "ECL (SAR million)", align: "right" },
+              moneyCol("ead", "EAD", s.stage_mix as unknown as Record<string, unknown>[]),
+              moneyCol("ecl", "ECL", s.stage_mix as unknown as Record<string, unknown>[]),
             ],
             rows: s.stage_mix as unknown as Record<string, unknown>[],
           }}
@@ -119,7 +121,7 @@ export function PreviewPanel({
             columns: [
               { key: "band", label: "Band" },
               { key: "n", label: "Exposures", align: "right" },
-              { key: "ead", label: "EAD (SAR million)", align: "right" },
+              moneyCol("ead", "EAD", s.band_mix as unknown as Record<string, unknown>[]),
             ],
             rows: s.band_mix as unknown as Record<string, unknown>[],
           }}
@@ -274,7 +276,7 @@ export function PreviewPanel({
           {methods.map(([m, st]) => (
             <div key={m} className="rounded-lg border border-border bg-surface p-2 text-xs" data-testid={`scenario-method-${m}`} data-status={st.status}>
               <div className="flex items-center justify-between">
-                <span className="font-semibold">{m === "ml" ? "ML emulator" : m === "user_defined" ? "User-defined" : "Delta"}</span>
+                <span className="font-semibold">{methodLabel(m)}</span>
                 <Badge variant={methodTone(st.status)}>{st.status}</Badge>
               </div>
               {st.reason && <p className="mt-1 text-text-secondary">{st.reason}</p>}

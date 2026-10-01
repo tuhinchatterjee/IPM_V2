@@ -464,3 +464,231 @@ def test_pareto_and_distribution_reconcile_to_the_selected_change(client,
     assert D(b["pareto"][-1]["cumulative_share"]) == D("1.0000")
     assert sum(x["n"] for x in b["change_distribution"]) == \
         b["cohort"]["entity_count"]
+
+
+def test_meth05_results_carry_the_governed_method_names(client, svc):
+    """METH05 / UAT-08: a Delta result is labelled "Method 1 — Delta", and
+    the run's own log says which method was chosen by that name."""
+    obj, cohort = uat_scenario(svc)
+    run, result = full_run(client, obj["object_id"],
+                           cohort_id=cohort["object_id"], session_id="s-m5")
+    assert result["body"]["results"]["delta"]["label"] == "Method 1 — Delta"
+    assert any(e.get("reason") == "method chosen: Method 1 — Delta"
+               for e in run["body"]["state_log"])
+    assert runs.LABELS == {"delta": "Method 1 — Delta",
+                           "ml": "Method 2 — ML emulator",
+                           "user_defined": "Method 3 — User-defined",
+                           "compare": "Compare methods"}
+
+
+def test_arch02_cockpit_and_whatif_build_the_identical_contract(client, svc):
+    """ARCH-02: the same input -- UAT-01 (Construction, PD x1.20, LGD x1.10,
+    stages fixed) -- previewed in a Cockpit conversation and started in the
+    dedicated What-If workspace yields ONE contract: identical digest over
+    everything that can change a number (source, cohort hash, shocks,
+    policies, warnings), identity fields aside."""
+    from backend.cockpit_v4.scenario import spec as sp_mod
+    _store, made, cockpit_digest = cockpit_preview()
+    obj, cohort = uat_scenario(svc)
+    run = start(client, obj["object_id"], cohort_id=cohort["object_id"],
+                session_id="s-arch02")
+    contract = run["body"]["contract"]
+    assert contract["digest"] == cockpit_digest
+    canon = made.provenance.get("whatif_canonical") or {}
+    if canon:
+        assert canon["cohort"]["membership_hash"] == \
+            cohort["body"]["membership_hash"]
+    assert sp_mod  # the digest is ScenarioSpec.digest() on both paths
+
+
+def test_decomp14_a_single_customer_scenario_decomposes_customer_then_book(
+        client, svc):
+    """DECOMP14: one borrower's facilities as the selected scope; the result
+    shows the customer-level decomposition first and the total active book
+    second, each reconciling, the customer's change inside the book's."""
+    book = access.book(WHO, "corporate")
+    borrower = book.rows(
+        "SELECT borrower_id, COUNT(*) AS n FROM corp_facility_quarter WHERE "
+        "reporting_quarter = ? AND sector = 'Construction' GROUP BY 1 "
+        "HAVING COUNT(*) >= 2 ORDER BY 1 LIMIT 1",
+        [book.latest_period])[0]
+    one = cohorts.freeze(book, svc, service.principal(WHO),
+                         name=f"Borrower {borrower['borrower_id']}",
+                         filters=[{"column": "borrower_id", "op": "eq",
+                                   "value": borrower["borrower_id"]}])
+    assert one["body"]["counts"]["owners"] == 1
+    obj, _ = uat_scenario(svc)
+    run, result = full_run(client, obj["object_id"],
+                           cohort_id=one["object_id"], session_id="s-d14")
+    assert result is not None, run["status"]
+    d = result["body"]["decomposition"]["delta"]
+    assert list(d["scopes"]) == ["selected", "total"]
+    sel, tot = d["scopes"]["selected"], d["scopes"]["total"]
+    assert sel["kpis"]["exposures"] == borrower["n"]
+    assert tot["kpis"]["exposures"] == 2996
+    assert sel["reconciles"] and tot["reconciles"]
+    assert d["cross_scope"]["reconciles"]
+    assert D(sel["change"]) == D(d["cross_scope"]["selected_delta"])
+    assert D(tot["change"]) == D(d["cross_scope"]["total_delta"])
+    assert D(d["cross_scope"]["rest_of_book_delta"]) == 0
+    assert not d["cross_scope"].get("selected_equals_total")
+
+
+def test_scen12_a_stage_retest_policy_persists_into_execution(client, svc):
+    """SCEN12 / DECOMP07 / DECOMP11: CORP-08 asks for a SICR re-test. The
+    request survives preview, confirmation and execution; the stage
+    components are listed separately and marked not applicable with the
+    re-test reason (this book publishes no lifetime ECL curve for re-staged
+    exposures), so no migrating ECL is invented and the bridge reconciles."""
+    from backend.cockpit_v4.scenario import decomposition as dc
+    scenarios.ensure_seeded(svc, WHO)
+    sid = scenarios.template_object_id("CORP-08")
+    assert svc.get(sid, service.principal(WHO))["body"]["stage_policy"] == \
+        "retest_sicr"
+    run = start(client, sid, session_id="s-scen12")
+    assert run["body"]["preview"]["stage_policy_requested"] == "retest_sicr"
+    assert run["body"]["preview"]["stage_policy"] == "explicit"
+    run, result = full_run(client, sid, session_id="s-scen12b")
+    assert result is not None, run["status"]
+    b = result["body"]
+    assert b["stage_policy_requested"] == "retest_sicr"
+    d = b["decomposition"]["delta"]
+    for scope in d["scopes"].values():
+        comps = {c["id"]: c for c in scope["components"]}
+        stage_ids = [c.id for c in dc.TAXONOMY if c.id.startswith("stage_")]
+        assert stage_ids
+        for cid in stage_ids:
+            assert comps[cid]["status"] == "N/A", cid
+            assert "re-test was requested" in comps[cid]["reason"], cid
+        assert scope["reconciles"]
+    # Frozen is a different, stated reason.
+    obj, cohort = uat_scenario(svc)
+    _r, frozen = full_run(client, obj["object_id"],
+                          cohort_id=cohort["object_id"], session_id="s-fz")
+    fz = {c["id"]: c for c in frozen["body"]["decomposition"]["delta"]
+          ["scopes"]["selected"]["components"]}
+    assert "frozen" in fz[stage_ids[0]]["reason"]
+
+
+def _assert_scope_equals_book(d):
+    assert d["selected_equals_total"] is True
+    assert d["cross_scope"]["scope_equivalence"] == "Selected scope = Total book"
+    assert "no rest of book" in d["cross_scope"]["rest_of_book_reason"]
+    assert D(d["cross_scope"]["rest_of_book_delta"]) == 0
+    assert D(d["cross_scope"]["selected_delta"]) == \
+        D(d["cross_scope"]["total_delta"])
+    sel, tot = d["scopes"]["selected"], d["scopes"]["total"]
+    for k in ("opening", "closing", "change"):
+        assert sel[k] == tot[k], k
+    by_id = {c["id"]: c for c in tot["components"]}
+    assert len(sel["components"]) == len(tot["components"]) >= 20
+    for c in sel["components"]:
+        assert (c["value"], c["status"]) == (by_id[c["id"]]["value"],
+                                            by_id[c["id"]]["status"]), c["id"]
+
+
+@pytest.mark.parametrize("how", ["whole_book", "filter_selecting_all"])
+def test_decomp21_selected_scope_equal_to_the_book_is_one_population(
+        client, svc, how):
+    """DECOMP21: when the selected population IS the whole book -- with no
+    filter, or with a filter that happens to select every exposure -- the
+    result says so, the rest-of-book delta is zero, and the two scopes are
+    identical component by component (the page then draws one bridge)."""
+    obj, _cohort = uat_scenario(svc)
+    kw = {}
+    if how == "filter_selecting_all":
+        every = cohorts.freeze(
+            access.book(WHO, "corporate"), svc, service.principal(WHO),
+            name="Every stage", filters=[{"column": "stage", "op": "in",
+                                          "values": [1, 2, 3]}])
+        assert every["body"]["counts"]["entities"] == 2996
+        kw["cohort_id"] = every["object_id"]
+    run, result = full_run(client, obj["object_id"], session_id=f"s-{how}",
+                           **kw)
+    assert result is not None, run["status"]
+    _assert_scope_equals_book(result["body"]["decomposition"]["delta"])
+
+
+def test_decomp21_a_true_subset_is_never_called_the_whole_book(client, svc):
+    obj, cohort = uat_scenario(svc)
+    _r, result = full_run(client, obj["object_id"],
+                          cohort_id=cohort["object_id"], session_id="s-sub")
+    d = result["body"]["decomposition"]["delta"]
+    assert d["selected_equals_total"] is False
+    assert "scope_equivalence" not in d["cross_scope"]
+
+
+def test_decomp24_method_comparison_keeps_a_dual_scope_bridge_per_method(
+        client, svc):
+    """DECOMP24: Delta and User-defined on ONE confirmed contract: each
+    method has its own selected-scope and total-book decomposition, on the
+    same cohort and the same booked baseline; nothing is re-cohorted."""
+    obj, cohort = uat_scenario(svc)
+    run = confirm(client, start(client, obj["object_id"],
+                                cohort_id=cohort["object_id"],
+                                session_id="s-d24"))
+    ready = method(client, run, ["delta", "user_defined"],
+                   {"form": "relative", "value": "10",
+                    "stated_as": "ECL rises 10%"})
+    assert ready["status"] == runs.READY_TO_EXECUTE
+    body = execute(client, ready).json()["result"]["body"]
+    assert sorted(body["methods"]["ran"]) == ["delta", "user_defined"]
+    decs = body["decomposition"]
+    assert set(decs) == {"delta", "user_defined"}
+    openings = {(m, s): d["scopes"][s]["opening"]
+                for m, d in decs.items() for s in ("selected", "total")}
+    assert openings[("delta", "selected")] == \
+        openings[("user_defined", "selected")]
+    assert openings[("delta", "total")] == openings[("user_defined", "total")]
+    for d in decs.values():
+        assert list(d["scopes"]) == ["selected", "total"]
+        assert d["scopes"]["selected"]["kpis"]["exposures"] == 248
+        assert d["cross_scope"]["reconciles"]
+        assert d["scopes"]["selected"]["label"] == \
+            decs["delta"]["scopes"]["selected"]["label"]
+
+
+def test_base05_an_assumption_before_execution_amends_the_same_run(
+        client, svc):
+    """BASE05: supplying the missing assumption before execution is a new
+    VERSION of the same run (same id, same confirmed contract), never a
+    child scenario or a new run."""
+    obj, cohort = uat_scenario(svc)
+    run = confirm(client, start(client, obj["object_id"],
+                                cohort_id=cohort["object_id"],
+                                session_id="s-b05"))
+    asked = method(client, run, ["user_defined"])
+    ready = method(client, asked, ["user_defined"],
+                   {"form": "relative", "value": "5", "stated_as": "+5%"})
+    assert ready["object_id"] == asked["object_id"] == run["object_id"]
+    assert ready["version"] > asked["version"] > run["version"] - 1
+    assert ready["body"]["contract"]["confirmed_digest"] == \
+        run["body"]["contract"]["confirmed_digest"]
+    assert ready["body"]["scenario_id"] == obj["object_id"]
+    assert ready["body"]["scenario_version"] == obj["version"]
+    # The scenario object itself is untouched: no child was derived.
+    assert svc.get(obj["object_id"], service.principal(WHO))["version"] == \
+        obj["version"]
+    kids = [c for c in svc.store.children_of(obj["object_id"],
+                                             tenant_id="demo-tenant")
+            if c["kind"] == "scenario"]
+    assert kids == []
+
+
+@pytest.mark.parametrize("template,component", [("CORP-07", "rating_score"),
+                                                ("CORP-05", "macro")])
+def test_decomp08_rating_and_macro_contributions_are_measured(client, svc,
+                                                              template,
+                                                              component):
+    """DECOMP08: a rating-notch scenario measures the rating/score bar; a
+    macro scenario measures the macro bar -- server-side, in the published
+    decomposition, reconciling."""
+    scenarios.ensure_seeded(svc, WHO)
+    run, result = full_run(client, scenarios.template_object_id(template),
+                           session_id=f"s-d08-{template}")
+    assert result is not None, run["status"]
+    sel = result["body"]["decomposition"]["delta"]["scopes"]["selected"]
+    comp = {c["id"]: c for c in sel["components"]}[component]
+    assert comp["status"] == "MEASURED", comp
+    assert D(comp["value"]) != 0
+    assert sel["reconciles"]

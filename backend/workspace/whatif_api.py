@@ -126,3 +126,24 @@ async def share_object(body: ShareBody,
 
 
 __all__ = ["router"]
+
+
+class TornadoRequest(BaseModel):
+    domain: str = Field(default="corporate", max_length=20)
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    parameter: str = Field(default="all", max_length=8)
+    top: int = Field(default=12, ge=1, le=60)
+    scale: float = Field(default=1.0, gt=0, le=5)
+
+
+@router.post("/whatif/sensitivity/tornado")
+async def sensitivity_tornado(body: TornadoRequest,
+                              who: dict[str, Any] = Depends(
+                                  v4routes.principal)) -> dict[str, Any]:
+    """MAC07: ranked governed MEV sensitivities for the active population."""
+    from backend.workspace import macro_sensitivity
+
+    book = access.book(who, body.domain)
+    return macro_sensitivity.tornado(book, filters=body.filters,
+                                     parameter=body.parameter, top=body.top,
+                                     scale=body.scale)

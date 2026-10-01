@@ -10,7 +10,7 @@ import { ChartCard } from "@/components/viz/chart-card";
 import { ExportPackage } from "@/components/workspace/export-package";
 import { ShareButton } from "@/components/workspace/share-button";
 import { comparisonBars, type Comparison } from "@/lib/viz/decomposition";
-import { sar, sarDelta } from "@/lib/viz/format";
+import { moneyCol, sar, sarDelta } from "@/lib/viz/format";
 import { driverColor, driverLabel } from "@/lib/viz/palette";
 import { readObject, type GovernedObject } from "@/lib/workspace/objects";
 
@@ -32,6 +32,10 @@ export function ComparisonPage({ comparisonId }: { comparisonId: string }) {
   if (!obj) return <p className="text-sm text-text-muted">Loading comparison…</p>;
   const c = obj.body;
   const fig = comparisonBars(c, scope);
+  const compRows: Record<string, unknown>[] = c.components.map((k) => ({
+    label: k.label,
+    ...Object.fromEntries(c.items.map((i) => [i.result_id, k.values[i.result_id]?.[scope]?.status === "N/A" ? "N/A" : (k.values[i.result_id]?.[scope]?.value ?? "")])),
+  }));
   const context = { period: c.period, source: `comparison ${obj.object_id} v${obj.version} · ${c.method}` };
   return (
     <section className="space-y-4" data-testid="comparison" data-comparison-id={obj.object_id} data-items={c.items.length}>
@@ -99,12 +103,9 @@ export function ComparisonPage({ comparisonId }: { comparisonId: string }) {
         table={{
           columns: [
             { key: "label", label: "Component" },
-            ...c.items.map((i) => ({ key: i.result_id, label: `${i.scenario_name} (SAR mn)`, align: "right" as const })),
+            ...c.items.map((i) => moneyCol(i.result_id, i.scenario_name, compRows.map((r) => ({ ...r, [i.result_id]: r[i.result_id] === "N/A" ? null : r[i.result_id] })))),
           ],
-          rows: c.components.map((k) => ({
-            label: k.label,
-            ...Object.fromEntries(c.items.map((i) => [i.result_id, k.values[i.result_id]?.[scope]?.status === "N/A" ? "N/A" : (k.values[i.result_id]?.[scope]?.value ?? "")])),
-          })),
+          rows: compRows,
         }}
         defaultShowData
       />

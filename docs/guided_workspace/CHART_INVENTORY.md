@@ -15,11 +15,11 @@ This inventory is enforced by `frontend/src/lib/viz/chart-inventory.test.ts`
 
 | Renderer | Count | Decision |
 |---|---|---|
-| Plotly (`PlotlyChart` / `ChartCard`) | 31 | Native to the shared contract |
+| Plotly (`PlotlyChart` / `ChartCard`) | 32 | Native to the shared contract |
 | Recharts | 12 | Legacy. Not applicable while the guided flag is on (swapped or redirected) |
 | Hand SVG | 5 | 4 in protected Cockpit core (deferred, needs approval); 1 legacy lab page |
 | CSS / div bars, table heatmaps | 18 | 6 in protected Cockpit core; the rest are legacy pages or meters (not applicable) |
-| **Total** | **66** | |
+| **Total** | **67** | |
 
 ## 1. The shared contract (what "migrated" means)
 
@@ -48,7 +48,7 @@ Aggregation is always server-side:
 
 The browser never receives the book.
 
-## 2. Plotly — on the contract (31)
+## 2. Plotly — on the contract (32)
 
 Interactions key: **F** = click filters shared state, **D** = click drills to the governed grid, **S** = box/lasso population selection, **K** = keyboard row activation, **H** = highlight only, **—** = read-only (trend/composition; hover, legend, zoom, data, export only).
 
@@ -58,6 +58,7 @@ Interactions key: **F** = click filters shared state, **D** = click drills to th
 | components/whatif/portfolio-explorer.tsx | Filtered population by stage | /what-if | F |
 | components/whatif/portfolio-explorer.tsx | **Heatmap** sector × rating (corporate) / product × score band (retail), EAD or ECL — VIZ12 | /what-if | F K, reconciles |
 | components/whatif/portfolio-explorer.tsx | **Stage migration Sankey** prior → current — VIZ08 | /what-if | F K, reconciles |
+| components/whatif/macro-tornado.tsx | **Macro-sensitivity tornado** (MAC07): governed MEV → PD / LGD movements for a standard shock, ranked; signs as fitted; SIGN_REVIEW rows marked | /what-if | — (follows the shared filter; hover carries MEV, series, shock, coefficient, parameter, movement, sign, status, method, window) |
 | components/whatif/result-view.tsx | Method comparison (unavailable methods not plotted) — VIZ13 | /what-if/result/[id], run panel, Cockpit thread strip | — |
 | components/whatif/result-view.tsx | ECL by stage before/after — VIZ09 | same | — |
 | components/whatif/result-view.tsx | Largest contributors | same | — |

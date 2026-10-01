@@ -32,15 +32,14 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import ScriptedResult, final, intent, tool_call
-from test_catalog_convergence import finish
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from test_catalog_convergence import finish
 
 from backend.cockpit_v4 import routes
 from backend.llm import exchange
 from backend.llm.anthropic_provider import AnthropicProvider
-from backend.llm.openai_compatible import (OpenAICompatibleProvider,
-                                           translate_request)
+from backend.llm.openai_compatible import OpenAICompatibleProvider, translate_request
 from backend.workspace import api as workspace_api
 from backend.workspace import exchange_api
 
@@ -161,7 +160,7 @@ def test_the_recorded_request_is_what_the_provider_received(
         drive, recorder_on):
     _o, provider, record = drive("How many facilities?", _two_call_script())
     calls = recorder_on.for_run(record.run_id, tenant_id=record.tenant_id)
-    for sent, call in zip(provider.sent, calls):
+    for sent, call in zip(provider.sent, calls, strict=True):
         req = call["canonical_request"]
         for key in ("system", "tools", "tool_choice", "max_tokens", "model",
                     "output_config"):

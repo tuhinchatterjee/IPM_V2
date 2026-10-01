@@ -1,0 +1,327 @@
+# Requirement table rows extracted verbatim from CreditProbe_Guided_Risk_Workspace_Master_Prompt_v3.1 (30 Sep 2026).
+# Source of the requirement ids for scripts/guided_workspace/requirement_matrix.py; regenerate from the document, do not edit.
+| UAT-01 | Method selection was bypassed | After scenario/stage confirmation, the system executed a Delta-like calculation without asking the user to choose Delta, ML, User-defined, or comparison. This is a governance/control-flow failure; no silent method default is allowed. |
+| UAT-02 | ECL decomposition is insufficient | Current output is dominated by a basic borrower bar chart and tables. A reconciled ECL bridge/decomposition plus richer interactive views are mandatory. |
+| UAT-03 | Stage migration visualization is too basic | The current 2x2 stage movement display is informative but visually weak. Replace/augment with a Plotly Sankey/alluvial and richer before/after stage views. |
+| UAT-04 | Scenario chaining is ambiguous | If a second scenario is requested after an executed scenario, the system must ask whether to apply it to the original reported baseline or on top of the prior stressed scenario unless the user already states the choice. |
+| UAT-05 | Display units are noisy | The UI repeatedly prints “SAR million” in column headers, cells, chart axes and labels. Internal units remain unchanged, but presentation must become concise, adaptive and semantically correct. |
+| UAT-06 | What-If workbench is incomplete | The existing Stress Testing navigation must become a complete What-If Analysis workbench with the AdvancedCockpit chat at top, latest-period data grid below, column-level filters, cohort selection, scenario application and results. |
+| UAT-07 | Mac launch must be one-click and honest | The completed feature must have a launcher that verifies Python 3.12, frontend dependencies, candidate lake, compatibility release, ML artifacts, model/price config and credential, and starts only its own runtime. It must never print a green URL before health checks pass. |
+| UAT-08 | Method-1 semantic audit required | Audit the current “Delta” implementation against the approved definition: proportional risk-parameter change should translate proportionally to booked ECL. Do not silently call an EAD×PD×LGD recomputation “Delta” if its baseline/mathematics differ. Correct labels/math explicitly and test them. |
+| UAT-09 | Dual-scope ECL decomposition must be simultaneous | A scenario applied to one customer, a selected cohort or a sub-portfolio must show the ECL decomposition for that selected scope AND the ECL decomposition for the entire active Corporate/Retail book in the same response. The selected-scope delta, rest-of-book delta and total-book delta must reconcile. This is not optional drill-down. |
+| ARCH01 | AdvancedCockpit core architecture remains intact; What-If is an extension/skill. |
+| ARCH02 | Corporate and Retail buttons remain and bind separate books. |
+| ARCH03 | What-If Analysis workbench and cockpit chat use the same scenario service/state. |
+| ARCH04 | No source row is mutated by any scenario. |
+| ARCH05 | Accepted Corporate/Retail books remain byte-identical. |
+| ARCH06 | H1/H2 checkpoints remain unchanged and no tag is moved. |
+| METH01 | Confirming a scenario with no method does not execute. |
+| METH02 | Confirmed/no-method transitions to METHOD_SELECTION. |
+| METH03 | Method-selection response explicitly says confirmed / not executed. |
+| METH04 | Selecting Delta executes Delta only. |
+| METH05 | Delta result is labelled Method 1 — Delta. |
+| METH06 | Corporate ML executes Method 2 only when all gates pass. |
+| METH07 | Retail ML is visible but unavailable with G4 reason/value/threshold. |
+| METH08 | Direct Retail ML request refuses without Delta fallback. |
+| METH09 | User-defined requests missing custom input instead of guessing. |
+| METH10 | User-defined executes after required input supplied. |
+| METH11 | Delta + ML comparison uses one identical scenario contract/cohort/baseline. |
+| METH12 | Run all methods executes every available method and preserves unavailable status. |
+| METH13 | First-turn no-method scenario stops at METHOD_SELECTION. |
+| METH14 | First-turn explicit Delta does not ask redundant method question. |
+| METH15 | Explicit compare Delta+ML does not ask redundant method question. |
+| METH16 | Mutation removing method-selected execution gate fails a named test. |
+| BASE01 | Second scenario after executed scenario asks original baseline vs previous scenario when ambiguous. |
+| BASE02 | Explicit “on top of previous scenario” stacks without redundant question. |
+| BASE03 | Explicit “from original baseline” branches from source baseline. |
+| BASE04 | Specific prior scenario can be chosen as parent. |
+| BASE05 | Adding an assumption before execution amends the same scenario rather than creating a child. |
+| BASE06 | Changing only method reuses same scenario contract/cohort. |
+| BASE07 | Lineage survives reopen. |
+| BASE08 | Stacked scenario source data remain unchanged. |
+| GRID01 | What-If Analysis replaces visible Stress Testing navigation label. |
+| GRID02 | Legacy Stress Testing route/bookmark redirects without breaking. |
+| GRID03 | Chat composer appears at top of workbench. |
+| GRID04 | Corporate/Retail toggle changes workbench book and period correctly. |
+| GRID05 | Corporate latest-quarter grid loads at facility grain. |
+| GRID06 | Retail latest-month grid loads at governed retail grain. |
+| GRID07 | Every visible column has an appropriate filter control. |
+| GRID08 | Text filter works and is parameterized. |
+| GRID09 | Categorical multi-select filter works. |
+| GRID10 | Numeric range filter works. |
+| GRID11 | Boolean/null filters work where applicable. |
+| GRID12 | Multi-column filters combine deterministically. |
+| GRID13 | Sort works server-side. |
+| GRID14 | Grid pagination/virtualization does not load full lake. |
+| GRID15 | One row can be selected. |
+| GRID16 | Multiple rows can be selected. |
+| GRID17 | Select all filtered binds the complete filtered cohort, not current page. |
+| GRID18 | Selection summary reconciles row/entity counts, EAD and ECL. |
+| GRID19 | Clear selection resets scenario scope context. |
+| GRID20 | Active selection is available to the chat/scenario parser. |
+| GRID21 | Filtered cohort export contains release/fingerprint/filter definition. |
+| SCEN01 | PD relative % stress parsed correctly. |
+| SCEN02 | PD percentage-point/bps stress distinguished from relative %. |
+| SCEN03 | LGD stress parsed correctly. |
+| SCEN04 | CCF stress parsed correctly. |
+| SCEN05 | Corporate rating notch/grade stress parsed correctly. |
+| SCEN06 | Retail behavioral score stress parsed correctly. |
+| SCEN07 | Retail application score stress parsed correctly. |
+| SCEN08 | Sector stress applies only to governed Corporate sector cohort. |
+| SCEN09 | Retail segment stress uses retail classifications, not Corporate sectors. |
+| SCEN10 | Overlapping rules have deterministic visible precedence. |
+| SCEN11 | Stage fixed policy persists into execution. |
+| SCEN12 | Stage re-test policy persists into execution. |
+| SCEN13 | Full cohort is frozen, not only displayed names/rows. |
+| SCEN14 | First-turn scenario is supported. |
+| SCEN15 | Scenario on active workbench selection is previewed with explicit cohort. |
+| MAC01 | Top-20 Corporate MEV sensitivity library is queryable. |
+| MAC02 | Top-20 Retail MEV sensitivity library is queryable. |
+| MAC03 | Sensitivity answer includes methodology, lag, sample/split and status. |
+| MAC04 | Supported estimate is distinguished from diagnostic-only. |
+| MAC05 | Unemployment move translates to PD/LGD via governed sensitivity. |
+| MAC06 | Macro translation is previewed before scenario execution. |
+| MAC07 | Macro sensitivity tornado uses exact sensitivity data, not LLM-invented values. |
+| FMT01 | Table header carries currency/scale once and cells do not repeat “SAR million”. |
+| FMT02 | Narrative uses compact SAR m/bn formatting. |
+| FMT03 | Chart axes carry unit once. |
+| FMT04 | Hover shows precise raw/compact value. |
+| FMT05 | PD displays as percentage, never 0.02x. |
+| FMT06 | Scenario multiplier displays as ×1.20 where appropriate. |
+| FMT07 | Small Retail money changes remain visible and do not round to zero. |
+| FMT08 | Raw export values remain unchanged by display formatting. |
+| DECOMP01 | Executive ECL waterfall reconciles exactly to pre/post ECL. |
+| DECOMP02 | Booked baseline and method/model baseline are separately visible when they differ. |
+| DECOMP03 | Calibration gap is not hidden inside scenario effects. |
+| DECOMP04 | PD contribution is separately visible. |
+| DECOMP05 | LGD contribution is separately visible. |
+| DECOMP06 | CCF/EAD contribution is separately visible when applicable. |
+| DECOMP07 | Stage contribution is separately visible when applicable. |
+| DECOMP08 | Macro/sector/rating/score contribution is visible when applicable. |
+| DECOMP09 | Interaction/residual is explicit and closes bridge. |
+| DECOMP10 | SHAP explanation is not presented as ECL accounting decomposition. |
+| DECOMP11 | No lifetime ECL is invented when lifetime curve is unavailable. |
+| DECOMP12 | Stage migration EAD is reported separately from unsupported lifetime-ECL impact. |
+| DECOMP13 | Every executed scenario with a narrower-than-book scope returns selected-scope AND total-domain ECL decomposition in the same response. |
+| DECOMP14 | A single-customer scenario shows customer-level decomposition first and total active Corporate/Retail book decomposition second. |
+| DECOMP15 | A filtered/sub-portfolio scenario shows selected-cohort decomposition first and total active book decomposition second. |
+| DECOMP16 | Selected-scope waterfall closes exactly to selected pre/post ECL. |
+| DECOMP17 | Total-domain waterfall closes exactly to total-book pre/post ECL. |
+| DECOMP18 | Selected-scope delta + rest-of-book delta reconciles exactly to total-domain delta within governed tolerance. |
+| DECOMP19 | Result shows selected-scope contribution to total ECL change as both amount and percentage. |
+| DECOMP20 | Selected-scope and total-book decompositions use the same scenario contract, method, reporting period and stage policy. |
+| DECOMP21 | If selected scope equals the total book, duplicate decomposition is suppressed and labelled Selected scope = total book. |
+| DECOMP22 | Both decomposition levels use consistent driver ordering, semantic colors and adaptive unit policy. |
+| DECOMP23 | Both decomposition levels provide exact downloadable reconciliation tables matching Plotly bars. |
+| DECOMP24 | Method comparison preserves dual-scope decomposition for each available method without changing cohort/baseline. |
+| VIZ01 | All new/revised What-If product charts use Plotly. |
+| VIZ02 | Charts are responsive. |
+| VIZ03 | Hover templates show label/value/unit/context. |
+| VIZ04 | Legend toggling works. |
+| VIZ05 | Zoom/pan/reset work where relevant. |
+| VIZ06 | Data-table fallback exists for every chart. |
+| VIZ07 | Executive waterfall renders. |
+| VIZ08 | Stage Sankey/alluvial renders and reconciles counts/EAD. |
+| VIZ09 | Before/after stage chart renders. |
+| VIZ10 | Top-contributor Pareto renders. |
+| VIZ11 | Driver distribution chart renders. |
+| VIZ12 | Sector/rating or product/score heatmap renders. |
+| VIZ13 | Method comparison chart handles unavailable methods without plotting zero. |
+| VIZ14 | Playful semantic palette is consistent and color-blind legible. |
+| PERSIST01 | Scenario draft persists structured contract. |
+| PERSIST02 | Confirmation status persists. |
+| PERSIST03 | Baseline lineage persists. |
+| PERSIST04 | Method selection persists. |
+| PERSIST05 | Method availability/gates persist. |
+| PERSIST06 | Executed results persist. |
+| PERSIST07 | Confirmed/no-method reopen returns to METHOD_SELECTION. |
+| PERSIST08 | Executed scenario reopen reproduces charts/tables. |
+| PERSIST09 | Parent scenario hash is verified on stacked reopen. |
+| PERSIST10 | Trace names method and scenario contract hash. |
+| PERSIST11 | Export names method and baseline lineage. |
+| PERSIST12 | Exported decomposition reconciles to UI numbers. |
+| SEC01 | Grid filters cannot inject SQL. |
+| SEC02 | User cannot supply tenant via filter/scenario to cross tenant boundary. |
+| SEC03 | Corporate/Retail release cannot be swapped by request-controlled arbitrary id. |
+| SEC04 | Selection token/predicate is server validated. |
+| SEC05 | Scenario cannot execute against superseded/unreadable release silently. |
+| SEC06 | Unavailable method cannot be bypassed via crafted request. |
+| SEC07 | Source data remain read-only. |
+| SEC08 | Credential is not logged/printed/written to repo. |
+| LAUNCH01 | Mac setup verifies Python >=3.12. |
+| LAUNCH02 | Mac setup verifies Python requirements/pip check. |
+| LAUNCH03 | Mac setup verifies frontend Next.js dependency. |
+| LAUNCH04 | Mac setup verifies candidate lake and compatibility release. |
+| LAUNCH05 | Mac setup verifies emulator component artifacts. |
+| LAUNCH06 | START loads approved Keychain credential without printing it. |
+| LAUNCH07 | START verifies model/price card. |
+| LAUNCH08 | START uses dedicated runtime/state database. |
+| LAUNCH09 | START never kills unrelated port owners. |
+| LAUNCH10 | START reports ready only after API/UI health checks. |
+| LAUNCH11 | STOP kills only owned processes. |
+| LAUNCH12 | STATUS reports exact SHA, releases, ports, model and health. |
+| REG01 | Complete What-If unit/integration suite passes. |
+| REG02 | Complete V4/backend/frontend regression passes. |
+| REG03 | V3 regression passes. |
+| REG04 | Frontend unit tests and type-check pass. |
+| REG05 | Corporate candidate browser journeys pass. |
+| REG06 | Retail candidate browser journeys pass. |
+| REG07 | Accepted browser suite passes unchanged. |
+| REG08 | Artifact reproducibility verifies both emulators/sensitivity libraries. |
+| REG09 | Accepted fingerprints remain unchanged. |
+| REG10 | protected_hashes.py --check has no unexplained protected changes. |
+| REG11 | Requirement-to-test matrix self-check passes with no fabricated names. |
+| REG12 | Real Mac live-provider UAT passes before freeze. |
+| GX-01 | Cockpit landing renders Requires Attention with Ask box simultaneously; no blank-chat dependency. |
+| GX-02 | Issue card contains materiality, period delta, cohort summary and at least one interactive Plotly evidence view. |
+| GX-03 | Issue card action opens investigation with issue/cohort context pre-bound. |
+| GX-04 | Clicking a suggested next question executes an ordinary governed turn in same thread. |
+| GX-05 | Suggestion rationale is traceable to evidence/current state. |
+| GX-06 | Suggestions already answered are suppressed or updated when scope changes. |
+| GX-07 | Free-form Ask remains usable at every guided step. |
+| GX-08 | Root-cause flow can be completed by clicks/suggestions without mandatory typing. |
+| GX-09 | Suggested What-If appears only after evidence/finding and is clearly labeled as a stress test. |
+| GX-10 | Early Warning card can create/export the exact governed cohort to Cockpit/What-If. |
+| PV-01 | All newly governed analytical charts use Plotly or carry an explicit documented exception. |
+| PV-02 | Click selection cross-filters linked visuals and data grid deterministically. |
+| PV-03 | Lasso/box selection creates active cohort with count/EAD/ECL summary. |
+| PV-04 | View data reproduces exact plotted predicate/aggregation. |
+| PV-05 | Legend toggle does not silently alter analytical totals. |
+| PV-06 | Large chart/grid requests are server-side paged/aggregated; full portfolio is not shipped to browser. |
+| PV-07 | Chart download and tabular download reconcile exactly. |
+| CO-01 | Saved cohort preserves domain/release/fingerprint/predicate/counts and reopens identically. |
+| CO-02 | Refreshing a saved cohort creates a new version rather than mutating historical scope. |
+| CO-03 | Same cohort_id transfers from Early Warning -> Cockpit -> What-If without row loss/substitution. |
+| SC-01 | Scenario can be saved without execution. |
+| SC-02 | Scenario definition is independent from calculation method. |
+| SC-03 | Scenario library lists owner/version/status/components/scope/method/result availability. |
+| SC-04 | Combine A+B+C creates new scenario and leaves parents unchanged. |
+| SC-05 | Overlapping rules are detected and execution blocks until composition policy is explicit. |
+| SC-06 | Combined scenario persists parent scenario/version lineage. |
+| SC-07 | Scenario can bind to one customer, list, segment, saved cohort, sub-portfolio or whole book. |
+| SC-08 | Second scenario asks original baseline vs previous stressed result unless already specified. |
+| SC-09 | Scenario tree preserves branches and compares compatible nodes. |
+| SC-10 | Shared unexecuted scenario can be opened/duplicated/run by authorized recipient without modifying source. |
+| MSG-01 | Message shares object reference/version, not only prose/screenshot. |
+| MSG-02 | Recipient cannot gain data access through shared object beyond permissions. |
+| MSG-03 | Comments and edits preserve object version lineage. |
+| LN-01 | User can create Lens from one natural-language prompt, preview spec, refine and confirm save. |
+| LN-02 | User can Save analysis as Lens from Cockpit. |
+| LN-03 | Saved Lens persists data/metrics/visuals/filters/refresh/breach/audience/version. |
+| LN-04 | Lens chart click cross-filters all compatible visuals and grid. |
+| LN-05 | Lens point/category can drill to exact underlying data. |
+| LN-06 | Lens selection can create cohort and launch Investigate/What-If. |
+| LN-07 | Scheduled/on-data refresh writes Lens Observation with release/fingerprint/status. |
+| LN-08 | Refresh computes what-changed summary vs prior successful observation. |
+| LN-09 | Refresh failure does not masquerade stale values as current. |
+| AL-01 | Breach rule generates alert with exact rule/lens/release/value/threshold/cohort metadata. |
+| AL-02 | Alert dedup/cooldown prevents duplicate spam while preserving worsening events. |
+| AL-03 | Monitoring Centre shows NEW/ACTIVE/WORSENING/ACKNOWLEDGED/RESOLVED status transitions. |
+| AL-04 | Opening alert restores Lens at triggering period/filter and can launch Cockpit investigation. |
+| ARCH-01 | No duplicate analytical engine introduced; existing AdvancedCockpit/What-If services remain authoritative. |
+| ARCH-02 | What-If contextual and dedicated workspace paths produce identical scenario contract for same input. |
+| ARCH-03 | Flags OFF accepted Cockpit remains regression-identical except explicitly authorized generic UX shell additions. |
+| CORP-01 | Construction PD deterioration | Corporate | Construction | PD +20% relative | Hold stage; Delta/ML/User-defined |
+| CORP-02 | Construction PD+LGD downside | Corporate | Construction | PD +20%; LGD +10% relative | Hold stage; compare methods |
+| CORP-03 | Commercial real-estate collateral shock | Corporate | CRE | Collateral -15%; LGD overlay +8% | Re-test collateral/LGD where governed |
+| CORP-04 | Oil price downside | Corporate | Oil & Gas | Oil -20% -> governed MEV sensitivities | Macro sensitivity; preview translated PD/LGD |
+| CORP-05 | GDP recession | Corporate | Whole book | GDP -1.5%; unemployment +100 bps | Macro combined scenario |
+| CORP-06 | Rates +200 bps | Corporate | Rate-sensitive sectors | Policy rate +200 bps | MEV sensitivity + sector targeting |
+| CORP-07 | One-notch downgrade | Corporate | BBB-/BB+ and below | Rating -1 notch | Stage policy explicit |
+| CORP-08 | Two-notch downgrade severe | Corporate | BB and below | Rating -2 notches | Re-test SICR option |
+| CORP-09 | LGD recovery deterioration | Corporate | Stage 2/3 | LGD +5 percentage points | Delta/ML/custom |
+| CORP-10 | CCF utilisation stress | Corporate | Revolvers/undrawn | CCF +15% relative | EAD/CCF impact |
+| CORP-11 | Top-20 obligor concentration shock | Corporate | Top 20 EAD borrowers | PD +25%; LGD +10% | Concentration cohort |
+| CORP-12 | Hospitality downside | Corporate | Hospitality | PD +30% | Sector template |
+| CORP-13 | Trade & manufacturing slowdown | Corporate | Trade + Manufacturing | PD +15%; utilization +10% | Compound rule visible |
+| CORP-14 | Stage migration re-test | Corporate | Current Stage 1 high-risk | PD +20%; re-test SICR | Stage migration enabled |
+| CORP-15 | Severe GCC downturn | Corporate | Whole book | GDP -3%; oil -30%; unemployment +200 bps; rates +250 bps | Combined macro severe |
+| CORP-16 | Management overlay + downside | Corporate | Selected sector | PD +10%; user overlay +5% ECL | User-defined component explicit |
+| CORP-17 | Cure sensitivity upside | Corporate | Stage 2 | PD -15%; cure assumption | Upside scenario; no negative ECL below governed floor |
+| CORP-18 | Combined sector + macro stress | Corporate | Construction + CRE | Sector PD/LGD + macro downside | Overlap conflict matrix required |
+| RET-01 | Credit Card PD deterioration | Retail | Credit Card | PD +20% | Hold stage; Delta/ML if available/custom |
+| RET-02 | Credit Card utilisation stress | Retail | Credit Card | Utilisation +10%; CCF +10% | EAD/CCF |
+| RET-03 | Behaviour score deterioration | Retail | Credit Card + Personal Finance | Behaviour score -30 points/band mapping | Direction from metadata |
+| RET-04 | Application score downgrade | Retail | New accounts | Application score deterioration one band | Score mapping governed |
+| RET-05 | DPD migration stress | Retail | 0-29 DPD | Shift one delinquency band worse | Stage/re-risk preview |
+| RET-06 | Personal Finance PD+LGD | Retail | Personal Finance | PD +15%; LGD +5% relative | Compare available methods |
+| RET-07 | Home Finance collateral shock | Retail | Home Finance | Property value -15%; LGD translation | Collateral/LGD |
+| RET-08 | Auto Finance collateral shock | Retail | Auto Finance | Vehicle value -20%; LGD translation | Collateral/LGD |
+| RET-09 | Unemployment shock | Retail | Whole book | Unemployment +100 bps -> PD/LGD sensitivities | Macro |
+| RET-10 | Rate shock | Retail | Variable-rate retail | Rates +200 bps | Macro/affordability |
+| RET-11 | Salary interruption cluster | Retail | Customers with salary interruption signal | PD +25% | EWS-derived cohort |
+| RET-12 | Persistent minimum payment | Retail | Credit Card warning cohort | PD +20%; utilization +10% | EWS-derived |
+| RET-13 | Affordability deterioration | Retail | Personal Finance | PD +20%; score band worsen 1 | Combined score/PD |
+| RET-14 | High utilisation + delinquency | Retail | Credit Card | Utilisation +15%; DPD +1 band | Overlap rule |
+| RET-15 | Vintage downside | Retail | Newest 6-month vintages | PD +25% | Vintage filter |
+| RET-16 | Severe household downturn | Retail | Whole book | Unemployment +200 bps; rates +250 bps; house prices -20% | Combined severe macro |
+| RET-17 | Cure sensitivity upside | Retail | Stage 2 / delinquent | PD -10%; DPD improve 1 band | Upside |
+| RET-18 | Combined EWS + macro stress | Retail | High/Critical EWS | PD +20% plus unemployment +100 bps | Compound/most-severe option |
+| LENS-01 | CRO Executive Overview | CRO | Corporate + Retail | Daily/on publication | ECL, Stage 2/3, defaults, EWS, top concentrations, breaches |
+| LENS-02 | Head of Corporate Credit | Corporate Credit Head | Corporate | Daily | Sector/rating/ECL/stage migration/top obligors/covenants |
+| LENS-03 | Head of Retail Risk | Retail Risk Head | Retail | Daily | Product EWS, delinquency, score migration, default entry, ECL |
+| LENS-04 | IFRS 9 / ECL Oversight | IFRS9/ECL team | Both | On publication | Booked ECL, stage shares, PD/LGD/EAD drivers, overlays, reconciliation |
+| LENS-05 | Early Warning Command Center | EWS team | Both | Daily | Warned, high/critical, forward risk, top reasons, deterioration cohorts |
+| LENS-06 | Corporate Portfolio Manager | Portfolio manager | Corporate | Daily | Sector/borrower concentration, rating migration, limits, ECL |
+| LENS-07 | Retail Portfolio Manager | Portfolio manager | Retail | Daily | Product/vintage/score band/ECL/delinquency trends |
+| LENS-08 | Credit Card Risk | Product risk head | Retail Credit Card | Daily | EWS, utilisation, DPD, score bands, losses/ECL, top reasons |
+| LENS-09 | Personal Finance Risk | Product risk head | Retail Personal Finance | Daily | Affordability, salary signals, DPD, PD/ECL, default entry |
+| LENS-10 | Home Finance Risk | Product risk head | Retail Home Finance | Weekly | LTV/collateral, DPD, stage, ECL, geographic concentration |
+| LENS-11 | Auto Finance Risk | Product risk head | Retail Auto Finance | Weekly | LTV/collateral, DPD, stage, ECL, vintage |
+| LENS-12 | Collections & Recoveries | Collections | Retail | Daily | Delinquency buckets, roll/cure, recoveries, Stage 3/NPL exposure |
+| LENS-13 | Risk Appetite & Limits | CRO/Risk Appetite | Both | Daily | Limit utilisation, breaches, concentration, sector/product appetite |
+| LENS-14 | Board Risk Committee Pack | Board/Executive | Both | Monthly | Executive trends, material changes, top breaches, scenario results |
+| LENS-15 | Sector Watch — Construction & CRE | Sector specialist | Corporate | Daily | Sector EAD/ECL, PD/LGD, rating migration, top borrowers, covenant signals |
+| LENS-16 | Scenario Impact Watch | Stress/Portfolio team | Both | On scenario/result refresh | Saved scenarios, ECL deltas, stage migration, concentration, method comparison |
+| LENS-17 | Data Quality & Coverage | Risk data owner | Both | On publication | Missingness, stale fields, coverage, reconciliation, release health |
+| LENS-18 | Monitoring & Breach Executive | CRO/Operations | Both | Continuous/on refresh | New/worsening/resolved alerts, top breached metrics, assigned owners |
+| M001 | Booked ECL | Both | SUM(reported_ecl) | SAR | Lower | entity-period | Reported/booked ECL; no model substitution |
+| M002 | ECL change | Both | ECL_t - ECL_t-1 | SAR | Lower | portfolio/segment-period | Absolute period movement |
+| M003 | ECL change % | Both | (ECL_t/ECL_t-1)-1 | % | Lower | portfolio/segment-period | Null if prior ECL <=0 |
+| M004 | Stage 1 EAD share | Both | SUM(EAD stage1)/SUM(EAD) | % | Context | portfolio-period | Exclude invalid/missing stage from denominator and disclose |
+| M005 | Stage 2 EAD share | Both | SUM(EAD stage2)/SUM(EAD) | % | Lower | portfolio-period | SICR stock indicator |
+| M006 | Stage 3 EAD share | Both | SUM(EAD stage3)/SUM(EAD) | % | Lower | portfolio-period | Default/impaired stock |
+| M007 | Stage 2 ECL share | Both | SUM(ECL stage2)/SUM(ECL) | % | Lower | portfolio-period | Share of booked ECL |
+| M008 | Stage 3 ECL share | Both | SUM(ECL stage3)/SUM(ECL) | % | Lower | portfolio-period | Share of booked ECL |
+| M009 | Stage 1→2 migration EAD | Both | SUM(EAD where prior stage=1,current=2) | SAR | Lower | entity-transition period | Same entity across consecutive periods |
+| M010 | Stage 2→3 migration EAD | Both | SUM(EAD where prior stage=2,current=3) | SAR | Lower | entity-transition period | Same entity across consecutive periods |
+| M011 | Cure EAD | Both | SUM(EAD with improving stage/default state) | SAR | Higher | entity-transition period | Definition versioned by domain |
+| M012 | Default-entry rate | Both | New defaults / eligible performing population | % | Lower | entity-period | Numerator=newly defaulted; denominator prior performing eligible |
+| M013 | Default count | Both | COUNT(new default entities) | count | Lower | entity-period | Distinct governed entity id |
+| M014 | NPL/Default EAD | Both | SUM(EAD default/Stage3) | SAR | Lower | entity-period | Domain mapping explicit |
+| M015 | EAD-weighted PD | Both | SUM(EAD*PD)/SUM(EAD with valid PD) | % | Lower | entity-period | PD horizon/version disclosed |
+| M016 | EAD-weighted LGD | Both | SUM(EAD*LGD)/SUM(EAD with valid LGD) | % | Lower | entity-period | LGD basis disclosed |
+| M017 | EAD-weighted CCF | Both | SUM(undrawn*CCF)/SUM(undrawn with valid CCF) | % | Lower | facility/account-period | Only where CCF applicable |
+| M018 | Total EAD | Both | SUM(EAD) | SAR | Context | entity-period | Scaled display adaptive k/m/bn |
+| M019 | Utilisation rate | Both | SUM(drawn)/SUM(limit or drawn+undrawn) | % | Context | facility/account-period | Denominator definition domain-specific |
+| M020 | Top-10 concentration | Both | SUM(top10 EAD)/SUM(EAD) | % | Lower | portfolio-period | Rank after active filters |
+| M021 | Largest-name concentration | Both | MAX(entity EAD)/SUM(EAD) | % | Lower | portfolio-period | Entity=borrower/customer |
+| M022 | Sector/product EAD share | Both | SUM(EAD dimension value)/SUM(EAD) | % | Context | dimension-period | Sector Corporate; product Retail |
+| M023 | Rating downgrade rate | Corporate | Downgraded borrowers / rated borrowers with prior grade | % | Lower | borrower-transition | Rating ordering from governed scale |
+| M024 | Rating upgrade rate | Corporate | Upgraded borrowers / rated borrowers with prior grade | % | Higher | borrower-transition | Rating ordering governed |
+| M025 | Average rating notch movement | Corporate | AVG(current notch-prior notch) | notches | Lower | borrower-transition | Positive=worse if governed scale defined so |
+| M026 | Behaviour score movement | Retail | AVG(score_t-score_t-1) | points | Metadata | customer/account-transition | Directionality from model metadata |
+| M027 | Application score distribution | Retail | Distribution by governed score bands | count/% | Metadata | application-period | Band edges versioned |
+| M028 | 30+ DPD rate | Retail | EAD or accounts with DPD>=30 / eligible denominator | % | Lower | account-period | Store count- and EAD-based variants |
+| M029 | 90+ DPD rate | Retail | EAD or accounts with DPD>=90 / eligible denominator | % | Lower | account-period | Store count- and EAD-based variants |
+| M030 | Roll-forward rate | Retail | Population moving to worse DPD bucket / source bucket | % | Lower | account-transition | Bucket map governed |
+| M031 | Cure rate | Retail | Population improving from delinquent/default state / eligible starting population | % | Higher | account-transition | State map governed |
+| M032 | EWS warned customers | Retail | COUNT(DISTINCT customer with active warning) | count | Lower | customer-period | Warning definition versioned |
+| M033 | EWS high/critical share | Retail | High+Critical warned / warned | % | Lower | customer-period | Severity taxonomy governed |
+| M034 | Forward-risk customers | Retail | COUNT(DISTINCT customer flagged forward risk) | count | Lower | customer-period | Forward-risk rule versioned |
+| M035 | EWS score | Retail | Governed EWS score aggregate/distribution | score | Lower | customer-period | Do not average if score semantics disallow; use specified aggregation |
+| M036 | Covenant breach rate | Corporate | Borrowers/facilities with active breach / eligible monitored population | % | Lower | borrower/facility-period | Covenant source/version explicit |
+| M037 | Limit utilisation | Both | Exposure / approved limit | % | Lower | limit/entity-period | Thresholds versioned |
+| M038 | Limit breach count | Both | COUNT(active breaches) | count | Lower | limit/entity-period | Distinct breach event/rule |
+| M039 | Scenario ECL delta | Both | Scenario post ECL - scenario baseline ECL | SAR | Lower | scenario-scope | Scenario/method/baseline ids mandatory |
+| M040 | Scenario ECL delta % | Both | Scenario delta / scenario baseline ECL | % | Lower | scenario-scope | Null when baseline<=0 |
+| M041 | Selected-scope contribution to total ECL change | Both | selected scope ECL delta / total-domain ECL delta | % | Context | scenario-scope | Also store SAR amount |
+| M042 | Model calibration gap | Both | model baseline ECL - booked ECL | SAR/% | Lower absolute gap | scenario-scope | Method 2 only; never hide |
+| M043 | MEV sensitivity coefficient | Both | Governed estimator coefficient/elasticity | coefficient | Metadata | MEV-risk parameter | Estimator/method/sample/lag/status required |
+| M044 | MEV sensitivity stability | Both | Governed stability statistic across windows/splits | score | Higher | MEV-risk parameter | Diagnostic definition explicit |
+| M045 | Data completeness | Both | non-null required fields / required cells | % | Higher | dataset-field-period | Required field set versioned |
+| M046 | Data freshness | Both | now - latest governed source timestamp | time | Lower | dataset-period | Display current only after successful load |
+| M047 | Reconciliation residual | Both | reported total - sum(components) | SAR | Lower absolute | decomposition-period | Must meet tolerance or block publish |
+| M048 | Breach count active | Both | COUNT(alerts state in ACTIVE/WORSENING/NEW) | count | Lower | lens/rule-period | Monitoring Centre |
+| M049 | Material changes since prior refresh | Both | COUNT(metric changes above configured materiality) | count | Lower | lens-refresh | Per Lens version/materiality policy |
+| M050 | Lens refresh age | Both | now-last successful refresh | time | Lower | lens | Never label stale Lens current |

@@ -220,8 +220,6 @@ def _candidates(book: Book, pattern: dict[str, Any], book_totals: dict[str, Any]
     if mode in ("book_delta", "book_level"):
         now = metrics.evaluate(book, pattern["metric"])
         if mode == "book_delta":
-            delta = metrics.evaluate(book, "M002" if pattern["metric"] == "M001"
-                                     else pattern["metric"])
             current = now.get("value")
             prior_eval = (metrics.evaluate(book, pattern["metric"],
                                            period=book.periods[-2])

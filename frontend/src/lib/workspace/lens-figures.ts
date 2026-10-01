@@ -4,7 +4,7 @@
  */
 
 import { SEMANTIC, STAGE_COLORS, categorical } from "../viz/palette.ts";
-import { count, sar } from "../viz/format.ts";
+import { count, sar, scaleFor, toScale } from "../viz/format.ts";
 import type { Figure } from "../viz/figures.ts";
 import { axisTitle, breakdownBars, formatValue, plotValue } from "./metric-figures.ts";
 import type { RenderedVisual } from "./lenses.ts";
@@ -97,13 +97,14 @@ export function breakdownFigure(v: RenderedVisual): Figure {
 export function topOwnersFigure(v: RenderedVisual): Figure {
   const rows = [...(v.rows ?? [])].reverse() as { owner: string; name: string; ead: number; ecl: number; n: number }[];
   const total = v.total_ead ?? 0;
+  const scale = scaleFor(rows.map((r) => r.ead));
   return {
     data: [
       {
         type: "bar",
         orientation: "h",
         y: rows.map((r) => String(r.name ?? r.owner)),
-        x: rows.map((r) => r.ead),
+        x: rows.map((r) => toScale(r.ead, scale)),
         marker: { color: rows.map((_, i) => categorical(i)) },
         text: rows.map((r) => (total ? `${((r.ead / total) * 100).toFixed(2)}%` : "")),
         textposition: "outside",
@@ -112,7 +113,7 @@ export function topOwnersFigure(v: RenderedVisual): Figure {
         hovertemplate: "%{y}<br>EAD %{customdata[1]} · ECL %{customdata[2]} · %{customdata[3]} exposures<br><span style='font-size:10px'>click to investigate %{customdata[0]}</span><extra></extra>",
       },
     ],
-    layout: { xaxis: { title: { text: "EAD (SAR million)" } }, margin: { l: 170, r: 60, t: 10, b: 40 }, showlegend: false },
+    layout: { xaxis: { title: { text: `EAD (${scale})` } }, margin: { l: 170, r: 60, t: 10, b: 40 }, showlegend: false },
   };
 }
 

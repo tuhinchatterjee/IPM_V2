@@ -46,7 +46,6 @@ def main() -> int:
     args = parser.parse_args()
 
     import uvicorn
-
     import whatif_stub_server as base
 
     runtime_dir = Path(args.runtime_dir or f"/tmp/cockpit_v4_gw_{args.port}")

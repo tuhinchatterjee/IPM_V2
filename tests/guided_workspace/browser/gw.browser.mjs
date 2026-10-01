@@ -1744,7 +1744,7 @@ async function p12Journeys() {
     await page.waitForSelector('[data-testid="object-trace"][data-kind="run"]', { timeout: 60_000 });
     const states = await page.$$eval('[data-testid="trace-event"][data-type="run_state"]', (els) => els.map((e) => e.textContent));
     record.run_states = states.length;
-    assert.ok(states.some((t) => /METHOD_SELECTION/.test(t)) && states.some((t) => /method chosen: Delta/.test(t)) && states.some((t) => /EXECUTED/.test(t)));
+    assert.ok(states.some((t) => /METHOD_SELECTION/.test(t)) && states.some((t) => /method chosen: Method 1 — Delta/.test(t)) && states.some((t) => /EXECUTED/.test(t)));
     await shot(page, record, "run-trace");
   });
 
@@ -1807,6 +1807,161 @@ async function p12Journeys() {
 }
 
 // =========================================================================
+// P13 — gap closure before the regression of record
+// =========================================================================
+
+async function gridApi(filters, extra = {}) {
+  return (await api("/grid/query", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ domain: "corporate", filters, limit: 50, ...extra }) })).body;
+}
+
+async function p13Journeys() {
+  await journey("GW-P13-01", "GRID07: every visible grid column opens the filter editor its governed kind calls for (text box / value list / min–max / yes–no), on both books", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    record.checked = {};
+    for (const book of ["corporate", "retail"]) {
+      if (book === "retail") {
+        await page.click('[data-testid="ws-domain-retail"]');
+        await page.waitForFunction(() => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === "6702", null, { timeout: 120_000 });
+      }
+      const schema = (await api(`/grid/schema?domain=${book}`)).body;
+      const visible = schema.columns.filter((c) => c.visible);
+      let n = 0;
+      for (const c of visible) {
+        const btn = page.locator(`[data-testid="whatif-grid"] [data-testid="grid-filter-${c.key}"]`);
+        if (!(await btn.count())) throw new Error(`${book}.${c.key} has no filter button`);
+        await btn.scrollIntoViewIfNeeded();
+        await btn.click();
+        const ed = `[data-testid="grid-filter-editor-${c.key}"]`;
+        await page.waitForSelector(ed, { timeout: 10_000 });
+        const want = { text: `[aria-label="${c.label} contains"]`, category: `[aria-label="Search ${c.label} values"]`, range: `[aria-label="${c.label} maximum"]`, boolean: `select[aria-label="${c.label} value"]` }[c.filter];
+        assert.ok(want, `${c.key}: kind ${c.filter} has an editor`);
+        assert.ok(await page.locator(`${ed} ${want}`).first().count(), `${book}.${c.key} (${c.filter}) shows its control`);
+        assert.ok(await page.locator(`${ed} [aria-label="${c.label} empty values"]`).count(), `${c.key}: the empty-values control`);
+        await btn.click();
+        n += 1;
+      }
+      record.checked[book] = n;
+      assert.ok(n >= 30, `${book}: ${n} columns checked`);
+    }
+    await shot(page, record, "editors");
+  });
+
+  await journey("GW-P13-02", "GRID11 + GRID13 in the UI: a yes/no filter and an 'only empty' filter narrow the grid to exactly the server's count; sorting by EAD is server-side and page 2 continues page 1's order", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    const grid = '[data-testid="whatif-grid"]';
+    await page.click(`${grid} [data-testid="grid-filter-watchlist_flag"]`);
+    await page.locator('[data-testid="grid-filter-editor-watchlist_flag"] select').first().selectOption("yes");
+    await page.click('[data-testid="grid-filter-apply-watchlist_flag"]');
+    const yes = (await gridApi([{ column: "watchlist_flag", op: "eq", value: 1 }])).total;
+    await page.waitForFunction((n) => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === String(n), yes, { timeout: 60_000 });
+    record.watchlist_yes = yes;
+    await page.locator(`${grid} button`, { hasText: "Clear all filters" }).click();
+    await gridIs(page, 2996);
+    await page.click(`${grid} [data-testid="grid-filter-prior_stage"]`);
+    await page.selectOption('[data-testid="grid-filter-editor-prior_stage"] [aria-label$="empty values"]', "empty");
+    await page.click('[data-testid="grid-filter-apply-prior_stage"]');
+    const empty = (await gridApi([{ column: "prior_stage", op: "is_null" }])).total;
+    await page.waitForFunction((n) => document.querySelector('[data-testid="whatif-grid"]')?.getAttribute("data-total") === String(n), empty, { timeout: 60_000 });
+    record.prior_stage_empty = empty;
+    await page.locator(`${grid} button`, { hasText: "Clear all filters" }).click();
+    await gridIs(page, 2996);
+    // Sort by EAD (server-side), then page 2.
+    await page.click(`${grid} [data-testid="grid-sort-ead_sar_mn"]`);
+    const ids = async () => page.$$eval(`${grid} [data-testid="grid-row"]`, (els) => els.map((e) => e.getAttribute("data-row-id")));
+    const size = (await ids()).length;
+    let want = (await gridApi([], { sort: "ead_sar_mn", desc: true, limit: size })).rows.map((r) => r.facility_id);
+    await page.waitForFunction((first) => document.querySelector('[data-testid="whatif-grid"] [data-testid="grid-row"]')?.getAttribute("data-row-id") === first, want[0], { timeout: 60_000 });
+    assert.deepEqual(await ids(), want, "page 1 is the server's EAD order");
+    await page.click(`${grid} [data-testid="whatif-grid-next"]`);
+    want = (await gridApi([], { sort: "ead_sar_mn", desc: true, limit: size, offset: size })).rows.map((r) => r.facility_id);
+    await page.waitForFunction((first) => document.querySelector('[data-testid="whatif-grid"] [data-testid="grid-row"]')?.getAttribute("data-row-id") === first, want[0], { timeout: 60_000 });
+    assert.deepEqual(await ids(), want, "page 2 continues the order");
+    record.page_size = size;
+    await shot(page, record, "sorted-page-2");
+  });
+
+  await journey("GW-P13-03", "MAC07: the macro-sensitivity tornado follows the explorer's population, names the risk parameter on every bar, hovers with the governed fields, and flags the collateral sign for review instead of flipping it", async (record) => {
+    const page = await open();
+    await openWhatIf(page);
+    const chart = '[data-testid="whatif-chart-tornado"]';
+    await page.waitForSelector(`${chart}[data-rendered="true"]`, { timeout: 120_000 });
+    const labels = await page.evaluate((sel) => document.querySelector(sel).data[1].y, chart);
+    record.bars = labels.length;
+    assert.ok(labels.length >= 8 && labels.every((l) => /→ (PD 12m|PD lifetime|LGD)/.test(l)));
+    await page.locator(chart).scrollIntoViewIfNeeded();
+    const bar = page.locator(`${chart} g.point path`).last();
+    await bar.scrollIntoViewIfNeeded();
+    const box = await bar.boundingBox();
+    await page.mouse.move(box.x + Math.max(2, box.width / 2), box.y + box.height / 2);
+    await page.waitForSelector(`${chart} .hoverlayer .hovertext`, { timeout: 10_000 });
+    const hover = await page.textContent(`${chart} .hoverlayer`);
+    record.hover = hover.slice(0, 200);
+    for (const k of ["shock", "affects", "coefficient", "sign", "method", "window"]) assert.ok(hover.includes(k), k);
+    await page.selectOption('[data-testid="tornado-parameter"]', "lgd");
+    await page.waitForFunction((sel) => (document.querySelector(sel)?.data?.[1]?.y ?? []).every((l) => l.includes("→ LGD")), chart, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="tornado-sign-review"]', { timeout: 60_000 });
+    record.sign_review = (await page.textContent('[data-testid="tornado-sign-review"]')).slice(0, 160);
+    assert.match(record.sign_review, /SIGN_REVIEW/);
+    const api_ = (await api("/whatif/sensitivity/tornado", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ domain: "corporate", parameter: "lgd", top: 12 }) })).body;
+    const drawn = await page.evaluate((sel) => document.querySelector(sel).data[1].x, chart);
+    assert.deepEqual([...drawn].reverse(), api_.rows.map((r) => r.up_pp), "bars are the governed values, signs as fitted");
+    await page.locator('[data-testid="whatif-macro-tornado"]').scrollIntoViewIfNeeded();
+    await shot(page, record, "tornado-lgd");
+    // The population follows the explorer filter.
+    await clickBar(page, "whatif-chart-dimension", "Construction");
+    await page.waitForFunction(() => /248 exposures/.test(document.querySelector('[data-testid="whatif-chart-tornado-card"]')?.textContent ?? ""), null, { timeout: 60_000 });
+  });
+
+  await journey("GW-P13-04", "Method names and 'Selected scope = Total book': a whole-book Delta result says Method 1 — Delta, draws ONE bridge with the scope-equivalence panel (rest-of-book Δ = 0, selected Δ = total Δ) and marks every component identical", async (record) => {
+    const done = await apiRun("scn-tpl-corp-05", `gw-p13-04-${Date.now()}`);
+    const result = done.result?.object_id;
+    assert.ok(result, "a whole-book result");
+    record.result_id = result;
+    const page = await open();
+    await page.goto(`${UI}/what-if/result/${result}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 180_000 });
+    assert.equal((await page.textContent('[data-testid="whatif-result-method-delta"]')).trim(), "Method 1 — Delta");
+    await page.waitForSelector('[data-testid="whatif-scope-equivalence"]', { timeout: 60_000 });
+    record.equivalence = (await page.textContent('[data-testid="whatif-scope-equivalence"]')).slice(0, 240);
+    assert.match(record.equivalence, /Selected scope = Total book/);
+    assert.match(await page.textContent('[data-testid="whatif-equivalence-rest"]'), /SAR 0/);
+    await page.waitForSelector('[data-testid="whatif-waterfall-selected"][data-rendered="true"]', { timeout: 60_000 });
+    assert.equal(await page.locator('[data-testid="whatif-waterfall-total"]').count(), 0, "no duplicate bridge");
+    const same = await page.$$eval('[data-testid="whatif-decomp-identical"]', (els) => els.map((e) => e.textContent));
+    record.components = same.length;
+    assert.ok(same.length >= 20 && same.every((t) => t.includes("same population")));
+    const n = await page.getAttribute('[data-testid="whatif-equivalence-components"]', "data-identical");
+    assert.equal(Number(n), Number(await page.getAttribute('[data-testid="whatif-equivalence-components"]', "data-components")));
+    await shot(page, record, "scope-equals-book");
+  });
+
+  await journey("GW-P13-05", "VIZ02 responsive: at a 390 px phone viewport the main pages render without horizontal page scroll and every chart fits the screen; at 1440 px the same charts are wider", async (record) => {
+    const done = await apiRun("scn-tpl-corp-01", `gw-p13-05-${Date.now()}`);
+    const pages = [["/what-if", '[data-testid="whatif-chart-heatmap"][data-rendered="true"]'], [`/what-if/result/${done.result?.object_id}`, '[data-testid="whatif-waterfall-selected"][data-rendered="true"]'], ["/lenses/lens-01", '[data-plotly="true"][data-rendered="true"]'], ["/monitoring", '[data-plotly="true"][data-rendered="true"]'], ["/metrics", '[data-testid="metric-catalogue"], main'], ["/messages", '[data-testid="message-item"]']];
+    record.pages = {};
+    for (const width of [390, 1440]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      live.push(page);
+      for (const [path_, ready] of pages) {
+        await page.goto(`${UI}${path_}`, { waitUntil: "domcontentloaded" });
+        await page.waitForSelector(ready, { timeout: 180_000 });
+        await page.waitForTimeout(400);
+        const m = await page.evaluate(() => {
+          const charts = Array.from(document.querySelectorAll('[data-plotly="true"][data-rendered="true"]')).map((e) => e.getBoundingClientRect().width);
+          return { scroll: document.documentElement.scrollWidth, inner: window.innerWidth, widest: Math.max(0, ...charts), charts: charts.length };
+        });
+        record.pages[`${width}:${path_.split("/").slice(0, 3).join("/")}`] = m;
+        assert.ok(m.scroll <= m.inner + 1, `${path_} at ${width}px scrolls sideways (${m.scroll} > ${m.inner})`);
+        assert.ok(m.widest <= m.inner, `${path_} at ${width}px: a chart is wider than the screen`);
+        if (width === 390 && path_ === "/what-if") await shot(page, record, "phone-what-if");
+      }
+    }
+  });
+}
+
+// =========================================================================
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
@@ -1823,6 +1978,7 @@ async function main() {
     await p11Journeys();
     await p11bJourneys();
     await p12Journeys();
+    await p13Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

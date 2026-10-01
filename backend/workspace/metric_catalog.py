@@ -228,7 +228,12 @@ METRICS: list[dict[str, Any]] = [
        den="SUM(CASE WHEN undrawn_sar_mn > 0 AND ccf IS NOT NULL THEN undrawn_sar_mn END)",
        numerator="SUM(undrawn × CCF)", denominator="SUM(undrawn where CCF is valid)", unit="fraction",
        direction="lower_is_better", grain="facility-period", population="Facilities with an undrawn commitment.",
-       exclusions="Retail publishes no CCF concept; the metric is Corporate-only.", nulls=_NULL_RATIO,
+       exclusions=("Retail: BLOCKED by the governed data, not by choice. The Retail release publishes no CCF field, "
+                   "and its EAD equals the outstanding balance on every account (measured: 6,702 of 6,702 in 2026-08), "
+                   "so (EAD - balance) / undrawn is 0 by construction, not an observed conversion factor. Reporting it "
+                   "would fake a CCF; the metric is Corporate-only until the Retail book publishes CCF or an EAD that "
+                   "converts undrawn limits (test_m017_retail_incompatibility_is_measured_not_assumed)."),
+       nulls=_NULL_RATIO,
        lineage=["corp_facility_quarter.undrawn_sar_mn", "whatif_corp_ifrs9.ccf_pit"], dimensions=CORP_DIMS,
        family="Risk parameters"),
     _m("M018", "Total EAD", "both", "Exposure at default of the eligible population.", "SUM(EAD)",

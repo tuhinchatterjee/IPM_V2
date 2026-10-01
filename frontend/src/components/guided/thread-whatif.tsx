@@ -15,11 +15,12 @@ import { useRouter } from "next/navigation";
 
 import { guidedEnabled } from "@/lib/workspace/guided";
 import { adoptThreadResult, readThreadCohort, type ThreadCohort } from "@/lib/workspace/whatif";
+import { METHOD_LABEL } from "@/lib/workspace/method-labels";
 
 const METHOD_TURNS: { id: string; label: string; ask: string }[] = [
-  { id: "delta", label: "Delta", ask: "Run the confirmed scenario with the Delta method." },
-  { id: "ml", label: "ML emulator", ask: "Run the confirmed scenario with the ML emulator." },
-  { id: "user_defined", label: "User-defined", ask: "Run the confirmed scenario with a user-defined impact." },
+  { id: "delta", label: METHOD_LABEL.delta, ask: "Run the confirmed scenario with the Delta method." },
+  { id: "ml", label: METHOD_LABEL.ml, ask: "Run the confirmed scenario with the ML emulator." },
+  { id: "user_defined", label: METHOD_LABEL.user_defined, ask: "Run the confirmed scenario with a user-defined impact." },
   { id: "compare", label: "Compare methods", ask: "Run the confirmed scenario with Delta and the ML emulator and compare them." },
 ];
 

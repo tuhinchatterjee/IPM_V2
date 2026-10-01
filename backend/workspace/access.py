@@ -114,7 +114,7 @@ class Book:
         with _SESSION_LOCK:
             cursor = self.session.connection.execute(sql, params or [])
             names = [d[0] for d in cursor.description]
-            return [dict(zip(names, row)) for row in cursor.fetchall()]
+            return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
 
 
 _SESSION_LOCK = threading.RLock()

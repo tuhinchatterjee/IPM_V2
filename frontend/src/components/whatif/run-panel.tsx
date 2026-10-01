@@ -37,18 +37,19 @@ import {
   type UserAssumption,
 } from "@/lib/workspace/runs";
 import type { ScenarioObject } from "@/lib/workspace/scenarios";
+import { METHOD_LABEL } from "@/lib/workspace/method-labels";
 
 const METHODS: { id: MethodId | "compare"; label: string; blurb: string }[] = [
-  { id: "delta", label: "Delta", blurb: "Scales booked ECL by the moved parameters, row by row; exact attribution by driver." },
-  { id: "ml", label: "ML emulator", blurb: "The validated emulator predicts ECL under the moved inputs; shown only when every gate passes." },
-  { id: "user_defined", label: "User-defined", blurb: "You state the ECL impact; it is allocated and reconciled exactly." },
+  { id: "delta", label: METHOD_LABEL.delta, blurb: "Scales booked ECL by the moved parameters, row by row; exact attribution by driver." },
+  { id: "ml", label: METHOD_LABEL.ml, blurb: "The validated emulator predicts ECL under the moved inputs; shown only when every gate passes." },
+  { id: "user_defined", label: METHOD_LABEL.user_defined, blurb: "You state the ECL impact; it is allocated and reconciled exactly." },
   { id: "compare", label: "Compare methods", blurb: "Every chosen available method on the same confirmed scenario, cohort and baseline." },
 ];
 
 const FORMS: { id: UserAssumption["form"]; label: string }[] = [
   { id: "relative", label: "ECL moves by % of baseline" },
-  { id: "absolute", label: "ECL moves by an amount (SAR mn)" },
-  { id: "target_amount", label: "ECL becomes (SAR mn)" },
+  { id: "absolute", label: "ECL moves by an amount (SAR m)" },
+  { id: "target_amount", label: "ECL becomes (SAR m)" },
   { id: "target_rate", label: "Coverage becomes (% of EAD)" },
 ];
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { comparisonBars, componentTable, identities, kpis, methodComparison, plotted, sharedScale, stageBeforeAfter, waterfall, type Decomposition } from "./decomposition.ts";
+import { comparisonBars, componentTable, identities, kpis, methodComparison, plotted, scopeEquivalence, sharedScale, stageBeforeAfter, waterfall, type Decomposition } from "./decomposition.ts";
 import { DRIVERS, driverColor } from "./palette.ts";
 
 // A real engine decomposition (CORP-18, Delta), not a hand-made one.
@@ -114,4 +114,44 @@ test("DEC09 a comparison plots every compared result, component by component, fr
   const x = (fig.data[0] as { x: string[] }).x;
   assert.ok(!x.includes("Opening ECL") && !x.includes("New originations"), "totals and all-N/A components are not bars");
   assert.ok(x.includes("PD"));
+});
+
+/** The same population as both scopes, as the server publishes it (DECOMP21). */
+function wholeBook(): Decomposition {
+  const copy = JSON.parse(JSON.stringify(d)) as Decomposition;
+  copy.selected_equals_total = true;
+  copy.scopes.total = { ...JSON.parse(JSON.stringify(copy.scopes.selected)), scope: "total", label: "Total active book" };
+  copy.cross_scope = {
+    ...copy.cross_scope,
+    selected_delta: copy.scopes.selected.change,
+    rest_of_book_delta: "0",
+    total_delta: copy.scopes.selected.change,
+    scope_equivalence: "Selected scope = Total book",
+  };
+  return copy;
+}
+
+test("DEC10 selected scope = total book is proven component by component", () => {
+  const eq = scopeEquivalence(wholeBook());
+  assert.equal(eq.equal, true);
+  assert.equal(eq.proven, true);
+  assert.equal(eq.identical, eq.components);
+  assert.ok(eq.components >= 20);
+  assert.equal(eq.restOfBookZero, true);
+  assert.equal(eq.deltasEqual, true);
+  assert.deepEqual(eq.mismatches, []);
+});
+
+test("DEC11 one differing component, a non-zero rest of book, or no flag: not proven", () => {
+  const one = wholeBook();
+  const c = one.scopes.total.components.find((x) => x.status === "MEASURED") ?? one.scopes.total.components[1];
+  c.value = String(Number(c.value ?? 0) + 1);
+  const r = scopeEquivalence(one);
+  assert.equal(r.proven, false);
+  assert.deepEqual(r.mismatches, [c.id]);
+  const rest = wholeBook();
+  rest.cross_scope.rest_of_book_delta = "0.5";
+  assert.equal(scopeEquivalence(rest).proven, false);
+  assert.equal(scopeEquivalence(d).equal, false);
+  assert.equal(scopeEquivalence(d).proven, false);
 });

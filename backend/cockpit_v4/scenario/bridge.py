@@ -901,7 +901,8 @@ def _compute(confirmed: sp.ScenarioSpec, *, session: Any, scope: Any,
     decomposed = dc.from_computed(
         done, component_of={}, selected_label=frozen.describe()[:120],
         book_label="Total active book",
-        selected_equals_total=not frozen.predicate)
+        selected_equals_total=(not frozen.predicate
+                               or frozen.ref.entity_count == done.book_rows))
     _remember_spec(store, run_id=run_id, tenant_id=tenant_id,
                    release_id=release_id, spec=confirmed, frozen=frozen,
                    headline=summary.headline(), executed=True,

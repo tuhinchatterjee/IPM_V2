@@ -195,3 +195,32 @@ export function byUnit(value: number | null | undefined, unit: string): string {
       return value === null || value === undefined ? "—" : grouped(value, Math.abs(value) < 10 ? 2 : 1);
   }
 }
+
+/**
+ * A money TABLE column (UAT-05 / FMT01): the scale chosen ONCE from the
+ * column's own values and stated once in the header ("EAD (SAR bn)"), cells
+ * at that scale without a unit, and the raw SAR-million value kept for the
+ * CSV under a header that says so. Input values are SAR million (number or
+ * the server's decimal string).
+ */
+export function moneyCol(
+  key: string,
+  label: string,
+  rows: Record<string, unknown>[],
+): { key: string; label: string; csvLabel: string; align: "right"; format: (v: unknown) => string } {
+  const values = rows.map((r) => (r[key] === null || r[key] === undefined || r[key] === "" ? null : Number(r[key])));
+  const finite = values.filter((v): v is number => v !== null && Number.isFinite(v));
+  const scale = columnScaleFor(finite);
+  const decimals = decimalsFor(finite.map((v) => toScale(v, scale)));
+  return {
+    key,
+    label: `${label} (${scale})`,
+    csvLabel: `${label} (SAR million, raw)`,
+    align: "right",
+    format: (v: unknown) => {
+      if (v === "N/A") return "N/A";
+      const n = v === null || v === undefined || v === "" ? NaN : Number(v);
+      return Number.isFinite(n) ? grouped(toScale(n, scale), decimals) : "—";
+    },
+  };
+}

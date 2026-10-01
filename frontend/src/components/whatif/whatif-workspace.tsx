@@ -21,6 +21,7 @@ import { rememberRun, startRun } from "@/components/cockpit-v4/client";
 import { DomainSwitchPlain } from "@/components/guided/domain-toggle";
 import { Badge } from "@/components/ui/badge";
 import { DataGrid, type GridSelection } from "@/components/workspace/data-grid";
+import { MacroTornado } from "@/components/whatif/macro-tornado";
 import { PortfolioExplorer } from "@/components/whatif/portfolio-explorer";
 import { ScenarioApplication } from "@/components/whatif/scenario-application";
 import { SessionTree } from "@/components/whatif/session-tree";
@@ -42,6 +43,7 @@ import {
   type WhatIfContext,
   type WorkspaceSelection,
 } from "@/lib/workspace/whatif";
+import { methodLabel } from "@/lib/workspace/method-labels";
 
 function toSelection(sel: GridSelection): WorkspaceSelection | null {
   if (sel.mode === "rows" && sel.ids.length) return { mode: "rows", ids: sel.ids };
@@ -216,7 +218,7 @@ export function WhatIfWorkspace() {
                 data-testid={`whatif-method-${m}`}
                 data-status={context.methods[m].status}
               >
-                {m === "ml" ? "ML" : m === "delta" ? "Delta" : "User-defined"}: {context.methods[m].status.toLowerCase().replace(/_/g, " ")}
+                {methodLabel(m)}: {context.methods[m].status.toLowerCase().replace(/_/g, " ")}
               </Badge>
             ))}
           </span>
@@ -330,12 +332,15 @@ export function WhatIfWorkspace() {
       )}
 
       {context && (
-        <PortfolioExplorer
-          domain={domain}
-          filters={filters}
-          onFilters={setFilters}
-          context={{ releaseId: context.release_id, fingerprint: context.fingerprint, period: context.period }}
-        />
+        <>
+          <PortfolioExplorer
+            domain={domain}
+            filters={filters}
+            onFilters={setFilters}
+            context={{ releaseId: context.release_id, fingerprint: context.fingerprint, period: context.period }}
+          />
+          <MacroTornado domain={domain} filters={filters} />
+        </>
       )}
 
       <section className="sticky top-0 z-10 rounded-xl border border-border bg-surface-raised p-3 text-sm shadow-sm" data-testid="whatif-selection" data-mode={selection?.mode ?? "none"}>

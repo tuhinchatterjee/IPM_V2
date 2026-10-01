@@ -23,6 +23,9 @@ export interface DataColumn {
   label: string;
   /** Display function for the cell; the CSV always carries the raw value. */
   format?: (value: unknown) => string;
+  /** The CSV header when the display header names a display scale (the
+   * CSV carries raw values, so it must say so: "EAD (SAR million, raw)"). */
+  csvLabel?: string;
   align?: "left" | "right";
 }
 
@@ -61,7 +64,7 @@ export function toCsv(table: ChartData, context: ChartContext = {}): string {
     const safe = /^[=+\-@]/.test(text) && Number.isNaN(Number(text)) ? `'${text}` : text;
     return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
-  const header = table.columns.map((c) => escape(c.label)).join(",");
+  const header = table.columns.map((c) => escape(c.csvLabel ?? c.label)).join(",");
   const body = table.rows.map((row) => table.columns.map((c) => escape(row[c.key])).join(","));
   return [...meta, header, ...body].join("\n") + "\n";
 }

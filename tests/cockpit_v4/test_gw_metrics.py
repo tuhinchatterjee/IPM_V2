@@ -11,13 +11,12 @@ import json
 from collections import defaultdict
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from backend.cockpit_v4 import lake, routes
 from backend.cockpit_v4.scenario import cohort_refs
-from backend.workspace import (access, cohorts, grid, metric_registry, metrics,
-                               scenarios, service)
+from backend.workspace import access, cohorts, grid, metric_registry, metrics, scenarios, service
 from backend.workspace import api as workspace_api
 from backend.workspace import metric_catalog as mc
 from backend.workspace.store import WorkspaceStore
@@ -298,3 +297,40 @@ def test_drill_to_rows_honours_the_clicked_dimension(client, svc):
                              "limit": 500}).json()
     assert out["total"] == 248
     assert {r["sector"] for r in out["rows"]} == {"Construction"}
+
+
+# ---- M017 domain applicability (P13 decision) ---------------------------------
+
+def test_m017_corporate_is_computed_on_its_own_grain_and_period(svc):
+    book = access.book(WHO, "corporate")
+    out = metrics.evaluate(book, "M017")
+    assert out["value"] is not None and 0 < out["value"] <= 1
+    assert out["period"] == book.latest_period
+    m = mc.BY_ID["M017"]
+    assert m["grain"] == "facility-period" and m["unit"] == "fraction"
+
+
+def test_m017_retail_incompatibility_is_measured_not_assumed(svc):
+    """The spec lists M017 for both books. The Retail release publishes no
+    CCF and its EAD equals the balance on every account, so a Retail CCF
+    would be 0 by construction. The metric stays Corporate-only, refused
+    for Retail (never substituted with the Corporate value) -- and this test
+    fails the day the Retail data could support it."""
+    book = access.book(WHO, "retail")
+    cols = set(book.rows("SELECT * FROM retail_account_month LIMIT 1")[0])
+    assert "ccf" not in cols and "ccf_pit" not in cols
+    ifrs9 = set(book.rows("SELECT * FROM whatif_retail_ifrs9 LIMIT 1")[0])
+    assert not {c for c in ifrs9 if "ccf" in c}
+    row = book.rows(
+        "SELECT COUNT(*) AS n, SUM(CASE WHEN ABS(ead_sar_mn - balance_sar_mn) "
+        "< 1e-12 THEN 1 ELSE 0 END) AS same, SUM(CASE WHEN limit_sar_mn > "
+        "balance_sar_mn THEN 1 ELSE 0 END) AS undrawn FROM "
+        "retail_account_month WHERE reporting_month = ?",
+        [book.latest_period])[0]
+    assert row["n"] == row["same"] == 6702 and row["undrawn"] > 0
+    assert mc.BY_ID["M017"]["domain"] == "corporate"
+    assert "BLOCKED by the governed data" in mc.BY_ID["M017"]["exclusions"]
+    with pytest.raises(HTTPException) as err:
+        metrics.evaluate(book, "M017")
+    assert err.value.status_code == 422
+    assert err.value.detail["error_code"] == "METRIC_NOT_APPLICABLE"

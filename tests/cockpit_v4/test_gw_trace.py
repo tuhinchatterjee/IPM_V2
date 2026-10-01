@@ -195,7 +195,8 @@ def test_result_trace_shows_versions_hashes_lineage_and_method_decisions(
               if e["type"] == "run_state"]
     assert states.index(runs.METHOD_SELECTION) < states.index(
         runs.READY_TO_EXECUTE) < states.index(runs.EXECUTED)
-    assert any("method chosen: Delta" in e["detail"] for e in rt["events"])
+    assert any("method chosen: Method 1 — Delta" in e["detail"]
+               for e in rt["events"])
     assert len(rt["versions"]) >= 4
     assert all(v["ledger"]["links"] for v in rt["versions"])
 

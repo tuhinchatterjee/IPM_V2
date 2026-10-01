@@ -12,9 +12,9 @@ from fastapi.testclient import TestClient
 
 from backend.cockpit_v4 import investigation as inv_mod
 from backend.cockpit_v4 import lake, routes
-from backend.workspace import access, grid, issues, metric_catalog as mc
-from backend.workspace import metrics, nbq, service
+from backend.workspace import access, grid, issues, metrics, nbq, service
 from backend.workspace import api as workspace_api
+from backend.workspace import metric_catalog as mc
 from backend.workspace.store import WorkspaceStore
 
 P = "/api/v1/cockpit-v4/workspace"

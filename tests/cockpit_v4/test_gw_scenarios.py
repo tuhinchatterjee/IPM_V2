@@ -12,11 +12,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from backend.cockpit_v4 import lake, routes
-from backend.workspace import access, cohorts, service
+from backend.workspace import access, cohorts, scenarios, service
 from backend.workspace import api as workspace_api
 from backend.workspace import scenario_library as lib
 from backend.workspace import scenario_seed as seed
-from backend.workspace import scenarios
 from backend.workspace.objects import LIBRARY_OWNER
 from backend.workspace.store import WorkspaceStore
 

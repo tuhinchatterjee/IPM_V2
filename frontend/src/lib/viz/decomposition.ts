@@ -55,6 +55,8 @@ export interface DecompositionScope {
 export interface Decomposition {
   contract_version: string;
   method: string;
+  /** DECOMP21: the selected population IS the whole active book. */
+  selected_equals_total?: boolean;
   scopes: { selected: DecompositionScope; total: DecompositionScope };
   cross_scope: {
     selected_delta: string;
@@ -63,6 +65,7 @@ export interface Decomposition {
     reconciles: boolean;
     selected_share_of_total_change_pct: string | null;
     rest_of_book_reason: string;
+    scope_equivalence?: string;
     tolerance: string;
   };
 }
@@ -342,5 +345,46 @@ export function comparisonBars(c: Comparison, scope: "selected" | "total"): Figu
       legend: { orientation: "h", y: -0.35 },
       margin: { l: 60, r: 20, t: 20, b: 140 },
     },
+  };
+}
+
+
+/**
+ * DECOMP21: when the selected scope IS the total book, prove it component by
+ * component before the page shows one bridge instead of two: every
+ * component's value and status, the opening, the closing and the deltas
+ * must be identical, and the rest-of-book delta must be zero.
+ */
+export function scopeEquivalence(d: Decomposition): {
+  equal: boolean;
+  proven: boolean;
+  components: number;
+  identical: number;
+  mismatches: string[];
+  restOfBookZero: boolean;
+  deltasEqual: boolean;
+} {
+  const sel = d.scopes.selected;
+  const tot = d.scopes.total;
+  const byId = new Map(tot.components.map((c) => [c.id, c]));
+  const mismatches: string[] = [];
+  for (const c of sel.components) {
+    const t = byId.get(c.id);
+    if (!t || t.value !== c.value || t.status !== c.status) mismatches.push(c.id);
+  }
+  for (const k of ["opening", "closing", "change"] as const) {
+    if (num(sel[k]) !== num(tot[k])) mismatches.push(k);
+  }
+  const restOfBookZero = num(d.cross_scope.rest_of_book_delta) === 0;
+  const deltasEqual = num(d.cross_scope.selected_delta) === num(d.cross_scope.total_delta);
+  const equal = Boolean(d.selected_equals_total);
+  return {
+    equal,
+    proven: equal && mismatches.length === 0 && restOfBookZero && deltasEqual,
+    components: sel.components.length,
+    identical: sel.components.length - mismatches.filter((m) => !["opening", "closing", "change"].includes(m)).length,
+    mismatches,
+    restOfBookZero,
+    deltasEqual,
   };
 }

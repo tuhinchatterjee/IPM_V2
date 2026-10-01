@@ -3,8 +3,8 @@
   "model": "MODEL MOCK",
   "ui": "http://127.0.0.1:5444",
   "api": "http://127.0.0.1:8444",
-  "passed": 41,
-  "total": 41,
+  "passed": 46,
+  "total": 46,
   "journeys": [
     {
       "journey": "GW-P1-01",
@@ -301,6 +301,148 @@
       "lab_rows": 106,
       "status": "PASS",
       "ms": 3643
+    },
+    {
+      "journey": "GW-P13-01",
+      "what": "GRID07: every visible grid column opens the filter editor its governed kind calls for (text box / value list / min–max / yes–no), on both books",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-01-editors.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "checked": {
+        "corporate": 36,
+        "retail": 38
+      },
+      "status": "PASS",
+      "ms": 38064
+    },
+    {
+      "journey": "GW-P13-02",
+      "what": "GRID11 + GRID13 in the UI: a yes/no filter and an 'only empty' filter narrow the grid to exactly the server's count; sorting by EAD is server-side and page 2 continues page 1's order",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-02-sorted-page-2.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "watchlist_yes": 224,
+      "prior_stage_empty": 0,
+      "page_size": 50,
+      "status": "PASS",
+      "ms": 10395
+    },
+    {
+      "journey": "GW-P13-03",
+      "what": "MAC07: the macro-sensitivity tornado follows the explorer's population, names the risk parameter on every bar, hovers with the governed fields, and flags the collateral sign for review instead of flipping it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-03-tornado-lgd.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "bars": 12,
+      "hover": "Equity market index (MEV11 · corporate.MEV11)shock up ±10 % of the level (+10% of the latest observed level 124.593 = +12.46 native units)affects PD lifetime: -1.262 ppcoefficient -0.02051837 · slope ",
+      "sign_review": "Commercial property price index → LGD: SIGN_REVIEW: the governed slope moves LGD DOWN (-0.513 pp) when collateral values fall. It is the fitted artefact's sign ",
+      "status": "PASS",
+      "ms": 6764
+    },
+    {
+      "journey": "GW-P13-04",
+      "what": "Method names and 'Selected scope = Total book': a whole-book Delta result says Method 1 — Delta, draws ONE bridge with the scope-equivalence panel (rest-of-book Δ = 0, selected Δ = total Δ) and marks every component identical",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-04-scope-equals-book.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-bd5532f56d49",
+      "equivalence": "Selected scope = Total bookThe selected population is the entire active book (2,996 exposures), so there is no rest of book.Rest-of-book ECL delta = SAR 0 (zero by definition)Selected-scope delta +SAR 466m = total-book delta +SAR 466m20 of ",
+      "components": 20,
+      "status": "PASS",
+      "ms": 4966
+    },
+    {
+      "journey": "GW-P13-05",
+      "what": "VIZ02 responsive: at a 390 px phone viewport the main pages render without horizontal page scroll and every chart fits the screen; at 1440 px the same charts are wider",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-05-phone-what-if.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "pages": {
+        "390:/what-if": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 5
+        },
+        "390:/what-if/result": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 6
+        },
+        "390:/lenses/lens-01": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 233,
+          "charts": 13
+        },
+        "390:/monitoring": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 2
+        },
+        "390:/metrics": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 1
+        },
+        "390:/messages": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 0,
+          "charts": 0
+        },
+        "1440:/what-if": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 1027,
+          "charts": 5
+        },
+        "1440:/what-if/result": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 488.5,
+          "charts": 6
+        },
+        "1440:/lenses/lens-01": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 482,
+          "charts": 13
+        },
+        "1440:/monitoring": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 488.5,
+          "charts": 2
+        },
+        "1440:/metrics": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 627,
+          "charts": 3
+        },
+        "1440:/messages": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 0,
+          "charts": 0
+        }
+      },
+      "status": "PASS",
+      "ms": 25077
     },
     {
       "journey": "GW-P3-01-CORP",

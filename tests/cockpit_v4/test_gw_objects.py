@@ -16,8 +16,7 @@ from backend.cockpit_v4 import lake, routes
 from backend.cockpit_v4.scenario import cohort as ch
 from backend.workspace import access, cohorts, grid, predicates, service
 from backend.workspace import api as workspace_api
-from backend.workspace.objects import (KINDS, REQUIRED, ObjectService,
-                                       Principal)
+from backend.workspace.objects import KINDS, REQUIRED, ObjectService, Principal
 from backend.workspace.store import IntegrityError, WorkspaceStore
 
 P = "/api/v1/cockpit-v4/workspace"
@@ -30,7 +29,7 @@ MALLORY = {"id": "mallory", "tenant": "other-bank", "roles": ("administrator",)}
 
 @pytest.fixture
 def flags(monkeypatch):
-    for book, release in CANDIDATE.items():
+    for _book, release in CANDIDATE.items():
         if not lake.exists(release):
             pytest.skip(f"{release} is not published here")
     monkeypatch.setenv("COCKPIT_V4_WHATIF_CORPORATE", "1")

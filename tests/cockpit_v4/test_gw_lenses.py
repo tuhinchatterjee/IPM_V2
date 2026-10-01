@@ -7,6 +7,7 @@ through the metric engine; the one-prompt proposer is deterministic.
 from __future__ import annotations
 
 import itertools
+import sqlite3
 
 import pytest
 from fastapi import FastAPI
@@ -194,7 +195,7 @@ def test_refresh_records_an_immutable_observation_with_what_changed(client,
     assert same.get("idempotent") is True
     hist = client.get(f"{P}/lenses/lens-01/observations").json()
     assert len(hist["observations"]) == 2
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.DatabaseError):
         svc.store._conn.execute(
             "UPDATE lens_observations SET status='X' WHERE observation_id=?",
             (first["observation_id"],))

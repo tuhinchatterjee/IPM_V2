@@ -15,8 +15,7 @@ from fastapi.testclient import TestClient
 
 from backend.cockpit_v4 import lake, routes
 from backend.cockpit_v4.scenario import cohort_refs
-from backend.workspace import (access, cohorts, lenses, metrics, monitoring,
-                               service)
+from backend.workspace import access, cohorts, lenses, metrics, monitoring, service
 from backend.workspace import api as workspace_api
 from backend.workspace.store import WorkspaceStore
 

@@ -26,6 +26,7 @@ import { followLens, refreshLens, renderLens, reviseLens, type RenderedLens, typ
 import { readAlert } from "@/lib/workspace/monitoring";
 import type { Filter } from "@/lib/workspace/objects";
 import { investigateCohort, saveSelection } from "@/lib/workspace/whatif";
+import { moneyCol } from "@/lib/viz/format";
 
 type Cross = Filter & { domain?: string };
 
@@ -207,7 +208,7 @@ export function LensView({ lensId }: { lensId: string }) {
             const owner = Array.isArray(p.customdata) ? String(p.customdata[0]) : "";
             if (owner) void go(() => investigateOwner(v.domain, owner));
           }}
-          table={{ columns: [{ key: "owner", label: "Owner" }, { key: "name", label: "Name" }, { key: "ead", label: "EAD (SAR mn)", align: "right" }, { key: "ecl", label: "ECL (SAR mn)", align: "right" }, { key: "n", label: "Exposures", align: "right" }], rows: v.rows ?? [] }}
+          table={{ columns: [{ key: "owner", label: "Owner" }, { key: "name", label: "Name" }, moneyCol("ead", "EAD", v.rows ?? []), moneyCol("ecl", "ECL", v.rows ?? []), { key: "n", label: "Exposures", align: "right" }], rows: v.rows ?? [] }}
         />
       );
     }

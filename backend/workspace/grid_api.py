@@ -13,7 +13,7 @@ import io
 import time
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -96,8 +96,11 @@ async def grid_group2(body: GridGroup2,
 
 def export_csv(book: access.Book, *, filters: Any, period: str = "",
                title: str = "filtered latest-period data",
-               extra_meta: dict[str, Any] | None = None) -> bytes:
+               extra_meta: dict[str, Any] | None = None,
+               only_keys: set[str] | None = None) -> bytes:
     v, checked, rows = grid.rows_for(book, filters=filters, period=period)
+    if only_keys is not None:
+        rows = [r for r in rows if str(r.get(v.key)) in only_keys]
     out = io.StringIO()
     meta = {"export": title, "domain": book.domain_id,
             "release": book.release_id, "fingerprint": book.fingerprint,
@@ -150,17 +153,36 @@ async def grid_export(body: GridExport,
 async def cohort_export(object_id: str,
                         who: dict[str, Any] = Depends(v4routes.principal)
                         ) -> Response:
+    from backend.workspace import cohorts
+
     cohort = service.objects().get(object_id, service.principal(who))
     book = access.book(who, cohort["domain_id"])
     body = cohort["body"]
+    meta = {"cohort_id": object_id, "cohort_version": cohort["version"],
+            "cohort_name": body.get("name", ""),
+            "cohort_definition": body.get("filter_description")
+            or body.get("description") or "",
+            "cohort_source": (body.get("source") or {}).get("kind", ""),
+            "membership_hash": body["membership_hash"],
+            "predicate_hash": body["predicate_hash"],
+            "selection": body["selection"], "counts": body["counts"]}
+    members: set[str] | None = None
+    if not body.get("filters"):
+        # A cohort frozen in a conversation carries its engine predicate,
+        # not grid filters: export exactly its members, and only when its
+        # saved question still resolves to the same membership.
+        check = cohorts.verify(book, cohort)
+        if not check["identical"]:
+            raise HTTPException(409, {
+                "error_code": "MEMBERSHIP_CHANGED",
+                "message": check.get("message") or "This cohort no longer "
+                           "resolves to the membership it was frozen with."})
+        members = set(cohorts._member_ids(book, None,
+                                          cohorts.resolve_stored(book, body)))
+        meta["members_exported"] = len(members)
     data = export_csv(book, filters=body["filters"], period=body["period"],
-                      title="frozen cohort", extra_meta={
-                          "cohort_id": object_id,
-                          "cohort_version": cohort["version"],
-                          "membership_hash": body["membership_hash"],
-                          "predicate_hash": body["predicate_hash"],
-                          "selection": body["selection"],
-                          "counts": body["counts"]})
+                      title="frozen cohort", extra_meta=meta,
+                      only_keys=members)
     return Response(content=data, media_type="text/csv", headers={
         "Content-Disposition": f'attachment; filename="{object_id}.csv"'})
 

@@ -1,0 +1,4698 @@
+{
+ "UAT-01": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Method selection was bypassed",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_uat01_confirmed_scenario_with_no_method_is_not_executed",
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection"
+  ],
+  "journeys": [
+   "GW-P6-01",
+   "GW-P6-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "Live re-run on the Mac is P14"
+ },
+ "UAT-02": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "ECL decomposition is insufficient",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC01..DEC09"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "UAT-03": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Stage migration visualization is too basic",
+  "claim": "PARTIAL",
+  "tests": [
+   "frontend/src/lib/viz/advanced.test.ts::VIZ08",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC07"
+  ],
+  "journeys": [
+   "GW-P11-01"
+  ],
+  "sources": [],
+  "gap": "protected Cockpit thread stage display (cockpit-v4/visuals.tsx) not migrated; no Sankey of scenario-induced migration (re-test runs not exercised)",
+  "note": "Gap: protected Cockpit thread stage display () not migrated; no Sankey of scenario-induced migration (re-test runs not exercised)"
+ },
+ "UAT-04": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Scenario chaining is ambiguous",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base01_a_second_scenario_asks_original_baseline_or_on_top",
+   "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline"
+  ],
+  "journeys": [
+   "GW-P6-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "UAT-05": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Display units are noisy",
+  "claim": "PARTIAL",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT01/FMT02/FMT10",
+   "frontend/src/lib/viz/figures.test.ts::FIG02"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Governed surfaces (What-If, results, comparison, preview, Lenses, Early Warning, issues) now state the scale once per column via moneyCol and keep raw SAR million for the CSV. The protected Cockpit thread renderer (components/cockpit-v4) and the legacy flags-off pages keep their own formatting; changing them needs a protected-core decision.",
+  "note": "Gap: policy tested in the format library only; several surfaces still label (issue-detail.tsx, preview-panel.tsx, lens-figures.ts); protected Cockpit thread unchanged"
+ },
+ "UAT-06": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "What-If workbench is incomplete",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P5-01",
+   "GW-P5-02",
+   "GW-P5-05",
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "UAT-07": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Mac launch must be one-click and honest",
+  "claim": "PENDING-P14",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "(prior-round launcher only). Pending: this round's launcher and its run on a real Mac"
+ },
+ "UAT-08": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Method-1 semantic audit required",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_oracles.py::test_o01_a_full_book_proportional_pd_stress",
+   "tests/cockpit_v4/test_whatif_oracles.py::test_o05_a_ccf_move_has_two_answers_and_they_differ",
+   "tests/cockpit_v4/test_gw_runs.py::test_meth05_results_carry_the_governed_method_names",
+   "frontend/src/lib/workspace/method-labels.test.ts::MLB01"
+  ],
+  "journeys": [
+   "GW-P13-04"
+  ],
+  "sources": [
+   "backend/workspace/whatif.py"
+  ],
+  "gap": "",
+  "note": "Gap: the label () is not asserted by any test"
+ },
+ "UAT-09": {
+  "section": "2. Live-UAT findings that this round must correct",
+  "requirement": "Dual-scope ECL decomposition must be simultaneous",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "ARCH01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "AdvancedCockpit core architecture remains intact; What-If is an extension/skill.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_errors.py::test_a04_only_the_recorded_core_files_reach_this_package",
+   "tests/cockpit_v4/test_gw_llm_exchange.py::test_the_workspace_router_is_absent_when_its_flag_is_off"
+  ],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PROTECTED_EXTENSION_MAP.md"
+  ],
+  "gap": "",
+  "note": "Gap: full flags-off zero-drift regression is P13",
+  "checks": [
+   "regression:accepted_browser_suite_flags_off",
+   "regression:v4_backend_and_frontend_py_accepted"
+  ]
+ },
+ "ARCH02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate and Retail buttons remain and bind separate books.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_switching_corporate_to_retail_changes_the_release_not_the_tenant"
+  ],
+  "journeys": [
+   "GW-P5-01",
+   "GW-P3-01-CORP",
+   "GW-P3-01-RET"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "ARCH03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "What-If Analysis workbench and cockpit chat use the same scenario service/state.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+   "tests/cockpit_v4/test_gw_whatif.py::test_grid_filter_selection_and_conversation_filters_give_one_membership",
+   "tests/cockpit_v4/test_gw_runs.py::test_a_cockpit_execution_opens_as_the_same_governed_result"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "ARCH04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "No source row is mutated by any scenario.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base08_layering_never_writes_a_source_row",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_alert_actions_do_not_touch_source_data"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "ARCH05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Accepted Corporate/Retail books remain byte-identical.",
+  "claim": "BLOCKED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_candidate_release.py::test_the_accepted_releases_are_byte_identical"
+  ],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/BASELINE_PROVENANCE.md"
+  ],
+  "gap": "ENVIRONMENT: the accepted books reproduce their in-container P0 fingerprints and content digests (verified by lake.verify), but the earlier container's recorded byte fingerprints cannot be reproduced with the pinned pandas/pyarrow writer (BASELINE_PROVENANCE section 3); test_the_accepted_releases_are_byte_identical stays an env-bound failure. Nothing in this round writes to a published release.",
+  "note": "fails in this container (pins the earlier container's byte fingerprints); content digests in . Re-proof at P13",
+  "checks": [
+   "regression:release_fingerprints",
+   "regression:release_report_digests"
+  ]
+ },
+ "ARCH06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "H1/H2 checkpoints remain unchanged and no tag is moved.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PHASE_LEDGER.md",
+   "docs/guided_workspace/BASELINE_PROVENANCE.md"
+  ],
+  "gap": "",
+  "note": "P0 check recorded in and no automated test. Freeze check at P15",
+  "checks": [
+   "git:no_tags_moved"
+  ]
+ },
+ "METH01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Confirming a scenario with no method does not execute.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_uat01_confirmed_scenario_with_no_method_is_not_executed",
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Confirmed/no-method transitions to METHOD_SELECTION.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth02_meth03_it_enters_method_selection_and_says_confirmed_not_executed",
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Method-selection response explicitly says confirmed / not executed.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth02_meth03_it_enters_method_selection_and_says_confirmed_not_executed",
+   "tests/cockpit_v4/test_whatif_preview.py::test_a_preview_with_no_method_confirms_the_scenario_only"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selecting Delta executes Delta only.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth04_meth05_choosing_delta_runs_delta_only_on_the_same_confirmation",
+   "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Delta result is labelled Method 1 — Delta.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth04_meth05_choosing_delta_runs_delta_only_on_the_same_confirmation",
+   "tests/cockpit_v4/test_gw_runs.py::test_meth05_results_carry_the_governed_method_names",
+   "frontend/src/lib/workspace/method-labels.test.ts::MLB01"
+  ],
+  "journeys": [
+   "GW-P13-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: asserts Delta-only execution; the label is not asserted"
+ },
+ "METH06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate ML executes Method 2 only when all gates pass.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth06_corporate_ml_runs_when_every_gate_passes"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Runs on skipped on the accepted interpreter"
+ },
+ "METH07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Retail ML is visible but unavailable with G4 reason/value/threshold.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth07_meth08_direct_retail_ml_is_refused_without_a_delta_fallback",
+   "tests/cockpit_v4/test_gw_whatif.py::test_context_shows_retail_ml_unavailable_with_g4"
+  ],
+  "journeys": [
+   "GW-P6-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Direct Retail ML request refuses without Delta fallback.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth07_meth08_direct_retail_ml_is_refused_without_a_delta_fallback",
+   "tests/cockpit_v4/test_gw_runs.py::test_retail_ml_is_visibly_unavailable_and_never_substituted"
+  ],
+  "journeys": [
+   "GW-P6-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "User-defined requests missing custom input instead of guessing.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth09_user_defined_without_input_asks_instead_of_guessing",
+   "tests/cockpit_v4/test_gw_runs.py::test_user_defined_asks_for_its_input_then_runs"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "User-defined executes after required input supplied.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth10_user_defined_runs_once_its_input_is_supplied",
+   "tests/cockpit_v4/test_gw_runs.py::test_user_defined_asks_for_its_input_then_runs"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Delta + ML comparison uses one identical scenario contract/cohort/baseline.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth11_compare_uses_one_contract_cohort_and_baseline"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Runs on skipped on the accepted interpreter"
+ },
+ "METH12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Run all methods executes every available method and preserves unavailable status.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth12_all_methods_runs_the_available_and_keeps_ml_unavailable",
+   "tests/cockpit_v4/test_gw_runs.py::test_compare_on_retail_runs_the_available_and_names_ml_unavailable"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH13": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "First-turn no-method scenario stops at METHOD_SELECTION.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth13_a_first_turn_scenario_with_no_method_stops_at_method_selection"
+  ],
+  "journeys": [
+   "GW-P6-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH14": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "First-turn explicit Delta does not ask redundant method question.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth14_an_explicit_delta_is_not_asked_again"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "METH15": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Explicit compare Delta+ML does not ask redundant method question.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth15_an_explicit_compare_is_not_asked_again"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Runs on skipped on the accepted interpreter"
+ },
+ "METH16": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Mutation removing method-selected execution gate fails a named test.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_no_default_method_survives_in_the_request_parser"
+  ],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PHASE_LEDGER.md"
+  ],
+  "gap": "",
+  "note": "mutation (a) recorded in P6. Gap: mutation run was manual, not an automated gate; re-proof at P13",
+  "checks": [
+   "mutation:method selection (no silent Delta)"
+  ]
+ },
+ "BASE01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Second scenario after executed scenario asks original baseline vs previous scenario when ambiguous.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base01_a_second_scenario_asks_original_baseline_or_on_top",
+   "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline"
+  ],
+  "journeys": [
+   "GW-P6-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "BASE02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Explicit “on top of previous scenario” stacks without redundant question.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base02_on_top_of_the_previous_scenario_layers_on_its_result",
+   "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+  ],
+  "journeys": [
+   "GW-P6-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "BASE03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Explicit “from original baseline” branches from source baseline.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base03_explicit_original_baseline_branches_from_the_source",
+   "tests/cockpit_v4/test_gw_runs.py::test_original_baseline_choice_runs_on_the_booked_book"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "BASE04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Specific prior scenario can be chosen as parent.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base04_a_specific_earlier_scenario_can_be_the_parent",
+   "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "BASE05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Adding an assumption before execution amends the same scenario rather than creating a child.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_spec.py::test_revise_makes_a_new_version_with_the_old_one_as_parent",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_revise_creates_a_new_version_and_keeps_the_old",
+   "tests/cockpit_v4/test_gw_runs.py::test_base05_an_assumption_before_execution_amends_the_same_run"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: no test that adding an assumption before execution in the same thread/run amends rather than spawning a child or a baseline question"
+ },
+ "BASE06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Changing only method reuses same scenario contract/cohort.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_base06_changing_only_the_method_reuses_the_confirmed_contract",
+   "tests/cockpit_v4/test_gw_runs.py::test_rerun_with_another_method_reuses_the_confirmed_contract",
+   "tests/cockpit_v4/test_whatif_spec.py::test_the_method_is_not_part_of_the_scenario_contract"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "BASE07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Lineage survives reopen.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage",
+   "tests/cockpit_v4/test_gw_trace.py::test_result_trace_shows_versions_hashes_lineage_and_method_decisions"
+  ],
+  "journeys": [
+   "GW-P6-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "BASE08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Stacked scenario source data remain unchanged.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base08_layering_never_writes_a_source_row"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "What-If Analysis replaces visible Stress Testing navigation label.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P5-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Legacy Stress Testing route/bookmark redirects without breaking.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/chart-inventory.test.ts::INV06"
+  ],
+  "journeys": [
+   "GW-P5-01",
+   "GW-P11-05"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Chat composer appears at top of workbench.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P5-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(Ask box above the grid)"
+ },
+ "GRID04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate/Retail toggle changes workbench book and period correctly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_context_shows_retail_ml_unavailable_with_g4"
+  ],
+  "journeys": [
+   "GW-P5-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate latest-quarter grid loads at facility grain.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_selection_modes_summarise_on_the_server"
+  ],
+  "journeys": [
+   "GW-P5-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Retail latest-month grid loads at governed retail grain.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_http_summary_and_context",
+   "tests/cockpit_v4/test_gw_whatif.py::test_context_shows_retail_ml_unavailable_with_g4"
+  ],
+  "journeys": [
+   "GW-P5-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Every visible column has an appropriate filter control.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_grid.py::test_grid07_every_visible_column_declares_a_filter_the_ui_can_edit"
+  ],
+  "journeys": [
+   "GW-P13-01"
+  ],
+  "sources": [
+   "backend/workspace/grid.py"
+  ],
+  "gap": "",
+  "note": "Filter kinds declared per column in no test asserts a control for every visible column"
+ },
+ "GRID08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Text filter works and is parameterized.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_bound_predicates_never_carry_user_text",
+   "tests/cockpit_v4/test_gw_charts.py::test_a_warning_reason_cross_filters_bands_segments_and_the_cohort"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Categorical multi-select filter works.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_a_joined_column_filter_freezes_through_the_engine",
+   "frontend/src/lib/workspace/whatif-filters.test.ts::WIF03"
+  ],
+  "journeys": [
+   "GW-P5-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Numeric range filter works.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+   "tests/cockpit_v4/test_gw_objects.py::test_bound_predicates_never_carry_user_text"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Boolean/null filters work where applicable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_grid.py::test_grid11_boolean_and_null_filters_partition_the_book",
+   "tests/cockpit_v4/test_gw_grid.py::test_grid11_through_http"
+  ],
+  "journeys": [
+   "GW-P13-02"
+  ],
+  "sources": [
+   "backend/workspace/predicates.py"
+  ],
+  "gap": "",
+  "note": "///exist in no test exercises them"
+ },
+ "GRID12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Multi-column filters combine deterministically.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+   "tests/cockpit_v4/test_gw_whatif.py::test_a_joined_column_filter_cohort_is_bound_exactly_by_reference",
+   "frontend/src/lib/workspace/whatif-filters.test.ts::WIF02"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID13": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Sort works server-side.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_grid.py::test_grid13_server_sort_is_deterministic_across_pages",
+   "tests/cockpit_v4/test_gw_grid.py::test_grid13_an_unknown_sort_column_falls_back_and_says_so"
+  ],
+  "journeys": [
+   "GW-P13-02"
+  ],
+  "sources": [
+   "backend/workspace/grid.py"
+  ],
+  "gap": "",
+  "note": "in no test asserts server-side sort"
+ },
+ "GRID14": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Grid pagination/virtualization does not load full lake.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_grid.py::test_paging_is_server_side_and_capped",
+   "tests/cockpit_v4/test_gw_charts.py::test_http_aggregate_is_small_and_row_free"
+  ],
+  "journeys": [
+   "GW-P11-01",
+   "GW-P13-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: row paging (/) of the grid is not asserted"
+ },
+ "GRID15": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "One row can be selected.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_selection_modes_summarise_on_the_server"
+  ],
+  "journeys": [
+   "GW-P5-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID16": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Multiple rows can be selected.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_manual_row_selection_named_in_conversation_is_the_same_cohort"
+  ],
+  "journeys": [
+   "GW-P5-03",
+   "GW-P5-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID17": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Select all filtered binds the complete filtered cohort, not current page.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_select_all_filtered_binds_the_complete_filtered_cohort"
+  ],
+  "journeys": [
+   "GW-P5-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID18": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selection summary reconciles row/entity counts, EAD and ECL.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_selection_modes_summarise_on_the_server",
+   "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically"
+  ],
+  "journeys": [
+   "GW-P5-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID19": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Clear selection resets scenario scope context.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P5-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(selection mode returns to none)"
+ },
+ "GRID20": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Active selection is available to the chat/scenario parser.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_active_context_names_the_cohort_by_reference_only"
+  ],
+  "journeys": [
+   "GW-P5-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GRID21": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Filtered cohort export contains release/fingerprint/filter definition.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_grid.py::test_grid_export_carries_the_filter_definition",
+   "tests/cockpit_v4/test_gw_grid.py::test_cohort_export_carries_the_cohort_definition",
+   "tests/cockpit_v4/test_gw_grid.py::test_a_conversation_cohort_exports_exactly_its_members"
+  ],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: release/fingerprint/period headers and membership hash asserted; the filter definition in the export is not"
+ },
+ "SCEN01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "PD relative % stress parsed correctly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_units.py::test_o06_twenty_percent_relative_is_a_multiplication",
+   "tests/cockpit_v4/test_whatif_oracles.py::test_o01_a_full_book_proportional_pd_stress"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Validated contract; parse by a live model is P14"
+ },
+ "SCEN02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "PD percentage-point/bps stress distinguished from relative %.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_units.py::test_o06_twenty_basis_points_is_not_twenty_percent",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_units_are_never_confused"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "LGD stress parsed correctly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+   "tests/cockpit_v4/test_gw_method_gate.py::test_retail_lgd_delta_runs_on_charged_off_rows_without_a_key_error"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "CCF stress parsed correctly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_oracles.py::test_o05_a_ccf_move_has_two_answers_and_they_differ",
+   "tests/cockpit_v4/test_gw_runs.py::test_ccf_runs_on_the_derived_conversion_factor"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate rating notch/grade stress parsed correctly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s12_one_notch_steps_the_published_order",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_rating_moves_along_the_masterscale_not_the_string"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Retail behavioral score stress parsed correctly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s13_fifty_points_is_fifty_points_not_fifty_per_cent",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted",
+   "tests/cockpit_v4/test_whatif_units.py::test_score_points_are_not_a_percentage"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Retail application score stress parsed correctly.",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted",
+   "tests/cockpit_v4/test_whatif_mappings.py::test_the_candidate_origination_score_is_still_not_movable"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "recognised and kept separate, but status TRANSLATION_ONLY; no governed PD mapping, runs only as User-defined",
+  "note": "Gap: recognised and kept separate, but status TRANSLATION_ONLY; no governed PD mapping, runs only as User-defined"
+ },
+ "SCEN08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Sector stress applies only to governed Corporate sector cohort.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s15_discovery_returns_actual_categories_with_counts_and_totals",
+   "tests/cockpit_v4/test_gw_whatif.py::test_grid_filter_selection_and_conversation_filters_give_one_membership",
+   "tests/cockpit_v4/test_whatif_mappings.py::test_a_corporate_dimension_is_not_a_retail_one"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Retail segment stress uses retail classifications, not Corporate sectors.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s15_a_retail_product_is_not_an_employer_sector",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_bind_refuses_a_cohort_from_the_other_book",
+   "frontend/src/lib/workspace/whatif-filters.test.ts::WIF05"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Overlapping rules have deterministic visible precedence.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_rules.py::test_c07_the_question_offers_exactly_the_three_compositions",
+   "tests/cockpit_v4/test_whatif_rules.py::test_two_rules_on_one_field_compound_in_the_order_given",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_overlap_blocks_until_policy_is_explicit"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Stage fixed policy persists into execution.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Stage re-test policy persists into execution.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s14_an_explicit_move_with_the_contract_uses_the_published_figures",
+   "tests/cockpit_v4/test_gw_runs.py::test_scen12_a_stage_retest_policy_persists_into_execution"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: no test executes a scenario (CORP-08/CORP-14) and asserts the policy reaches execution"
+ },
+ "SCEN13": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Full cohort is frozen, not only displayed names/rows.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_run.py::test_d02_every_cohort_row_is_in_the_total_including_the_untouched",
+   "tests/cockpit_v4/test_gw_whatif.py::test_select_all_filtered_binds_the_complete_filtered_cohort"
+  ],
+  "journeys": [
+   "GW-P5-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN14": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "First-turn scenario is supported.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth13_a_first_turn_scenario_with_no_method_stops_at_method_selection"
+  ],
+  "journeys": [
+   "GW-P6-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SCEN15": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Scenario on active workbench selection is previewed with explicit cohort.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_manual_row_selection_named_in_conversation_is_the_same_cohort"
+  ],
+  "journeys": [
+   "GW-P5-04",
+   "GW-P5-05"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MAC01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Top-20 Corporate MEV sensitivity library is queryable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_s01_all_twenty_candidates_appear_with_a_support_status",
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_every_candidate_factor_has_a_row_for_every_parameter"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Answering in chat with a live model is P14"
+ },
+ "MAC02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Top-20 Retail MEV sensitivity library is queryable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_s01_all_twenty_candidates_appear_with_a_support_status",
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_every_candidate_factor_has_a_row_for_every_parameter"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Answering in chat with a live model is P14"
+ },
+ "MAC03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Sensitivity answer includes methodology, lag, sample/split and status.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_a_supported_row_carries_everything_needed_to_use_it",
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_s04_the_lag_is_chosen_on_forward_validation_not_on_fit_quality"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MAC04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Supported estimate is distinguished from diagnostic-only.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_absent_factors_are_unavailable_and_never_a_zero_slope",
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_a_diagnostic_row_is_refused_for_automatic_translation",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_diagnostic_only_sensitivity_is_not_applied"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MAC05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Unemployment move translates to PD/LGD via governed sensitivity.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_s06_reduce_unemployment_by_ten_percent_is_six_to_five_point_four",
+   "tests/cockpit_v4/test_whatif_sensitivity.py::test_s07_a_two_tenths_slope_takes_three_percent_to_two_point_eight_eight",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_macro_translation_equals_the_governed_artifact"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MAC06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Macro translation is previewed before scenario execution.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_macro_translation_equals_the_governed_artifact",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "frontend/src/lib/workspace/scenario-figures.test.ts::SCN05"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MAC07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Macro sensitivity tornado uses exact sensitivity data, not LLM-invented values.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_bars_are_the_governed_translation_exactly",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_rows_are_ranked_by_swing_and_capped",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_pd_and_lgd_are_explicit_and_filterable",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_signs_are_preserved_as_fitted",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_collateral_sign_review_is_carried_not_corrected",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_diagnostic_only_estimates_are_listed_not_drawn",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_hover_fields_are_all_present",
+   "tests/cockpit_v4/test_gw_macro_tornado.py::test_the_accepted_chat_path_keeps_its_tornado_substitute",
+   "frontend/src/lib/viz/tornado.test.ts::TOR01..TOR04"
+  ],
+  "journeys": [
+   "GW-P13-03"
+  ],
+  "sources": [
+   "docs/guided_workspace/CHART_INVENTORY.md"
+  ],
+  "gap": "",
+  "note": "asserts no tornado exists (waterfall substitute); none listed in"
+ },
+ "FMT01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Table header carries currency/scale once and cells do not repeat “SAR million”.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT01",
+   "frontend/src/lib/viz/format.test.ts::FMT10"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Narrative uses compact SAR m/bn formatting.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT02"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Chart axes carry unit once.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/figures.test.ts::FIG02",
+   "frontend/src/lib/viz/figures.test.ts::FIG03"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Hover shows precise raw/compact value.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT04/FMT08",
+   "frontend/src/lib/viz/figures.test.ts::FIG02"
+  ],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "PD displays as percentage, never 0.02x.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT05"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Scenario multiplier displays as ×1.20 where appropriate.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT06"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Small Retail money changes remain visible and do not round to zero.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT07"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "FMT08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Raw export values remain unchanged by display formatting.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/format.test.ts::FMT04/FMT08",
+   "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Executive ECL waterfall reconciles exactly to pre/post ECL.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC03"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Booked baseline and method/model baseline are separately visible when they differ.",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "calibration_gap component exists but no test shows it measured on an ML result (ML runtime tests skip on the accepted interpreter)",
+  "note": "Gap: component exists but no test shows it measured on an ML result (ML runtime tests skip on the accepted interpreter)"
+ },
+ "DECOMP03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Calibration gap is not hidden inside scenario effects.",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "M042 tested only on the no-ML path; separate calibration-gap bar on an ML result not asserted",
+  "note": "Gap: M042 tested only on the no-ML path; separate calibration-gap bar on an ML result not asserted"
+ },
+ "DECOMP04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "PD contribution is separately visible.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "LGD contribution is separately visible.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "CCF/EAD contribution is separately visible when applicable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_ccf_runs_on_the_derived_conversion_factor"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Stage contribution is separately visible when applicable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_pd_and_lgd_are_separately_measured_and_flows_are_na_with_reasons",
+   "tests/cockpit_v4/test_gw_runs.py::test_scen12_a_stage_retest_policy_persists_into_execution"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "(N/A with reason when frozen). Gap: no test where stage movement applies (re-test policy) and the stage bars are measured"
+ },
+ "DECOMP08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Macro/sector/rating/score contribution is visible when applicable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_the_collateral_sign_warning_survives_into_the_result",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC03",
+   "tests/cockpit_v4/test_gw_runs.py::test_decomp08_rating_and_macro_contributions_are_measured"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "(fixture has macro MEASURED). Gap: rating/score and sector/segment components never asserted measured; macro not asserted server-side"
+ },
+ "DECOMP09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Interaction/residual is explicit and closes bridge.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+   "tests/cockpit_v4/test_whatif_results.py::test_r06_the_residual_is_its_own_row_and_is_not_spread"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "SHAP explanation is not presented as ECL accounting decomposition.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp10_no_shap_or_feature_attribution_is_in_the_accounting_contract",
+   "tests/cockpit_v4/test_whatif_bridge.py::test_p9b_a_feature_never_appears_as_an_attribution_driver"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "No lifetime ECL is invented when lifetime curve is unavailable.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s14_a_move_without_the_contract_reports_unsupported_not_zero",
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s14_a_lifetime_figure_is_never_the_annual_one_times_the_years",
+   "tests/cockpit_v4/test_whatif_reference_ecl.py::test_lifetime_is_not_the_annual_figure_times_a_number_of_years"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Stage migration EAD is reported separately from unsupported lifetime-ECL impact.",
+  "claim": "BLOCKED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_mappings.py::test_s14_unsupported_rows_are_counted_separately_from_unchanged_ones",
+   "tests/cockpit_v4/test_gw_runs.py::test_scen12_a_stage_retest_policy_persists_into_execution"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "BLOCKED by data: neither book publishes a SICR re-test rule or a lifetime ECL curve for re-staged exposures (scenario.mappings.stages). A re-test is carried into execution and the stage components are N/A with that reason; computing migrated EAD would require inventing the staging rule.",
+  "note": "Gap: unsupported moves counted separately, but migrated EAD is not asserted as its own figure"
+ },
+ "DECOMP13": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Narrower-than-book scenario returns selected-scope and total-domain decomposition together.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP14": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "A single-customer scenario shows customer-level decomposition first and total active Corporate/Retail book decomposition second.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_scope_binds_one_customer_list_segment_top_n_or_whole_book",
+   "tests/cockpit_v4/test_gw_runs.py::test_decomp14_a_single_customer_scenario_decomposes_customer_then_book"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "(preview only). Gap: no single-customer scenario is executed and its dual-scope order asserted"
+ },
+ "DECOMP15": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "A filtered/sub-portfolio scenario shows selected-cohort decomposition first and total active book decomposition second.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP16": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selected-scope waterfall closes exactly to selected pre/post ECL.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC06"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP17": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Total-domain waterfall closes exactly to total-book pre/post ECL.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC06"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP18": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selected-scope delta + rest-of-book delta reconciles exactly to total-domain delta within governed tolerance.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC06"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP19": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Result shows selected-scope contribution to total ECL change as both amount and percentage.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_selected_plus_rest_of_book_equals_total_in_the_same_result"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "(amount and )"
+ },
+ "DECOMP20": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selected-scope and total-book decompositions use the same scenario contract, method, reporting period and stage policy.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_the_same_components_match_between_scopes",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP21": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selected scope equal to total book: duplicate suppressed, labelled accordingly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_whole_book_scope_is_labelled_selected_equals_total",
+   "tests/cockpit_v4/test_gw_runs.py::test_decomp21_selected_scope_equal_to_the_book_is_one_population",
+   "tests/cockpit_v4/test_gw_runs.py::test_decomp21_a_true_subset_is_never_called_the_whole_book",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC10/DEC11"
+  ],
+  "journeys": [
+   "GW-P13-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: server flag asserted; the frontend does not read so suppression/label in the UI is not implemented or tested"
+ },
+ "DECOMP22": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Both decomposition levels use consistent driver ordering, semantic colors and adaptive unit policy.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/decomposition.test.ts::DEC01/DEC02",
+   "tests/cockpit_v4/test_gw_decomposition_palette.py::test_palette_ids_and_order_are_the_server_taxonomy"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP23": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Both decomposition levels provide exact downloadable reconciliation tables matching Plotly bars.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/decomposition.test.ts::DEC04",
+   "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest"
+  ],
+  "journeys": [
+   "GW-P12-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "DECOMP24": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Method comparison preserves dual-scope decomposition for each available method without changing cohort/baseline.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth11_compare_uses_one_contract_cohort_and_baseline",
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_user_defined_is_a_management_overlay_not_a_driver_split",
+   "tests/cockpit_v4/test_gw_runs.py::test_decomp24_method_comparison_keeps_a_dual_scope_bridge_per_method"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: no test asserts a dual-scope decomposition per method inside one comparison (ML skipped on accepted interpreter)"
+ },
+ "VIZ01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "All new/revised What-If product charts use Plotly.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/chart-inventory.test.ts::INV01..INV05"
+  ],
+  "journeys": [
+   "GW-P11-05"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Charts are responsive.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P13-05"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "No test at another viewport or container size (browser suite fixed at 1440x1000)"
+ },
+ "VIZ03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Hover templates show label/value/unit/context.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/figures.test.ts::FIG01/FIG02"
+  ],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Legend toggling works.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Zoom/pan/reset work where relevant.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(drag-zoom and mode-bar reset)"
+ },
+ "VIZ06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Data-table fallback exists for every chart.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/chart-inventory.test.ts::INV04"
+  ],
+  "journeys": [
+   "GW-P3-03",
+   "GW-P11-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(all Plotly via ChartCard except sparklines)"
+ },
+ "VIZ07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Executive waterfall renders.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/decomposition.test.ts::DEC03"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Stage Sankey/alluvial renders and reconciles counts/EAD.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/advanced.test.ts::VIZ08",
+   "tests/cockpit_v4/test_gw_charts.py::test_stage_flow_reconciles_to_the_whole_book"
+  ],
+  "journeys": [
+   "GW-P11-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Before/after stage chart renders.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/decomposition.test.ts::DEC07",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_result_decomposition_is_dual_scope_and_reconciles"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Top-contributor Pareto renders.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/advanced.test.ts::VIZ10",
+   "tests/cockpit_v4/test_gw_runs.py::test_pareto_and_distribution_reconcile_to_the_selected_change"
+  ],
+  "journeys": [
+   "GW-P11-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Driver distribution chart renders.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/advanced.test.ts::VIZ11",
+   "tests/cockpit_v4/test_gw_runs.py::test_pareto_and_distribution_reconcile_to_the_selected_change"
+  ],
+  "journeys": [
+   "GW-P11-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Sector/rating or product/score heatmap renders.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/advanced.test.ts::VIZ12",
+   "tests/cockpit_v4/test_gw_charts.py::test_heatmap_under_a_filter_matches_the_selection_summary"
+  ],
+  "journeys": [
+   "GW-P11-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ13": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Method comparison chart handles unavailable methods without plotting zero.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/decomposition.test.ts::DEC07",
+   "tests/cockpit_v4/test_whatif_results.py::test_r07_the_method_comparison_keeps_an_unavailable_method_visible",
+   "tests/cockpit_v4/test_whatif_retail_not_ready.py::test_the_emulators_cells_are_empty_and_not_zero"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "VIZ14": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Playful semantic palette is consistent and color-blind legible.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/palette.test.ts::VIZ14",
+   "frontend/src/lib/viz/palette.test.ts::increase and decrease are separable without hue",
+   "tests/cockpit_v4/test_gw_decomposition_palette.py::test_palette_ids_and_order_are_the_server_taxonomy"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Scenario draft persists structured contract.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_create_saves_without_execution",
+   "tests/cockpit_v4/test_gw_objects.py::test_every_object_kind_round_trips_with_its_hash",
+   "tests/cockpit_v4/test_whatif_thread_context.py::test_a_confirmed_scenario_survives_the_round_trip"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Confirmation status persists.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+   "tests/cockpit_v4/test_whatif_thread_context.py::test_the_confirmation_digest_is_stored_as_it_was_not_recomputed"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Baseline lineage persists.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+  ],
+  "journeys": [
+   "GW-P6-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Method selection persists.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_trace.py::test_result_trace_shows_versions_hashes_lineage_and_method_decisions",
+   "tests/cockpit_v4/test_gw_method_gate.py::test_meth02_meth03_it_enters_method_selection_and_says_confirmed_not_executed"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Method availability/gates persist.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+   "tests/cockpit_v4/test_gw_runs.py::test_retail_ml_is_visibly_unavailable_and_never_substituted"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Executed results persist.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_session_listing_shows_state_and_result",
+   "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Confirmed/no-method reopen returns to METHOD_SELECTION.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Executed scenario reopen reproduces charts/tables.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest"
+  ],
+  "journeys": [
+   "GW-P6-04",
+   "GW-P7-02",
+   "GW-P12-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(reopen/export parity)"
+ },
+ "PERSIST09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Parent scenario hash is verified on stacked reopen.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_persist09_a_tampered_parent_contract_is_refused"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Trace names method and scenario contract hash.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_trace.py::test_result_trace_shows_versions_hashes_lineage_and_method_decisions"
+  ],
+  "journeys": [
+   "GW-P12-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PERSIST11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Export names method and baseline lineage.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest"
+  ],
+  "journeys": [
+   "GW-P12-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(run, scenario, cohort objects; per-method tables)"
+ },
+ "PERSIST12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Exported decomposition reconciles to UI numbers.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest",
+   "frontend/src/lib/viz/decomposition.test.ts::DEC04/DEC06"
+  ],
+  "journeys": [
+   "GW-P12-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Grid filters cannot inject SQL.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_filters_refuse_unknown_columns_operators_and_unsafe_text",
+   "tests/cockpit_v4/test_gw_objects.py::test_injection_through_a_filter_is_refused",
+   "tests/cockpit_v4/test_gw_whatif.py::test_selection_refuses_injection_and_oversize"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "User cannot supply tenant via filter/scenario to cross tenant boundary.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_a_tenant_cannot_be_named_in_a_request",
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_a_request_cannot_name_its_own_tenant",
+   "tests/cockpit_v4/test_gw_whatif.py::test_another_tenants_cohort_cannot_be_named"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate/Retail release cannot be swapped by request-controlled arbitrary id.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_one_book_never_answers_with_the_others_release",
+   "tests/cockpit_v4/test_whatif_bridge.py::test_the_domains_route_never_pairs_one_id_with_another_fingerprint",
+   "tests/cockpit_v4/test_gw_whatif.py::test_a_retail_cohort_cannot_be_named_on_the_corporate_book"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Selection token/predicate is server validated.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_whatif.py::test_a_named_cohort_whose_rows_moved_is_refused",
+   "tests/cockpit_v4/test_gw_whatif.py::test_a_cohort_id_cannot_ride_with_filters",
+   "tests/cockpit_v4/test_whatif_bridge.py::test_a_cohort_cannot_carry_a_predicate"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Scenario cannot execute against superseded/unreadable release silently.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_routes.py::test_a_genuinely_superseded_release_is_still_refused",
+   "tests/cockpit_v4/test_whatif_thread_context.py::test_a_different_release_id_invalidates_and_says_so",
+   "tests/cockpit_v4/test_gw_whatif.py::test_a_cohort_id_is_refused_when_no_workspace_is_registered"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Unavailable method cannot be bypassed via crafted request.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_method_gate.py::test_sec06_an_unavailable_method_cannot_be_forced_by_a_crafted_request"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(crafted execute 409)"
+ },
+ "SEC07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Source data remain read-only.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base08_layering_never_writes_a_source_row",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_alert_actions_do_not_touch_source_data"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SEC08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Credential is not logged/printed/written to repo.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_secret_leak.py::test_no_canary_reaches_any_store_file",
+   "tests/cockpit_v4/test_gw_trace.py::test_credentials_are_never_persisted",
+   "tests/cockpit_v4/test_gw_llm_exchange.py::test_no_credential_reaches_the_store",
+   "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_bytes_in_the_database_wal_or_shm",
+   "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_on_any_logical_read_path",
+   "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_in_any_export",
+   "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_reopening_makes_zero_model_calls_and_restores_nothing",
+   "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_the_model_still_receives_the_question_as_typed"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: P12 finding — a credential typed into a Cockpit question is persisted by the protected V4 run store (fix awaits approval); launcher printing is P14"
+ },
+ "LAUNCH01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Mac setup verifies Python >=3.12.",
+  "claim": "PENDING-P14",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_requires_the_declared_python"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "(prior-round preflight). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Mac setup verifies Python requirements/pip check.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Mac setup verifies frontend Next.js dependency.",
+  "claim": "PENDING-P14",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_refuses_when_the_frontend_is_not_installed"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "(prior-round preflight). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Mac setup verifies candidate lake and compatibility release.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "scripts/whatif/uat_preflight.py"
+  ],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "Checked by no test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Mac setup verifies emulator component artifacts.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "scripts/whatif/uat_preflight.py"
+  ],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "Checked by no test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "START loads approved Keychain credential without printing it.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "START verifies model/price card.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "START uses dedicated runtime/state database.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "START never kills unrelated port owners.",
+  "claim": "PENDING-P14",
+  "tests": [
+   "tests/cockpit_v4/test_launcher_safety.py::test_a_busy_port_is_reported_and_never_freed"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "(accepted V4 launcher). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "START reports ready only after API/UI health checks.",
+  "claim": "PENDING-P14",
+  "tests": [
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "(prior-round launcher). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "STOP kills only owned processes.",
+  "claim": "PENDING-P14",
+  "tests": [
+   "tests/cockpit_v4/test_launcher_safety.py::test_the_stop_script_contains_no_broad_kill"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "(accepted V4 launcher). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "LAUNCH12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "STATUS reports exact SHA, releases, ports, model and health.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+ },
+ "REG01": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Complete What-If unit/integration suite passes.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PHASE_LEDGER.md"
+  ],
+  "gap": "",
+  "note": "GW suites last measured at P12: 259+ passed, 3 ML skips ()",
+  "checks": [
+   "regression:whatif_suite_whatif_venv"
+  ]
+ },
+ "REG02": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Complete V4/backend/frontend regression passes.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PHASE_LEDGER.md"
+  ],
+  "gap": "",
+  "note": "Last full V4/frontend baseline at P0 only (Baseline counts)",
+  "checks": [
+   "regression:v4_backend_and_frontend_py_accepted"
+  ]
+ },
+ "REG03": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "V3 regression passes.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "V3 suite measured at P0 only",
+  "checks": [
+   "regression:v3_cockpit_agentic"
+  ]
+ },
+ "REG04": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Frontend unit tests and type-check pass.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PHASE_LEDGER.md"
+  ],
+  "gap": "",
+  "note": "658/658 and clean at P12 ()",
+  "checks": [
+   "regression:frontend_unit",
+   "regression:frontend_typecheck",
+   "regression:frontend_lint_new_code"
+  ]
+ },
+ "REG05": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Corporate candidate browser journeys pass.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/evidence/journeys.json"
+  ],
+  "gap": "",
+  "note": "Round journeys 41/41 PASS, MODEL MOCK (); accepted Corporate journeys not re-run",
+  "checks": [
+   "regression:gw_browser_journeys_clean_store",
+   "regression:whatif_candidate_browser"
+  ]
+ },
+ "REG06": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Retail candidate browser journeys pass.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Round journeys 41/41 PASS, MODEL MOCK; accepted Retail journeys not re-run",
+  "checks": [
+   "regression:gw_browser_journeys_clean_store",
+   "regression:whatif_candidate_browser"
+  ]
+ },
+ "REG07": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Accepted browser suite passes unchanged.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Accepted browser suite not re-run (P6 notes it now meets the BASE01 question)",
+  "checks": [
+   "regression:accepted_browser_suite_flags_off"
+  ]
+ },
+ "REG08": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Artifact reproducibility verifies both emulators/sensitivity libraries.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Emulator gates reproduced at P0 only",
+  "checks": [
+   "regression:sensitivity_libraries_reproduce",
+   "regression:emulator_artifacts_reproduce"
+  ]
+ },
+ "REG09": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Accepted fingerprints remain unchanged.",
+  "claim": "BLOCKED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/BASELINE_PROVENANCE.md"
+  ],
+  "gap": "ENVIRONMENT: in-container fingerprints verify; the earlier container's accepted byte fingerprints are not reproducible with the pinned writer (BASELINE_PROVENANCE section 3).",
+  "note": "Accepted byte fingerprints do not reproduce in this container ()",
+  "checks": [
+   "regression:release_fingerprints"
+  ]
+ },
+ "REG10": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "protected_hashes.py --check has no unexplained protected changes.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/PROTECTED_EXTENSION_MAP.md"
+  ],
+  "gap": "",
+  "note": "Protected check reports 5 changed, all mapped (); not re-run as a gate",
+  "checks": [
+   "regression:protected_baseline_round"
+  ]
+ },
+ "REG11": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Requirement-to-test matrix self-check passes with no fabricated names.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "This draft matrix; the self-check (no fabricated names) is not yet run",
+  "checks": [
+   "generator:self_check"
+  ]
+ },
+ "REG12": {
+  "section": "21. Acceptance tests — minimum mandatory matrix",
+  "requirement": "Real Mac live-provider UAT passes before freeze.",
+  "claim": "PENDING-P14",
+  "tests": [],
+  "journeys": [],
+  "sources": [],
+  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
+  "note": "No live-provider run yet; every journey is MODEL MOCK. Pending: real Mac live-provider UAT before freeze"
+ },
+ "GX-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Cockpit landing renders Requires Attention with Ask box simultaneously; no blank-chat dependency.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_requires_attention_is_populated_in_both_books"
+  ],
+  "journeys": [
+   "GW-P3-01-CORP",
+   "GW-P3-01-RET"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Issue card has materiality, period delta, cohort summary, interactive Plotly evidence.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_every_issue_card_carries_the_contract"
+  ],
+  "journeys": [
+   "GW-P3-01-CORP",
+   "GW-P3-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Issue card action opens investigation with issue/cohort context pre-bound.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_the_seed_gives_the_analyst_the_evidence_without_retyping",
+   "tests/cockpit_v4/test_gw_guided.py::test_investigate_opens_a_seeded_cockpit_thread_with_a_frozen_cohort"
+  ],
+  "journeys": [
+   "GW-P3-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-04": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Clicking a suggested next question executes an ordinary governed turn in same thread.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_a_suggestion_is_submitted_as_an_ordinary_turn_in_the_same_thread"
+  ],
+  "journeys": [
+   "GW-P3-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-05": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Suggestion rationale is traceable to evidence/current state.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_every_suggestion_names_its_source_and_rationale",
+   "tests/cockpit_v4/test_gw_guided.py::test_a_guided_click_records_what_was_suggested_and_why"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-06": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Suggestions already answered are suppressed or updated when scope changes.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_answered_questions_are_suppressed_until_the_cohort_changes"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-07": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Free-form Ask remains usable at every guided step.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P3-01-CORP",
+   "GW-P3-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(Ask box on landing; free-form turn after a chip in the same thread)"
+ },
+ "GX-08": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Root-cause flow can be completed by clicks/suggestions without mandatory typing.",
+  "claim": "PARTIAL",
+  "tests": [],
+  "journeys": [
+   "GW-P3-02"
+  ],
+  "sources": [],
+  "gap": "a complete Issue-to-Decision path by clicks only is not exercised",
+  "note": "(one chip click runs a turn). Gap: a complete Issue-to-Decision path by clicks only is not exercised"
+ },
+ "GX-09": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Suggested What-If appears only after evidence/finding and is clearly labeled as a stress test.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_guided.py::test_a_whatif_suggestion_needs_a_finding_first"
+  ],
+  "journeys": [
+   "GW-P3-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "GX-10": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Early Warning card can create/export the exact governed cohort to Cockpit/What-If.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_charts.py::test_a_warning_reason_cross_filters_bands_segments_and_the_cohort"
+  ],
+  "journeys": [
+   "GW-P3-04",
+   "GW-P11-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PV-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "All newly governed analytical charts use Plotly or carry an explicit documented exception.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/viz/chart-inventory.test.ts::INV01..INV06"
+  ],
+  "journeys": [],
+  "sources": [
+   "docs/guided_workspace/CHART_INVENTORY.md"
+  ],
+  "gap": "",
+  "note": "(documented exceptions)"
+ },
+ "PV-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Click selection cross-filters linked visuals and data grid deterministically.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_a_category_click_cross_filters_every_compatible_visual",
+   "frontend/src/lib/workspace/whatif-filters.test.ts::WIF01/WIF02"
+  ],
+  "journeys": [
+   "GW-P5-02",
+   "GW-P9-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PV-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Lasso/box selection creates active cohort with count/EAD/ECL summary.",
+  "claim": "COVERED",
+  "tests": [
+   "frontend/src/lib/workspace/whatif-filters.test.ts::WIF03"
+  ],
+  "journeys": [
+   "GW-P5-02",
+   "GW-P9-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PV-04": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "View data reproduces exact plotted predicate/aggregation.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P11-02",
+   "GW-P11-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(CSV rows = drawn cells; data-row activation filters to the cell count)"
+ },
+ "PV-05": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Legend toggle does not silently alter analytical totals.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PV-06": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Large chart/grid requests are server-side paged/aggregated; full portfolio is not shipped to browser.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_charts.py::test_http_aggregate_is_small_and_row_free",
+   "tests/cockpit_v4/test_gw_charts.py::test_the_cell_cap_truncates_and_says_so"
+  ],
+  "journeys": [
+   "GW-P11-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "PV-07": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Chart download and tabular download reconcile exactly.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_trace.py::test_result_package_carries_exact_tables_definitions_and_manifest"
+  ],
+  "journeys": [
+   "GW-P11-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(CSV rows = drawn cells)"
+ },
+ "CO-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Saved cohort preserves domain/release/fingerprint/predicate/counts and reopens identically.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_a_cohort_freezes_and_reopens_identically",
+   "tests/cockpit_v4/test_gw_objects.py::test_cohort_api_round_trip_verify_and_rows"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "CO-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Refreshing a saved cohort creates a new version rather than mutating historical scope.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_refreshing_a_cohort_makes_a_new_version"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "CO-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Same cohort_id transfers from Early Warning -> Cockpit -> What-If without row loss/substitution.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_objects.py::test_the_same_cohort_is_the_same_population_in_every_module"
+  ],
+  "journeys": [
+   "GW-P3-04",
+   "GW-P7-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Scenario can be saved without execution.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_create_saves_without_execution"
+  ],
+  "journeys": [
+   "GW-P4-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Scenario definition is independent from calculation method.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_definition_is_independent_of_method",
+   "tests/cockpit_v4/test_whatif_spec.py::test_the_method_is_not_part_of_the_scenario_contract"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Scenario library lists owner/version/status/components/scope/method/result availability.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_listing_shows_owner_version_status_components_scope_methods_results"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-04": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Combine A+B+C creates new scenario and leaves parents unchanged.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_combine_creates_new_scenario_and_leaves_parents_unchanged"
+  ],
+  "journeys": [
+   "GW-P4-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-05": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Overlapping rules are detected and execution blocks until composition policy is explicit.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_overlap_blocks_until_policy_is_explicit",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_no_policy_is_ever_assumed"
+  ],
+  "journeys": [
+   "GW-P4-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-06": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Combined scenario persists parent scenario/version lineage.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_combined_scenario_persists_parent_lineage"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-07": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Scenario can bind to one customer, list, segment, saved cohort, sub-portfolio or whole book.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_scope_binds_one_customer_list_segment_top_n_or_whole_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_bind_to_cohort_template_creates_new_scenario_own_creates_version"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-08": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Second scenario asks original baseline vs previous stressed result unless already specified.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline",
+   "tests/cockpit_v4/test_gw_decomposition.py::test_base01_a_second_scenario_asks_original_baseline_or_on_top"
+  ],
+  "journeys": [
+   "GW-P6-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-09": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Scenario tree preserves branches and compares compatible nodes.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_messages.py::test_the_session_tree_shows_baseline_layered_and_method_variants",
+   "tests/cockpit_v4/test_gw_messages.py::test_incompatible_results_are_not_compared"
+  ],
+  "journeys": [
+   "GW-P7-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "SC-10": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Shared unexecuted scenario can be opened/duplicated/run by authorized recipient without modifying source.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_messages.py::test_recipient_runs_a_shared_definition_as_their_own_linked_run",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_share_carries_reference_not_data_and_respects_tenant"
+  ],
+  "journeys": [
+   "GW-P7-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MSG-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Message shares object reference/version, not only prose/screenshot.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_share_carries_reference_not_data_and_respects_tenant",
+   "tests/cockpit_v4/test_gw_whatif.py::test_share_a_cohort_by_reference"
+  ],
+  "journeys": [
+   "GW-P4-04"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MSG-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Recipient cannot gain data access through shared object beyond permissions.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_messages.py::test_a_message_never_grants_access_beyond_the_recipient"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "MSG-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Comments and edits preserve object version lineage.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_messages.py::test_comments_attach_to_the_shared_version_and_both_sides_see_them",
+   "tests/cockpit_v4/test_gw_messages.py::test_a_pinned_share_stays_openable_after_the_object_moves_on",
+   "tests/cockpit_v4/test_gw_objects.py::test_comments_attach_to_an_object_version"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "LN-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "User can create Lens from one natural-language prompt, preview spec, refine and confirm save.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_a_prompt_returns_a_preview_and_nothing_is_saved"
+  ],
+  "journeys": [
+   "GW-P9-02"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "LN-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "User can Save analysis as Lens from Cockpit.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_save_an_investigation_as_a_lens_keeps_its_cohort"
+  ],
+  "journeys": [
+   "GW-P9-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "LN-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Saved Lens persists data/metrics/visuals/filters/refresh/breach/audience/version.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_no_anonymous_kpi_every_binding_is_a_pinned_catalogue_metric",
+   "tests/cockpit_v4/test_gw_objects.py::test_every_object_kind_round_trips_with_its_hash",
+   "tests/cockpit_v4/test_gw_lenses.py::test_editing_writes_a_version_and_a_library_lens_is_copied"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "(lens requires audience, refresh, breach_rules)"
+ },
+ "LN-04": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Lens chart click cross-filters all compatible visuals and grid.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_a_category_click_cross_filters_every_compatible_visual",
+   "frontend/src/lib/workspace/lens-figures.test.ts::LENS02"
+  ],
+  "journeys": [
+   "GW-P9-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "LN-05": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Lens point/category can drill to exact underlying data.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_drill_to_rows_honours_the_clicked_dimension"
+  ],
+  "journeys": [
+   "GW-P9-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(table = 248 Construction rows)"
+ },
+ "LN-06": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Lens selection can create cohort and launch Investigate/What-If.",
+  "claim": "COVERED",
+  "tests": [],
+  "journeys": [
+   "GW-P9-03"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": "(box-select to cohort to What-If)"
+ },
+ "LN-07": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Scheduled/on-data refresh writes Lens Observation with release/fingerprint/status.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_refresh_records_an_immutable_observation_with_what_changed",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_scheduled_refresh_replays_deterministically",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_cadences_decide_what_is_due"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "LN-08": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Refresh computes what-changed summary vs prior successful observation.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_refresh_records_an_immutable_observation_with_what_changed",
+   "tests/cockpit_v4/test_gw_lenses.py::test_a_material_move_is_reported"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "LN-09": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Refresh failure does not masquerade stale values as current.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_monitoring.py::test_a_failed_refresh_is_recorded_and_never_shown_as_current"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "AL-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Breach rule generates alert with exact rule/lens/release/value/threshold/cohort metadata.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_monitoring.py::test_first_launch_shows_live_breaches_and_labelled_historical_replay",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_threshold_comparisons_are_exact"
+  ],
+  "journeys": [
+   "GW-P10-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "AL-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Alert dedup/cooldown prevents duplicate spam while preserving worsening events.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_monitoring.py::test_cooldown_suppresses_a_duplicate_delivery",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_worsening_is_delivered_through_cooldown_and_recovery_resolves",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_a_persisting_breach_is_one_alert_new_then_active"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "AL-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Monitoring Centre shows NEW/ACTIVE/WORSENING/ACKNOWLEDGED/RESOLVED status transitions.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_monitoring.py::test_the_alert_state_machine",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_worsening_is_delivered_through_cooldown_and_recovery_resolves"
+  ],
+  "journeys": [
+   "GW-P10-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "AL-04": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Opening alert restores Lens at triggering period/filter and can launch Cockpit investigation.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_monitoring.py::test_opening_an_alert_restores_the_lens_at_its_trigger"
+  ],
+  "journeys": [
+   "GW-P10-01"
+  ],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "ARCH-01": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "No duplicate analytical engine introduced; existing AdvancedCockpit/What-If services remain authoritative.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+   "tests/cockpit_v4/test_gw_runs.py::test_a_cockpit_execution_opens_as_the_same_governed_result"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": ""
+ },
+ "ARCH-02": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "What-If contextual and dedicated workspace paths produce identical scenario contract for same input.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_runs.py::test_choosing_delta_runs_delta_only_and_matches_the_cockpit_entrance",
+   "tests/cockpit_v4/test_gw_whatif.py::test_grid_filter_selection_and_conversation_filters_give_one_membership",
+   "tests/cockpit_v4/test_gw_runs.py::test_arch02_cockpit_and_whatif_build_the_identical_contract"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Gap: equal Delta change and membership hash asserted; equality of the scenario contract digest across entrances is not"
+ },
+ "ARCH-03": {
+  "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
+  "requirement": "Flags OFF accepted Cockpit remains regression-identical except explicitly authorized generic UX shell additions.",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_llm_exchange.py::test_the_workspace_router_is_absent_when_its_flag_is_off",
+   "tests/cockpit_v4/test_gw_llm_exchange.py::test_bind_returns_the_same_provider_object_when_the_flag_is_off"
+  ],
+  "journeys": [],
+  "sources": [],
+  "gap": "",
+  "note": "Pending: full flags-off regression and accepted browser suite at P13",
+  "checks": [
+   "regression:accepted_browser_suite_flags_off",
+   "regression:protected_baseline_round"
+  ]
+ },
+ "CORP-01": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Construction PD deterioration: Construction; PD +20% relative",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_runs.py::test_a_second_run_in_a_session_asks_for_the_baseline"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "(executed)"
+ },
+ "CORP-02": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Construction PD+LGD downside: Construction; PD +20%; LGD +10% relative",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [
+   "GW-P6-01"
+  ],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "(executed)"
+ },
+ "CORP-03": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Commercial real-estate collateral shock: CRE; Collateral -15%; LGD overlay +8%",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "collateral translation flagged SIGN_REVIEW (LGD falls when collateral falls), shown not corrected (PHASE_LEDGER P6)",
+  "note": "Gap: collateral translation flagged SIGN_REVIEW (LGD falls when collateral falls), shown not corrected (PHASE_LEDGER P6)"
+ },
+ "CORP-04": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Oil price downside: Oil & Gas; Oil -20% -> governed MEV sensitivities",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-05": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "GDP recession: Whole book; GDP -1.5%; unemployment +100 bps",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_overlap_blocks_until_policy_is_explicit",
+   "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "executed in"
+ },
+ "CORP-06": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Rates +200 bps: Rate-sensitive sectors; Policy rate +200 bps",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "executed in"
+ },
+ "CORP-07": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "One-notch downgrade: BBB-/BB+ and below; Rating -1 notch",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_rating_moves_along_the_masterscale_not_the_string"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-08": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Two-notch downgrade severe: BB and below; Rating -2 notches",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "Re-test execution not exercised (see SCEN12)"
+ },
+ "CORP-09": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "LGD recovery deterioration: Stage 2/3; LGD +5 percentage points",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-10": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "CCF utilisation stress: Revolvers/undrawn; CCF +15% relative",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_runs.py::test_ccf_runs_on_the_derived_conversion_factor"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-11": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Top-20 obligor concentration shock: Top 20 EAD borrowers; PD +25%; LGD +10%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-12": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Hospitality downside: Hospitality; PD +30%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_search_and_filters"
+  ],
+  "journeys": [
+   "GW-P4-01"
+  ],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-13": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Trade & manufacturing slowdown: Trade + Manufacturing; PD +15%; utilization +10%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-14": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Stage migration re-test: Current Stage 1 high-risk; PD +20%; re-test SICR",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "Re-test execution not exercised (see SCEN12)"
+ },
+ "CORP-15": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Severe GCC downturn: Whole book; GDP -3%; oil -30%; unemployment +200 bps; rates +250 bps",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_macro_with_macro_uses_the_governed_linear_sum"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-16": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Management overlay + downside: Selected sector; PD +10%; user overlay +5% ECL",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "User-defined overlay component explicit by design (READY_WITH_USER_DEFINED_INPUTS)"
+ },
+ "CORP-17": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Cure sensitivity upside: Stage 2; PD -15%; cure assumption",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "CORP-18": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Combined sector + macro stress: Construction + CRE; Sector PD/LGD + macro downside",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_seeded_conflict_templates_stay_blocked_until_chosen"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-01": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Credit Card PD deterioration: Credit Card; PD +20%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_runs.py::test_retail_ml_is_visibly_unavailable_and_never_substituted"
+  ],
+  "journeys": [
+   "GW-P6-02"
+  ],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-02": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Credit Card utilisation stress: Credit Card; Utilisation +10%; CCF +10%",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_unsupported_field_is_labelled_not_dropped"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "Retail CCF component UNSUPPORTED; template BLOCKED",
+  "note": "Gap: Retail CCF component UNSUPPORTED; template BLOCKED"
+ },
+ "RET-03": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Behaviour score deterioration: Credit Card + Personal Finance; Behaviour score -30 points/band mapping",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-04": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Application score downgrade: New accounts; Application score deterioration one band",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_behavioural_and_application_scores_are_never_substituted"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "application score TRANSLATION_ONLY; no governed mapping, User-defined only",
+  "note": "Gap: application score TRANSLATION_ONLY; no governed mapping, User-defined only"
+ },
+ "RET-05": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "DPD migration stress: 0-29 DPD; Shift one delinquency band worse",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_needs_mapping_is_never_guessed",
+   "tests/cockpit_v4/test_gw_runs.py::test_a_component_without_governed_translation_blocks_delta_by_name"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "delinquency shift NEEDS_USER_MAPPING; Delta BLOCKED, User-defined only",
+  "note": "Gap: delinquency shift NEEDS_USER_MAPPING; Delta BLOCKED, User-defined only"
+ },
+ "RET-06": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Personal Finance PD+LGD: Personal Finance; PD +15%; LGD +5% relative",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "Seeded executed demo result used by LENS-16 (PHASE_LEDGER P9)"
+ },
+ "RET-07": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Home Finance collateral shock: Home Finance; Property value -15%; LGD translation",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_collateral_sign_review_is_flagged",
+   "tests/cockpit_v4/test_gw_runs.py::test_the_collateral_sign_warning_survives_into_the_result"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "SIGN_REVIEW — LGD falls when property value falls; shown, not corrected",
+  "note": "Gap: SIGN_REVIEW — LGD falls when property value falls; shown, not corrected"
+ },
+ "RET-08": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Auto Finance collateral shock: Auto Finance; Vehicle value -20%; LGD translation",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_needs_mapping_is_never_guessed"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "vehicle collateral NEEDS_USER_MAPPING; User-defined only",
+  "note": "Gap: vehicle collateral NEEDS_USER_MAPPING; User-defined only"
+ },
+ "RET-09": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Unemployment shock: Whole book; Unemployment +100 bps -> PD/LGD sensitivities",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-10": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Rate shock: Variable-rate retail; Rates +200 bps",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-11": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Salary interruption cluster: Customers with salary interruption signal; PD +25%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": "Salary signal is a stated EWS proxy (no salary feed)"
+ },
+ "RET-12": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Persistent minimum payment: Credit Card warning cohort; PD +20%; utilization +10%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-13": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Affordability deterioration: Personal Finance; PD +20%; score band worsen 1",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-14": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "High utilisation + delinquency: Credit Card; Utilisation +15%; DPD +1 band",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "delinquency component has no governed translation; User-defined only (PHASE_LEDGER P4)",
+  "note": "Gap: delinquency component has no governed translation; User-defined only (PHASE_LEDGER P4)"
+ },
+ "RET-15": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Vintage downside: Newest 6-month vintages; PD +25%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-16": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Severe household downturn: Whole book; Unemployment +200 bps; rates +250 bps; house prices -20%",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "RET-17": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Cure sensitivity upside: Stage 2 / delinquent; PD -10%; DPD improve 1 band",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "DPD-improvement component has no governed translation; User-defined only (PHASE_LEDGER P4)",
+  "note": "Gap: DPD-improvement component has no governed translation; User-defined only (PHASE_LEDGER P4)"
+ },
+ "RET-18": {
+  "section": "44. Seeded Scenario Library — mandatory first-launch catalogue",
+  "requirement": "Combined EWS + macro stress: High/Critical EWS; PD +20% plus unemployment +100 bps",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_scenarios.py::test_library_seeds_at_least_36_templates_18_per_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_every_template_opens_a_real_preview_on_its_book",
+   "tests/cockpit_v4/test_gw_scenarios.py::test_seeded_conflict_templates_stay_blocked_until_chosen"
+  ],
+  "journeys": [
+   "GW-P4-03"
+  ],
+  "sources": [
+   "backend/workspace/scenario_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-01": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "CRO Executive Overview (CRO; Corporate + Retail; Daily/on publication)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [
+   "GW-P11-05",
+   "GW-P12-02"
+  ],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-02": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Head of Corporate Credit (Corporate Credit Head; Corporate; Daily)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [
+   "GW-P9-01"
+  ],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-03": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Head of Retail Risk (Retail Risk Head; Retail; Daily)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [
+   "GW-P10-02"
+  ],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-04": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "IFRS 9 / ECL Oversight (IFRS9/ECL team; Both; On publication)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no overlay visual or metric (spec lists overlays)",
+  "note": "Gap: no overlay visual or metric (spec lists overlays)"
+ },
+ "LENS-05": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Early Warning Command Center (EWS team; Both; Daily)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no top-warning-reasons visual",
+  "note": "Gap: no top-warning-reasons visual"
+ },
+ "LENS-06": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Corporate Portfolio Manager (Portfolio manager; Corporate; Daily)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no ECL metric bound (spec lists ECL)",
+  "note": "Gap: no ECL metric bound (spec lists ECL)"
+ },
+ "LENS-07": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Retail Portfolio Manager (Portfolio manager; Retail; Daily)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-08": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Credit Card Risk (Product risk head; Retail Credit Card; Daily)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lenses.py::test_default_filters_scope_a_product_lens"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no top-reasons visual",
+  "note": "Gap: no top-reasons visual"
+ },
+ "LENS-09": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Personal Finance Risk (Product risk head; Retail Personal Finance; Daily)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no salary-signal visual (book has no salary feed)",
+  "note": "Gap: no salary-signal visual (book has no salary feed)"
+ },
+ "LENS-10": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Home Finance Risk (Product risk head; Retail Home Finance; Weekly)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-11": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Auto Finance Risk (Product risk head; Retail Auto Finance; Weekly)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-12": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Collections & Recoveries (Collections; Retail; Daily)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no recoveries visual or metric",
+  "note": "Gap: no recoveries visual or metric"
+ },
+ "LENS-13": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Risk Appetite & Limits (CRO/Risk Appetite; Both; Daily)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-14": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Board Risk Committee Pack (Board/Executive; Both; Monthly)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-15": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Sector Watch — Construction & CRE (Sector specialist; Corporate; Daily)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_opening_an_alert_restores_the_lens_at_its_trigger"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-16": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Scenario Impact Watch (Stress/Portfolio team; Both; On scenario/result refresh)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lenses.py::test_scenario_metrics_only_count_results_the_viewer_can_open"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no stage-migration, concentration or method-comparison visual",
+  "note": "Gap: no stage-migration, concentration or method-comparison visual"
+ },
+ "LENS-17": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Data Quality & Coverage (Risk data owner; Both; On publication)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "LENS-18": {
+  "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
+  "requirement": "Monitoring & Breach Executive (CRO/Operations; Both; Continuous/on refresh)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/lens_seed.py"
+  ],
+  "gap": "no top-breached-metrics or assigned-owner visual",
+  "note": "Gap: no top-breached-metrics or assigned-owner visual"
+ },
+ "M001": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Booked ECL: SUM(reported_ecl)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M002": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "ECL change: ECL_t - ECL_t-1",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_a_movement_metric_is_the_difference_of_its_base"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M003": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "ECL change %: (ECL_t/ECL_t-1)-1",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_a_movement_metric_is_the_difference_of_its_base"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M004": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 1 EAD share: SUM(EAD stage1)/SUM(EAD)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M005": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 2 EAD share: SUM(EAD stage2)/SUM(EAD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M006": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 3 EAD share: SUM(EAD stage3)/SUM(EAD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M007": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 2 ECL share: SUM(ECL stage2)/SUM(ECL)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M008": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 3 ECL share: SUM(ECL stage3)/SUM(ECL)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M009": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 1→2 migration EAD: SUM(EAD where prior stage=1,current=2)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M010": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Stage 2→3 migration EAD: SUM(EAD where prior stage=2,current=3)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M011": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Cure EAD: SUM(EAD with improving stage/default state)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M012": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Default-entry rate: New defaults / eligible performing population",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M013": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Default count: COUNT(new default entities)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M014": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "NPL/Default EAD: SUM(EAD default/Stage3)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M015": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "EAD-weighted PD: SUM(EAD*PD)/SUM(EAD with valid PD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M016": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "EAD-weighted LGD: SUM(EAD*LGD)/SUM(EAD with valid LGD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M017": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "EAD-weighted CCF: SUM(undrawn*CCF)/SUM(undrawn with valid CCF)",
+  "claim": "BLOCKED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metrics.py::test_m017_corporate_is_computed_on_its_own_grain_and_period",
+   "tests/cockpit_v4/test_gw_metrics.py::test_m017_retail_incompatibility_is_measured_not_assumed"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "Retail BLOCKED by the governed data: the Retail release publishes no CCF field and its EAD equals the balance on 6,702 of 6,702 accounts, so a Retail CCF would be 0 by construction. Corporate is computed; Retail is refused (no cross-book substitution); the pinning test fails the day Retail data could support it.",
+  "note": "Gap: formula not independently recomputed; catalogue scopes it Corporate-only (spec: Both; Retail has no CCF)"
+ },
+ "M018": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Total EAD: SUM(EAD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M019": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Utilisation rate: SUM(drawn)/SUM(limit or drawn+undrawn)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M020": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Top-10 concentration: SUM(top10 EAD)/SUM(EAD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M021": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Largest-name concentration: MAX(entity EAD)/SUM(EAD)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M022": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Sector/product EAD share: SUM(EAD dimension value)/SUM(EAD)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M023": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Rating downgrade rate: Downgraded borrowers / rated borrowers with prior grade",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M024": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Rating upgrade rate: Upgraded borrowers / rated borrowers with prior grade",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M025": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Average rating notch movement: AVG(current notch-prior notch)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M026": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Behaviour score movement: AVG(score_t-score_t-1)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M027": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Application score distribution: Distribution by governed score bands",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "excluded from the value check in test_every_applicable_metric_evaluates_on_both_books; distribution not tested",
+  "note": "Gap: excluded from the value check in distribution not tested"
+ },
+ "M028": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "30+ DPD rate: EAD or accounts with DPD>=30 / eligible denominator",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_retail_delinquency_rates_reconcile"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": "(count variant; book max DPD 28)"
+ },
+ "M029": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "90+ DPD rate: EAD or accounts with DPD>=90 / eligible denominator",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_retail_delinquency_rates_reconcile"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": "(count variant; book max DPD 28)"
+ },
+ "M030": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Roll-forward rate: Population moving to worse DPD bucket / source bucket",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M031": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Cure rate: Population improving from delinquent/default state / eligible starting population",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M032": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "EWS warned customers: COUNT(DISTINCT customer with active warning)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M033": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "EWS high/critical share: High+Critical warned / warned",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M034": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Forward-risk customers: COUNT(DISTINCT customer flagged forward risk)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M035": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "EWS score: Governed EWS score aggregate/distribution",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M036": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Covenant breach rate: Borrowers/facilities with active breach / eligible monitored population",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M037": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Limit utilisation: Exposure / approved limit",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M038": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Limit breach count: COUNT(active breaches)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M039": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Scenario ECL delta: Scenario post ECL - scenario baseline ECL",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M040": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Scenario ECL delta %: Scenario delta / scenario baseline ECL",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M041": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Selected-scope contribution to total ECL change: selected scope ECL delta / total-domain ECL delta",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M042": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Model calibration gap: model baseline ECL - booked ECL",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "value on an ML result not tested",
+  "note": "(no-ML path only). Gap: value on an ML result not tested"
+ },
+ "M043": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "MEV sensitivity coefficient: Governed estimator coefficient/elasticity",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M044": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "MEV sensitivity stability: Governed stability statistic across windows/splits",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M045": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Data completeness: non-null required fields / required cells",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M046": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Data freshness: now - latest governed source timestamp",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M047": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Reconciliation residual: reported total - sum(components)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M048": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Breach count active: COUNT(alerts state in ACTIVE/WORSENING/NEW)",
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_monitoring.py::test_m048_counts_live_breaches_the_viewer_can_open"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "",
+  "note": ""
+ },
+ "M049": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Material changes since prior refresh: COUNT(metric changes above configured materiality)",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ },
+ "M050": {
+  "section": "46. Metric Catalogue — fully defined governed seed registry",
+  "requirement": "Lens refresh age: now-last successful refresh",
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+  ],
+  "journeys": [],
+  "sources": [
+   "backend/workspace/metric_catalog.py"
+  ],
+  "gap": "formula not independently recomputed",
+  "note": "Gap: formula not independently recomputed"
+ }
+}
