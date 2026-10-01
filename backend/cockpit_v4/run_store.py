@@ -348,6 +348,64 @@ class RunRecord:
             "updated_at": self.updated_at, "deadline_at": self.deadline_at}
 
 
+# -- the persistence boundary ------------------------------------------
+
+_WRITES = ("INSERT", "UPDATE", "REPLACE")
+
+#: Most typed questions held in memory for the execution hand-off.
+_TYPED_MAX = 256
+
+
+def _persistable_text(value: str) -> str:
+    """A string as it may be written: credential-shaped content replaced.
+
+    One definition of "secret" for the whole product -- the LLM Exchange
+    recorder's (`backend.llm.exchange`). Values only: telemetry such as
+    `input_tokens` or `max_tokens` is untouched. A JSON document that held
+    a secret is re-serialised from its scrubbed tree, so the stored text is
+    still valid JSON; anything else is scrubbed as text.
+    """
+    from backend.llm import exchange
+
+    clean = exchange.scrub_text(value, "$", [])
+    if clean == value:
+        return value
+    try:
+        tree = json.loads(value)
+    except ValueError:
+        return clean
+    if not isinstance(tree, (dict, list)):
+        return clean
+    return json.dumps(exchange.sanitize(tree), ensure_ascii=False,
+                      default=str)
+
+
+def _persistable(sql: str, params: Any) -> Any:
+    if not sql.lstrip()[:7].upper().startswith(_WRITES):
+        return params
+    if isinstance(params, dict):
+        return {k: _persistable_text(v) if isinstance(v, str) else v
+                for k, v in params.items()}
+    if isinstance(params, (list, tuple)):
+        return tuple(_persistable_text(v) if isinstance(v, str) else v
+                     for v in params)
+    return params
+
+
+class _SecretSafeConnection(sqlite3.Connection):
+    """Every write to the V4 state database passes here: the raw request
+    stays in memory for the run, and what reaches durable storage -- the
+    question, messages, events, turns, titles, context, investigations,
+    comments, shares -- never carries a credential in clear text."""
+
+    def execute(self, sql: str, parameters: Any = (), /):  # type: ignore[override]
+        return super().execute(sql, _persistable(sql, parameters))
+
+    def executemany(self, sql: str, seq_of_parameters: Any, /):  # type: ignore[override]
+        return super().executemany(
+            sql, [_persistable(sql, p) for p in seq_of_parameters])
+
+
 class RunStore:
     """The durable store. One SQLite file, WAL, thread-safe connections."""
 
@@ -357,11 +415,19 @@ class RunStore:
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self._shared: sqlite3.Connection | None = None
+        # The typed question of a run whose stored copy was sanitised, held
+        # IN MEMORY ONLY for the execution hand-off (`claim_next`), so the
+        # active request reaches the model exactly as typed while durable
+        # storage never holds the credential. Bounded; never written; lost
+        # on restart (a run resumed after a restart sees the sanitised text).
+        self._typed: dict[str, str] = {}
+        self._typed_lock = threading.Lock()
         if self.path == ":memory:":
             # One shared connection: a per-thread :memory: database would be a
             # different database per thread, which is not a store.
             self._shared = sqlite3.connect(
-                ":memory:", check_same_thread=False, timeout=30.0)
+                ":memory:", check_same_thread=False, timeout=30.0,
+                factory=_SecretSafeConnection)
             self._shared.row_factory = sqlite3.Row
             self._guard = threading.RLock()
         self._migrate()
@@ -383,7 +449,8 @@ class RunStore:
         if conn is None:
             try:
                 conn = sqlite3.connect(self.path, timeout=30.0,
-                                       isolation_level=None)
+                                       isolation_level=None,
+                                       factory=_SecretSafeConnection)
                 conn.row_factory = sqlite3.Row
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA synchronous=FULL")
@@ -651,6 +718,11 @@ class RunStore:
                     (principal_id, idempotency_key, body_digest, run_id, now))
             record = self._read_run(conn, run_id)
         assert record is not None
+        if record.question != question:
+            with self._typed_lock:
+                self._typed[run_id] = question
+                while len(self._typed) > _TYPED_MAX:
+                    self._typed.pop(next(iter(self._typed)))
         return record, True
 
     @staticmethod
@@ -723,6 +795,9 @@ class RunStore:
                  else None, _now(), run_id))
             record = self._read_run(conn, run_id)
         assert record is not None
+        if state in TERMINAL_STATES:
+            with self._typed_lock:
+                self._typed.pop(run_id, None)
         return record
 
     def request_cancel(self, run_id: str) -> RunRecord | None:
@@ -757,7 +832,19 @@ class RunStore:
                 " heartbeat_at, claimed_at) VALUES (?,?,"
                 " COALESCE((SELECT fence FROM leases WHERE run_id=?),0)+1,"
                 " ?,?)", (run_id, worker_id, run_id, _now(), _now()))
-            return self._read_run(conn, run_id)
+            record = self._read_run(conn, run_id)
+        return self._for_execution(record)
+
+    def _for_execution(self, record: RunRecord | None) -> RunRecord | None:
+        """The record a worker executes: the question as typed when this
+        process still holds it. Display and read paths never call this."""
+        if record is None:
+            return None
+        with self._typed_lock:
+            typed = self._typed.get(record.run_id)
+        if typed is not None:
+            record.question = typed
+        return record
 
     def heartbeat(self, run_id: str, worker_id: str) -> None:
         with self._tx() as conn:
