@@ -939,6 +939,17 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
   * LENS-09 (no salary-credit feed; the governed proxy is shown and labelled);
   * LENS-16 stage migration (DECOMP12).
 * **Protected files:** none added this round (still the 6 mapped).
+* **Mutation gates** (`evidence/mutation_gates_p16.json`; F's record is left as it was): **14 of 14 KILLED**, tree clean of mutations. The 12 gates from P13 are joined by two P16 gates:
+  * DECOMP10 label separation, run on the candidate interpreter;
+  * EWS reasons use each rule's own condition.
+* **Pre-freeze checks on the candidate code:**
+  * **Backend:** GW suites plus label, launcher and tenancy suites: **477 passed, 4 skipped**. This round's new test files on the candidate interpreter: 99 passed.
+  * **Frontend:** 666/666; `tsc` clean; eslint with no errors outside the protected `cockpit-v4` files (pre-existing).
+  * **Browser, MODEL MOCK:** GW-P3, P5, P7, P9, P10 and P16 journeys all pass.
+  * **GW-P16-01 first failed. The cause was the scripted analyst, not the product.**
+    * The analyst added `methods: ["delta"]` to every cohort scenario preview, playing a user who had chosen Delta.
+    * The guided stress suggestion names no method, so the analyst now previews it method-free, as UAT-01 requires.
+  * **Evidence restored:** the evidence files those runs overwrote were restored with `git checkout`.
 * **Candidate G and its final regression:** recorded by the evidence commit that follows the candidate.
 * **Status:** IN PROGRESS until the final regression of G is recorded
 
