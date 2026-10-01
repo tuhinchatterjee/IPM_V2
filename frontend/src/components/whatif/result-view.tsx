@@ -19,7 +19,7 @@ import { ShareButton } from "@/components/workspace/share-button";
 import { distribution, pareto } from "@/lib/viz/advanced";
 import { contributions } from "@/lib/viz/figures";
 import { componentTable, identities, kpis, methodComparison, plotted, scopeEquivalence, sharedScale, stageBeforeAfter, waterfall, type Decomposition, type DecompositionScope } from "@/lib/viz/decomposition";
-import { count, moneyCol, sar, sarDelta } from "@/lib/viz/format";
+import { count, moneyCol, sarDelta } from "@/lib/viz/format";
 import { METHOD_LABEL } from "@/lib/workspace/method-labels";
 import type { ScenarioResult } from "@/lib/workspace/runs";
 

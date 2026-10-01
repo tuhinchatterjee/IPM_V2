@@ -91,14 +91,22 @@
  "UAT-07": {
   "section": "2. Live-UAT findings that this round must correct",
   "requirement": "Mac launch must be one-click and honest",
-  "claim": "PENDING-P14",
+  "claim": "PARTIAL",
   "tests": [
-   "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health"
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_pinned_clean_candidate_is_accepted",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_hands_over_to_the_established_lifecycle",
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_launcher_turns_on_every_round_flag"
   ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "(prior-round launcher only). Pending: this round's launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md",
+   "scripts/guided_workspace/START_GUIDED_WORKSPACE_UAT.command"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "UAT-08": {
   "section": "2. Live-UAT findings that this round must correct",
@@ -1172,7 +1180,10 @@
    "docs/guided_workspace/CHART_INVENTORY.md"
   ],
   "gap": "",
-  "note": "asserts no tornado exists (waterfall substitute); none listed in"
+  "note": "asserts no tornado exists (waterfall substitute); none listed in",
+  "checks": [
+   "mutation:tornado sign preservation"
+  ]
  },
  "FMT01": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
@@ -1559,7 +1570,10 @@
   ],
   "sources": [],
   "gap": "",
-  "note": "Gap: server flag asserted; the frontend does not read so suppression/label in the UI is not implemented or tested"
+  "note": "Gap: server flag asserted; the frontend does not read so suppression/label in the UI is not implemented or tested",
+  "checks": [
+   "mutation:selected scope = total book"
+  ]
  },
  "DECOMP22": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
@@ -1990,7 +2004,11 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "",
+  "checks": [
+   "mutation:tenant isolation (access rule)",
+   "mutation:tenant isolation (store scope)"
+  ]
  },
  "SEC03": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
@@ -2078,141 +2096,222 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": "Gap: P12 finding — a credential typed into a Cockpit question is persisted by the protected V4 run store (fix awaits approval); launcher printing is P14"
+  "note": "Gap: P12 finding — a credential typed into a Cockpit question is persisted by the protected V4 run store (fix awaits approval); launcher printing is P14",
+  "checks": [
+   "mutation:LLM Exchange sanitisation",
+   "mutation:V4 persistence boundary (approved fix)"
+  ]
  },
  "LAUNCH01": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Mac setup verifies Python >=3.12.",
-  "claim": "PENDING-P14",
+  "claim": "PARTIAL",
   "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_an_old_python_is_refused",
    "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_requires_the_declared_python"
   ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "(prior-round preflight). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH02": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Mac setup verifies Python requirements/pip check.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_broken_pip_check_is_refused"
+  ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH03": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Mac setup verifies frontend Next.js dependency.",
-  "claim": "PENDING-P14",
+  "claim": "PARTIAL",
   "tests": [
-   "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_refuses_when_the_frontend_is_not_installed"
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_refuses_when_the_frontend_is_not_installed",
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_the_preflight_accepts_an_installed_frontend"
   ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "(prior-round preflight). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH04": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Mac setup verifies candidate lake and compatibility release.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_both_books_and_the_compatibility_release_are_checked",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_pinned_clean_candidate_is_accepted",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_any_other_head_is_refused_with_the_exact_checkout",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_dirty_tree_is_refused",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_no_manifest_is_refused",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_seed_definitions_that_moved_are_refused"
+  ],
   "journeys": [],
   "sources": [
-   "scripts/whatif/uat_preflight.py"
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
   ],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "Checked by no test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH05": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Mac setup verifies emulator component artifacts.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_both_books_and_the_compatibility_release_are_checked"
+  ],
   "journeys": [],
   "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md",
    "scripts/whatif/uat_preflight.py"
   ],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "Checked by no test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH06": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "START loads approved Keychain credential without printing it.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_shell_credential_needs_the_explicit_flag",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_launcher_drops_a_shell_credential_without_the_flag",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_credential_value_is_never_printed"
+  ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH07": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "START verifies model/price card.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_price_card_inside_the_checkout_is_refused",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_no_model_is_refused"
+  ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH08": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "START uses dedicated runtime/state database.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_a_runtime_dir_from_another_build_needs_fresh",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_the_same_build_reuses_its_runtime_dir",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_stop_and_status_share_one_dedicated_runtime"
+  ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH09": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "START never kills unrelated port owners.",
-  "claim": "PENDING-P14",
+  "claim": "PARTIAL",
   "tests": [
-   "tests/cockpit_v4/test_launcher_safety.py::test_a_busy_port_is_reported_and_never_freed"
+   "tests/cockpit_v4/test_launcher_safety.py::test_a_busy_port_is_reported_and_never_freed",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_hands_over_to_the_established_lifecycle"
   ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "(accepted V4 launcher). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH10": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "START reports ready only after API/UI health checks.",
-  "claim": "PENDING-P14",
+  "claim": "PARTIAL",
   "tests": [
-   "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health"
+   "tests/cockpit_v4/test_whatif_tenancy.py::test_every_launcher_that_starts_a_server_waits_for_health",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_hands_over_to_the_established_lifecycle"
   ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "(prior-round launcher). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH11": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "STOP kills only owned processes.",
-  "claim": "PENDING-P14",
+  "claim": "PARTIAL",
   "tests": [
-   "tests/cockpit_v4/test_launcher_safety.py::test_the_stop_script_contains_no_broad_kill"
+   "tests/cockpit_v4/test_launcher_safety.py::test_the_stop_script_contains_no_broad_kill",
+   "tests/cockpit_v4/test_launcher_safety.py::test_a_reused_pid_is_refused",
+   "tests/cockpit_v4/test_launcher_safety.py::test_a_process_in_another_directory_is_refused",
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_stop_and_status_share_one_dedicated_runtime"
   ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "(accepted V4 launcher). Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "LAUNCH12": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "STATUS reports exact SHA, releases, ports, model and health.",
-  "claim": "PENDING-P14",
-  "tests": [],
+  "claim": "PARTIAL",
+  "tests": [
+   "tests/cockpit_v4/test_gw_uat_preflight.py::test_start_stop_and_status_share_one_dedicated_runtime"
+  ],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "No test found. Pending: this round's START/STOP/STATUS launcher and its run on a real Mac"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md",
+   "scripts/cockpit_v4/status.py"
+  ],
+  "gap": "The Mac execution is the user's live-provider UAT (docs/guided_workspace/MAC_LIVE_UAT.md), not run in this round: the container has no macOS Keychain, no Mac browser and no approved paid provider run. The logic is tested here (cited).",
+  "note": ""
  },
  "REG01": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
@@ -2224,7 +2323,7 @@
    "docs/guided_workspace/PHASE_LEDGER.md"
   ],
   "gap": "",
-  "note": "GW suites last measured at P12: 259+ passed, 3 ML skips ()",
+  "note": "What-If suite on the candidate interpreter, final regression.",
   "checks": [
    "regression:whatif_suite_whatif_venv"
   ]
@@ -2235,11 +2334,9 @@
   "claim": "COVERED",
   "tests": [],
   "journeys": [],
-  "sources": [
-   "docs/guided_workspace/PHASE_LEDGER.md"
-  ],
+  "sources": [],
   "gap": "",
-  "note": "Last full V4/frontend baseline at P0 only (Baseline counts)",
+  "note": "V4 backend + frontend-python suite, accepted interpreter, final regression.",
   "checks": [
    "regression:v4_backend_and_frontend_py_accepted"
   ]
@@ -2252,7 +2349,7 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": "V3 suite measured at P0 only",
+  "note": "V3 suite, final regression.",
   "checks": [
    "regression:v3_cockpit_agentic"
   ]
@@ -2267,7 +2364,7 @@
    "docs/guided_workspace/PHASE_LEDGER.md"
   ],
   "gap": "",
-  "note": "658/658 and clean at P12 ()",
+  "note": "Frontend unit, type-check and lint of new code, final regression.",
   "checks": [
    "regression:frontend_unit",
    "regression:frontend_typecheck",
@@ -2284,7 +2381,7 @@
    "docs/guided_workspace/evidence/journeys.json"
   ],
   "gap": "",
-  "note": "Round journeys 41/41 PASS, MODEL MOCK (); accepted Corporate journeys not re-run",
+  "note": "Round journeys (clean store) and the What-If candidate browser suite, MODEL MOCK, final regression.",
   "checks": [
    "regression:gw_browser_journeys_clean_store",
    "regression:whatif_candidate_browser"
@@ -2298,7 +2395,7 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": "Round journeys 41/41 PASS, MODEL MOCK; accepted Retail journeys not re-run",
+  "note": "As REG05, Retail.",
   "checks": [
    "regression:gw_browser_journeys_clean_store",
    "regression:whatif_candidate_browser"
@@ -2312,7 +2409,7 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": "Accepted browser suite not re-run (P6 notes it now meets the BASE01 question)",
+  "note": "Accepted browser suite with the round's flags off, final regression.",
   "checks": [
    "regression:accepted_browser_suite_flags_off"
   ]
@@ -2325,7 +2422,7 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": "Emulator gates reproduced at P0 only",
+  "note": "Sensitivity libraries rebuilt and compared; emulator pickles refitted and compared, final regression.",
   "checks": [
    "regression:sensitivity_libraries_reproduce",
    "regression:emulator_artifacts_reproduce"
@@ -2356,7 +2453,7 @@
    "docs/guided_workspace/PROTECTED_EXTENSION_MAP.md"
   ],
   "gap": "",
-  "note": "Protected check reports 5 changed, all mapped (); not re-run as a gate",
+  "note": "protected_baseline.py --check: every changed protected file is in PROTECTED_EXTENSION_MAP.md, final regression.",
   "checks": [
    "regression:protected_baseline_round"
   ]
@@ -2369,7 +2466,7 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": "This draft matrix; the self-check (no fabricated names) is not yet run",
+  "note": "This generator: every cited test, journey, check and file exists; results bound to the final regression's SHA.",
   "checks": [
    "generator:self_check"
   ]
@@ -2377,12 +2474,17 @@
  "REG12": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Real Mac live-provider UAT passes before freeze.",
-  "claim": "PENDING-P14",
+  "claim": "BLOCKED",
   "tests": [],
   "journeys": [],
-  "sources": [],
-  "gap": "Needs the Mac: a real install with the approved Keychain credential and live provider (P14). The launcher is prepared and dry-run here; the live run is the user's acceptance gate.",
-  "note": "No live-provider run yet; every journey is MODEL MOCK. Pending: real Mac live-provider UAT before freeze"
+  "sources": [
+   "scripts/guided_workspace/guided_preflight.py",
+   "scripts/guided_workspace/start_guided_uat.py",
+   "docs/guided_workspace/MAC_LIVE_UAT.md",
+   "scripts/guided_workspace/live_uat_evidence.py"
+  ],
+  "gap": "APPROVAL: the real Mac live-provider UAT is the user's acceptance gate and a paid provider run; it was not run in this round by instruction. The package (pinned-SHA preflight, launchers, evidence collector) is prepared and dry-run here.",
+  "note": ""
  },
  "GX-01": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -2520,7 +2622,10 @@
   ],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "",
+  "checks": [
+   "mutation:cohort identity"
+  ]
  },
  "PV-01": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -2739,7 +2844,10 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "",
+  "checks": [
+   "mutation:scenario lineage"
+  ]
  },
  "SC-07": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -2838,7 +2946,10 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "",
+  "checks": [
+   "mutation:governance ledger"
+  ]
  },
  "LN-01": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -2975,7 +3086,10 @@
   ],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "",
+  "checks": [
+   "mutation:breach evaluation"
+  ]
  },
  "AL-02": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -3924,7 +4038,10 @@
    "backend/workspace/metric_catalog.py"
   ],
   "gap": "",
-  "note": ""
+  "note": "",
+  "checks": [
+   "mutation:metric formula"
+  ]
  },
  "M002": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",

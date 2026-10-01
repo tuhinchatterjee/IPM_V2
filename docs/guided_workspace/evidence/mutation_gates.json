@@ -1,0 +1,143 @@
+{
+  "at": "2026-10-01T07:24:24Z",
+  "gates": [
+    {
+      "gate": "tenant isolation (access rule)",
+      "file": "backend/workspace/objects.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_objects.py::test_private_objects_are_invisible_to_colleagues_and_other_tenants",
+        "tests/cockpit_v4/test_gw_objects.py::test_tenant_wide_objects_stay_inside_their_tenant",
+        "tests/cockpit_v4/test_gw_whatif.py::test_another_tenants_cohort_cannot_be_named"
+      ],
+      "clean_run": "3 passed in 2.97s",
+      "mutated_run": "1 failed, 1 passed in 1.18s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "tenant isolation (store scope)",
+      "file": "backend/workspace/store.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_objects.py::test_tenant_wide_objects_stay_inside_their_tenant"
+      ],
+      "clean_run": "1 passed in 1.48s",
+      "mutated_run": "1 failed in 1.31s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "method selection (no silent Delta)",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+        "tests/cockpit_v4/test_gw_runs.py::test_an_empty_method_choice_stays_at_method_selection"
+      ],
+      "clean_run": "2 passed in 4.23s",
+      "mutated_run": "1 failed, 1 passed in 4.52s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "scenario lineage",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+      ],
+      "clean_run": "1 passed in 8.46s",
+      "mutated_run": "1 failed in 7.94s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "metric formula",
+      "file": "backend/workspace/metric_catalog.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+      ],
+      "clean_run": "2 passed in 5.98s",
+      "mutated_run": "1 failed in 3.21s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "breach evaluation",
+      "file": "backend/workspace/lenses.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_monitoring.py::test_threshold_comparisons_are_exact"
+      ],
+      "clean_run": "12 passed in 1.17s",
+      "mutated_run": "1 failed, 1 passed in 1.16s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "LLM Exchange sanitisation",
+      "file": "backend/llm/exchange.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_llm_exchange.py::test_no_credential_reaches_the_store",
+        "tests/cockpit_v4/test_gw_secret_leak.py::test_no_canary_reaches_any_store_file"
+      ],
+      "clean_run": "2 passed in 8.45s",
+      "mutated_run": "1 failed in 1.22s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "cohort identity",
+      "file": "backend/workspace/cohorts.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_whatif.py::test_adoption_refuses_a_moved_membership"
+      ],
+      "clean_run": "1 passed in 3.12s",
+      "mutated_run": "1 failed in 2.76s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "V4 persistence boundary (approved fix)",
+      "file": "backend/cockpit_v4/run_store.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_bytes_in_the_database_wal_or_shm"
+      ],
+      "clean_run": "1 passed in 2.50s",
+      "mutated_run": "1 failed in 2.74s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "governance ledger",
+      "file": "backend/workspace/store.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_trace.py::test_every_governed_write_is_chained_and_verifies"
+      ],
+      "clean_run": "1 passed in 1.10s",
+      "mutated_run": "1 failed in 1.38s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "tornado sign preservation",
+      "file": "backend/workspace/macro_sensitivity.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_macro_tornado.py::test_signs_are_preserved_as_fitted"
+      ],
+      "clean_run": "1 passed in 2.89s",
+      "mutated_run": "1 failed in 3.23s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "selected scope = total book",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_runs.py::test_decomp21_selected_scope_equal_to_the_book_is_one_population"
+      ],
+      "clean_run": "2 passed in 5.11s",
+      "mutated_run": "1 failed, 1 passed in 5.10s",
+      "restored": true,
+      "result": "KILLED"
+    }
+  ],
+  "all_killed": true,
+  "tree_clean_of_mutations": true
+}

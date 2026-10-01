@@ -1,0 +1,1016 @@
+(node:17330) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/agentic/__tests__/officer.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ the stage vocabulary
+  ✔ is §7's eleven states, in order (2.310584ms)
+  ✔ gives every stage a caption and a short label (0.298769ms)
+  ✔ says nothing about how the model is thinking (0.897777ms)
+✔ the stage vocabulary (4.667438ms)
+▶ when the indicator is on screen
+  ✔ is working while a stage is not terminal (0.308249ms)
+  ✔ stops completely when the work is done (0.251713ms)
+  ✔ shows nothing at all when there is no run (0.210075ms)
+✔ when the indicator is on screen (1.127711ms)
+▶ the status line
+  ✔ names the officer working, in §4's words (0.34933ms)
+  ✔ prefers the title the run recorded over the one the level implies (0.299653ms)
+  ✔ says nobody is working once the run has finished (0.270045ms)
+✔ the status line (1.389014ms)
+▶ the caption
+  ✔ prefers the run's own detail — §8's 'Validating 6 calculations' (0.280539ms)
+  ✔ falls back to the API's caption before the local copy (0.123388ms)
+  ✔ ignores a detail that is only whitespace (0.166478ms)
+✔ the caption (0.721416ms)
+▶ the specialist line
+  ✔ lists the specialists in §8's form (0.206484ms)
+  ✔ says nothing for one specialist (0.118316ms)
+  ✔ counts only when there is genuinely coordination (0.180207ms)
+✔ the specialist line (0.713118ms)
+▶ elapsed time
+  ✔ is seconds, then minutes — never milliseconds (0.216932ms)
+  ✔ shows nothing before the first second (0.525258ms)
+✔ elapsed time (1.17447ms)
+▶ what has already happened
+  ✔ is the stages before this one (1.649551ms)
+  ✔ prefers the list the run actually recorded (0.259913ms)
+  ✔ has nothing to show for a stage outside the sequence (0.137093ms)
+✔ what has already happened (2.464222ms)
+▶ escalation
+  ✔ is shown only when a run actually escalated — §9 (0.268967ms)
+  ✔ carries the reason beside the line, never a bare heading (1.914198ms)
+  ✔ does not leave a dangling reason when there is none (0.122591ms)
+✔ escalation (2.47755ms)
+▶ the screen-reader announcement
+  ✔ says in words what the pulse says visually — §10 (0.338698ms)
+  ✔ is the same words that are on screen, not a separate description (0.152762ms)
+  ✔ is empty when nothing is running (0.168602ms)
+✔ the screen-reader announcement (0.829565ms)
+▶ polling
+  ✔ is fast early and slow later (0.161321ms)
+  ✔ never polls fast enough to be a request per frame (0.090137ms)
+✔ polling (0.378786ms)
+(node:17331) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/analytics/__tests__/playback.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ nothing plays until somebody presses Play (1.780306ms)
+✔ play then tick advances one period at a time (0.405441ms)
+✔ playback stops at the last period rather than looping (0.314921ms)
+✔ pressing Play at the end restarts (0.198758ms)
+✔ a tick while paused changes nothing (0.250781ms)
+✔ scrubbing takes over from playback (0.198076ms)
+✔ Next on the last period does not run off the end (0.23788ms)
+✔ Previous on the first period does not run off the start (2.438407ms)
+✔ speed changes how long a period is held (0.611746ms)
+✔ comparing a period with itself turns comparison off (1.297462ms)
+✔ comparing shows both periods together, in period order (6.073521ms)
+✔ without a comparison only the current period is drawn (0.407558ms)
+✔ reset returns to the first period, paused, at normal speed (0.166391ms)
+✔ one period is not eligible for playback (0.131524ms)
+✔ play does nothing where there is nothing to play (0.091569ms)
+✔ periods keep the result's own order, never an alphabetical one (0.177331ms)
+✔ the caption says where the cursor is and what it is compared with (0.208814ms)
+(node:17332) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/analytics/__tests__/registry.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ one row of figures is a KPI, not a one-bar bar chart (4.025539ms)
+✔ a from/to pair with a measure is a transition matrix (0.987792ms)
+✔ a period column makes it a trend (0.266662ms)
+✔ a few series over time stay on one axis; many do not (0.606343ms)
+✔ signed changes get a zero line rather than a plain bar (0.247275ms)
+✔ two measures per name is a relationship, not a ranking (0.280674ms)
+✔ three measures per name adds size (0.313585ms)
+✔ a handful of groups is a bar; a couple of dozen is a horizontal bar (0.300488ms)
+✔ too many categories falls back to the table, and says why (0.715363ms)
+✔ no measure means no chart, and no crash (0.608183ms)
+✔ an empty result never claims a chart (0.230022ms)
+✔ hidden lineage columns are not treated as measures (0.25653ms)
+✔ every choice explains itself (0.223281ms)
+✔ a sector ranking is a bar chart (0.266205ms)
+✔ a time series is a line (0.239301ms)
+✔ an ECL movement offers a waterfall (0.177454ms)
+✔ a stage migration is a matrix and offers a Sankey (0.479357ms)
+✔ a concentration offers a treemap (0.363422ms)
+✔ a multidimensional borrower result is a scatter or a bubble (0.263021ms)
+✔ a dense heterogeneous result is a table, and says why (0.251365ms)
+✔ the registry never names a series the result does not have (2.346321ms)
+✔ the chosen form is always one the result supports (0.27593ms)
+✔ a table is offered as an alternative wherever a chart is chosen (0.26101ms)
+✔ a share of the measure is not a second measure (0.274843ms)
+✔ a genuine second measure still makes it a relationship (0.174132ms)
+✔ a governed code column is a dimension, not a measure (0.204483ms)
+✔ a column with no declared semantic is still read from its data (0.142952ms)
+✔ two measures across a small governed scale is a comparison, not a scatter (0.149964ms)
+✔ two measures per named thing is still a scatter (0.231929ms)
+✔ three measures per named thing is a bubble (0.180696ms)
+(node:17352) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/analytics/__tests__/selection.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ hiding a series removes it from what is drawn (3.344483ms)
+✔ hiding the same series twice brings it back (0.316499ms)
+✔ hiding every series still draws the chart (0.253341ms)
+✔ isolating a series shows it alone (0.220091ms)
+✔ isolating the same series again shows them all (0.259102ms)
+✔ isolation ends when the reader asks for a second series (0.193791ms)
+✔ an isolated series that is no longer in the result does not blank the chart (3.375973ms)
+✔ a brushed range narrows what is drawn, not what was calculated (0.296806ms)
+✔ a range beyond the rows is clamped rather than producing nothing (0.518546ms)
+✔ picking a category emphasises it without dropping the others (0.6705ms)
+✔ with nothing picked every row is drawn at full strength (0.20665ms)
+✔ reset undoes everything, not most of it (0.157321ms)
+✔ arrow keys walk the categories and wrap (0.148026ms)
+✔ moving focus in an empty result focuses nothing (0.089585ms)
+✔ the reducer never mutates the state it was given (0.279762ms)
+✔ the description says what the reader chose, in their words (0.314144ms)
+✔ an untouched selection describes itself as nothing (0.129451ms)
+(node:17359) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/ask/__tests__/cockpit-v3-outcome.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a request settles into exactly one of five things, and none of them is silence (8.265499ms)
+✔ each envelope kind the server writes maps to what the reader is shown (0.373467ms)
+✔ a response this client cannot read is an error, not an empty answer (0.167143ms)
+✔ every governed terminal state is a supported outcome with its own explanation (0.246047ms)
+✔ a budget stop renders the backend's own sentence, not a generic outage (0.407205ms)
+✔ a partial answer is still an answer, and a redirect is still a redirect (0.139169ms)
+✔ a plan the model could not fit in its allowance is a supported stop (0.23612ms)
+✔ the terminal list is the server's, and nothing invented sits in it (0.131631ms)
+✔ a timeout is reported, with the sentence the transport layer wrote (0.768633ms)
+✔ a governed 503 keeps the server's explanation instead of becoming an outage (0.54574ms)
+✔ a failure is never empty and never a bare status code (0.407174ms)
+✔ a raw exception never reaches the reader: no stack trace, no class name (0.246432ms)
+✔ cockpitV3Ask waits 120 seconds, and the shared default is untouched (0.236875ms)
+✔ the measured 20.517-second request would have survived (0.089573ms)
+✔ nothing about the server's deadlines was changed to fix the transport (0.300487ms)
+✔ a credential can never reach the reader through a failure (0.251407ms)
+✔ the running indicator is off once a request has settled, whatever it settled as (0.09607ms)
+✔ the transport error this reads is the one the API client throws (0.215488ms)
+(node:17367) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/ask/__tests__/coverage.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a fully answered request reads as n of n (1.424486ms)
+✔ a partly verified request never reads as n of n (0.332577ms)
+✔ every objective that is not complete carries a reason (0.312783ms)
+✔ an unavailable coverage block still says something (0.179369ms)
+✔ a partial objective is presentable, not a failure (0.252559ms)
+(node:17374) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/ask/__tests__/insight.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ an ordinary paragraph splits into its sentences (2.854591ms)
+✔ a decimal is never a sentence boundary (0.397447ms)
+✔ an abbreviation followed by a lowercase word does not split (0.265256ms)
+✔ a quoted sentence opening is a boundary (0.33939ms)
+✔ empty and blank input produce nothing rather than an empty sentence (0.486064ms)
+(node:17381) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/ask/__tests__/response.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the promoted observation is one the backend already wrote (1.536009ms)
+✔ a finding that only restates the headline is not promoted (0.316029ms)
+✔ a finding carrying figures beats a louder one without them (2.091947ms)
+✔ nothing to promote renders nothing rather than a platitude (0.196809ms)
+✔ the insight says why it was chosen (0.172653ms)
+✔ a refusal is an implication in the strongest sense (1.758366ms)
+✔ named contributors become an implication, in the engine's own order (0.276667ms)
+✔ implications are capped and deduplicated (0.159857ms)
+✔ nothing to say produces no section (0.457332ms)
+✔ an empty result is a conclusion, not an empty table (0.526695ms)
+✔ a result with figures but no rows is not a negative finding (0.289777ms)
+✔ a step that failed is not reported as having found nothing (2.167129ms)
+✔ an inline token's colour follows the ontology, not the sign (0.180651ms)
+(node:17389) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/assurance/__tests__/present.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ dimension cells
+  ✔ never reads an unmeasured dimension as a pass (0.913588ms)
+  ✔ distinguishes a warning from a failure (0.243416ms)
+✔ dimension cells (2.23753ms)
+▶ the score
+  ✔ shows the status in words rather than a zero when nothing was scored (0.401153ms)
+  ✔ uses the label the payload supplied, never the word accuracy (2.168278ms)
+  ✔ leaves no dangling space where the surrounding label names it (0.174372ms)
+✔ the score (3.031562ms)
+▶ reference match
+  ✔ explains the absence rather than rendering a blank (0.320379ms)
+  ✔ reports the figure where an approved reference exists (0.383249ms)
+✔ reference match (1.057938ms)
+▶ staleness
+  ✔ never presents a stale record as current validation (0.285243ms)
+  ✔ leaves a current record alone (0.287076ms)
+✔ staleness (0.960951ms)
+▶ what needs attention
+  ✔ flags a critical failure (0.399021ms)
+  ✔ flags a record where somebody pressed Bad (0.163251ms)
+  ✔ leaves a clean record alone (0.106714ms)
+✔ what needs attention (0.868241ms)
+▶ review order
+  ✔ puts what needs attention first, not what scored lowest (1.750269ms)
+  ✔ does not sort unscored records to an end by their missing score (12.33479ms)
+  ✔ does not mutate the array it was given (0.269235ms)
+✔ review order (14.544577ms)
+(node:17397) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/attention/__tests__/severity.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ ordering — §46
+  ✔ is the stored priority, and nothing else (9.846502ms)
+  ✔ breaks a tie on the severity arithmetic, then on age (15.571766ms)
+  ✔ does not mutate the list it was given (0.303962ms)
+✔ ordering — §46 (27.032972ms)
+▶ the filter tabs — §40
+  ✔ are the five the brief names, in order (0.229913ms)
+  ✔ each map to a case level, and ALL to none (0.205603ms)
+  ✔ take their counts from the backend's grouped query (0.170813ms)
+  ✔ show zero rather than a guess when no counts have arrived (0.302921ms)
+✔ the filter tabs — §40 (1.508909ms)
+▶ the severity band
+  ✔ carries a word for every band, not colour alone — §10 (0.42034ms)
+  ✔ uses tokens rather than a literal colour (0.660075ms)
+✔ the severity band (1.409177ms)
+▶ urgency
+  ✔ is narrow enough to mean something (0.309135ms)
+  ✔ never marks a closed case (0.114748ms)
+✔ urgency (0.541405ms)
+▶ the due date
+  ✔ counts in days, in the reader's terms (0.712721ms)
+  ✔ says nothing for a closed case or a missing date (0.128556ms)
+  ✔ does not fall over on a date it cannot read (0.089807ms)
+✔ the due date (1.131105ms)
+▶ evidence coverage — §54
+  ✔ is words, not a percentage (0.26053ms)
+  ✔ never renders a number (0.247085ms)
+✔ evidence coverage — §54 (0.61064ms)
+▶ the row subtitle
+  ✔ shows a segment's share of the book — §42 (9.828179ms)
+  ✔ shows a borrower's exposure and position — §43 (0.475341ms)
+  ✔ names the dataset for a data case rather than an exposure (0.242649ms)
+  ✔ degrades to the period alone rather than to an empty row (0.129752ms)
+✔ the row subtitle (10.883745ms)
+▶ number formatting
+  ✔ drops precision nobody reads as the figure grows (0.307998ms)
+  ✔ treats a negative figure the same way (0.192376ms)
+✔ number formatting (0.609395ms)
+(node:17404) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/attention-client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the feed is read from the V4 attention endpoint (3.367181ms)
+✔ one item is read from its own V4 path (0.653547ms)
+✔ an item id is encoded, never interpolated raw (0.788918ms)
+✔ Investigate Further posts to the V4 investigate action (0.782822ms)
+✔ no home-feed call addresses the legacy backend (0.766996ms)
+✔ an open investigation survives a reload (0.592213ms)
+✔ a malformed remembered investigation is discarded, not rendered (3.422351ms)
+(node:17410) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/chart-download.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ what a downloaded chart is called
+  ✔ puts the PNG beside the SVG of the same chart (0.932638ms)
+  ✔ does not double an extension the API left off (0.251201ms)
+  ✔ replaces the extension rather than the word (0.274941ms)
+✔ what a downloaded chart is called (2.717608ms)
+▶ the size of a raster
+  ✔ keeps the drawing's own shape, not the window's (0.490365ms)
+  ✔ is legible in a slide (4.965558ms)
+  ✔ gives a drawing with no stated size a page rather than refusing (0.2787ms)
+  ✔ ignores a size that is not a size (0.304741ms)
+✔ the size of a raster (6.645431ms)
+▶ handing the drawing to the browser
+  ✔ survives a label that is not ASCII (0.354192ms)
+  ✔ escapes the characters that would end the URL early (0.504003ms)
+✔ handing the drawing to the browser (9.968266ms)
+(node:17418) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/chart-geometry.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ the scale a chart is drawn against
+  ✔ takes the extent the server published (2.42592ms)
+  ✔ falls back to the data for an answer saved before axes existed (0.313582ms)
+  ✔ falls back for an axis whose ticks the server could not build (0.189271ms)
+  ✔ reaches zero for a length-encoded form when it has to guess (0.215058ms)
+  ✔ gives a usable scale when every value is the same (0.499774ms)
+  ✔ gives a usable scale when there are no values at all (0.250033ms)
+  ✔ ignores a tick the payload left unusable (0.184201ms)
+✔ the scale a chart is drawn against (14.773048ms)
+▶ where a mark goes
+  ✔ puts the low at the floor and the high at the ceiling (0.426095ms)
+  ✔ puts the midpoint halfway up (0.278657ms)
+  ✔ spreads positions from edge to edge (0.406821ms)
+  ✔ centres a lone point rather than pinning it to the left edge (0.243544ms)
+  ✔ tiles bands across the box without a gap (0.19265ms)
+✔ where a mark goes (2.009398ms)
+▶ which mark the cursor is over
+  ✔ finds the nearest position (0.275765ms)
+  ✔ keeps hold past the edge rather than blinking out (0.101268ms)
+  ✔ reports nothing to be near when there is nothing (0.081427ms)
+  ✔ finds the band the cursor is inside, not the nearest edge (0.134477ms)
+✔ which mark the cursor is over (0.743072ms)
+▶ zoom
+  ✔ shows everything until it is asked not to (0.21165ms)
+  ✔ narrows about the middle of what is on screen (0.244148ms)
+  ✔ widens back out to everything (0.115042ms)
+  ✔ never narrows below what a trend needs to be a trend (0.266879ms)
+  ✔ pans without changing how much is shown (0.179453ms)
+  ✔ stops panning at the ends instead of running off them (0.103369ms)
+  ✔ clamps a window that outlives the result it was made on (0.225105ms)
+✔ zoom (1.570239ms)
+▶ x labels
+  ✔ shows every one when they fit (0.140826ms)
+  ✔ thins them when they do not (0.082985ms)
+  ✔ never divides by a stride of nothing (0.081617ms)
+✔ x labels (0.436938ms)
+(node:17419) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/claim-display.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the published string is what is shown (1.137835ms)
+✔ a full-precision cross-check never reaches the screen (0.301931ms)
+✔ the declared precision is respected when the server sent no string (0.150625ms)
+✔ nothing is shown when there is nothing to show (0.239141ms)
+✔ a non-numeric cross-check is not printed as digits either (0.317483ms)
+✔ the unit is not said twice (0.18882ms)
+✔ the fallback still says what the number measures (0.299169ms)
+(node:17432) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the configured V4 API origin is used (3.73744ms)
+✔ an alternate selected port propagates (0.461151ms)
+✔ a trailing slash is normalised away (0.275099ms)
+✔ an unset V4 variable fails loudly instead of defaulting (0.42324ms)
+✔ the generic API variable is NEVER used as a fall back (0.786512ms)
+✔ no V4 request can be addressed to the legacy backend port (0.459896ms)
+✔ an empty or whitespace value is not configuration (0.335466ms)
+✔ same-origin is an explicit opt-in, not an accident (0.264214ms)
+✔ the thrown error is typed so callers can render it (0.694827ms)
+✔ V4 mode is decided by the Cockpit variable alone (0.457169ms)
+✔ a remembered run survives and is forgotten deliberately (0.643311ms)
+✔ the remembered run keeps the question it is answering (0.291956ms)
+✔ export links name the run, the artifact and the row scope (0.348827ms)
+✔ an export link escapes a run id rather than pasting it into a path (0.214396ms)
+(node:17439) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/clock.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a running stage counts forward between events (3.68802ms)
+✔ the step that is running is the one that counts (0.48342ms)
+✔ a settled run stops counting and reports the authoritative total (0.431518ms)
+✔ a refresh at eleven seconds displays eleven, not zero and not twenty-two (0.223735ms)
+✔ a replayed event does not advance the clock twice (0.287384ms)
+✔ the headline names what is running and how long it has been (0.197944ms)
+✔ elapsed is whole seconds, and minutes past sixty (0.133318ms)
+✔ nothing counts before the first event (0.116615ms)
+(node:17445) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/collaboration-client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ every collaboration call addresses the V4 prefix and no other (5.015392ms)
+✔ a share carries the audience and the optional address, nothing else (0.777488ms)
+✔ only a delivered notification may be described as sent (1.181284ms)
+✔ a state of SENT without delivered is still not a delivery claim (0.634791ms)
+✔ no notification at all says so plainly (0.38502ms)
+✔ the outbox is read from the V4 prefix (0.50983ms)
+(node:17453) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/domain-guard.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a payload about this book is rendered (1.255559ms)
+✔ a payload about the other book is dropped (0.239068ms)
+✔ a panel that was told no book takes what the server resolved (0.230328ms)
+✔ a payload from an older server is not treated as a mismatch (0.191592ms)
+✔ nothing at all is not a payload (0.24649ms)
+✔ the late response from the previous book cannot land (0.471269ms)
+(node:17460) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/domain-meta.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the cover line is the selected book's own, both ways (1.3979ms)
+✔ the corporate cover line never says monthly (0.313501ms)
+✔ switching back restores the first book's line (0.232381ms)
+✔ corporate prompts are quarterly and retail prompts monthly (1.775408ms)
+✔ no corporate chip says month and no retail chip says quarter (0.478396ms)
+✔ the templates themselves name no calendar (0.306535ms)
+✔ the calendar follows the payload, not the name of the book (0.296889ms)
+✔ a release that states only its frequency still gets a noun (0.185713ms)
+✔ a release that states only its periods still gets a frequency (2.137154ms)
+✔ before the payload arrives nothing claims a calendar (0.735866ms)
+✔ a payload missing this book states nothing about it (0.304607ms)
+(node:17466) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/follow-ups.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ what the reader is offered next
+  ✔ opens a seeded thread on the questions the card carried (§31) (1.964006ms)
+  ✔ shows between three and five openers, never more (0.270997ms)
+  ✔ prefers the answer's own suggestions once there is an answer (2.050863ms)
+  ✔ falls back to the book's own prompts when an answer offered none (§32) (0.349517ms)
+  ✔ falls back to the RETAIL prompts in the retail book (0.223079ms)
+  ✔ offers nothing rather than the wrong book's prompts (0.179164ms)
+  ✔ offers nothing while a run is working (0.50448ms)
+  ✔ drops blank and whitespace-only suggestions (0.43828ms)
+  ✔ never mixes an opening set with a follow-up set (0.510326ms)
+  ✔ caps follow-ups at four so the strip stays one or two lines (0.642615ms)
+  ✔ has a fallback set for every book the Cockpit serves (0.291872ms)
+✔ what the reader is offered next (12.276785ms)
+(node:17474) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/greeting.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the greeting follows the reader's own clock (1.271743ms)
+✔ a display name is used when there is one (1.870283ms)
+✔ no name means no name, never a placeholder person (0.748121ms)
+✔ the name is trimmed, not reformatted (0.46371ms)
+(node:17481) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/live-trace.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the recorded run reconstructs a truthful trace, not '0s / not started' (7.09637ms)
+✔ every stage the backend emitted is present, and none that it did not (0.662944ms)
+✔ a failed attempt is not erased by the later success (0.318ms)
+✔ the second model attempt is visible as attempt 2 (1.731504ms)
+✔ a model response closes its attempt with a duration (0.417628ms)
+✔ the real tool is named, not a generic label (0.256933ms)
+✔ intent, answer validation and answer.ready are all reflected (0.414366ms)
+✔ replay from cursor 0 reconstructs exactly the live state (0.480138ms)
+✔ a run that completed before the browser subscribed still reconstructs (0.500051ms)
+✔ a duplicate or replayed event does not double-count a substep (0.606805ms)
+✔ an out-of-order event older than the cursor is ignored (0.334507ms)
+✔ a missing event does not fabricate the stage it would have created (0.181407ms)
+✔ a very fast run still renders its stages and a real duration (0.297541ms)
+✔ the panel opens on the stage that failed, even after it recovered (1.49962ms)
+✔ durations are formatted so a short run is still legible (0.365714ms)
+(node:17488) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/markdown.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a heading, a paragraph and bullets parse as themselves (8.178578ms)
+✔ a single-hash heading renders at the answer's top level (0.820549ms)
+✔ bold and italic become nodes, not visible asterisks (0.649849ms)
+✔ the module list style from a real answer renders cleanly (1.803122ms)
+✔ numbered lists keep their start (0.363207ms)
+✔ a table parses into a header and rows (0.50183ms)
+✔ inline code and fenced code are distinguished (0.243953ms)
+✔ a blockquote and a horizontal rule parse (0.250647ms)
+✔ a wrapped bullet continuation stays in its own item (0.520716ms)
+✔ markup in an answer is data, not markup (0.553197ms)
+✔ only safe link schemes reach an href (0.395516ms)
+✔ an unsafe link keeps its words and loses its href (0.191967ms)
+✔ a safe link becomes a link node (0.144467ms)
+✔ empty and whitespace input produce nothing rather than throwing (0.100901ms)
+✔ unbalanced emphasis does not lose the text (0.105781ms)
+✔ a plain answer with no markup is a single paragraph (0.1004ms)
+(node:17494) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/reducer.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a run that has done nothing shows no steps at all (2.6698ms)
+✔ a step appears when it starts, and only then (3.438816ms)
+✔ an event from another run is ignored (0.923232ms)
+✔ a replayed event does not duplicate a step (0.285646ms)
+✔ a failed event marks the step and exposes its error id (0.472867ms)
+✔ a settled status closes any step still marked running (0.334928ms)
+✔ a stop is summarised as a stop, not as an answer (0.481356ms)
+✔ V4-AT-082: connection loss is a client state, not a server failure (0.201944ms)
+✔ V4-AT-068: the failed step is identifiable for auto-expansion (0.644247ms)
+✔ V4-AT-069: substeps keep their operation and detail reference (0.654044ms)
+✔ a step closes when the server says it closed, not by array order (0.440172ms)
+✔ two passes through one stage are two rows, in the order they ran (0.348981ms)
+✔ a terminal event leaves no step running (0.267322ms)
+✔ replaying the whole stream lands where the live stream did (0.350546ms)
+✔ an out-of-order frame cannot reorder the trace (0.148675ms)
+✔ a stream from an older server still closes its stages (0.218724ms)
+✔ a stated stage is not closed by one of its own operations (0.167466ms)
+✔ a run that computed rows carries them into the view, narrative or not (0.237011ms)
+✔ an accepted run that is still working is not an ending (1.88741ms)
+✔ every working state reads as work, never as a stop (0.334149ms)
+✔ every terminal state is still an ending (0.422235ms)
+✔ a mid-run gap followed by a real settle ends exactly once (0.173757ms)
+✔ the server's own terminal flag is honoured when it is sent (0.114886ms)
+✔ a working status still refreshes the clock it does not end (0.114647ms)
+(node:17502) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/cockpit-v4/visuals.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a ranked comparison of several categories is worth charting (1.547114ms)
+✔ a single value is a number, and a chart of it is decoration (0.212322ms)
+✔ no rows is not an empty chart (0.148676ms)
+✔ a chart with no series to plot is not drawn (1.945176ms)
+✔ a chart whose points carry no numbers is not drawn (0.20028ms)
+✔ an absent chart is not useful (0.136694ms)
+✔ a table shows a readable top slice before the whole result (0.147038ms)
+✔ the displayed value is what the server wrote, not a local rounding (0.323327ms)
+✔ a grid with filled cells is worth drawing (0.499271ms)
+✔ a grid with no filled cell is not (0.444372ms)
+✔ a grid is not judged by whether it has point series (0.249164ms)
+✔ the axis keeps the order the result was returned in (1.467607ms)
+✔ an absent cell is absent, not zero (0.13407ms)
+✔ a box plot is worth drawing when it has a box (0.13784ms)
+✔ every useful chart survives the choice, in the analyst's order (0.29974ms)
+✔ a chart that is not worth drawing is dropped, not the ones after it (0.123518ms)
+✔ charts and tables are peers, not two sides of a toggle (0.250864ms)
+✔ the browser's vocabulary is the contract's vocabulary (0.881952ms)
+✔ a download button names the chart's place in the ANSWER (0.327103ms)
+✔ every index is kept when nothing is dropped (0.147894ms)
+✔ there is an index for every chart that is rendered, always (0.108973ms)
+(node:17509) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/data-builder/__tests__/relationship-layout.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the busiest dataset is the centre of the map (3.069544ms)
+✔ a ring is how many joins it takes to reach the centre (0.632187ms)
+✔ the same model always draws the same picture (0.515329ms)
+✔ boxes in a ring never overlap (0.796931ms)
+✔ a dataset the centre cannot reach is still placed (0.393589ms)
+✔ nothing declared draws nothing rather than throwing (0.202983ms)
+(node:17515) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/early-warning/__tests__/signal-view.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ ordering conditions inside one borrower
+  ✔ puts what got worse in front of what merely persists (2.452994ms)
+  ✔ breaks a lifecycle tie by severity, worst first (0.308618ms)
+  ✔ is total, so the same evidence always renders the same way (10.38592ms)
+✔ ordering conditions inside one borrower (18.765057ms)
+▶ grouping by family
+  ✔ tells one fact once rather than five times (0.619223ms)
+  ✔ leads with the family carrying the worst condition (0.230844ms)
+  ✔ takes the family's severity from its worst condition (0.323199ms)
+✔ grouping by family (1.54079ms)
+▶ the wording a row leads with
+  ✔ counts conditions and families, never a score (0.473752ms)
+  ✔ says so plainly when nothing fires (0.263389ms)
+  ✔ stays silent about movement when nothing moved (0.297397ms)
+  ✔ names what moved, worst first (0.35103ms)
+✔ the wording a row leads with (1.816481ms)
+▶ what could not be tested
+  ✔ never lets a thin standing present as a clean one (0.526702ms)
+  ✔ says nothing when everything was testable (0.202997ms)
+✔ what could not be tested (0.88848ms)
+▶ the booked accounting position
+  ✔ stays separable from the prediction (0.297935ms)
+✔ the booked accounting position (0.576542ms)
+▶ evidence pointing the other way
+  ✔ is named rather than dropped (0.323303ms)
+  ✔ is empty when the evidence all points one way (0.245292ms)
+✔ evidence pointing the other way (0.798231ms)
+▶ ordering borrowers on the overview
+  ✔ ranks by breadth first, as the backend does (0.41169ms)
+  ✔ falls through severity, persistence and worsening in that order (0.23339ms)
+  ✔ is total, so two loads of the same book render the same order (0.184182ms)
+✔ ordering borrowers on the overview (0.982735ms)
+▶ the lenses the overview offers
+  ✔ offers questions rather than score bands (0.492163ms)
+  ✔ matches new, worsening, persisting, severe and breadth correctly (0.280001ms)
+  ✔ lets everything through the default lens (0.19931ms)
+✔ the lenses the overview offers (1.228421ms)
+▶ severity presentation
+  ✔ gives each of the three levels its own weight (0.230266ms)
+  ✔ treats an unknown severity as the quietest, never the loudest (0.098813ms)
+✔ severity presentation (0.447748ms)
+▶ joining a list into a sentence
+  ✔ reads like English (0.165093ms)
+✔ joining a list into a sentence (0.299153ms)
+(node:17523) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/feedback/__tests__/answer-kind.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ §39 names eight answer kinds and the module knows all of them (1.294848ms)
+✔ a refused plan is a controlled failure, not an unsupported question (0.266544ms)
+✔ a clarification outranks unmatched (0.164233ms)
+✔ an unmatched question is unsupported (0.169031ms)
+✔ an agentic run is filed as agentic even when it produced steps (0.155869ms)
+✔ an answer with no steps is metadata rather than an empty analysis (0.136575ms)
+✔ an ordinary computed answer is an analysis (0.147886ms)
+✔ a failed status is a controlled failure whatever else is set (0.196195ms)
+✔ an empty run does not throw and lands somewhere real (0.325653ms)
+(node:17530) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/feedback/__tests__/present.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ only PARTLY and NO open the detail panel (2.467083ms)
+✔ a YES never opens a what-went-wrong panel (0.37753ms)
+✔ the server's list wins where it has one (0.307622ms)
+✔ the fallback list is the two ratings that carry a claim (2.624336ms)
+✔ an acknowledgement that promises learning is not shown (0.657455ms)
+✔ an honest acknowledgement is shown as written (0.264061ms)
+✔ an empty acknowledgement stays empty rather than becoming a thank you (0.372272ms)
+✔ a row is summarised by the fields worth scanning (0.566839ms)
+✔ a row with no known field is shown whole rather than blank (0.924942ms)
+✔ an empty row still renders something (0.808647ms)
+✔ a metric that was never measured is not shown as zero (0.436433ms)
+(node:17537) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/system/runtime-surfaces.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a V4 payload is recognised as a reachable partial runtime (1.569433ms)
+✔ an existing CreditProbe payload is completely unaffected (0.215947ms)
+✔ an optional surface that IS working is not reported as absent (0.234724ms)
+✔ an optional surface other than the dashboard does not claim one (0.346529ms)
+✔ a genuine service fault is still a fault (0.19541ms)
+(node:17543) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/trace/__tests__/clusters.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ every node lands in exactly one cluster (2.700705ms)
+✔ the clusters come back in the order an auditor asks for them (2.085171ms)
+✔ a derivation and an execution are not the same cluster (0.205955ms)
+✔ an unknown node type is still placed rather than dropped (0.221051ms)
+✔ the reuse node types belong to the conversation cluster (0.146384ms)
+✔ a failed invariant makes its whole cluster read as failed (0.391855ms)
+✔ a cluster carrying an issue never opens collapsed (0.401137ms)
+✔ the issue navigator lists the failures worst first (0.357314ms)
+✔ a collapsed cluster says what it contains without being opened (0.671916ms)
+✔ an edge across a collapsed boundary survives, pointing at the card (1.228302ms)
+✔ collapsing a cluster does not leave a dangling edge (0.730386ms)
+✔ a join that multiplied its rows marks its own edge (0.34818ms)
+✔ expanding one cluster does not move the ones above it (2.303388ms)
+✔ the same graph lays out identically every time (0.520738ms)
+✔ isolating a cluster hides the others and their edges (0.248308ms)
+✔ a step can be found by label, dataset or field (0.288515ms)
+(node:17551) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/trace/__tests__/compare.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a step that appeared is reported as added (1.56154ms)
+✔ a step that disappeared is reported as removed (1.632026ms)
+✔ a row count that moved is reported with both numbers (18.952269ms)
+✔ a step whose status changed is reported (0.29615ms)
+✔ a relabelled step is a change a reviewer needs to see (0.631647ms)
+✔ an unchanged step produces no noise (0.241122ms)
+✔ the arguments are not silently swapped (0.421403ms)
+✔ two versions that computed the same thing say so (0.470942ms)
+✔ the same steps with a different answer is called out (0.53993ms)
+✔ the summary counts what changed (4.59287ms)
+✔ a missing row count is not read as zero (0.277133ms)
+(node:17557) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/components/trace/__tests__/validation-status.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a blocked presentation does not fail the calculation validation (1.923424ms)
+✔ the blocked presentation is still shown, in its own stage (0.417512ms)
+✔ a genuinely failed invariant still fails the validation stage (0.225107ms)
+✔ no stage ever prints FAILED beside its own all-passed count (0.733104ms)
+✔ the same holds for the detailed cluster view (1.058728ms)
+(node:17565) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/analysis-links.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a composed analysis has no method page (1.187898ms)
+✔ a composed analysis links to the run that produced it instead (0.201499ms)
+✔ a registered method still opens its definition (0.259032ms)
+✔ a catalogue lookup is neither, and offers no dead link (0.160807ms)
+✔ a registered-looking id on an uncertified run is still not a method (0.147588ms)
+✔ a run without an id has nowhere to go, and says so (0.164052ms)
+(node:17572) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/back-paths.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Cockpit → Investigation → Trace → back to the exact turn (3.664512ms)
+✔ Cockpit → Investigation → Method → back to the exact turn (0.389898ms)
+✔ Project → Project Investigation → Trace → back to that investigation, then to the project (0.249771ms)
+✔ Saved Analysis → Trace → back to the saved analysis (0.260221ms)
+✔ Lens → Analysis → Trace → back to the lens (0.595627ms)
+✔ Early Warning → Borrower → Investigation → back to that borrower (0.275935ms)
+✔ Data Builder → Dataset → Relationship map → back to the dataset and period (0.34913ms)
+✔ Trace → Open dataset in Data Builder → back to the same node in the same mode (0.232114ms)
+✔ a dynamic Analysis Run links to its run, not to a Method page that does not exist (0.61848ms)
+✔ a source that no longer exists falls back rather than stranding the reader (0.441155ms)
+✔ every source type's fallback index is a real in-product path (0.278433ms)
+✔ a return context survives being carried through two hops (0.649407ms)
+(node:17578) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/borrower-link.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the link carries the borrower and the period (1.619086ms)
+✔ a link with no period does not ask for a quarter called nothing (0.278815ms)
+✔ no borrower means the landing table, not a broken query (0.208027ms)
+✔ a borrower id that needs escaping is escaped (0.261009ms)
+✔ the period survives the round trip (0.337657ms)
+✔ both period spellings are read as the same quarter (0.224867ms)
+✔ a year-first period is understood too (0.287696ms)
+✔ something that is not a quarter is left alone (0.183694ms)
+✔ the url spelling has no spaces to be mangled (0.475615ms)
+✔ the older parameter name still opens the borrower (0.836777ms)
+✔ the mandated name wins where both are present (0.220934ms)
+✔ no params at all is a plain visit (0.13613ms)
+(node:17586) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/credit-semantics.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a rising risk measure is adverse and a falling one is favourable (1.070955ms)
+✔ a rising performance measure is favourable (0.191094ms)
+✔ the sign alone never decides (0.175734ms)
+✔ nothing moved is neutral, whatever the measure (0.138516ms)
+✔ an ungoverned measure is not coloured (0.277355ms)
+✔ a missing or unusable change is neutral rather than an error (0.148045ms)
+✔ assistive text carries what the colour carries (0.262886ms)
+(node:17593) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/decimals.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ the contract has one ceiling
+  ✔ is two (0.651157ms)
+✔ the contract has one ceiling (1.719475ms)
+▶ every formatter respects it
+  ✔ money, at every decimals argument a caller could pass (535.550748ms)
+  ✔ percent, delta, count and compact money (236.064362ms)
+  ✔ byUnit, across every governed unit (249.228598ms)
+  ✔ byContract, across every semantic and declared precision (5140.772719ms)
+  ✔ figure and deltaFigure, which feed KPIs and chart labels (670.856525ms)
+✔ every formatter respects it (6833.190635ms)
+▶ prose is scrubbed
+  ✔ rewrites floating-point debris a backend formatter missed (1.05544ms)
+  ✔ catches three decimals, not only four (0.431318ms)
+  ✔ leaves a period, a version and an identifier alone (0.372902ms)
+  ✔ never introduces debris of its own (16.642807ms)
+✔ prose is scrubbed (19.018292ms)
+▶ what the ceiling does not do
+  ✔ does not round a value across a governed threshold (0.485023ms)
+  ✔ keeps an integer count whole (0.456036ms)
+✔ what the ceiling does not do (1.148692ms)
+(node:17594) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/downloads.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the server's own filename is used (1.206827ms)
+✔ the quoted name wins over the percent-encoded one (0.209821ms)
+✔ the extended form is decoded when it is the only one (0.212236ms)
+✔ a malformed encoding falls back to the raw value rather than throwing (0.229613ms)
+✔ a missing header falls back to a name that still identifies the run (0.226889ms)
+✔ the button says what it is doing, not only which icon it shows (0.231218ms)
+✔ a failed download returns to its label rather than lying about success (0.232302ms)
+(node:17606) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/early-warning-format.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ money is riyals, in millions, never bare (19.916884ms)
+✔ money becomes billions when the millions stop reading (0.471168ms)
+✔ a negative amount keeps its sign (0.273854ms)
+✔ a very small amount does not round to nothing (0.287242ms)
+✔ another deployment's currency is not renamed to riyals (0.272374ms)
+✔ a percentage is a percentage (0.336324ms)
+✔ a multiple is a multiple, not a percentage (1.762931ms)
+✔ days are counted, and one day is singular (0.238361ms)
+✔ notches are counted the same way (0.385352ms)
+✔ a stage is named, not left as a number (0.490873ms)
+✔ a flag is yes or no (0.202991ms)
+✔ nothing is nothing, and zero is not nothing (0.258676ms)
+✔ an unknown unit is a plain number, not a guessed currency (0.262341ms)
+✔ a value that is not a number survives as itself (0.098662ms)
+✔ a movement is signed (0.315926ms)
+✔ a movement in a percentage is in POINTS (0.267382ms)
+✔ a movement in money is money (0.231146ms)
+✔ a movement in days or notches is counted (0.108902ms)
+✔ a flag and a stage do not have a movement (0.083426ms)
+✔ no movement is not a movement of zero (0.08313ms)
+(node:17614) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/links.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ return context survives a link that already has a query string (2.389476ms)
+✔ the anchor identifying one turn is carried intact (0.408874ms)
+✔ a label with an ampersand does not break the query string (0.411446ms)
+✔ only same-origin paths are accepted as a destination (0.46237ms)
+✔ a domain name containing a slash round-trips through its URL (0.419111ms)
+✔ a domain name with no slash still produces one segment (0.210182ms)
+(node:17621) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/presentation.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ with nothing remembered the registry decides (1.171126ms)
+✔ the reader's choice wins over the registry (0.211029ms)
+✔ an unrelated remembered preference does not change the default (0.238133ms)
+✔ with no governed decision the table opens (0.197812ms)
+✔ a chart opens only when the gate said so (0.316014ms)
+✔ the reader still overrides the opening view (0.167031ms)
+(node:17628) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/relationship-layout.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a parent is drawn above the borrower (1.836238ms)
+✔ a subsidiary is drawn below the borrower (0.369798ms)
+✔ a sister is drawn level with the borrower, not above or below (0.292212ms)
+✔ every party is placed exactly once, and so is the centre (0.335174ms)
+✔ an empty network still places the borrower (0.406918ms)
+✔ parties in the same band do not overlap (0.276534ms)
+✔ direct-only keeps the parents and drops the sisters (3.302786ms)
+✔ direct-only keeps every band present, even the emptied ones (0.261431ms)
+✔ money never prints a bare number (0.446999ms)
+✔ money says nothing rather than zero when there is no figure (0.521752ms)
+✔ the stake shows voting rights only when they differ from ownership (0.277104ms)
+✔ a guarantee shows its amount and claims no ownership (0.128558ms)
+✔ an edge with nothing on it says nothing rather than 0% (0.130582ms)
+(node:17635) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/return-context.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ an investigation carries the exact turn as its anchor (4.096152ms)
+✔ turn zero is an anchor, not a missing one (0.249731ms)
+✔ an investigation without a turn returns to the thread itself (0.170145ms)
+✔ an untitled investigation still names something in the Back control (0.125888ms)
+✔ a project carries the tab that was open (0.362984ms)
+✔ a saved analysis returns to its row in the list (0.222123ms)
+✔ the built-in CRO lens keeps its own route (0.258058ms)
+✔ a borrower carries both the selection and the anchor (0.198577ms)
+✔ a dataset carries the period being read (0.452584ms)
+✔ a trace node carries the mode and the selected step (0.715829ms)
+✔ every source type has an index to fall back to (0.28508ms)
+✔ a link carries where it came from, what it says and what kind it is (0.375148ms)
+✔ a link that already has a query string keeps it (0.27355ms)
+✔ a source href with its own query and anchor survives the round trip (0.164105ms)
+✔ a carried context is honoured (0.148786ms)
+✔ nothing carried falls back to the caller's own default (0.094597ms)
+✔ an off-site return is refused, not followed (0.102115ms)
+✔ a carried context with no label still says something (0.10781ms)
+✔ an unknown source type is recorded as unknown rather than trusted (0.105343ms)
+✔ anchors are stable and unique per object (0.083872ms)
+✔ a playbook run returns to the playbooks screen (0.083316ms)
+(node:17642) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/scorecard-validation.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the module has the twelve tabs the brief names (1.906238ms)
+✔ no approved limit is styled apart from pass and from not measured (2.640804ms)
+✔ the limits table carries a source column (0.446016ms)
+✔ an unavailable section renders its reason rather than a zero (0.523941ms)
+✔ validation statistics and business figures use different formatters (0.579948ms)
+✔ the three month notions are shown separately (0.426028ms)
+✔ an immature month is labelled in the month picker (0.457776ms)
+✔ the opinion is shown with its reasoning and its disclaimer (1.175851ms)
+✔ the diagnostics panel shows the restated question and claim strength (0.817151ms)
+✔ the module is reachable from the navigation (0.557875ms)
+✔ the api client sends no rows and asks for summaries (1.681411ms)
+✔ the reports tab offers both downloads and a way to record one (0.387265ms)
+✔ the report panel shows coverage and refuses to claim certification (0.436388ms)
+✔ a section that was not reported shows its reason in the section list (0.298337ms)
+✔ the download link is a navigation, not a fetch-and-rename (1.595628ms)
+(node:17649) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/__tests__/ux-remediation.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the answer puts the interpretation before the numbers, unboxed (1.47176ms)
+✔ supporting analysis is collapsed and follow-ups come last (0.553448ms)
+✔ an analysis header can carry a certification mark (3.66287ms)
+✔ the navigation collapses and remembers the choice (1.557927ms)
+✔ the page header is eyebrow, title and actions — and no paragraph (0.289798ms)
+✔ data builder shows domains as tiles with a summary strip (0.399614ms)
+✔ the data grid is period-aware (0.286799ms)
+✔ the relationship map has a layout, a canvas and an inspector (0.463448ms)
+✔ the method library is a compact grid, not a wall of prose (0.552592ms)
+(node:17656) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/runtime-guard.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ outside a V4 runtime every path is served as before (2.356554ms)
+✔ inside a V4 runtime the legacy paths are not requested (0.785879ms)
+✔ inside a V4 runtime the V4 paths are served (0.494724ms)
+✔ the runtime flag reads only the Cockpit variable (0.492172ms)
+✔ the guard decides on the path, never on a response (0.914438ms)
+(node:17662) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/advanced.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ VIZ08 the stage Sankey reconciles counts and EAD to the book (2.018296ms)
+✔ VIZ12 the heatmap places every cell and leaves absent cells empty (not zero) (2.91242ms)
+✔ VIZ10 the Pareto ends at 100% cumulative (0.65271ms)
+✔ VIZ11 the distribution plots moved exposures and leaves the unmoved out of the bars (1.812144ms)
+(node:17670) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/chart-inventory.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ INV01 recharts is imported in exactly one legacy module (10.092198ms)
+✔ INV02 only the documented legacy pages consume the Recharts building blocks (4.750833ms)
+✔ INV03 no other chart library, and Plotly is loaded only through the one wrapper (39.292645ms)
+✔ INV04 a Plotly chart outside ChartCard is a documented sparkline (3.469992ms)
+✔ INV05 every file drawing a chart is named in CHART_INVENTORY.md (4.420486ms)
+✔ INV06 legacy Recharts pages are gated: the guided flag redirects or swaps them (0.630494ms)
+(node:17676) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/decomposition.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ DEC01 both scopes list every taxonomy component in the one order (3.152182ms)
+✔ DEC02 a component has the same colour and label in both scope charts (2.027652ms)
+✔ DEC03 the waterfall walks opening + movements to closing (0.69456ms)
+✔ DEC04 the table beneath carries every plotted component, by id (0.854203ms)
+✔ DEC05 N/A components are shown as N/A, never dropped or redefined (0.766834ms)
+✔ DEC06 both identities hold on the published strings (0.960322ms)
+✔ DEC07 KPIs, method comparison and stage figures read the server's values (1.458501ms)
+✔ DEC08 a small movement on a large book cuts the axis and says so (0.484541ms)
+✔ DEC09 a comparison plots every compared result, component by component, from the published values (1.604826ms)
+✔ DEC10 selected scope = total book is proven component by component (1.409029ms)
+✔ DEC11 one differing component, a non-zero rest of book, or no flag: not proven (2.65808ms)
+(node:17684) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ FIG01 sparkline emphasises the last point and formats hover in the metric's unit (3.265638ms)
+✔ FIG02 trend scales money series to ONE shared unit and keeps the raw value in hover (0.733539ms)
+✔ FIG03 trend shows a fraction metric as percent on the axis (0.265816ms)
+✔ FIG04 contributions: sorted by magnitude, sign-coloured, label carried in customdata for drill (0.878063ms)
+✔ FIG05 contributions never show more than twelve bars (0.555739ms)
+✔ FIG06 stage mix uses the governed stage colours and stacks (0.483783ms)
+✔ FIG07 category bars grey out what is not selected (cross-filter context) (0.674134ms)
+(node:17690) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/format.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ FMT02 narrative money is compact finance notation, never 'SAR million' (1.917226ms)
+✔ FMT01 a table column carries its scale once in the header, plain numbers in cells (2.54582ms)
+✔ FMT05 PD is a percentage, never 0.02x (0.217661ms)
+✔ FMT06 the multiplier notation is reserved for scenario multipliers (0.280389ms)
+✔ FMT07 small Retail money changes remain visible and do not round to zero (0.443302ms)
+✔ FMT04/FMT08 the raw value is never altered by display (0.239402ms)
+✔ counts, basis points and changes (0.472058ms)
+✔ FMT10 a money column states its scale once, cells carry no unit, the CSV keeps raw SAR million (1.9163ms)
+(node:17698) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/palette.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ VIZ14 the §10.2 semantic tokens are exactly the specification's (1.023811ms)
+✔ driver identity is stable: unique ids, fixed order, colour by id (0.372691ms)
+✔ increase and decrease are separable without hue (luminance differs) (0.328948ms)
+✔ decomposition colours are varied: no two components share a colour (0.414381ms)
+(node:17704) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/viz/tornado.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ TOR01 a Plotly tornado: two horizontal bar traces from zero, largest swing on top (2.29852ms)
+✔ TOR02 values are the server's, signs as fitted (a negative slope is drawn negative) (0.659535ms)
+✔ TOR03 PD and LGD are distinct in label and colour (0.498906ms)
+✔ TOR04 hover carries MEV, series, shock, coefficient, parameter, movement, sign, status, method, window and the sign review (0.485437ms)
+(node:17712) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/exchange-segments.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ EXS01 every part of the request is labelled in the order sent (3.640557ms)
+✔ EXS02 counts cover all six kinds; a plain tool result is never called a validator (0.615845ms)
+✔ EXS03 string system text and an empty request are handled (0.222558ms)
+(node:17718) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/lens-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ LENS01 a worse move by the metric's own direction is 'bad', with a signed label (1.581871ms)
+✔ LENS02 a category click becomes a cross-filter on that dimension and book (2.029891ms)
+✔ LENS03 trends keep periods as categories (quarters and months never reinterpreted) (0.533063ms)
+✔ LENS04 group charts drop nulls and sign-colour the rest (0.367994ms)
+(node:17726) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/llm-exchange-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ context growth plots measured bytes and exact provider tokens per call (2.448363ms)
+✔ composition stacks every component of every call, in a fixed order (0.454882ms)
+(node:17733) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/method-labels.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ MLB01 every method is shown by its governed name (1.07189ms)
+(node:17740) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/metric-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ MET01 values render by their governed unit (1.41398ms)
+✔ MET02 breakdown bars sort, keep the raw value and drop nulls (2.25682ms)
+✔ MET03 a trend draws one line per book (0.53458ms)
+✔ MET04 only grid columns drill to rows (0.195131ms)
+(node:17746) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/scenario-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ SCN01 only overlaps still needing a decision are pending (2.487045ms)
+✔ SCN02 a blank choice is never defaulted into a resolution (0.307274ms)
+✔ SCN03 readiness tones never show a blocked scenario as ready (0.160097ms)
+✔ SCN04 the component matrix names each carried component's source (0.316101ms)
+✔ SCN05 derived macro rows keep the sign and the governed slope (0.419936ms)
+✔ SCN06 the band figure plots the server's band mix, one bar per band (0.861759ms)
+✔ SCN07 builder offers ratings only to Corporate and scores only to Retail (0.353383ms)
+(node:17754) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/trace.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ TRC01 snapshot names are safe file stems the server accepts (2.111119ms)
+✔ TRC02 hashes are shortened for display but never invented (0.314455ms)
+(node:17761) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/IPM_V2/frontend/src/lib/workspace/whatif-filters.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/IPM_V2/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ WIF01 a chart click adds its value as an `in` filter, a second click removes it (2.45577ms)
+✔ WIF02 cross-filter keeps every other column's filter untouched (0.4091ms)
+✔ WIF03 a box/lasso selection replaces that column's values; empty clears it (0.31429ms)
+✔ WIF04 numeric categories (stage) match regardless of string/number form (0.162445ms)
+✔ WIF05 each book offers its own governed dimensions, never the other's (0.300573ms)
+✔ WIF06 a heatmap cell or flow link narrows to both coordinates; the same click clears them (0.380359ms)
+ℹ tests 666
+ℹ suites 47
+ℹ pass 666
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10344.985574

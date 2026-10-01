@@ -1,6 +1,6 @@
 """P10 — Monitoring Centre: scheduled refresh, breach alerts, Inbox delivery.
 
-EVIDENCE LABEL: no model call. Lens refreshes evaluate the candidate books
+EVIDENCE LABEL: NO MODEL. No model call. Lens refreshes evaluate the candidate books
 through the metric engine; alerts, deliveries and state transitions are the
 workspace store's own records.
 """

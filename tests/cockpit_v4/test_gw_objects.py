@@ -1,6 +1,6 @@
 """P2 — shared governed objects: identity, versions, lineage, permissions, cohorts.
 
-EVIDENCE LABEL: no model involved. Real stores, the real candidate books
+EVIDENCE LABEL: NO MODEL. No model involved. Real stores, the real candidate books
 (What-If flags on, as the workspace runs), the real scenario `cohort.freeze`.
 """
 
@@ -161,6 +161,29 @@ def test_private_objects_are_invisible_to_colleagues_and_other_tenants(ws):
         with pytest.raises(HTTPException) as caught:
             svc.get(made["object_id"], Principal.of(who))
         assert caught.value.status_code == 404
+
+
+def test_tenant_wide_objects_stay_inside_their_tenant(ws):
+    """Isolation holds in two layers; each is tested on its own so removing
+    either one fails a test (P13 mutation gate "tenant isolation")."""
+    from backend.workspace.objects import can_edit, can_read
+    svc = ObjectService(ws)
+    made = svc.create("finding", Principal.of(ALICE), _minimal("finding"),
+                      title="tenant-wide",
+                      permissions={"visibility": "tenant", "readers": [],
+                                   "editors": []})
+    assert svc.get(made["object_id"], Principal.of(BOB))["title"] == \
+        "tenant-wide"
+    # Layer 1 -- the store query is tenant-scoped.
+    assert ws.get(made["object_id"], tenant_id="other-bank") is None
+    assert ws.versions(made["object_id"], tenant_id="other-bank") == []
+    # Layer 2 -- the access rule refuses another tenant, even its admin and
+    # even for an object visible tenant-wide.
+    assert not can_read(made, Principal.of(MALLORY))
+    assert not can_edit(made, Principal.of(MALLORY))
+    with pytest.raises(HTTPException) as caught:
+        svc.get(made["object_id"], Principal.of(MALLORY))
+    assert caught.value.status_code == 404
 
 
 def test_lineage_tree_names_parents_and_children(ws):

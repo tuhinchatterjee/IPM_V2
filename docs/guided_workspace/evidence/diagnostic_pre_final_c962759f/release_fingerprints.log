@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+  File "/home/user/IPM_V2/backend/cockpit_v4/lake.py", line 239, in verify
+    manifest = read_manifest(release_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/backend/cockpit_v4/lake.py", line 101, in read_manifest
+    raise ReleaseNotFound(
+backend.cockpit_v4.lake.ReleaseNotFound: Release 'v4-saudi-20q-v1' is not published in this runtime. Nothing was substituted for it.

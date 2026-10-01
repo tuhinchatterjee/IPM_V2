@@ -5,7 +5,7 @@ method is NOT executed: it stops at METHOD_SELECTION. There is no silent Delta
 default and no ML-to-Delta fallback; Retail ML stays visibly unavailable while
 G4 fails.
 
-EVIDENCE LABEL: no model call. The engine's own `execute_scenario` path on the
+EVIDENCE LABEL: NO MODEL. No model call. The engine's own `execute_scenario` path on the
 published candidate books, through the same `bridge.execute` a Cockpit turn
 dispatches.
 """

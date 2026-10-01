@@ -1,6 +1,6 @@
 """P7 — Messages carry governed objects; lineage, tree, comparison, permissions.
 
-EVIDENCE LABEL: no model call. Workspace HTTP routes on the candidate books;
+EVIDENCE LABEL: NO MODEL. No model call. Workspace HTTP routes on the candidate books;
 runs execute through the engine's `bridge.compute_core`.
 """
 

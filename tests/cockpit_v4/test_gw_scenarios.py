@@ -1,6 +1,6 @@
 """P4 — Scenario Library: seeded catalogue, definitions, composition, sharing.
 
-EVIDENCE LABEL: no model call anywhere in this file, and nothing is executed.
+EVIDENCE LABEL: NO MODEL. No model call anywhere in this file, and nothing is executed.
 Real candidate books, real governed artefacts (MEV sensitivities, rating
 masterscale, product scorecards, ML emulator gates), real stores.
 """

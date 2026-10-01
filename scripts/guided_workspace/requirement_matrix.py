@@ -3,17 +3,19 @@
 Build the requirement matrix of record from MEASURED evidence.
 
     python3 scripts/guided_workspace/requirement_matrix.py \\
-        --spec SPEC.txt \\
+        --spec docs/guided_workspace/matrix/spec_requirement_rows.txt \\
         --evidence docs/guided_workspace/matrix/requirement_evidence.json \\
-        --pytest-junit docs/guided_workspace/evidence/regression \\
-        --node-junit docs/guided_workspace/evidence/regression/frontend.junit.xml \\
-        --journeys docs/guided_workspace/evidence/journeys.json \\
+        --regression docs/guided_workspace/evidence/final_regression \\
+        --candidate-sha <SHA the final regression ran on> \\
+        --mutation docs/guided_workspace/evidence/mutation_gates.json \\
         --out docs/guided_workspace/REQUIREMENT_MATRIX.md
 
 The evidence map names, per requirement id, the tests and browser journeys
-that assert it, a CLAIM (COVERED / PARTIAL / BLOCKED / PENDING-P14 /
-PENDING-P15 / NOT_COVERED) and, for anything short of COVERED, the exact gap.
-This script does not trust the map:
+that assert it, a CLAIM (COVERED / PARTIAL / BLOCKED / NOT_COVERED) and, for
+anything short of COVERED, the exact gap. The STATUS printed is one of
+PASS / PARTIAL / BLOCKED / FAILED, computed from the measured results of the
+final regression of record (whose `summary.json` must name
+`--candidate-sha`). This script does not trust the map:
 
 * every requirement id in the specification must be in the map, and nothing
   else (an id added to or dropped from the spec fails generation);
@@ -22,10 +24,16 @@ This script does not trust the map:
 * EXISTENCE is reported apart from RESULT: each cited test is joined to the
   result files of the regression of record (JUnit XML for pytest and node,
   journeys.json for the browser) and shown PASS / FAIL / SKIP / NOT RUN;
-* the status is COMPUTED: a COVERED claim needs at least one cited test or
-  journey and every one of them PASSING; any FAIL makes the row FAILING; a
-  cited test absent from the results makes it NOT_RUN. A PARTIAL claim is
-  never promoted; BLOCKED / PENDING rows must state their reason.
+* the status is COMPUTED, never copied from the claim:
+  - any cited test, journey or check that FAILED -> FAILED;
+  - a claim of NOT_COVERED -> FAILED;
+  - a check the regression measured BLOCKED_ENV, or a BLOCKED claim ->
+    BLOCKED (with the claim's reason and the measured detail);
+  - a cited test the regression did not run, or that only skipped ->
+    PARTIAL, with that stated;
+  - a PARTIAL claim -> PARTIAL (never promoted);
+  - a COVERED claim with at least one citation and every one PASS -> PASS.
+* every cited source / evidence file must exist.
 """
 
 from __future__ import annotations
@@ -41,10 +49,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ID_RE = re.compile(r"^\| ?([A-Z][A-Z0-9]{1,8}-?[0-9]{2,3}) \|", re.M)
-CLAIMS = ("COVERED", "PARTIAL", "BLOCKED", "PENDING-P14", "PENDING-P15",
-          "NOT_COVERED")
-GAP_REQUIRED = ("PARTIAL", "BLOCKED", "PENDING-P14", "PENDING-P15",
-                "NOT_COVERED")
+CLAIMS = ("COVERED", "PARTIAL", "BLOCKED", "NOT_COVERED")
+GAP_REQUIRED = ("PARTIAL", "BLOCKED", "NOT_COVERED")
+STATUSES = ("PASS", "PARTIAL", "BLOCKED", "FAILED")
 
 
 def spec_ids(spec: Path) -> list[str]:
@@ -121,8 +128,19 @@ def pytest_results(folder: Path) -> dict[str, str]:
             elif case.find("skipped") is not None:
                 outcome = "SKIP"
             res[f"{path}::{base}"].append(outcome)
+    # Failures the regression classified as P0-recorded environment-bound
+    # (summary.json `env_bound`) are reported BLOCKED_ENV, never PASS.
+    env_bound: set[str] = set()
+    summary = folder / "summary.json"
+    if summary.exists():
+        for step in json.loads(summary.read_text())["steps"]:
+            env_bound |= {n.split("::")[0].replace(".", "/") + ".py::" +
+                          n.split("::")[1] for n in step.get("env_bound", [])}
     merged: dict[str, str] = {}
     for key, outs in res.items():
+        if key in env_bound and "FAIL" in outs:
+            merged[key] = "BLOCKED_ENV"
+            continue
         # The same test may run on two interpreters (accepted, .venv-whatif):
         # it passes if any run passed and none failed where it ran for real.
         if "PASS" in outs and "FAIL" not in outs:
@@ -169,20 +187,56 @@ def git_tags_unmoved() -> str:
     return "PASS" if tags == TAGS_AT_P0 and h1 == H1 else "FAIL"
 
 
-def check_results(folder: Path) -> dict[str, str]:
+def check_results(folder: Path, gates: Path
+                  ) -> tuple[dict[str, str], dict[str, str]]:
+    """Measured outcome and detail per check id."""
     out: dict[str, str] = {}
-    summary = folder / "summary.json"
-    if summary.exists():
-        for step in json.loads(summary.read_text())["steps"]:
-            out[f"regression:{step['name']}"] = step.get("status", "FAIL")
-    gates = folder / "mutation_gates.json"
-    if gates.exists():
-        data = json.loads(gates.read_text())
-        for g in data["gates"]:
-            out[f"mutation:{g['gate']}"] = ("PASS" if g["result"] == "KILLED"
-                                            else "FAIL")
+    detail: dict[str, str] = {}
+    for step in json.loads((folder / "summary.json").read_text())["steps"]:
+        key = f"regression:{step['name']}"
+        status = step.get("status", "FAIL")
+        out[key] = {"PASS": "PASS", "BLOCKED_ENV": "BLOCKED_ENV"}.get(
+            status, "FAIL")
+        bits = []
+        if step.get("counts"):
+            c = step["counts"]
+            bits.append(f"{c.get('tests', 0)} tests, {c.get('failures', 0)} "
+                        f"failures, {c.get('errors', 0)} errors, "
+                        f"{c.get('skipped', 0)} skipped")
+        if step.get("env_bound"):
+            bits.append(f"environment-bound (P0-recorded): "
+                        f"{len(step['env_bound'])}")
+        if step.get("detail"):
+            bits.append(str(step["detail"])[:200])
+        detail[key] = "; ".join(bits)
+    data = json.loads(gates.read_text())
+    for g in data["gates"]:
+        key = f"mutation:{g['gate']}"
+        out[key] = "PASS" if g["result"] == "KILLED" else "FAIL"
+        detail[key] = g["result"]
     out["git:no_tags_moved"] = git_tags_unmoved()
-    return out
+    return out, detail
+
+
+def compute(claim: str, outcomes: list[str], cited: bool
+            ) -> tuple[str, str]:
+    """(status, computed reason). See the module docstring."""
+    if any(o in ("FAIL", "MIXED", "MISSING") for o in outcomes):
+        return "FAILED", "a cited test, journey, check or file FAILED or is missing"
+    if claim == "NOT_COVERED":
+        return "FAILED", ""
+    if claim == "BLOCKED" or "BLOCKED_ENV" in outcomes:
+        return "BLOCKED", ("" if claim == "BLOCKED" else
+                           "measured BLOCKED_ENV in the final regression")
+    if "NOT RUN" in outcomes:
+        return "PARTIAL", "a cited test was NOT RUN by the final regression"
+    if outcomes and all(o == "SKIP" for o in outcomes):
+        return "PARTIAL", "every cited test SKIPPED in the final regression"
+    if claim == "PARTIAL":
+        return "PARTIAL", ""
+    if claim == "COVERED" and cited:
+        return "PASS", ""
+    return "FAILED", "no evidence cited"
 
 
 def build(args: argparse.Namespace) -> int:
@@ -201,16 +255,34 @@ def build(args: argparse.Namespace) -> int:
     collected = collected_pytest(py_files, args.python)
     journeys_src = (ROOT / "tests/guided_workspace/browser/gw.browser.mjs"
                     ).read_text(encoding="utf-8")
+    journeys_file = Path(args.regression) / "suite_outputs" / \
+        "docs/guided_workspace/evidence/journeys.json"
+    if not journeys_file.exists():
+        print(f"no journey results at {journeys_file}", file=sys.stderr)
+        return 1
     jres = {j["journey"]: j["status"] for j in json.loads(
-        Path(args.journeys).read_text(encoding="utf-8"))["journeys"]}
+        journeys_file.read_text(encoding="utf-8"))["journeys"]}
     # Literal ids, plus ids a templated journey (`GW-P3-01-${book}`) produced.
     known_journeys = set(re.findall(r'journey\(\s*["`](GW-[^"`$]+)["`]',
                                     journeys_src))
     for templ in re.findall(r'journey\(\s*`(GW-[^`]*)\$\{', journeys_src):
         known_journeys |= {j for j in jres if j.startswith(templ)}
-    pres = pytest_results(Path(args.pytest_junit))
-    cres = check_results(Path(args.pytest_junit))
-    nres = node_results(Path(args.node_junit))
+    reg = Path(args.regression)
+    summary_path = reg / "summary.json"
+    if not summary_path.exists():
+        print(f"no regression summary at {summary_path}", file=sys.stderr)
+        return 1
+    ran_on = json.loads(summary_path.read_text()).get("commit", "")
+    if ran_on != args.candidate_sha:
+        print(f"the regression at {reg} ran on {ran_on[:12]}, not the "
+              f"candidate {args.candidate_sha[:12]}", file=sys.stderr)
+        return 1
+    if not Path(args.mutation).exists():
+        print(f"no mutation-gate record at {args.mutation}", file=sys.stderr)
+        return 1
+    pres = pytest_results(reg)
+    cres, cdetail = check_results(reg, Path(args.mutation))
+    nres = node_results(reg / "frontend.junit.xml")
 
     rows = []
     for rid in ids:
@@ -260,52 +332,45 @@ def build(args: argparse.Namespace) -> int:
             cites.append((chk, cres.get(chk, "NOT RUN")))
         for src in e.get("sources", []):
             if not (ROOT / src).exists():
-                errors.append(f"{rid}: source does not exist: {src}")
-        outcomes = [o for _, o in cites if o != "SELF"]
-        if "FAIL" in outcomes or "MIXED" in outcomes:
-            status = "FAILING"
-        elif claim == "COVERED":
-            if not cites:
-                errors.append(f"{rid}: COVERED with no test or journey")
-                status = "UNPROVEN"
-            elif any(o in ("NOT RUN", "MISSING") for o in outcomes):
-                status = "NOT_RUN"
-            elif all(o == "SKIP" for o in outcomes):
-                status = "SKIPPED_ONLY"
-            else:
-                status = "COVERED"
-        else:
-            status = claim
-        rows.append((rid, e, cites, status))
+                errors.append(f"{rid}: evidence file does not exist: {src}")
+                cites.append((src, "MISSING"))
+        status, why = compute(claim, [o for _, o in cites if o != "SELF"],
+                              bool(cites))
+        if claim == "COVERED" and not cites:
+            errors.append(f"{rid}: COVERED with no test, journey or check")
+        measured = [f"{c}: {cdetail[c]}" for c, o in cites
+                    if o == "BLOCKED_ENV" and cdetail.get(c)]
+        reason = "; ".join(x for x in (e.get("gap", ""), why, *measured) if x)
+        rows.append((rid, e, cites, status, reason))
 
-    if errors:
-        rows = [(rid, e, [(c, ("FAIL" if o == "SELF" else o)) for c, o in cs],
-                 ("FAILING" if any(o == "SELF" for _, o in cs) else st))
-                for rid, e, cs, st in rows]
-    else:
-        rows = [(rid, e, [(c, ("PASS" if o == "SELF" else o)) for c, o in cs],
-                 st) for rid, e, cs, st in rows]
+    self_ok = "PASS" if not errors else "FAIL"
+    rows = [(rid, e, [(c, (self_ok if o == "SELF" else o)) for c, o in cs],
+             ("FAILED" if any(o == "SELF" for _, o in cs) and errors else st),
+             why) for rid, e, cs, st, why in rows]
     counts = collections.Counter(r[3] for r in rows)
     lines = [
         "# Requirement matrix of record",
         "",
         "Generated by `scripts/guided_workspace/requirement_matrix.py` from "
         "`docs/guided_workspace/matrix/requirement_evidence.json` and the "
-        "result files of the P13 regression of record. Do not edit by hand: "
+        "result files of the final regression of record. Do not edit by hand: "
         "edit the evidence map and re-run.",
         "",
+        f"* Final regression of record ran on **`{args.candidate_sha}`**; "
+        f"results: `{args.regression_label or args.regression}`.",
         f"* Specification requirement ids: **{len(ids)}**; evidence entries: "
         f"**{len(evidence)}**.",
-        "* A status is computed, not claimed: COVERED needs at least one cited "
-        "test or journey and every cited one PASS in the regression of record. "
-        "PARTIAL is never promoted. BLOCKED / PENDING rows state their reason.",
+        "* Status is computed from measured results, never copied from the "
+        "claim. PASS needs at least one citation and every citation PASS. A "
+        "FAIL anywhere is FAILED. BLOCKED needs a stated external reason. "
+        "Anything not run, skip-only or claimed partial is PARTIAL; PARTIAL is "
+        "never promoted.",
         "* Each citation shows existence and result separately: "
-        "`PASS` / `FAIL` / `SKIP` / `NOT RUN`; a missing citation fails "
-        "generation.",
+        "`PASS` / `FAIL` / `SKIP` / `NOT RUN` / `BLOCKED_ENV`; a citation "
+        "that does not exist fails generation.",
         "",
         "| Status | Count |", "|---|---|",
-        *[f"| {k} | {v} |" for k, v in sorted(counts.items(),
-                                              key=lambda kv: -kv[1])],
+        *[f"| {k} | {counts.get(k, 0)} |" for k in STATUSES],
         f"| **Total** | **{len(rows)}** |", "",
     ]
     by_section: dict[str, list] = collections.defaultdict(list)
@@ -315,18 +380,22 @@ def build(args: argparse.Namespace) -> int:
         lines += [f"## {section}", "",
                   "| ID | Requirement | Status | Evidence (result) | Gap / reason |",
                   "|---|---|---|---|---|"]
-        for rid, e, cites, status in items:
+        for rid, e, cites, status, why in items:
             ev = "; ".join(f"`{c}` {o}" for c, o in cites) or "—"
-            gap = (e.get("gap") or "").replace("|", "/")
+            gap = why.replace("|", "/")
             req = e.get("requirement", "").replace("|", "/")
             lines.append(f"| {rid} | {req} | **{status}** | {ev} | {gap} |")
         lines.append("")
-    gaps = [r for r in rows if r[3] != "COVERED"]
-    lines += ["## Everything short of COVERED", ""]
-    for rid, e, _c, status in gaps:
-        lines.append(f"* **{rid}** {status}: {e.get('gap') or '—'}")
+    gaps = [r for r in rows if r[3] != "PASS"]
+    lines += ["## Everything short of PASS", ""]
+    for rid, _e, _c, status, why in gaps:
+        lines.append(f"* **{rid}** {status}: {why or '—'}")
     Path(args.out).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    summary = {"ids": len(ids), "counts": dict(counts),
+    summary = {"candidate_sha": args.candidate_sha, "ids": len(ids),
+               "counts": {k: counts.get(k, 0) for k in STATUSES},
+               "rows": {rid: {"status": st, "reason": why,
+                              "evidence": [[c, o] for c, o in cs]}
+                        for rid, _e, cs, st, why in rows},
                "errors": errors}
     Path(args.out).with_suffix(".json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8")
@@ -340,9 +409,13 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--spec", required=True)
     p.add_argument("--evidence", required=True)
-    p.add_argument("--pytest-junit", required=True)
-    p.add_argument("--node-junit", required=True)
-    p.add_argument("--journeys", required=True)
+    p.add_argument("--regression", required=True,
+                   help="the final regression's output folder (summary.json, "
+                        "JUnit XML, suite_outputs/)")
+    p.add_argument("--regression-label", default="",
+                   help="how to name the folder in the matrix header")
+    p.add_argument("--candidate-sha", required=True)
+    p.add_argument("--mutation", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--python", default=sys.executable)
     return build(p.parse_args())

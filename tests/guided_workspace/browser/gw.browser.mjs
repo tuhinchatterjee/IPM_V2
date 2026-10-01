@@ -850,7 +850,10 @@ async function confirmAndChoose(page, record, methods) {
 async function resultRendered(page) {
   await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 180_000 });
   await page.waitForSelector('[data-testid="whatif-waterfall-selected"][data-rendered="true"]', { timeout: 60_000 });
-  await page.waitForSelector('[data-testid="whatif-waterfall-total"][data-rendered="true"]', { timeout: 60_000 });
+  // Two bridges (a subset of the book) -- or ONE bridge with the proven
+  // "Selected scope = Total book" panel (DECOMP21) when the population is
+  // the whole book.
+  await page.waitForSelector('[data-testid="whatif-waterfall-total"][data-rendered="true"], [data-testid="whatif-scope-equivalence"]', { timeout: 60_000 });
 }
 
 async function p6Journeys() {

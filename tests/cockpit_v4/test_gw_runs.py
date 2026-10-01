@@ -1,7 +1,7 @@
 """P6 — What-If runs: scenario and method are separate decisions; results
 carry the universal dual-scope decomposition; lineage is asked, never assumed.
 
-EVIDENCE LABEL: no model call. The workspace HTTP routes on the candidate
+EVIDENCE LABEL: NO MODEL. No model call. The workspace HTTP routes on the candidate
 books, executing through the engine's own `bridge.compute_core` -- the same
 object the Cockpit's `execute_scenario` uses.
 """

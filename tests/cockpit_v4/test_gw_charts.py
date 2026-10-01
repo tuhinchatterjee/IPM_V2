@@ -4,6 +4,8 @@ Heatmaps and stage-migration flows are drawn from `grid.grouped2`: two
 governed dimensions, aggregated on the server, capped, and returned with the
 totals so every chart proves it reconciles to the filtered book. The
 portfolio never reaches the browser; these tests pin that by size and shape.
+
+EVIDENCE LABEL: REAL DATABASE (governed candidate books, server-side aggregation); NO MODEL.
 """
 
 # Fixtures are shared with sibling suites by import; pytest injects them by

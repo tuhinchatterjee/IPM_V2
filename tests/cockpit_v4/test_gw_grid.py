@@ -4,6 +4,8 @@ definition carried by every export.
 
 The grid runs on the server against the active release; the browser only
 asks (GW-P13 journeys drive the same paths through the UI).
+
+EVIDENCE LABEL: REAL DATABASE (governed candidate books, real server query); NO MODEL.
 """
 
 # Fixtures are shared with sibling suites by import; pytest injects them by

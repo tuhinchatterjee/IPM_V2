@@ -1,6 +1,6 @@
 """P3 — Guided Cockpit: Requires Attention, investigate, next-best questions.
 
-EVIDENCE LABEL: no model call anywhere in this file. Real candidate books, real
+EVIDENCE LABEL: NO MODEL. No model call anywhere in this file. Real candidate books, real
 metric engine, real stores. The full click-through journey is browser GW-P3-*.
 """
 

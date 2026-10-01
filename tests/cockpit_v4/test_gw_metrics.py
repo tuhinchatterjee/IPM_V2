@@ -1,6 +1,6 @@
 """P8 — Metric Catalogue 2.0: fully defined, persisted, versioned, correct.
 
-EVIDENCE LABEL: no model call. Formula tests recompute each metric in Python
+EVIDENCE LABEL: NO MODEL. No model call. Formula tests recompute each metric in Python
 from the governed grid rows of the candidate books and compare with the
 metric engine; nothing here reuses the engine's SQL.
 """

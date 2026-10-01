@@ -1,6 +1,6 @@
 """P5 — What-If Analysis workspace: selection, governed cohort, handoffs.
 
-EVIDENCE LABEL: no model call. Real candidate books; the conversational path is
+EVIDENCE LABEL: NO MODEL. No model call. Real candidate books; the conversational path is
 exercised through the engine's own `scenario.bridge` preview operation, which
 is what a Cockpit turn dispatches -- so "conversationally defined cohort" here
 is the exact code path a live analyst's `preview_scenario` step reaches.

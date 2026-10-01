@@ -1,0 +1,1019 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 45,
+  "total": 46,
+  "journeys": [
+    {
+      "journey": "GW-P1-01",
+      "what": "Cockpit question → governance record → Trace › LLM Exchange shows every call, stage and panel",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-calls.png",
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-visibility.png",
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-growth.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-f775f94d0afe4cad8d123d656ae72272",
+      "run_id": "run-488a502a200d4acda7bbce91724ee774",
+      "export": "llm_exchange_run-488a502a200d4acda7bbce91724ee774.zip",
+      "calls_recorded": 2,
+      "status": "PASS",
+      "ms": 14891
+    },
+    {
+      "journey": "GW-P1-02",
+      "what": "Reopening a trace makes zero model calls",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-a72f7d832aa14df9ad9c1f2e07d2e0a7",
+      "run_id": "run-a370a922827e46959c35f6e7a7244ebf",
+      "exchanges_before": 4,
+      "exchanges_after": 4,
+      "status": "PASS",
+      "ms": 5637
+    },
+    {
+      "journey": "GW-P1-03",
+      "what": "AI Model Lab reads the same records and compares two calls",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P1-03-compare.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "replay_buttons": [
+        {
+          "t": " Replay A on Anthropic (Cockpit credential) (not configured)",
+          "d": true
+        },
+        {
+          "t": " Replay A on Open-weight (OpenAI-compatible endpoint) (not configured)",
+          "d": true
+        }
+      ],
+      "status": "PASS",
+      "ms": 1437
+    },
+    {
+      "journey": "GW-P10-01",
+      "what": "Monitoring Centre first launch: live breaches and labelled historical replay; an alert shows rule/Lens/metric versions and history; Open Lens restores the triggering period and population; acknowledging needs a note; Investigate opens Cockpit",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-01-alert.png",
+        "docs/guided_workspace/evidence/journeys/GW-P10-01-lens-at-trigger.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "active": "11",
+      "lens_state": "Active statecorporate 2026Q2 (latest)Lens scope: corporate: sector ∈ Construction, Real Estatecorporate: sector ∈ Construction, Real Estatereset to latest, unfiltered",
+      "status": "PASS",
+      "ms": 12586
+    },
+    {
+      "journey": "GW-P10-02",
+      "what": "Follow a Lens → its refresh raises a breach → an Inbox card from Monitoring with Open Lens / Investigate / What-If → What-If opens with the alert's population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-02-inbox-alert.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Refreshed: No material change since the previous refresh. · 1 alert(s) raised — see Monitoring Centre",
+      "actions": [
+        "message-action-open",
+        "message-action-open_monitoring",
+        "message-action-investigate",
+        "message-action-whatif",
+        "message-action-comment"
+      ],
+      "status": "PASS",
+      "ms": 8272
+    },
+    {
+      "journey": "GW-P10-03",
+      "what": "The scheduler's step on demand: due Lenses refresh (idempotent on unchanged releases) and the refresh-health table shows cadence, last success and what is due",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-03-health.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Scheduler step: 1 Lens(es) refreshed, 0 failed, 21 not due.",
+      "health_rows": 22,
+      "status": "PASS",
+      "ms": 1764
+    },
+    {
+      "journey": "GW-P11-01",
+      "what": "What-If heatmap and stage-migration Sankey: server-aggregated (small payload), reconcile to the filtered book, a flow click and a heatmap cell (via the keyboard on its data row) filter the grid; the same key again clears it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-matrices.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-flow-filtered.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-keyboard-cell.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "heatmap_reconciles": "true",
+      "sankey_reconciles": "true",
+      "group2_payload_bytes": [
+        9150,
+        604,
+        9150,
+        604,
+        8971,
+        604,
+        9150,
+        604,
+        9150,
+        552,
+        9150,
+        604
+      ],
+      "flow_chips": [
+        "Prior stage: 1",
+        "Stage: 1"
+      ],
+      "after_flow": 2976,
+      "keyboard_row": [
+        "Construction",
+        "B",
+        "15"
+      ],
+      "after_keyboard": 15,
+      "status": "PASS",
+      "ms": 10415
+    },
+    {
+      "journey": "GW-P11-02",
+      "what": "The shared chart contract on one screen: role=img labels, hover shows units, legend isolate is visual only (no refetch, totals unchanged), drag-zoom and mode-bar reset, CSV carries release/fingerprint/period/filters, PNG downloads",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-02-contract.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "charts_on_screen": 5,
+      "hover": "Sector UtilitiesSAR 196m · 249 exposuresraw 195.515767 SAR million",
+      "step": "reset",
+      "api_calls_on_legend_toggle": 0,
+      "hidden_after_rerender": 1,
+      "zoomed_range": [
+        1.8777089783281733,
+        6.670278637770898
+      ],
+      "csv_header": [
+        "# release: v4-whatif-corporate-20q-s1",
+        "# fingerprint: 3b101bd41465fbe15f89d0d9563026e0f7f2e8081e9e778a90eebe553e01fce5",
+        "# period: 2026Q2",
+        "# filters: {\"applied\":[]}",
+        "# values are raw governed values; money is SAR million unless a column says otherwise"
+      ],
+      "csv_rows": 95,
+      "cells_drawn": 95,
+      "png": "ead-by-sector-rating.png",
+      "status": "PASS",
+      "ms": 8157
+    },
+    {
+      "journey": "GW-P11-03",
+      "what": "An executed Delta result adds the segment Pareto (cumulative share ends at 100%) and the per-exposure change distribution, each with its exact data",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-03-pareto.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-3e19f2b0ee0d",
+      "pareto_last_cumulative_pct": 100,
+      "distribution_rows": 13,
+      "status": "PASS",
+      "ms": 4284
+    },
+    {
+      "journey": "GW-P11-04",
+      "what": "Early Warning: clicking a warning reason cross-filters the bands, segments and underlying grid on the server; the keyboard does the same from the data row; Save cohort carries the reason",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-04-reason.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-04-keyboard.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "severe_all": 286,
+      "reason": "Weak behaviour score band (D/E)",
+      "severe_tripping_reason": 284,
+      "cohort": [
+        "coh-029e6a1f4973",
+        284,
+        "EWS critical/high · Weak behaviour score band (D/E)"
+      ],
+      "keyboard_reason": "Persistent minimum payment (payment ratio < 35%)",
+      "status": "PASS",
+      "ms": 10973
+    },
+    {
+      "journey": "GW-P11-05",
+      "what": "Legacy Recharts routes are not reachable as live charts with the guided flag on: /lenses/cro opens the governed Plotly CRO Lens, /stress opens What-If",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-05-cro-lens.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "cro_lens": "/lenses/lens-01?from=bookmark",
+      "recharts_on_page": 0,
+      "stress": "/what-if",
+      "status": "PASS",
+      "ms": 5268
+    },
+    {
+      "journey": "GW-P12-01",
+      "what": "Result → Export package (the page's own Plotly charts attached as SVG + figure spec; every file hash-listed) → Trace: integrity verified, versions in the hash chain, lineage to the scenario, the run's method decisions → tenant ledger verifies → the downloaded package verifies against the store",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-result-trace.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-verified.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-run-trace.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-440a79689d48",
+      "package": "creditprobe_res-440a79689d48_v1.zip",
+      "files": 26,
+      "snapshots": [
+        "snapshots/whatif-waterfall-selected.svg",
+        "snapshots/whatif-waterfall-selected.plotly.json",
+        "snapshots/whatif-waterfall-total.svg",
+        "snapshots/whatif-waterfall-total.plotly.json",
+        "snapshots/whatif-result-stages.svg",
+        "snapshots/whatif-result-stages.plotly.json",
+        "snapshots/whatif-result-top.svg",
+        "snapshots/whatif-result-top.plotly.json",
+        "snapshots/whatif-result-pareto.svg",
+        "snapshots/whatif-result-pareto.plotly.json",
+        "snapshots/whatif-result-distribution.svg",
+        "snapshots/whatif-result-distribution.plotly.json"
+      ],
+      "versions": 1,
+      "ancestors": [
+        "scenario · Construction PD deterioration",
+        "run · Run: Construction PD deterioration"
+      ],
+      "ledger": "325 entries, chain head 181d0e0df6…a7cf · no problems",
+      "package_verify": "Package verified: 25 files, 3 objects checked against the store",
+      "run_states": 5,
+      "status": "PASS",
+      "ms": 6767
+    },
+    {
+      "journey": "GW-P12-02",
+      "what": "Lens and alert: Export package from the Lens view; the Lens Trace lists its refreshes, each in the hash chain; an alert's Trace lists its state history",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-02-lens-trace.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-02-alert-trace.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "lens_snapshots": 20,
+      "lens_refreshes": 1,
+      "alert_events": 1,
+      "status": "PASS",
+      "ms": 5252
+    },
+    {
+      "journey": "GW-P12-03",
+      "what": "LLM Exchange, one recorder: a Cockpit call reads as SYSTEM / USER / ASSISTANT / TOOL CALL / TOOL RESULT / VALIDATOR in the order sent, beside canonical → translated → raw → normalized; the AI Model Lab lists the SAME exchange records (no second recorder)",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-03-segments.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-03-lab.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-99ae1cd39f254388a0cf435a0bf0dac6",
+      "run_id": "run-778f20b581d1451389fb32f5b1fbb9ec",
+      "segment_kinds": [
+        "SYSTEM",
+        "USER",
+        "TOOL CALL",
+        "TOOL RESULT"
+      ],
+      "lab_rows": 20,
+      "status": "PASS",
+      "ms": 5880
+    },
+    {
+      "journey": "GW-P13-01",
+      "what": "GRID07: every visible grid column opens the filter editor its governed kind calls for (text box / value list / min–max / yes–no), on both books",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-01-editors.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "checked": {
+        "corporate": 36,
+        "retail": 38
+      },
+      "status": "PASS",
+      "ms": 46157
+    },
+    {
+      "journey": "GW-P13-02",
+      "what": "GRID11 + GRID13 in the UI: a yes/no filter and an 'only empty' filter narrow the grid to exactly the server's count; sorting by EAD is server-side and page 2 continues page 1's order",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-02-sorted-page-2.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "watchlist_yes": 224,
+      "prior_stage_empty": 0,
+      "page_size": 50,
+      "status": "PASS",
+      "ms": 12526
+    },
+    {
+      "journey": "GW-P13-03",
+      "what": "MAC07: the macro-sensitivity tornado follows the explorer's population, names the risk parameter on every bar, hovers with the governed fields, and flags the collateral sign for review instead of flipping it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-03-tornado-lgd.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "bars": 12,
+      "hover": "Equity market index (MEV11 · corporate.MEV11)shock up ±10 % of the level (+10% of the latest observed level 124.593 = +12.46 native units)affects PD lifetime: -1.262 ppcoefficient -0.02051837 · slope ",
+      "sign_review": "Commercial property price index → LGD: SIGN_REVIEW: the governed slope moves LGD DOWN (-0.513 pp) when collateral values fall. It is the fitted artefact's sign ",
+      "status": "PASS",
+      "ms": 7481
+    },
+    {
+      "journey": "GW-P13-04",
+      "what": "Method names and 'Selected scope = Total book': a whole-book Delta result says Method 1 — Delta, draws ONE bridge with the scope-equivalence panel (rest-of-book Δ = 0, selected Δ = total Δ) and marks every component identical",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-04-scope-equals-book.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-41a5b0e42258",
+      "equivalence": "Selected scope = Total bookThe selected population is the entire active book (2,996 exposures), so there is no rest of book.Rest-of-book ECL delta = SAR 0 (zero by definition)Selected-scope delta +SAR 466m = total-book delta +SAR 466m20 of ",
+      "components": 20,
+      "status": "PASS",
+      "ms": 4596
+    },
+    {
+      "journey": "GW-P13-05",
+      "what": "VIZ02 responsive: at a 390 px phone viewport the main pages render without horizontal page scroll and every chart fits the screen; at 1440 px the same charts are wider",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-05-phone-what-if.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "pages": {
+        "390:/what-if": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 5
+        },
+        "390:/what-if/result": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 6
+        },
+        "390:/lenses/lens-01": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 233,
+          "charts": 13
+        },
+        "390:/monitoring": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 2
+        },
+        "390:/metrics": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 3
+        },
+        "390:/messages": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 0,
+          "charts": 0
+        },
+        "1440:/what-if": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 1027,
+          "charts": 5
+        },
+        "1440:/what-if/result": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 488.5,
+          "charts": 6
+        },
+        "1440:/lenses/lens-01": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 482,
+          "charts": 13
+        },
+        "1440:/monitoring": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 488.5,
+          "charts": 2
+        },
+        "1440:/metrics": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 627,
+          "charts": 3
+        },
+        "1440:/messages": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 0,
+          "charts": 0
+        }
+      },
+      "status": "PASS",
+      "ms": 23213
+    },
+    {
+      "journey": "GW-P3-01-CORP",
+      "what": "corporate: landing shows Requires Attention AND the free Ask box; cards carry measured evidence",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-01-CORP-landing.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_count": 10,
+      "release_id": "v4-whatif-corporate-20q-s1",
+      "titles": [
+        "Hospitality: booked ECL rose +SAR 24.6m (+19.0%)",
+        "Construction: booked ECL rose +SAR 24.9m (+17.1%)",
+        "Booked ECL rose +SAR 169m (+9.6%) across the Corporate book",
+        "Hospitality: EAD-weighted PD rose +20 bps",
+        "Education: 15.66% of EAD is on the watchlist (book 7.63%)"
+      ],
+      "status": "PASS",
+      "ms": 3154
+    },
+    {
+      "journey": "GW-P3-01-RET",
+      "what": "retail: landing shows Requires Attention AND the free Ask box; cards carry measured evidence",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-01-RET-landing.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_count": 8,
+      "release_id": "v4-whatif-retail-20m-s1",
+      "titles": [
+        "Personal Finance: booked ECL rose +SAR 453k (+36.6%)",
+        "Credit Card: booked ECL rose +SAR 145k (+34.1%)",
+        "Personal Finance: average payment ratio fell −577 bps",
+        "Booked ECL rose +SAR 806k (+33.8%) across the Retail book",
+        "Personal Finance: 1,011 customers with PD up 20% or more this month"
+      ],
+      "status": "PASS",
+      "ms": 6981
+    },
+    {
+      "journey": "GW-P3-02",
+      "what": "Issue card → Investigate → an ordinary thread with the path and NBQ chips; a chip runs a normal turn in the SAME thread",
+      "prompts": [
+        "chip: Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-path.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-chip-answered.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-free-form.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "thread_id": "th-d9621d51da1f43eaadba2a85b6d95838",
+      "path": [
+        [
+          "Issue",
+          "done"
+        ],
+        [
+          "Evidence",
+          "done"
+        ],
+        [
+          "Driver",
+          "open"
+        ],
+        [
+          "Cohort",
+          "done"
+        ],
+        [
+          "Finding",
+          "open"
+        ],
+        [
+          "Scenario/Decision",
+          "open"
+        ]
+      ],
+      "chips": [
+        {
+          "text": "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+          "type": "explain_driver"
+        },
+        {
+          "text": "What changed for Hotels in Hospitality between 2026Q1 and 2026Q2: exposure, PD, LGD or stage?",
+          "type": "explain_driver"
+        },
+        {
+          "text": "Show the borrowers in Hospitality with the largest increase in booked ECL between 2026Q1 and 2026Q2.",
+          "type": "drill_contributors"
+        },
+        {
+          "text": "Check whether rating or score deterioration explains the movement in Hospitality: compare PD and stage between 2026Q1 and 2026Q2 for the same facilities.",
+          "type": "validate_hypothesis"
+        },
+        {
+          "text": "How does Booked ECL in Hospitality in 2026Q2 compare with the same measure four periods earlier?",
+          "type": "compare_period"
+        }
+      ],
+      "investigation_id": "inv-0a8f67d1e194",
+      "clicks_recorded": [
+        {
+          "suggestion_id": "nbq-8b9e927a5874",
+          "kind": "explain_driver",
+          "exact_request": "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+          "rationale": "Booked ECL moved +SAR 24.6m (+19.0%) in Hospitality; a contribution breakdown separates concentrated from broad-based movement.",
+          "source": {
+            "issue_id": "iss-db4929b9bd19",
+            "metric_id": "M001",
+            "evidence": [
+              "M001",
+              "M002"
+            ]
+          },
+          "run_id": "",
+          "at": 1790835904.5670106
+        }
+      ],
+      "status": "PASS",
+      "ms": 8084
+    },
+    {
+      "journey": "GW-P3-03",
+      "what": "Issue detail: charts are Plotly; clicking a driver bar narrows the governed grid server-side",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-03-drilled.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "filter_chips": [
+        "Sub-sector: Food Service"
+      ],
+      "rows_before": 251,
+      "rows_after": 130,
+      "clicked": "Sub-sector: Food Service",
+      "status": "PASS",
+      "ms": 5950
+    },
+    {
+      "journey": "GW-P3-04",
+      "what": "Early Warning (retail) → save cohort → investigate opens a Cockpit thread over that exact population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-04-ew.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-04-thread.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Saved 286 exposures as cohort coh-c72a7586d6d2.",
+      "cohort_id": "coh-c72a7586d6d2",
+      "cohort_entities": 286,
+      "thread_id": "th-49ffc06334ca4f6785ff4d1b63c95960",
+      "thread_domain": "retail",
+      "status": "PASS",
+      "ms": 6093
+    },
+    {
+      "journey": "GW-P4-01",
+      "what": "Scenario Library opens populated: >=36 templates, 18 per book, searchable, every card previews without calculating",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-library.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-detail.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-retail-ml-unavailable.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "total": 36,
+      "retail_cards": 18,
+      "retail_ml": "UNAVAILABLE",
+      "status": "PASS",
+      "ms": 7545
+    },
+    {
+      "journey": "GW-P4-02",
+      "what": "Create A (sector PD/LGD) and B (macro) without executing; combine A+B -> overlap matrix -> explicit policy -> C saved; A and B unchanged",
+      "prompts": [
+        "builder: GW sector stress 1790835927663",
+        "builder: GW macro downside 1790835932854"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-02-overlap-matrix.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-02-combined.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "a": {
+        "id": "scn-e751d1c62aa8",
+        "readiness": "READY_FOR_CONFIRMATION"
+      },
+      "b": {
+        "id": "scn-0f6e4a7a1dc9",
+        "readiness": "READY_FOR_CONFIRMATION"
+      },
+      "overlaps_needing_policy": 2,
+      "c": "scn-06f32feec16f",
+      "c_readiness": "READY_FOR_CONFIRMATION",
+      "status": "PASS",
+      "ms": 10738
+    },
+    {
+      "journey": "GW-P4-03",
+      "what": "A seeded conflict template is blocked; choosing policies records them on YOUR copy and leaves the template untouched",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-03-blocked-template.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-03-resolved-copy.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "copy": "scn-5c947f4a9beb",
+      "status": "PASS",
+      "ms": 5474
+    },
+    {
+      "journey": "GW-P4-04",
+      "what": "Rename makes a new version; Share sends the reference and version, not data",
+      "prompts": [
+        "builder: GW share me 1790835943912"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-04-shared.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Shared v2 with 1 recipient(s). They receive the reference, never the data.",
+      "versions": [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          "renamed"
+        ],
+        [
+          3,
+          "shared with colleague"
+        ]
+      ],
+      "status": "PASS",
+      "ms": 5881
+    },
+    {
+      "journey": "GW-P5-01",
+      "what": "What-If Analysis replaces Stress Testing; /stress redirects; Ask box on top; book toggle changes period and grain; Retail ML visibly unavailable",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-01-corporate.png",
+        "docs/guided_workspace/evidence/journeys/GW-P5-01-retail.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "nav_has_whatif": true,
+      "nav_has_stress": false,
+      "corporate_total": 2996,
+      "status": "PASS",
+      "ms": 8635
+    },
+    {
+      "journey": "GW-P5-02",
+      "what": "Explorer click cross-filters the grid; box/lasso selects several; select-all-filtered binds the complete cohort; saved cohort reconciles",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-02-box-select.png",
+        "docs/guided_workspace/evidence/journeys/GW-P5-02-saved.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "after_click": 248,
+      "filter_chips": [
+        "Sector: Construction"
+      ],
+      "box_select_chips": [
+        "Sector: Utilities, Education"
+      ],
+      "after_box": 496,
+      "summary": "248 facilities100 borrowersEAD SAR 23.3bnBooked ECL SAR 171m8.83% of book ECLStage 1: 247 · 2: 12026Q2",
+      "cohort_id": "coh-bc13695eecad",
+      "status": "PASS",
+      "ms": 16204
+    },
+    {
+      "journey": "GW-P5-03",
+      "what": "One row, several rows, clear selection",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "summary": "4 facilities4 borrowersEAD SAR 597mBooked ECL SAR 46.7m2.41% of book ECLStage 2: 42026Q2",
+      "status": "PASS",
+      "ms": 7760
+    },
+    {
+      "journey": "GW-P5-04",
+      "what": "Manual selection -> Ask -> the conversation binds the SAME governed cohort; adopting it returns the identical contract",
+      "prompts": [
+        "Increase PD by 20% and LGD by 10% for this selection"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-04-conversation.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "manual_cohort": "coh-7eeb17359ceb",
+      "thread_id": "th-a249fba655a344c484c73b91b4e6e025",
+      "conversation_membership": "44ba01654b31e70c23510743ecdc8a6bed35f22920b4366a23f4f4ff8960247e",
+      "manual_membership": "44ba01654b31e70c23510743ecdc8a6bed35f22920b4366a23f4f4ff8960247e",
+      "adopted": "coh-0eeda607d7aa",
+      "status": "PASS",
+      "ms": 11039
+    },
+    {
+      "journey": "GW-P5-05",
+      "what": "Load a scenario from the library and Apply it to the active cohort: bound, previewed, not calculated; Scenario Library 'Open in What-If' lands here with the same object",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-05-applied.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "kpis": "ScopeCohort: What-If selection · 2026-10-01 06:26Exposures248of 2,996Owners100EADSAR 23.3bn8.25% of bookBooked ECLSAR 171m8.83% of bookStage policyfrozenStages held at their reported values.",
+      "bound": "scn-ada6d23e8444 v1",
+      "status": "PASS",
+      "ms": 12099
+    },
+    {
+      "journey": "GW-P5-06",
+      "what": "Investigate in Cockpit from a What-If selection opens a thread seeded with the exact cohort",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-06-thread.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-ea42445557854db285a90db34885d0bb",
+      "status": "PASS",
+      "ms": 9452
+    },
+    {
+      "journey": "GW-P6-01",
+      "what": "UAT-01 in What-If: Construction 248 facilities / 100 borrowers, PD x1.20, LGD x1.10, stages fixed, CONFIRMED with NO method -> stops at METHOD SELECTION; nothing executed; then Delta runs and the dual-scope Plotly decomposition reconciles",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-01-method-selection.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-01-decomposition.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "entities": "248",
+      "owners": "100",
+      "headline": "Scenario confirmed — NOT executed. Choose how to translate it into ECL.",
+      "run_id": "wrun-16647e211550",
+      "forced_execute_status": 409,
+      "reconciles": "true",
+      "components": 20,
+      "distinct_colours": 20,
+      "strip_method": "delta",
+      "status": "PASS",
+      "ms": 10698
+    },
+    {
+      "journey": "GW-P6-02",
+      "what": "Retail ML is visibly unavailable (G4) and refused without a Delta fallback; the same confirmed scenario then runs with Delta",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-02-ml-refused.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "ml_status": "UNAVAILABLE",
+      "ml_reason": "ML emulator validation gate failed: G4 (worst material-group WAPE): measured 0.343562 against a threshold of 0.15. Shown, never substituted.",
+      "gate": "chosen method cannot run (Method 2 — ML emulator: UNAVAILABLE); nothing is substituted",
+      "status": "PASS",
+      "ms": 8017
+    },
+    {
+      "journey": "GW-P6-03",
+      "what": "A second scenario asks ORIGINAL baseline or LAYER on the latest; A, then B layered on A, then C layered on A+B: lineage persists and the book starts where its ancestors left it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-03-baseline-question.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-03-abc.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "options_b": [
+        [
+          "SOURCE_BASELINE",
+          ""
+        ],
+        [
+          "PRIOR_SCENARIO",
+          "wrun-c6f6696d1761"
+        ]
+      ],
+      "chain": [
+        "wrun-c6f6696d1761",
+        "wrun-99bc4d59cfdd"
+      ],
+      "layered_book_baseline": "2098.468292313912139776727895",
+      "status": "PASS",
+      "ms": 20268
+    },
+    {
+      "journey": "GW-P6-04",
+      "what": "UAT-01 in the Cockpit conversation: preview with no method -> 'Yes, confirm the scenario' -> METHOD SELECTION, NOT executed -> Delta chosen as an ordinary turn -> the governed Plotly decomposition opens",
+      "prompts": [
+        "For the Construction borrowers, PD x1.20 and LGD x1.10, stages fixed.",
+        "Yes, confirm the scenario",
+        "Run the confirmed scenario with the Delta method."
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-04-method-selection.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-04-cockpit-decomposition.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-f59f48ca8571488888169504dd8be541",
+      "preview_text": "One question firstNothing has been calculated. The rules below would apply to the 248 exposures of the cohort, frozen as coh-12ac83df854f. Confirming does NOT run it: you then choose the method.Apply these rules to the 248 exposures of the active cohort (coh-12ac83df854f)? Approve this scenario (a4c206fd654b)?Yes, confirm the scenarioNo, change somethingEvidenceart-1989e156733f4493Scenario preview",
+      "method_state": "METHOD_SELECTION_REQUIRED",
+      "entities": 248,
+      "status": "PASS",
+      "ms": 11124
+    },
+    {
+      "journey": "GW-P7-01",
+      "what": "Messages first launch holds synthetic shared definition, result and cohort; the recipient runs the shared DEFINITION as their own run: preview → confirm → METHOD SELECTION → Delta → a new result linked to the shared definition",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-01-definition.png",
+        "docs/guided_workspace/evidence/journeys/GW-P7-01-own-result.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "seeded_kinds": [
+        "cohort",
+        "scenario_result",
+        "scenario"
+      ],
+      "actions": [
+        "message-action-open",
+        "message-action-run",
+        "message-action-duplicate",
+        "message-action-comment"
+      ],
+      "shared_from": {
+        "share_id": "shr-f61ea85f5c2b4d68",
+        "object_id": "scn-b9abb231ff96",
+        "version": 2,
+        "kind": "scenario",
+        "from_id": "head-of-corporate-credit.synthetic",
+        "mode": "run"
+      },
+      "status": "PASS",
+      "ms": 9706
+    },
+    {
+      "journey": "GW-P7-02",
+      "what": "A shared executed RESULT: open the analysis, compare with my own result (comparison page: KPIs + component-by-component Plotly), save a copy, comment on the shared version",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-02-comparison.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "my_result": "res-3477e73a7f23",
+      "items": "2",
+      "status": "FAILED",
+      "error": "page.waitForSelector: Timeout 60000ms exceeded. | Call log: | \u001b[2m  - waiting for locator('[data-testid=\"whatif-waterfall-total\"][data-rendered=\"true\"]') to be visible\u001b[22m | ",
+      "on_screen": "http://127.0.0.1:5444/what-if/result/res-b4cd38bdcf2c :: app-content-column whatif-result-open-run whatif-result-open-scenario whatif-result whatif-result-stage-policy whatif-result-baseline whatif-result-method-delta whatif-result-share whatif-result-share-open whatif-result-export whatif-result-export-go whatif-result-export-llm whatif-result-export-trace whatif-decomposition whatif-scope-equivalence whatif-equivalence-rest whatif-equivalence-deltas whatif-equivalence-components whatif-kpis-selected whatif-cross-scope whatif-decomp-compact whatif-waterfall-selected-card whatif-waterfall-selected-view-data whatif-waterfall-selected-csv whatif-waterfall-selected whatif-decomp-table whatif-decomp-identical whatif-result-stages-card whatif-result-stages-view-data whatif-result-stages-csv whatif-result-stages whatif-result-top-card whatif-result-top-view-data whatif-result-top-csv whatif-result-top whatif-result-pareto-card whatif-result-pareto-view-data whatif-result-pareto-csv whatif-result-pareto whatif-result-distribution-card whatif-result-distribution-view-data whatif-result-distribution-csv whatif-result-distribution",
+      "ms": 67072
+    },
+    {
+      "journey": "GW-P7-03",
+      "what": "Scenario tree in What-If: A, B layered on A, a method variant of A; compare two nodes from the tree; share a result and see it in Sent",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-03-tree.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "variant_parent": "wrun-748a28a3150c",
+      "b_parent": "wrun-748a28a3150c",
+      "status": "PASS",
+      "ms": 16949
+    },
+    {
+      "journey": "GW-P7-04",
+      "what": "A shared COHORT opens in What-If with the same membership, and Investigate opens a Cockpit thread about it without rebuilding the population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-04-investigate.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "membership": "2c9ddb012037896bf3e6e72473902d12c8e8dc0c4ec7e7952c1e995da6f43f38",
+      "status": "PASS",
+      "ms": 3593
+    },
+    {
+      "journey": "GW-P8-01",
+      "what": "Metric Catalogue first launch: >=50 persisted governed metrics; a definition shows every field, live values on both books, trend, breakdown whose bar click drills to the exact rows, lineage and users",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P8-01-M005.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "count": 64,
+      "corporate_raw": "0.003948820034308134",
+      "drill_total": "248",
+      "status": "PASS",
+      "ms": 6017
+    },
+    {
+      "journey": "GW-P9-01",
+      "what": "Lens Library first launch: >=18 populated persona Lenses; a Lens renders governed KPIs and Plotly visuals; a category click cross-filters charts and the table; a trend point moves the Lens period; refresh records what changed and which rules breach",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-library.png",
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-lens-02.png",
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-cross-filtered.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "total": 20,
+      "kpis": [
+        [
+          "M001",
+          "1936.063962999998"
+        ],
+        [
+          "M002",
+          "169.0411339999962"
+        ],
+        [
+          "M009",
+          "1010.9934000000001"
+        ],
+        [
+          "M023",
+          "0.23166666666666666"
+        ],
+        [
+          "M036",
+          "0.34279038718291055"
+        ]
+      ],
+      "cross_filtered_rows": "248",
+      "moved_to": "2024Q3",
+      "refresh_note": "Refreshed: First observation of this Lens version: baseline recorded. · 2 alert(s) raised — see Monitoring Centre",
+      "status": "PASS",
+      "ms": 12000
+    },
+    {
+      "journey": "GW-P9-02",
+      "what": "One-prompt Lens: a PREVIEW (KPIs, charts, tables, refresh rule) is shown and NOT saved until confirmed; refine by asking; save opens a live Lens; editing writes a new version",
+      "prompts": [
+        "Credit card risk with Stage 2 EAD share, weekly"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P9-02-preview.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "preview": "6 KPIs · 3 charts · 1 tables · 8 governed metrics · 1 breach rules · refresh Weekly",
+      "saved": "lens-4fbdf70cc457",
+      "status": "PASS",
+      "ms": 6777
+    },
+    {
+      "journey": "GW-P9-03",
+      "what": "Box-select categories on a Lens chart → temporary cohort → What-If with that governed cohort; a Cockpit analysis is saved as a Lens from the thread",
+      "prompts": [
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "selection": "Temporary cohort: corporate · sector ∈ Utilities, EducationSaveInvestigateWhat-Ifclear",
+      "thread_id": "th-ff2fe5c648664d9f90abb253d3d4a24c",
+      "source": {
+        "kind": "cockpit",
+        "thread_id": "th-ff2fe5c648664d9f90abb253d3d4a24c"
+      },
+      "status": "PASS",
+      "ms": 9718
+    }
+  ]
+}

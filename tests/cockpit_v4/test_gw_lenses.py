@@ -1,6 +1,6 @@
 """P9 — Lenses 2.0: populated persona Lenses on governed metrics.
 
-EVIDENCE LABEL: no model call. Every Lens renders from the candidate books
+EVIDENCE LABEL: NO MODEL. No model call. Every Lens renders from the candidate books
 through the metric engine; the one-prompt proposer is deterministic.
 """
 

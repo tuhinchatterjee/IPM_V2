@@ -1,6 +1,6 @@
 """P6 — universal dual-scope ECL decomposition and scenario lineage.
 
-EVIDENCE LABEL: no model call. The engine's `execute_scenario` on the
+EVIDENCE LABEL: NO MODEL. No model call. The engine's `execute_scenario` on the
 candidate books; decompositions are read from the published result, and the
 identities are re-verified from the published strings.
 """

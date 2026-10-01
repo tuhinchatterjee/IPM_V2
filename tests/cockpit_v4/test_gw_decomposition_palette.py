@@ -1,6 +1,9 @@
 """P6 — the decomposition taxonomy is ONE list: the server's ids and order
 are the frontend palette's, so a component's colour and label cannot drift
-between the engine, a chart, a reopened result and an export."""
+between the engine, a chart, a reopened result and an export.
+
+EVIDENCE LABEL: UNIT (the shared taxonomy and palette); NO MODEL.
+"""
 
 from __future__ import annotations
 

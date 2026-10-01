@@ -5,6 +5,8 @@ slope; signs are as fitted; PD and LGD are separate rows; the collateral
 sign-review rule (RET-07 / CORP-03) is carried, never corrected; diagnostic-
 only estimates are listed and not drawn. The accepted Cockpit chat path keeps
 its "tornado substitute" exactly as before.
+
+EVIDENCE LABEL: REAL DATABASE (published sensitivity library); NO MODEL.
 """
 
 # Fixtures are shared with sibling suites by import; pytest injects them by

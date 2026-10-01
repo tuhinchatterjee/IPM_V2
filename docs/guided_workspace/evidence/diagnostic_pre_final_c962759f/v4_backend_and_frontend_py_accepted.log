@@ -1,0 +1,166 @@
+........................................................................ [  1%]
+........................................................................ [  3%]
+........................................................................ [  4%]
+........................................................................ [  6%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........s...s........................................................... [ 15%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+....................................................s.....s..s.......... [ 29%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 33%]
+........................................................................ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+......................................................................s. [ 42%]
+....s................................................................... [ 44%]
+........................................................................ [ 45%]
+......................................F................................. [ 47%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 59%]
+........................................................................ [ 61%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+........sss.sss...sssssss...ssssss.s.s.s..s.ss.s.s.........s.s.......... [ 70%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 77%]
+................................................................FF...... [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 85%]
+...........................................................F............ [ 87%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+...............................ss....................................... [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+...............................                                          [100%]
+=================================== FAILURES ===================================
+________ test_no_test_in_this_suite_claims_a_live_provider_measurement _________
+
+    def test_no_test_in_this_suite_claims_a_live_provider_measurement():
+        """V4-AT-100. Fixtures, local estimates and oracles stay distinguishable.
+    
+        Every test module must declare its evidence label in its docstring, and
+        none of them may claim REAL PROVIDER — because no paid run was authorized
+        in this environment. If a live suite is added later, it declares REAL
+        PROVIDER and this test's exclusion list is what has to be updated
+        deliberately.
+        """
+        allowed = {"MODEL MOCK", "REAL DATABASE/RUNNER", "REAL DATABASE",
+                   "REAL HTTP", "REAL SOURCE", "REAL PROCESS", "UNIT",
+                   "REPRODUCTION", "REAL RUNNER", "REAL SSE",
+                   # A suite with no provider in it AT ALL -- not even a scripted
+                   # one. The data-plane and dashboard suites are this: real
+                   # parquet, real DuckDB, and nothing that could be mistaken for
+                   # evidence about a model. It is a stronger claim than MODEL
+                   # MOCK and it needed its own word.
+                   "NO MODEL",
+                   "INDEPENDENT ORACLE",
+                   "in-process ASGI client"}
+        for path in sorted(TESTS.glob("test_*.py")):
+            header = path.read_text(encoding="utf-8")[:900]
+            assert "REAL PROVIDER" not in header, (
+                f"{path.name} claims a real provider; no paid run was authorized")
+            declared = [label for label in allowed if label in header]
+>           assert declared, (
+                f"{path.name} declares no evidence label. A reader cannot tell "
+                f"what its passing result actually establishes.")
+E           AssertionError: test_gw_charts.py declares no evidence label. A reader cannot tell what its passing result actually establishes.
+E           assert []
+
+tests/cockpit_v4/test_multilingual_and_evidence_labels.py:118: AssertionError
+_ test_the_accepted_releases_are_byte_identical[v4-saudi-corporate-20q-v4-e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f] _
+
+release = 'v4-saudi-corporate-20q-v4'
+digest = 'e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f'
+
+    @pytest.mark.parametrize("release,digest", sorted(
+        ACCEPTED_FINGERPRINTS.items()))
+    def test_the_accepted_releases_are_byte_identical(release, digest) -> None:
+        """A01, A02 and D09. The candidate is written into the same lake root,
+        so this is not a formality."""
+        assert lake.exists(release)
+>       assert lake.fingerprint(release) == digest
+E       AssertionError: assert 'c79d0fdf8753...9f6a43e22a740' == 'e37236d0f6d4...95ea87a36750f'
+E         
+E         - e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f
+E         + c79d0fdf8753576f391f2a6bb84f281595e7445291a558abe639f6a43e22a740
+
+tests/cockpit_v4/test_whatif_candidate_release.py:96: AssertionError
+_ test_the_accepted_releases_are_byte_identical[v4-saudi-retail-20m-v5-a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb] _
+
+release = 'v4-saudi-retail-20m-v5'
+digest = 'a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb'
+
+    @pytest.mark.parametrize("release,digest", sorted(
+        ACCEPTED_FINGERPRINTS.items()))
+    def test_the_accepted_releases_are_byte_identical(release, digest) -> None:
+        """A01, A02 and D09. The candidate is written into the same lake root,
+        so this is not a formality."""
+        assert lake.exists(release)
+>       assert lake.fingerprint(release) == digest
+E       AssertionError: assert 'c23a15d78ba8...9085399f04e5b' == 'a1e797dcc732...9c78d893706cb'
+E         
+E         - a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb
+E         + c23a15d78ba88d39aeae6983e68fff2230b644f5c8f91bec5c89085399f04e5b
+
+tests/cockpit_v4/test_whatif_candidate_release.py:96: AssertionError
+__ test_the_accepted_environment_carries_none_of_the_ml_libraries[matplotlib] __
+
+library = 'matplotlib'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: matplotlib is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='matplotlib', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fe874030170>, origin='/...es/matplotlib/__init__.py', submodule_search_locations=['/home/user/.venv312/lib/python3.12/site-packages/matplotlib']) is None
+E        +  where ModuleSpec(name='matplotlib', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fe874030170>, origin='/...es/matplotlib/__init__.py', submodule_search_locations=['/home/user/.venv312/lib/python3.12/site-packages/matplotlib']) = <function find_spec at 0x7fe99c28c900>('matplotlib')
+E        +    where <function find_spec at 0x7fe99c28c900> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+=========================== short test summary info ============================
+FAILED tests/cockpit_v4/test_multilingual_and_evidence_labels.py::test_no_test_in_this_suite_claims_a_live_provider_measurement
+FAILED tests/cockpit_v4/test_whatif_candidate_release.py::test_the_accepted_releases_are_byte_identical[v4-saudi-corporate-20q-v4-e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f]
+FAILED tests/cockpit_v4/test_whatif_candidate_release.py::test_the_accepted_releases_are_byte_identical[v4-saudi-retail-20m-v5-a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[matplotlib]
+4 failed, 4669 passed, 38 skipped in 1998.62s (0:33:18)

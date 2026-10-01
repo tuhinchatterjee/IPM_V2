@@ -714,13 +714,124 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS (with the protected-core finding above recorded for decision)
 
 ## P13 — Full regression, security, performance, mutation
-* **Status:** NOT STARTED
+* **Approved protected fix (Decision 1, commit `dd59676a`):** `backend/cockpit_v4/run_store.py`.
+  * **Problem.** A credential typed into a Cockpit question was persisted in clear text: `runs.question`, messages, events, turns, titles and the investigation record, in the DB and its WAL.
+  * **Fix.**
+    * Every INSERT/UPDATE/REPLACE string parameter is scrubbed at the store's own connection (`_SecretSafeConnection`), using the one product definition of a secret: the LLM Exchange recorder's `scrub_text` / `sanitize`.
+    * JSON parameters are re-serialised only when a secret is found, so they stay valid.
+    * Telemetry (`input_tokens`, `output_tokens`, `max_tokens`, `cache_read_tokens`) is untouched.
+    * The typed question is kept **in memory only** and handed to the worker by `claim_next`. The active request therefore reaches the model exactly as typed, while every display and read path sees only the stored, sanitised text.
+  * **Not changed:** analytics, prompt construction, the run store's design.
+  * **Acceptance:** `test_gw_v4_secret_persistence.py` (9) plants fake credentials and proves their absence from:
+    * DB, WAL and SHM **bytes**;
+    * messages, events, run objects, the reopened investigation, Trace and exports (logical reads).
+
+    It also proves the question stays understandable, reopening makes **zero** model calls, the model-visible text is unchanged, and telemetry is unchanged.
+  * **Mutation:** boundary off → 7 fail; hand-off off → 2 fail.
+  * **Recorded** as row 6 of `PROTECTED_EXTENSION_MAP.md`. No hash regenerated.
+* **Gap closure (commit `c962759f`):**
+  * **MAC07 — macro-sensitivity tornado** (`backend/workspace/macro_sensitivity.py`, `POST /whatif/sensitivity/tornado`, `components/whatif/macro-tornado.tsx`), interactive Plotly in the What-If workspace.
+    * **Bars** are the Scenario Library's own governed translation of the published slopes at a standard shock (pp 1, bp 100, relative 10 %, index 5 pts).
+    * **Hover:** MEV, series, shock, coefficient, affected parameter (PD or LGD, explicit and filterable), implied movement, sign, status, methodology, window, and the sign-review warning.
+    * **Signs** are kept as fitted. Collateral factors on LGD carry SIGN_REVIEW and are **not corrected**.
+    * **Diagnostic-only estimates** are listed, not drawn.
+    * **Flags off:** the accepted chat path keeps its tornado substitute.
+  * **Grid:**
+    * GRID07: every visible column declares a filter kind the UI edits.
+    * GRID11: boolean and null filters partition the book exactly.
+    * GRID13: server-side sort is deterministic across pages.
+    * Paging is capped server-side.
+    * Exports carry the filter and cohort definition.
+    * **Bug fixed:** a cohort frozen in a conversation exported the whole book; it now exports exactly its members.
+  * **DECOMP21 — "Selected scope = Total book"**, decided by population identity (no chain, and either no predicate or entity count = book rows): one bridge, an equivalence panel (rest-of-book Δ = 0, selected Δ = total Δ) and every component marked identical.
+  * **METH05** labels: "Method 1 — Delta", "Method 2 — ML emulator", "Method 3 — User-defined" on every workspace surface.
+  * **SCEN12:** the stage re-test policy is carried into results.
+  * **Money scale:** money columns state "(SAR million)" once (`moneyCol`); CSV keeps the raw value.
+  * **M017:** Corporate only; Retail BLOCKED on measured data. The Retail release has no CCF field, and EAD equals balance on 6,702 of 6,702 accounts.
+  * **New tests:** DECOMP08/14/24, BASE05, single-customer scenario, ARCH-02 contract digest equality (Cockpit and What-If), and GW-P13-01..05 browser journeys, including a 390 px responsive check.
+* **Tooling:**
+  * `regression_of_record.py`: every suite, a JUnit file per pytest/node suite, judges per step, environment-bound failures matched against the P0 record by node id.
+  * `final_regression.sh`: runs it in a fresh `--no-local` clone at an exact SHA, outside the tracked worktree, and copies what the suites wrote only after they finish.
+  * `mutation_gates.py`: 12 gates.
+  * `requirement_matrix.py`: computed PASS / PARTIAL / BLOCKED / FAILED, bound to the final regression's SHA; it fails on any cited test, journey, check or file that does not exist.
+  * `REQUIREMENT_MATRIX_DRAFT.md`, hand-drafted at P12, is removed. The generated `REQUIREMENT_MATRIX.md` supersedes it, and no count is carried over by hand.
+* **Diagnostic run (NOT the regression of record).**
+  * **What happened.** A full run started on `c962759f`. An interim output snapshot (`63ee364a`) was committed while it ran, which breaks the freeze rule. That run is therefore **diagnostic evidence only**, kept unaltered in `evidence/diagnostic_pre_final_c962759f/`. It also overwrote ~150 tracked accepted-evidence files in the worktree; they were restored with `git checkout`. The final run uses a clone so this cannot recur.
+  * **Result:** 11 of 17 steps PASS. Each failure was diagnosed, not rerun:
+
+    | Step | Diagnosis | Action |
+    |---|---|---|
+    | V4 accepted (4711 tests, 4 failures) | 3 are the P0-recorded environment-bound failures. 1 is real: `test_no_test_in_this_suite_claims_a_live_provider_measurement`. GW modules said "no model call" instead of a canonical label. The assertion stops at the first offender: 4 modules were found first, then a script found the other 11. | Labels normalised to `NO MODEL` |
+    | frontend lint (new code) | Unused `sar` import in `result-view.tsx` | Removed |
+    | protected baseline | Judge bug: rc 1 is the tool's normal "changes exist" exit | Judge now passes iff the changed set equals the mapped set (diagnostic log: changed 6 = mapped 6) |
+    | release fingerprints | Judge bug: the compatibility release was looked up in the V4 lake; it lives in the V3 store | 4 V4 books via `lake.verify`, compatibility manifest via the V3 store |
+    | emulator artifacts | Gate verdicts reproduce; pickle bytes do not. Differ: Corporate lightgbm (weight 0.000), Retail additive_log (both recorded at P0), and **Retail lightgbm (weight 0.342), not recorded at P0** | Classified `BLOCKED_ENV` only when component hashes are the sole difference; reported as measured, nothing regenerated |
+    | GW journeys (45/46) | GW-P7-02 expected two bridges on a whole-book result, stale after DECOMP21 | Helper accepts the waterfall or the scope-equivalence panel; GW-P7 + GW-P13 re-run 9/9 |
+* **Mutation gates** (`evidence/mutation_gates.json`, run on the candidate code before the freeze):
+  * **First run: 2 of 11 survived.** Both are fixed and recorded:
+    * **Tenant isolation.** It is enforced twice: a tenant-scoped store query and the tenant check in `can_read`. Mutating only `can_read` was masked by the store, and the named test only used private objects, which other rules also deny. Fix: `test_tenant_wide_objects_stay_inside_their_tenant` asserts each layer separately, and the gate is split into "access rule" and "store scope".
+    * **Method selection.** The gate named a test that never sends an empty method choice. Fix: it now also names `test_an_empty_method_choice_stays_at_method_selection`, which exercises the mutated branch.
+  * **Re-run: 12 of 12 KILLED; tree clean of mutations.** The gates cover tenant isolation (access rule, store scope), method selection, lineage, metric formula, breach evaluation, LLM sanitisation, cohort identity, V4 persistence boundary, ledger, tornado sign and selected scope = total.
+* **Pre-freeze checks on the candidate code:**
+  * GW backend suites, label rule, launcher and tenancy suites: **401 passed, 3 skipped**;
+  * eslint clean on new code; `tsc` clean;
+  * GW-P7 and GW-P13 journeys 9/9 (evidence restored afterwards).
+* **Final regression of record:** run by `final_regression.sh` on the frozen candidate SHA, with zero repository edits while it runs. Its measured results, the generated `REQUIREMENT_MATRIX.md` and `UAT_CANDIDATE.json` are recorded by the evidence commit that follows the candidate.
+* **Status:** IN PROGRESS until the final regression is recorded
 
 ## P14 — Mac live-provider UAT
-* **Status:** NOT STARTED
+* **Package delivered (not run on a Mac):**
+  * **Pinned candidate.** `guided_preflight.py` refuses unless all of these hold (there is no `--any-revision`):
+    * `git rev-parse HEAD` equals `expected_guided_uat_sha` from `docs/guided_workspace/UAT_CANDIDATE.json`, read from the programme branch;
+    * the tree is clean;
+    * the Scenario Library, Lens and metric seed definitions hash to the manifest's digests.
+  * **Other preflight checks:**
+    * Python ≥ 3.12 and `pip check`;
+    * Next.js installed;
+    * both What-If candidate books, both Guided Workspace books (verified fingerprints) and the compatibility release `v4-saudi-20q-v1`;
+    * emulator artifacts and gate verdicts, including Retail G4 FAIL, so Method 2 is UNAVAILABLE for Retail;
+    * model and price card from a card **outside** the checkout, resolved without a provider call;
+    * the credential in the approved Keychain item `creditprobe-cockpit-v4`, checked by name only. A shell value is accepted only with `--credential-from-shell`;
+    * a dedicated runtime directory stamped with the candidate SHA. One from another build is refused; `--fresh` moves it aside.
+  * **Launchers.** `start_guided_uat.py` and the START / STOP / STATUS `.command` launchers:
+    * set every round flag for the child processes only;
+    * place the Keychain value in the child environment, never printed;
+    * hand over to the accepted `scripts/cockpit_v4/start.py` lifecycle (port stepping without killing, health before ready, owned-pid stop, status with SHA/releases/ports/model/health).
+  * **Evidence collector.** `live_uat_evidence.py` collects:
+    * the candidate SHA, and whether the runtime directory is this candidate's;
+    * the ledger verify;
+    * all LLM exchanges and per-run packages;
+    * every own result packaged and verified;
+    * a scan of the pack and of every runtime file for the real credential (paths only).
+  * **Runbook.** `MAC_LIVE_UAT.md`: build, model and price card, Keychain, launchers, ten canonical journeys, the evidence pack, acceptance and rollback.
+* **Tests:** `test_gw_uat_preflight.py` (19):
+  * pinned SHA accepted;
+  * any other HEAD, a dirty tree, no manifest, or moved seeds refused;
+  * no `--any-revision`;
+  * runtime-dir ownership and `--fresh`;
+  * shell credential needs the flag;
+  * the launcher drops a shell credential;
+  * price card inside the checkout refused; no model refused;
+  * books and compatibility release checked;
+  * old Python or broken `pip check` refused;
+  * hand-over arguments;
+  * one dedicated runtime across START/STOP/STATUS;
+  * no credential printing.
+* **Dry runs in the container:**
+  * **Collector**, against the mock-analyst API with one executed Delta result: PASS with a fake key and a clean runtime; FAIL (exit 1) with the key planted in a runtime file.
+  * **Preflight checks** individually: books, compatibility release, emulators, model and price card with a verified scratch card; the missing-card and placeholder-card refusals.
+* **Status:** PACKAGE READY. The live run on the Mac is the user's acceptance gate and a paid provider run; not run in this round (REG12 BLOCKED on that approval).
 
 ## P15 — Freeze and handoff
-* **Status:** NOT STARTED
+* **Delivered:** `HANDOFF.md`, covering:
+  * what was delivered, phase by phase;
+  * known limitations, each with the exact reason;
+  * rollback;
+  * the exact Mac commands;
+  * provenance;
+  * the decisions log.
+* **Not done, by instruction:** no tag, no paid provider run. Freezing and tagging after the Mac UAT is the user's decision.
+* **Status:** PASS for the handoff documents. The freeze itself waits on the user's UAT acceptance.
 
 ---
 

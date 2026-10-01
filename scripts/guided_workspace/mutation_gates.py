@@ -30,23 +30,35 @@ PY = os.environ.get("GW_PYTHON", "/home/user/.venv312/bin/python")
 
 #: (gate, file, find, replace, named tests)
 GATES: list[tuple[str, str, str, str, list[str]]] = [
-    ("tenant isolation", "backend/workspace/objects.py",
+    # Isolation is enforced twice (the store query is tenant-scoped AND the
+    # access rule checks the tenant); each layer is mutated on its own.
+    ("tenant isolation (access rule)", "backend/workspace/objects.py",
      'def can_read(obj: dict[str, Any], who: Principal) -> bool:\n'
      '    if obj["tenant_id"] != who.tenant:\n        return False\n',
      'def can_read(obj: dict[str, Any], who: Principal) -> bool:\n'
      '    if False:\n        return False\n',
      ["tests/cockpit_v4/test_gw_objects.py::"
       "test_private_objects_are_invisible_to_colleagues_and_other_tenants",
+      "tests/cockpit_v4/test_gw_objects.py::"
+      "test_tenant_wide_objects_stay_inside_their_tenant",
       "tests/cockpit_v4/test_gw_whatif.py::"
       "test_another_tenants_cohort_cannot_be_named"]),
+    ("tenant isolation (store scope)", "backend/workspace/store.py",
+     '"SELECT * FROM objects WHERE object_id=? AND tenant_id=? "\n'
+     '                    "ORDER BY version DESC LIMIT 1",',
+     '"SELECT * FROM objects WHERE object_id=? AND (tenant_id=? OR 1) "\n'
+     '                    "ORDER BY version DESC LIMIT 1",',
+     ["tests/cockpit_v4/test_gw_objects.py::"
+      "test_tenant_wide_objects_stay_inside_their_tenant"]),
     ("method selection (no silent Delta)", "backend/workspace/runs.py",
      '    if not wanted:\n        state, why = METHOD_SELECTION, '
      '"no method chosen: nothing runs"',
      '    if not wanted:\n        wanted = [sp.DELTA]\n    if False:\n'
      '        state, why = METHOD_SELECTION, "no method chosen: nothing runs"',
      ["tests/cockpit_v4/test_gw_runs.py::"
-      "test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection"
-      ]),
+      "test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+      "tests/cockpit_v4/test_gw_runs.py::"
+      "test_an_empty_method_choice_stays_at_method_selection"]),
     ("scenario lineage", "backend/workspace/runs.py",
      '    chain = [*pb.get("chain", []), _link(parent)]',
      '    chain = [_link(parent)]',

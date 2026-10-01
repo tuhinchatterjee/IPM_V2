@@ -1,0 +1,12 @@
+
+refitting v4-whatif-corporate-20q-s1 ...
+  60 rows, {'SUPPORTED_ESTIMATE': 37, 'DIAGNOSTIC_ONLY': 11}
+  against the published release: matches
+  card written to docs/guided_workspace/evidence/regression/sensitivity_rebuild/SENSITIVITY_CARD_CORPORATE.md
+
+refitting v4-whatif-retail-20m-s1 ...
+  60 rows, {'SUPPORTED_ESTIMATE': 31, 'DIAGNOSTIC_ONLY': 11}
+  against the published release: matches
+  card written to docs/guided_workspace/evidence/regression/sensitivity_rebuild/SENSITIVITY_CARD_RETAIL.md
+
+evidence written to docs/guided_workspace/evidence/regression/sensitivity_rebuild/evidence.json
