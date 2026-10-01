@@ -1897,6 +1897,11 @@ def _result_rows(spec: sp.ScenarioSpec, *, outcome: rn.Run,
     return out
 
 
+#: Explanation lines that name a model input (feature), not a component.
+_FEATURE_KINDS = ("feature contribution", "gain importance",
+                  "response relationship")
+
+
 def _ml_explanation(loaded: Any, *, outcome: rn.Run,
                     unavailable: str) -> list[dict[str, Any]]:
     """Section 13.2 B, and NOT a decomposition of the scenario movement.
@@ -1944,7 +1949,14 @@ def _ml_explanation(loaded: Any, *, outcome: rn.Run,
         add("No explanation", status=rn.UNAVAILABLE, note=_reason_of(exc))
         return rows
     for line in told:
-        add(str(line.get("item", "")), scope=str(line.get("kind", "")),
+        item = str(line.get("item", ""))
+        if str(line.get("kind", "")) in _FEATURE_KINDS:
+            # A model input is not a driver of the ECL movement even when it
+            # shares a field name with one (pd_pit_12m is both): it is
+            # published under its own name so the two can never be read --
+            # or added -- as the same quantity (DECOMP10, section 13.2).
+            item = f"{item} (model input)"
+        add(item, scope=str(line.get("kind", "")),
             unit=str(line.get("unit", "")),
             status=str(line.get("status", "")),
             note=str(line.get("note", "")))

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-SEED_VERSION = "gw-lens-seed-1.0.0"
+SEED_VERSION = "gw-lens-seed-1.1.0"
 CORP, RET = "corporate", "retail"
 TZ = "Asia/Riyadh"
 
@@ -58,6 +58,14 @@ def ALR(domain: str) -> dict[str, Any]:
 def SENS(domain: str) -> dict[str, Any]:
     return {"type": "sensitivity", "metric_id": "M043", "domain": domain,
             "title": "Governed MEV sensitivities"}
+
+
+def G(metric_id: str, domain: str, title: str) -> dict[str, Any]:
+    """One bar per named group a catalogue evaluator publishes (EWS rules,
+    alert states / metrics / owners, a result's methods / segments /
+    stages)."""
+    return {"type": "groups", "metric_id": metric_id, "domain": domain,
+            "title": title}
 
 
 def TAB(domain: str, columns: list[str], sort: str = "ecl_sar_mn",
@@ -192,7 +200,11 @@ LENSES: tuple[dict[str, Any], ...] = (
                    T(["M004", "M005", "M006"], CORP, "Stage EAD shares"),
                    T(["M007", "M008"], CORP, "Stage 2/3 ECL shares"),
                    B("M052", RET, "product", "ECL coverage by product"),
-                   S(RET, "Retail EAD by stage")],
+                   S(RET, "Retail EAD by stage"),
+                   K("M065", CORP, "Corporate management overlay"),
+                   K("M065", RET, "Retail management overlay"),
+                   B("M065", CORP, "sector", "Management overlay by sector"),
+                   B("M066", RET, "product", "Overlay share of ECL by product")],
           rules=[R("R04-1", "Reconciliation residual above tolerance",
                    "M047", CORP, "abs_gt", 1e-6, "critical")]),
     _lens("LENS-05", "Early Warning Command Center", "EWS team", [CORP, RET],
@@ -206,7 +218,9 @@ LENSES: tuple[dict[str, Any], ...] = (
                    B("M033", RET, "product", "High/critical share by product"),
                    T(["M032"], RET, "Warned customers"),
                    TAB(RET, RET_TABLE, sort="ews_score",
-                       title="Highest EWS scores")],
+                       title="Highest EWS scores"),
+                   G("M069", CORP, "Top warning reasons — Corporate"),
+                   G("M069", RET, "Top warning reasons — Retail")],
           rules=[R("R05-1", "High/critical share above 20%", "M033", RET,
                    "gt", 0.20, "high")]),
     _lens("LENS-06", "Corporate Portfolio Manager", "Portfolio manager",
@@ -217,7 +231,9 @@ LENSES: tuple[dict[str, Any], ...] = (
                    K("M037", CORP), K("M025", CORP),
                    B("M022", CORP, "sector", "EAD share by sector"),
                    B("M019", CORP, "product_type", "Utilisation by product type"),
-                   TOP(CORP), T(["M018"], CORP, "Total EAD")],
+                   TOP(CORP), T(["M018"], CORP, "Total EAD"),
+                   K("M001", CORP), K("M023", CORP),
+                   B("M001", CORP, "sector", "Booked ECL by sector")],
           rules=[R("R06-1", "Top-10 concentration above 15%", "M020", CORP,
                    "gt", 0.15, "high")]),
     _lens("LENS-07", "Retail Portfolio Manager", "Portfolio manager", [RET],
@@ -242,7 +258,8 @@ LENSES: tuple[dict[str, Any], ...] = (
                    B("M033", RET, "sub_product", "High/critical share by sub-product"),
                    T(["M019"], RET, "Utilisation"),
                    TAB(RET, RET_TABLE, sort="utilisation_pct",
-                       title="Highest utilisation")],
+                       title="Highest utilisation"),
+                   G("M069", RET, "Top warning reasons")],
           rules=[R("R08-1", "Card utilisation above 75%", "M019", RET, "gt",
                    0.75, "moderate")]),
     _lens("LENS-09", "Personal Finance Risk", "Product risk head", [RET],
@@ -255,7 +272,8 @@ LENSES: tuple[dict[str, Any], ...] = (
                    B("M057", RET, "employment_type", "Payment ratio by employment type"),
                    B("M015", RET, "employer_sector_group", "PD by employer sector"),
                    T(["M001"], RET, "Booked ECL"),
-                   TAB(RET, RET_TABLE)],
+                   TAB(RET, RET_TABLE),
+                   G("M069", RET, "Warning reasons, incl. the salary-interruption proxy")],
           rules=[R("R09-1", "Average payment ratio below 30%", "M057", RET,
                    "lt", 0.30, "high")]),
     _lens("LENS-10", "Home Finance Risk", "Product risk head", [RET],
@@ -284,8 +302,8 @@ LENSES: tuple[dict[str, Any], ...] = (
           rules=[R("R11-1", "Past-due EAD up >10%", "M054", RET,
                    "move_pct_gt", 0.10, "moderate")]),
     _lens("LENS-12", "Collections & Recoveries", "Collections", [RET],
-          description="Delinquency buckets, roll and cure rates, Stage 3/NPL "
-                      "exposure.",
+          description="Delinquency buckets, roll and cure rates, recoveries "
+                      "and write-offs, Stage 3/NPL exposure.",
           refresh="daily",
           visuals=[K("M054", RET), K("M030", RET), K("M031", RET),
                    K("M014", RET), K("M013", RET),
@@ -293,7 +311,10 @@ LENSES: tuple[dict[str, Any], ...] = (
                    B("M054", RET, "product", "Past-due EAD by product"),
                    T(["M030", "M031"], RET, "Roll-forward vs cure rate"),
                    TAB(RET, RET_TABLE, sort="dpd_days",
-                       title="Most days past due")],
+                       title="Most days past due"),
+                   K("M067", RET, "Recoveries"),
+                   T(["M067", "M068"], RET, "Recoveries vs write-offs", 12),
+                   B("M067", RET, "product", "Recoveries by product")],
           rules=[R("R12-1", "Roll-forward rate above 5%", "M030", RET, "gt",
                    0.05, "high")]),
     _lens("LENS-13", "Risk Appetite & Limits", "CRO / Risk Appetite",
@@ -340,7 +361,11 @@ LENSES: tuple[dict[str, Any], ...] = (
           refresh="on_result",
           visuals=[K("M039", CORP), K("M040", CORP), K("M041", CORP),
                    K("M039", RET), K("M042", CORP),
-                   SCN(CORP), SCN(RET), SENS(CORP)],
+                   SCN(CORP), SCN(RET), SENS(CORP),
+                   G("M073", CORP, "Latest result: ECL change by method"),
+                   G("M074", CORP, "Latest result: change concentration by sector"),
+                   G("M075", CORP, "Latest result: ECL change by stage"),
+                   G("M073", RET, "Latest Retail result: ECL change by method")],
           rules=[R("R16-1", "Scenario ECL delta above 20%", "M040", CORP,
                    "gt", 0.20, "moderate")]),
     _lens("LENS-17", "Data Quality & Coverage", "Risk data owner",
@@ -361,7 +386,10 @@ LENSES: tuple[dict[str, Any], ...] = (
           visuals=[K("M048", CORP), K("M049", CORP), K("M050", CORP),
                    K("M006", CORP), K("M033", RET),
                    ALR(CORP), T(["M005"], CORP, "Stage 2 EAD share"),
-                   B("M063", CORP, "sector", "High/critical EWS EAD by sector")],
+                   B("M063", CORP, "sector", "High/critical EWS EAD by sector"),
+                   G("M070", CORP, "Alerts by state"),
+                   G("M071", CORP, "Active breaches by metric"),
+                   G("M072", CORP, "Active breaches by owner")],
           rules=[R("R18-1", "Active breaches above 5", "M048", CORP, "gt", 5,
                    "high")]),
     # Beyond the §45 minimum.

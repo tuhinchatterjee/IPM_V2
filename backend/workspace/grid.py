@@ -93,6 +93,8 @@ CORPORATE: tuple[Column, ...] = (
     _c("ecl_sar_mn", "Reported ECL", "f.ecl_sar_mn", "number", "SAR_mn", "range", "ECL", "Booked ECL."),
     _c("prior_ecl_sar_mn", "Prior ECL", "p.ecl_sar_mn", "number", "SAR_mn", "range", "ECL", "Booked ECL last quarter.", "p"),
     _c("ecl_overlay_sar_mn", "Overlay", "i.ecl_overlay_sar_mn", "number", "SAR_mn", "range", "ECL", "Management overlay within ECL.", "i", False),
+    _c("write_off_sar_mn", "Write-off", "f.write_off_sar_mn", "number", "SAR_mn", "range", "Loss", "Amount written off this quarter.", "", False),
+    _c("recovery_sar_mn", "Recovery", "f.recovery_sar_mn", "number", "SAR_mn", "range", "Loss", "Amount recovered this quarter on written-off or defaulted exposure.", "", False),
 )
 
 RETAIL: tuple[Column, ...] = (
@@ -143,6 +145,8 @@ RETAIL: tuple[Column, ...] = (
     _c("ecl_sar_mn", "Reported ECL", "a.ecl_sar_mn", "number", "SAR_mn", "range", "ECL", "Booked ECL."),
     _c("prior_ecl_sar_mn", "Prior ECL", "p.ecl_sar_mn", "number", "SAR_mn", "range", "ECL", "Booked ECL last month.", "p"),
     _c("ecl_overlay_sar_mn", "Overlay", "i.ecl_overlay_sar_mn", "number", "SAR_mn", "range", "ECL", "Management overlay within ECL.", "i", False),
+    _c("write_off_sar_mn", "Write-off", "a.write_off_sar_mn", "number", "SAR_mn", "range", "Loss", "Amount written off this month.", "", False),
+    _c("recovery_sar_mn", "Recovery", "a.recovery_sar_mn", "number", "SAR_mn", "range", "Loss", "Amount recovered this month on written-off or defaulted exposure.", "", False),
 )
 
 #: The derived EWS columns every grid carries (governed rule set, ews.py).

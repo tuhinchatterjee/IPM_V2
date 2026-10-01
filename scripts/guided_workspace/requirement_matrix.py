@@ -128,6 +128,10 @@ def pytest_results(folder: Path) -> dict[str, str]:
             elif case.find("skipped") is not None:
                 outcome = "SKIP"
             res[f"{path}::{base}"].append(outcome)
+            if name != base:
+                # A citation may name one parametrised case, e.g. [M004]:
+                # it is judged on that case alone.
+                res[f"{path}::{name}"].append(outcome)
     # Failures the regression classified as P0-recorded environment-bound
     # (summary.json `env_bound`) are reported BLOCKED_ENV, never PASS.
     env_bound: set[str] = set()
@@ -138,7 +142,7 @@ def pytest_results(folder: Path) -> dict[str, str]:
                           n.split("::")[1] for n in step.get("env_bound", [])}
     merged: dict[str, str] = {}
     for key, outs in res.items():
-        if key in env_bound and "FAIL" in outs:
+        if key.split("[")[0] in env_bound and "FAIL" in outs:
             merged[key] = "BLOCKED_ENV"
             continue
         # The same test may run on two interpreters (accepted, .venv-whatif):

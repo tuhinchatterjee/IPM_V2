@@ -118,7 +118,7 @@ All of these are drawn by `components/analytics/charts.tsx` (the only `recharts`
 | components/analytics/charts.tsx (MatrixHeatmap), components/analytics/terrain.tsx | Migration matrix; sector × period terrain | Legacy analytics renderer (as §3). |
 | components/ask/cockpit-v2.tsx, components/ask/cockpit-agentic.tsx | Answer waterfall; answer bars | Legacy Cockpit (v4 off). |
 | app/early-warning/page.tsx | Per-facility factor contributions | Legacy Early Warning (shown only when v4 + guided are not both on; the guided page is Plotly, §2). |
-| app/early-warning/lab/page.tsx | Factor weights; decile lift | Model lab, not revised. |
+| app/early-warning/lab/page.tsx | Factor weights; decile lift | LEGACY (accepted at H2, unchanged): the EWS model lab. Linked only from the legacy Early Warning page (`app/early-warning/page.tsx` :112, :168); the guided Early Warning page (§2) does not link it, so with the guided flag on it is reachable only by typing its URL. It is a model-diagnostics page with no population semantics (weights and decile lift of the scoring model), not a portfolio analysis; converting it would change an accepted page, which this round does not do (P16 audit). |
 | app/lenses/cro/page.tsx | Migration split strip | Redirected with guided on (§3). |
 | components/guided/early-warning-v4.tsx | Severity-band strip per segment card | Not applicable: a 100% composition meter inside a card whose numbers are printed beside it; the card's Investigate / Save / Export / What-If buttons are the interactions. |
 | components/data-builder/data-grid.tsx | Column-profile share bars | Not applicable: a profile meter in a column panel. |
@@ -126,12 +126,16 @@ All of these are drawn by `components/analytics/charts.tsx` (the only `recharts`
 
 ## 6. Not analytical charts (excluded)
 
+P16 audit (read-only, every new surface): every analytical chart rendered with the guided flag on is Plotly; the only non-Plotly analytical charts reachable are the legacy model lab above and the protected Cockpit core (§4–5).
+
+
 - **Node-link diagrams (@xyflow/react):**
   - `components/trace/reasoning-map.tsx`
   - `components/data-builder/relationship-canvas.tsx`
 - **Ownership network (hand SVG):** `components/borrower-360/relationship-graph.tsx`.
 - **Icons:** `app/documents/[id]/page.tsx` and `components/ui/certified-mark.tsx`.
 - **Status strip:** `components/trace/health-map.tsx`.
+- **Governance stage stack (CSS 3-D):** `components/trace/landscape.tsx`, the run Trace's lineage/status diagram (depth by status, no data values).
 - **Not charts:** stat tiles, playback controls and calibration text rows.
 - **Canvas:** used only by the protected `components/cockpit-v4/chart-download.ts`, to rasterise an SVG for download.
 

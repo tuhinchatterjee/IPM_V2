@@ -27,9 +27,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PY = os.environ.get("GW_PYTHON", "/home/user/.venv312/bin/python")
+WHATIF = str(ROOT / ".venv-whatif" / "bin" / "python")
 
-#: (gate, file, find, replace, named tests)
-GATES: list[tuple[str, str, str, str, list[str]]] = [
+#: (gate, file, find, replace, named tests[, interpreter: "whatif"])
+GATES: list[tuple] = [
     # Isolation is enforced twice (the store query is tenant-scoped AND the
     # access rule checks the tenant); each layer is mutated on its own.
     ("tenant isolation (access rule)", "backend/workspace/objects.py",
@@ -100,6 +101,21 @@ GATES: list[tuple[str, str, str, str, list[str]]] = [
      '            up_pp = abs(float(d["value"]))',
      ["tests/cockpit_v4/test_gw_macro_tornado.py::"
       "test_signs_are_preserved_as_fitted"]),
+    # P16. Runs on the candidate interpreter: on the accepted one Method 2
+    # never runs, which is exactly why this overlap went unseen at P0.
+    ("ML input labels apart from drivers (DECOMP10)",
+     "backend/cockpit_v4/scenario/bridge.py",
+     '            item = f"{item} (model input)"',
+     '            item = item',
+     ["tests/cockpit_v4/test_whatif_bridge.py::"
+      "test_p9b_a_feature_never_appears_as_an_attribution_driver"],
+     "whatif"),
+    ("EWS reasons evaluate each rule's own condition",
+     "backend/workspace/metrics.py",
+     """f"({v.sql}) g {where} {extra} ({rule['sql']})",""",
+     """f"({v.sql}) g {where} {extra} (1=1)",""",
+     ["tests/cockpit_v4/test_gw_lens_content.py::"
+      "test_m069_reasons_match_each_rule_recomputed"]),
     ("selected scope = total book", "backend/workspace/runs.py",
      '            or frozen.ref.entity_count == done.book_rows))',
      '            or False))',
@@ -112,9 +128,9 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def run_tests(tests: list[str]) -> tuple[int, str]:
+def run_tests(tests: list[str], python: str = PY) -> tuple[int, str]:
     proc = subprocess.run(
-        [PY, "-m", "pytest", *tests, "-o", "addopts=", "-q",
+        [python, "-m", "pytest", *tests, "-o", "addopts=", "-q",
          "-p", "no:cacheprovider", "-x"],
         cwd=ROOT, capture_output=True, text=True,
         env={**os.environ, "COCKPIT_AGENTIC_V3_NAMESPACE": "cockpit_v4"})
@@ -127,12 +143,15 @@ def main() -> int:
     p.add_argument("--out", required=True)
     args = p.parse_args()
     results, ok = [], True
-    for gate, rel, find, replace, tests in GATES:
+    for gate, rel, find, replace, tests, *opt in GATES:
+        python = WHATIF if opt and opt[0] == "whatif" else PY
         path = ROOT / rel
         original = path.read_bytes()
         before = sha(path)
         text = original.decode("utf-8")
-        record = {"gate": gate, "file": rel, "named_tests": tests}
+        record = {"gate": gate, "file": rel, "named_tests": tests,
+                  "interpreter": "candidate (.venv-whatif)" if python == WHATIF
+                  else "accepted"}
         if text.count(find) != 1:
             record.update(result="MUTATION_DID_NOT_APPLY",
                           detail=f"found {text.count(find)} times")
@@ -140,10 +159,10 @@ def main() -> int:
             ok = False
             continue
         # Baseline: the named tests pass on the clean tree.
-        rc0, tail0 = run_tests(tests)
+        rc0, tail0 = run_tests(tests, python)
         try:
             path.write_text(text.replace(find, replace), encoding="utf-8")
-            rc, tail = run_tests(tests)
+            rc, tail = run_tests(tests, python)
         finally:
             path.write_bytes(original)
         restored = sha(path) == before

@@ -23,7 +23,7 @@ const OPEN_HREF: Record<string, (id: string) => string> = {
   run: (id) => `/what-if?run=${id}`,
   cohort: (id) => `/what-if?cohort=${id}`,
   alert: (id) => `/monitoring?alert=${id}`,
-  metric: (id) => `/metrics?metric=${id}`,
+  metric: (id) => `/metrics?m=${id}`,
 };
 
 const when = (t: number | null | undefined) => (t ? new Date(t * 1000).toISOString().replace("T", " ").slice(0, 19) + "Z" : "—");

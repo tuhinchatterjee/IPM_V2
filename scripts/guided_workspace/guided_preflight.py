@@ -61,7 +61,7 @@ def git(*args: str) -> str:
 
 
 MANIFEST_PATH = "docs/guided_workspace/UAT_CANDIDATE.json"
-BRANCH = "claude/eager-keller-7ue2yk"
+BRANCH = "claude/guided-workspace-final-gap-closure"
 RUNTIME_DIR = Path.home() / ".creditprobe" / "guided_workspace_uat"
 #: The verified price card lives OUTSIDE the checkout, so filling it in never
 #: dirties the pinned tree. The committed card is a placeholder by design.

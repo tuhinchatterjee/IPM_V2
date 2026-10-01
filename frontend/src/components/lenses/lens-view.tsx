@@ -40,6 +40,10 @@ function describe(f: Cross): string {
   return `${f.domain ? `${f.domain}: ` : ""}${f.column} ∈ ${(f.values ?? [f.value]).join(", ")}`;
 }
 
+
+/** Groups visuals whose bars are alerts: a click opens the Monitoring Centre. */
+const ALERT_GROUPS = new Set(["M070", "M071", "M072"]);
+
 export function LensView({ lensId }: { lensId: string }) {
   const router = useRouter();
   const [data, setData] = React.useState<RenderedLens | null>(null);
@@ -221,10 +225,10 @@ export function LensView({ lensId }: { lensId: string }) {
         layout={fig.layout}
         onPointClick={(p) => {
           const oid = Array.isArray(p.customdata) ? String(p.customdata[0]) : "";
-          if (v.type === "scenario_results" && oid) router.push(`/what-if/result/${oid}`);
-          if (v.type === "alerts") router.push("/monitoring");
+          if ((v.type === "scenario_results" || v.type === "groups") && oid) router.push(`/what-if/result/${oid}`);
+          if (v.type === "alerts" || (v.type === "groups" && ALERT_GROUPS.has(v.metric_id ?? ""))) router.push("/monitoring");
         }}
-        footer={!(v.groups ?? []).some((g) => g.value != null) ? <p className="mt-2 text-xs text-text-muted">{v.type === "scenario_results" ? "No executed scenario you can open on this book yet." : v.type === "alerts" ? "No active breach on this book." : "Nothing to show yet."}</p> : null}
+        footer={!(v.groups ?? []).some((g) => g.value != null) ? <p className="mt-2 text-xs text-text-muted">{v.type === "scenario_results" ? "No executed scenario you can open on this book yet." : v.type === "alerts" ? "No active breach on this book." : (v.note ?? "Nothing to show yet.")}</p> : null}
         table={{ columns: [{ key: "dimension", label: "Item" }, { key: "value", label: "Value (raw)", align: "right" }], rows: (v.groups ?? []) as unknown as Record<string, unknown>[] }}
       />
     );

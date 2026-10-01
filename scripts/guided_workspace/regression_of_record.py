@@ -41,8 +41,12 @@ KNOWN_ENV_FAILURES = {
     },
     "whatif_venv": {
         "tests.cockpit_v4.test_whatif_ml::*",  # isolation tests, by design
-        "tests.cockpit_v4.test_whatif_bridge::"
-        "test_p9b_a_feature_never_appears_as_an_attribution_driver",
+        # test_whatif_bridge::test_p9b_a_feature_never_appears_as_an_
+        # attribution_driver was listed here at P0. It was not environment-
+        # bound: on the accepted interpreter Method 2 never runs, so the check
+        # passed vacuously; on this interpreter it found a real name overlap
+        # (pd_pit_12m as driver and as model input). Fixed in P16 at the
+        # publishing seam; it must now pass here.
         "tests.cockpit_v4.test_whatif_candidate_release::"
         "test_the_accepted_releases_are_byte_identical",
     },

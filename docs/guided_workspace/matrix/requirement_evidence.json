@@ -1305,28 +1305,30 @@
  "DECOMP02": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Booked baseline and method/model baseline are separately visible when they differ.",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
-   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy"
+   "tests/cockpit_v4/test_gw_decomposition.py::test_decomp_every_scope_reconciles_and_carries_the_whole_taxonomy",
+   "tests/cockpit_v4/test_gw_ml_decomposition.py::test_decomp02_booked_and_model_baselines_are_both_published"
   ],
   "journeys": [],
   "sources": [],
-  "gap": "calibration_gap component exists but no test shows it measured on an ML result (ML runtime tests skip on the accepted interpreter)",
-  "note": "Gap: component exists but no test shows it measured on an ML result (ML runtime tests skip on the accepted interpreter)"
+  "gap": "",
+  "note": "P16"
  },
  "DECOMP03": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
   "requirement": "Calibration gap is not hidden inside scenario effects.",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_whatif_ml.py::test_all_six_numbers_the_specification_asks_for_are_shown",
-   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+   "tests/cockpit_v4/test_gw_ml_decomposition.py::test_decomp03_the_gap_is_not_inside_the_scenario_effect"
   ],
   "journeys": [],
   "sources": [],
-  "gap": "M042 tested only on the no-ML path; separate calibration-gap bar on an ML result not asserted",
-  "note": "Gap: M042 tested only on the no-ML path; separate calibration-gap bar on an ML result not asserted"
+  "gap": "",
+  "note": "P16"
  },
  "DECOMP04": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
@@ -1419,7 +1421,10 @@
   "journeys": [],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "P16",
+  "checks": [
+   "mutation:ML input labels apart from drivers (DECOMP10)"
+  ]
  },
  "DECOMP11": {
   "section": "21. Acceptance tests — minimum mandatory matrix",
@@ -2522,14 +2527,16 @@
   "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_guided.py::test_the_seed_gives_the_analyst_the_evidence_without_retyping",
-   "tests/cockpit_v4/test_gw_guided.py::test_investigate_opens_a_seeded_cockpit_thread_with_a_frozen_cohort"
+   "tests/cockpit_v4/test_gw_guided.py::test_investigate_opens_a_seeded_cockpit_thread_with_a_frozen_cohort",
+   "tests/cockpit_v4/test_gw_p16_wiring.py::test_the_issue_card_has_no_decorative_controls"
   ],
   "journeys": [
-   "GW-P3-02"
+   "GW-P3-02",
+   "GW-P16-02"
   ],
   "sources": [],
   "gap": "",
-  "note": ""
+  "note": "P16"
  },
  "GX-04": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -2586,14 +2593,17 @@
  "GX-08": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
   "requirement": "Root-cause flow can be completed by clicks/suggestions without mandatory typing.",
-  "claim": "PARTIAL",
-  "tests": [],
+  "claim": "COVERED",
+  "tests": [
+   "tests/cockpit_v4/test_gw_p16_wiring.py::test_the_issue_card_has_no_decorative_controls"
+  ],
   "journeys": [
-   "GW-P3-02"
+   "GW-P3-02",
+   "GW-P16-01"
   ],
   "sources": [],
-  "gap": "a complete Issue-to-Decision path by clicks only is not exercised",
-  "note": "(one chip click runs a turn). Gap: a complete Issue-to-Decision path by clicks only is not exercised"
+  "gap": "",
+  "note": "P16"
  },
  "GX-09": {
   "section": "39. Additional mandatory acceptance matrix for v3.1 direction",
@@ -2614,15 +2624,17 @@
   "requirement": "Early Warning card can create/export the exact governed cohort to Cockpit/What-If.",
   "claim": "COVERED",
   "tests": [
-   "tests/cockpit_v4/test_gw_charts.py::test_a_warning_reason_cross_filters_bands_segments_and_the_cohort"
+   "tests/cockpit_v4/test_gw_charts.py::test_a_warning_reason_cross_filters_bands_segments_and_the_cohort",
+   "tests/cockpit_v4/test_gw_p16_wiring.py::test_the_issue_card_has_no_decorative_controls"
   ],
   "journeys": [
    "GW-P3-04",
-   "GW-P11-04"
+   "GW-P11-04",
+   "GW-P16-02"
   ],
   "sources": [],
   "gap": "",
-  "note": "",
+  "note": "P16",
   "checks": [
    "mutation:cohort identity"
   ]
@@ -3800,47 +3812,55 @@
  "LENS-04": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
   "requirement": "IFRS 9 / ECL Oversight (IFRS9/ECL team; Both; On publication)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
-   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m065_m066_overlay_match_the_published_ifrs9_overlay",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_lens04_renders_the_overlay_and_reconciliation"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no overlay visual or metric (spec lists overlays)",
-  "note": "Gap: no overlay visual or metric (spec lists overlays)"
+  "gap": "",
+  "note": "P16"
  },
  "LENS-05": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
   "requirement": "Early Warning Command Center (EWS team; Both; Daily)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
-   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m069_reasons_match_each_rule_recomputed",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_reason_visuals_render_and_honour_the_lens_filter"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no top-warning-reasons visual",
-  "note": "Gap: no top-warning-reasons visual"
+  "gap": "",
+  "note": "P16",
+  "checks": [
+   "mutation:EWS reasons evaluate each rule's own condition"
+  ]
  },
  "LENS-06": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
   "requirement": "Corporate Portfolio Manager (Portfolio manager; Corporate; Daily)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
-   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_lens06_shows_booked_ecl_and_its_sector_breakdown"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no ECL metric bound (spec lists ECL)",
-  "note": "Gap: no ECL metric bound (spec lists ECL)"
+  "gap": "",
+  "note": "P16"
  },
  "LENS-07": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
@@ -3860,18 +3880,23 @@
  "LENS-08": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
   "requirement": "Credit Card Risk (Product risk head; Retail Credit Card; Daily)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
    "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
-   "tests/cockpit_v4/test_gw_lenses.py::test_default_filters_scope_a_product_lens"
+   "tests/cockpit_v4/test_gw_lenses.py::test_default_filters_scope_a_product_lens",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m069_reasons_match_each_rule_recomputed",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_reason_visuals_render_and_honour_the_lens_filter"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no top-reasons visual",
-  "note": "Gap: no top-reasons visual"
+  "gap": "",
+  "note": "P16",
+  "checks": [
+   "mutation:EWS reasons evaluate each rule's own condition"
+  ]
  },
  "LENS-09": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
@@ -3879,14 +3904,16 @@
   "claim": "PARTIAL",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
-   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_the_salary_signal_is_the_labelled_governed_proxy",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_reason_visuals_render_and_honour_the_lens_filter"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no salary-signal visual (book has no salary feed)",
-  "note": "Gap: no salary-signal visual (book has no salary feed)"
+  "gap": "DATA: the Retail book publishes no salary-credit feed. The Lens shows the governed salary-interruption PROXY (EWS rule R-SALARY: salaried, cyclical employer, payment ratio < 35%), labelled as a proxy; affordability, DPD, PD/ECL and default entry are complete.",
+  "note": "P16"
  },
  "LENS-10": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
@@ -3921,17 +3948,19 @@
  "LENS-12": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
   "requirement": "Collections & Recoveries (Collections; Retail; Daily)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
-   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_recoveries_and_write_offs_match_the_published_rows",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_lens12_renders_recoveries_vs_write_offs"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no recoveries visual or metric",
-  "note": "Gap: no recoveries visual or metric"
+  "gap": "",
+  "note": "P16"
  },
  "LENS-13": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
@@ -3986,14 +4015,15 @@
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
    "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
-   "tests/cockpit_v4/test_gw_lenses.py::test_scenario_metrics_only_count_results_the_viewer_can_open"
+   "tests/cockpit_v4/test_gw_lenses.py::test_scenario_metrics_only_count_results_the_viewer_can_open",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_lens16_method_concentration_and_stage_views_read_the_result"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no stage-migration, concentration or method-comparison visual",
-  "note": "Gap: no stage-migration, concentration or method-comparison visual"
+  "gap": "DATA/MODEL: scenario-induced STAGE MIGRATION is not modelled -- the stage policy holds stages and neither book publishes a SICR re-test rule (DECOMP12). The Lens shows ECL change by stage under the result's own policy, labelled as not migration; saved scenarios, ECL deltas, concentration (Pareto) and method comparison are complete.",
+  "note": "P16"
  },
  "LENS-17": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
@@ -4013,17 +4043,20 @@
  "LENS-18": {
   "section": "45. Seeded Lens Library — mandatory first-launch dashboards",
   "requirement": "Monitoring & Breach Executive (CRO/Operations; Both; Continuous/on refresh)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_lenses.py::test_first_launch_library_holds_the_18_spec_lenses_and_more",
-   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals"
+   "tests/cockpit_v4/test_gw_lenses.py::test_every_lens_renders_real_values_in_at_least_five_visuals",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_lens18_alert_groups_match_the_alert_store",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m050_is_hours_since_each_lens_last_successful_refresh",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m049_counts_the_material_changes_of_each_lens_latest_refresh"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/lens_seed.py"
   ],
-  "gap": "no top-breached-metrics or assigned-owner visual",
-  "note": "Gap: no top-breached-metrics or assigned-owner visual"
+  "gap": "",
+  "note": "P16"
  },
  "M001": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4076,18 +4109,20 @@
  "M004": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Stage 1 EAD share: SUM(EAD stage1)/SUM(EAD)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M004]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M005": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4137,114 +4172,128 @@
  "M008": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Stage 3 ECL share: SUM(ECL stage3)/SUM(ECL)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M008]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M009": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Stage 1→2 migration EAD: SUM(EAD where prior stage=1,current=2)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M009]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M010": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Stage 2→3 migration EAD: SUM(EAD where prior stage=2,current=3)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M010]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M011": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Cure EAD: SUM(EAD with improving stage/default state)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M011]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M012": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Default-entry rate: New defaults / eligible performing population",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M012]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M013": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Default count: COUNT(new default entities)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M013]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M014": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "NPL/Default EAD: SUM(EAD default/Stage3)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M014]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M015": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4312,18 +4361,20 @@
  "M019": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Utilisation rate: SUM(drawn)/SUM(limit or drawn+undrawn)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M019]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M020": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4358,97 +4409,109 @@
  "M022": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Sector/product EAD share: SUM(EAD dimension value)/SUM(EAD)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M022]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M023": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Rating downgrade rate: Downgraded borrowers / rated borrowers with prior grade",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M023]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M024": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Rating upgrade rate: Upgraded borrowers / rated borrowers with prior grade",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M024]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M025": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Average rating notch movement: AVG(current notch-prior notch)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M025]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M026": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Behaviour score movement: AVG(score_t-score_t-1)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M026]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M027": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Application score distribution: Distribution by governed score bands",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M027]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "excluded from the value check in test_every_applicable_metric_evaluates_on_both_books; distribution not tested",
-  "note": "Gap: excluded from the value check in distribution not tested"
+  "gap": "",
+  "note": "P16"
  },
  "M028": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4483,146 +4546,166 @@
  "M030": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Roll-forward rate: Population moving to worse DPD bucket / source bucket",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M030]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M031": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Cure rate: Population improving from delinquent/default state / eligible starting population",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M031]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M032": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "EWS warned customers: COUNT(DISTINCT customer with active warning)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M032]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M033": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "EWS high/critical share: High+Critical warned / warned",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M033]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M034": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Forward-risk customers: COUNT(DISTINCT customer flagged forward risk)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M034]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M035": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "EWS score: Governed EWS score aggregate/distribution",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M035]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M036": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Covenant breach rate: Borrowers/facilities with active breach / eligible monitored population",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M036]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M037": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Limit utilisation: Exposure / approved limit",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M037]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M038": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Limit breach count: COUNT(active breaches)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M038]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_no_published_period_exceeds_a_limit",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_m038_counts_exactly_the_rows_over_their_limit"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M039": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4672,98 +4755,106 @@
  "M042": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Model calibration gap: model baseline ECL - booked ECL",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition"
+   "tests/cockpit_v4/test_gw_metrics.py::test_scenario_metrics_read_the_published_decomposition",
+   "tests/cockpit_v4/test_gw_ml_decomposition.py::test_m042_reads_the_published_gap_per_ml_result"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "value on an ML result not tested",
-  "note": "(no-ML path only). Gap: value on an ML result not tested"
+  "gap": "",
+  "note": "P16"
  },
  "M043": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "MEV sensitivity coefficient: Governed estimator coefficient/elasticity",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_m043_m044_match_the_published_sensitivity_relation"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M044": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "MEV sensitivity stability: Governed stability statistic across windows/splits",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_m043_m044_match_the_published_sensitivity_relation"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M045": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Data completeness: non-null required fields / required cells",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M045]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M046": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Data freshness: now - latest governed source timestamp",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_m046_freshness_is_hours_since_the_release_publication"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M047": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Reconciliation residual: reported total - sum(components)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_metric_matches_its_independent_oracle[M047]",
+   "tests/cockpit_v4/test_gw_metric_oracles.py::test_the_oracles_are_not_vacuous"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M048": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
@@ -4783,33 +4874,35 @@
  "M049": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Material changes since prior refresh: COUNT(metric changes above configured materiality)",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m049_counts_the_material_changes_of_each_lens_latest_refresh"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  },
  "M050": {
   "section": "46. Metric Catalogue — fully defined governed seed registry",
   "requirement": "Lens refresh age: now-last successful refresh",
-  "claim": "PARTIAL",
+  "claim": "COVERED",
   "tests": [
    "tests/cockpit_v4/test_gw_metrics.py::test_every_spec_metric_is_present_under_its_spec_name",
    "tests/cockpit_v4/test_gw_metrics.py::test_every_metric_is_fully_defined",
-   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books"
+   "tests/cockpit_v4/test_gw_metrics.py::test_every_applicable_metric_evaluates_on_both_books",
+   "tests/cockpit_v4/test_gw_lens_content.py::test_m050_is_hours_since_each_lens_last_successful_refresh"
   ],
   "journeys": [],
   "sources": [
    "backend/workspace/metric_catalog.py"
   ],
-  "gap": "formula not independently recomputed",
-  "note": "Gap: formula not independently recomputed"
+  "gap": "",
+  "note": "P16"
  }
 }

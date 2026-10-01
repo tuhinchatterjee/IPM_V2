@@ -36,7 +36,15 @@ export function IssueDetail({ issueId }: { issueId: string }) {
 
   React.useEffect(() => {
     readIssue(issueId)
-      .then(setIssue)
+      .then((found) => {
+        setIssue(found);
+        // A driver clicked on the Requires Attention card opens here already
+        // narrowed to that driver's population (?driver=<label>).
+        const driver = new URLSearchParams(window.location.search).get("driver");
+        if (driver && found.evidence.breakdown.some((d) => String(d.label) === driver)) {
+          setDrill([{ column: found.evidence.breakdown_dimension, op: "in", values: [driver] }]);
+        }
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [issueId]);
 

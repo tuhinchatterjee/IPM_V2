@@ -487,6 +487,145 @@ def _ev_active_breaches(book, metric, *, period, filters):
                                           key=lambda kv: -kv[1])]}
 
 
+def _ev_ews_reasons(book, metric, *, period, filters):
+    """One group per governed EWS rule of this book: the exposures and EAD
+    that trigger it (the rule's own SQL over the same view). An exposure
+    with several reasons counts under each; `value` is the number of
+    exposures with at least one."""
+    from backend.workspace import ews
+
+    v = grid.view(book, period)
+    where, params = _where(v, filters)
+    extra = "AND" if where else "WHERE"
+    groups, skipped = [], []
+    for rule in ews.RULES[book.domain_id]:
+        if not ews._columns(rule["sql"]) <= set(v.keys):
+            skipped.append(rule["id"])
+            continue
+        row = book.rows(f"SELECT COUNT(*) AS n, SUM(ead_sar_mn) AS ead FROM "
+                        f"({v.sql}) g {where} {extra} ({rule['sql']})",
+                        params)[0]
+        groups.append({"dimension": rule["label"], "rule_id": rule["id"],
+                       "value": int(row["n"] or 0),
+                       "numerator": _f(row["ead"]) or 0.0,
+                       "limitation": rule.get("limitation", "")})
+    groups.sort(key=lambda g: -g["value"])
+    any_row = book.rows(f"SELECT COUNT(*) AS n FROM ({v.sql}) g {where} "
+                        f"{extra} ews_band <> 'none'", params)[0]
+    return {"value": int(any_row["n"] or 0), "numerator": None,
+            "denominator": None, "rows": int(any_row["n"] or 0),
+            "groups": groups, "rules_not_evaluated": skipped,
+            "ruleset": ews.RULESET_VERSION}
+
+
+def _visible_alerts(book) -> list[dict[str, Any]]:
+    """Breach alerts on this book the viewer may open (any state)."""
+    from backend.workspace import service
+    from backend.workspace.objects import can_read
+
+    try:
+        alerts = service.store().latest_of_kind("alert",
+                                                tenant_id=book.tenant_id)
+    except Exception:  # noqa: BLE001
+        return []
+    viewer = VIEWER.get()
+    return [a for a in alerts
+            if a["body"].get("alert_type") == "breach"
+            and not a["body"].get("demo_historical")
+            and a["domain_id"] in (book.domain_id, "both")
+            and (can_read(a, viewer) if viewer is not None else
+                 (a.get("permissions") or {}).get("visibility") == "tenant")]
+
+
+ALERT_STATES = ("NEW", "ACTIVE", "WORSENING", "ACKNOWLEDGED", "RESOLVED")
+_LIVE = ("NEW", "ACTIVE", "WORSENING")
+
+
+def _count_by(items: list[dict[str, Any]], key) -> list[dict[str, Any]]:
+    by: dict[str, int] = {}
+    for a in items:
+        k = key(a)
+        by[k] = by.get(k, 0) + 1
+    return [{"dimension": k, "value": n}
+            for k, n in sorted(by.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
+def _ev_alerts_by_state(book, metric, *, period, filters):
+    alerts = _visible_alerts(book)
+    by = {s: 0 for s in ALERT_STATES}
+    for a in alerts:
+        by[a["status"]] = by.get(a["status"], 0) + 1
+    return {"value": len(alerts), "numerator": len(alerts),
+            "denominator": None, "rows": len(alerts),
+            "groups": [{"dimension": s, "value": n} for s, n in by.items()]}
+
+
+def _ev_breaches_by_metric(book, metric, *, period, filters):
+    live = [a for a in _visible_alerts(book) if a["status"] in _LIVE]
+    groups = _count_by(live, lambda a: str(a["body"].get("metric_id") or "?"))
+    for g in groups:
+        g["name"] = mc.BY_ID.get(g["dimension"], {}).get("name", "")
+    return {"value": len(live), "numerator": len(live), "denominator": None,
+            "rows": len(live), "groups": groups}
+
+
+def _ev_breaches_by_assignee(book, metric, *, period, filters):
+    live = [a for a in _visible_alerts(book) if a["status"] in _LIVE]
+    return {"value": len(live), "numerator": len(live), "denominator": None,
+            "rows": len(live), "groups": _count_by(
+                live, lambda a: a["body"].get("assignee") or "(unassigned)")}
+
+
+def _latest_result(book, *, delta_only: bool = False):
+    for r in sorted(_scenario_results(book), key=lambda r: -r["created_at"]):
+        ran = (r["body"].get("methods") or {}).get("ran") or []
+        if not delta_only or "delta" in ran:
+            return r
+    return None
+
+
+def _result_groups(r, rows, value_key, label) -> dict[str, Any]:
+    if r is None:
+        return {"value": None, "numerator": None, "denominator": None,
+                "rows": 0, "groups": [], "latest_result": None,
+                "note": "No executed scenario result you can open on this "
+                        "book yet."}
+    b = r["body"]
+    groups = [{**{k: x[k] for k in x if k not in (value_key, "dimension")},
+               "dimension": label(x), "value": _num(x.get(value_key)),
+               "object_id": r["object_id"]}
+              for x in rows]
+    total = sum(g["value"] or 0 for g in groups)
+    return {"value": total, "numerator": total, "denominator": None,
+            "rows": len(groups), "groups": groups,
+            "latest_result": r["object_id"],
+            "scenario_name": b.get("scenario_name", r["title"]),
+            "stage_policy": b.get("stage_policy", "")}
+
+
+def _ev_scenario_methods(book, metric, *, period, filters):
+    r = _latest_result(book)
+    rows = [] if r is None else [
+        {**o, "change": o.get("change")}
+        for o in (r["body"].get("results") or {}).values() if o.get("ran")]
+    out = _result_groups(r, rows, "change", lambda x: x.get("label")
+                         or x.get("method", ""))
+    out["value"] = None if not out["groups"] else out["groups"][0]["value"]
+    return out
+
+
+def _ev_scenario_pareto(book, metric, *, period, filters):
+    r = _latest_result(book, delta_only=True)
+    return _result_groups(r, [] if r is None else r["body"].get("pareto")
+                          or [], "change", lambda x: x.get("group", ""))
+
+
+def _ev_scenario_stages(book, metric, *, period, filters):
+    r = _latest_result(book, delta_only=True)
+    return _result_groups(r, [] if r is None else r["body"].get("stages")
+                          or [], "change", lambda x: f"Stage {x['stage']}")
+
+
 def _ev_material_changes(book, metric, *, period, filters):
     from backend.workspace import service
 
@@ -506,9 +645,40 @@ def _ev_material_changes(book, metric, *, period, filters):
 
 
 def _ev_refresh_age(book, metric, *, period, filters):
-    return {"value": None, "numerator": None, "denominator": None, "rows": 0,
-            "status": "PER_LENS",
-            "note": "Evaluated per Lens from its last successful observation."}
+    """Hours since each Lens' last SUCCESSFUL observation (a failed refresh
+    never resets it), one group per Lens of the tenant whose scope includes
+    this book; the headline is the oldest. Lenses that never refreshed
+    successfully are listed with no value, never as 0."""
+    from backend.workspace import service
+
+    now = time.time()
+    groups = []
+    try:
+        store = service.store()
+        lenses = store.latest_of_kind("lens", tenant_id=book.tenant_id)
+    except Exception:  # noqa: BLE001
+        lenses = []
+    for lens in lenses:
+        if book.domain_id not in (lens["body"].get("domain_scope") or []):
+            continue
+        obs = store.observations(lens["object_id"], tenant_id=book.tenant_id,
+                                 limit=50)
+        ok = next((o for o in obs if o["status"] == "SUCCEEDED"), None)
+        groups.append({"dimension": lens["body"].get("name") or lens["title"],
+                       "lens_id": lens["object_id"],
+                       "value": None if ok is None else
+                       (now - ok["finished_at"]) / 3600.0,
+                       "last_success_at": None if ok is None else
+                       ok["finished_at"],
+                       "last_status": obs[0]["status"] if obs else "NEVER"})
+    aged = [g["value"] for g in groups if g["value"] is not None]
+    groups.sort(key=lambda g: -(g["value"] if g["value"] is not None
+                                else float("inf")))
+    return {"value": max(aged) if aged else None, "numerator": None,
+            "denominator": None, "rows": len(groups), "groups": groups,
+            "never_refreshed": sum(1 for g in groups if g["value"] is None),
+            "note": None if aged else "No Lens on this book has refreshed "
+                                      "successfully yet."}
 
 
 EVALUATORS = {name[4:]: fn for name, fn in globals().items()

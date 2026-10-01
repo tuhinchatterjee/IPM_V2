@@ -1965,6 +1965,102 @@ async function p13Journeys() {
 }
 
 // =========================================================================
+// P16 — final gap closure: clicks-only root cause (GX-08) and card wiring
+// =========================================================================
+
+async function p16Journeys() {
+  await journey("GW-P16-01", "GX-08 by clicks only: Requires Attention card → Investigate → a driver chip answered in the SAME thread → the stress-test chip opens What-If on the investigation's exact cohort → Ask (pre-filled, not typed) → preview → 'Yes, confirm the scenario' button → METHOD SELECTION → Delta button → the governed decomposition reconciles; no keystroke anywhere", async (record) => {
+    const page = await open();
+    await page.addInitScript(() => {
+      window.__keys = 0;
+      window.addEventListener("keydown", () => (window.__keys += 1), true);
+    });
+    await openHome(page, "corporate");
+    const card = page.locator('[data-testid="issue-card"]').first();
+    record.issue_id = await card.getAttribute("data-issue-id");
+    await card.locator('[data-testid="issue-investigate"]').click();
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 90_000 });
+    record.thread_id = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
+    await page.waitForSelector('[data-testid="nbq-chip"]', { timeout: 60_000 });
+    assert.equal(await page.locator('[data-testid="nbq-chip"][data-suggestion-type="run_whatif"]').count(), 0, "no stress test before a finding");
+    const before = await turns(page);
+    const driver = page.locator('[data-testid="nbq-chip"][data-suggestion-type="explain_driver"], [data-testid="nbq-chip"]').first();
+    record.clicked = [(await driver.textContent()).trim()];
+    await driver.click();
+    await settle(page, before);
+    assert.equal(await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id"), record.thread_id, "the chip ran in the same thread");
+    const stress = page.locator('[data-testid="nbq-chip"][data-suggestion-type="run_whatif"]');
+    await stress.waitFor({ timeout: 60_000 });
+    record.clicked.push((await stress.textContent()).trim());
+    const inv = (await api(`/investigations/by-thread/${record.thread_id}`)).body;
+    const frozen = (await api(`/objects/${inv.cohort_id}`)).body;
+    record.cohort_id = inv.cohort_id;
+    record.membership_hash = frozen.body.membership_hash;
+    await stress.click();
+    await page.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 60_000 });
+    assert.match(page.url(), new RegExp(`cohort=${inv.cohort_id}`), "What-If opens on the investigation's cohort");
+    await page.waitForFunction(() => /stress test/i.test(document.querySelector('[data-testid="whatif-ask-input"]')?.value ?? ""), null, { timeout: 60_000 });
+    await page.waitForFunction((id) => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") === id, inv.cohort_id, { timeout: 60_000 });
+    await page.click('[data-testid="whatif-ask"]');
+    const confirm = page.locator("button", { hasText: "Yes, confirm the scenario" }).last();
+    await confirm.waitFor({ timeout: 240_000 });
+    const whatifThread = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
+    record.whatif_thread_id = whatifThread;
+    record.clicked.push("Yes, confirm the scenario");
+    await confirm.click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="thread-whatif"]')?.getAttribute("data-method-state") === "METHOD_SELECTION_REQUIRED", null, { timeout: 240_000 });
+    const state = (await api(`/whatif/threads/${whatifThread}/cohort`)).body;
+    record.entities = state.entities;
+    assert.equal(state.membership_hash, record.membership_hash, "the scenario runs on exactly the investigated population");
+    assert.equal(state.has_result, false, "confirmed, NOT executed");
+    record.clicked.push("Method 1 — Delta");
+    await page.click('[data-testid="thread-whatif-method-delta"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="thread-whatif"]')?.getAttribute("data-has-result") === "true", null, { timeout: 240_000 });
+    await page.click('[data-testid="thread-whatif-open-result"]');
+    await page.waitForURL(/\/what-if\/result\/res-/, { timeout: 60_000 });
+    await resultRendered(page);
+    assert.equal(await page.getAttribute('[data-testid="whatif-decomposition"]', "data-reconciles"), "true");
+    assert.equal(await page.getAttribute('[data-testid="whatif-result"]', "data-methods-ran"), "delta");
+    record.keystrokes = await page.evaluate(() => window.__keys);
+    assert.equal(record.keystrokes, 0, "the whole path was completed without typing");
+    await shot(page, record, "clicks-only-result");
+  });
+
+  await journey("GW-P16-02", "Requires Attention card wiring: the title opens the evidence; the largest-contributor driver opens the issue already narrowed to that driver's population (server count); the card's What-If button freezes the exact issue population and opens What-If on it", async (record) => {
+    const page = await open();
+    await openHome(page, "corporate");
+    const card = page.locator('[data-testid="issue-card"]').filter({ has: page.locator('[data-testid="issue-driver"]') }).first();
+    const issueId = await card.getAttribute("data-issue-id");
+    record.issue_id = issueId;
+    const issue = (await api(`/issues/${issueId}`)).body;
+    const driver = (await card.locator('[data-testid="issue-driver"]').textContent()).trim();
+    record.driver = driver;
+    await card.locator('[data-testid="issue-driver"]').click();
+    await page.waitForURL(new RegExp(`/issues/${issueId}\\?driver=`), { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="issue-detail"]', { timeout: 60_000 });
+    const narrowed = await api("/grid/query", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ domain: issue.domain_id, filters: [...issue.cohort.filters, { column: issue.evidence.breakdown_dimension, op: "in", values: [driver] }], limit: 1 }),
+    });
+    record.driver_rows = narrowed.body.total;
+    await page.waitForFunction((n) => document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total") === String(n), narrowed.body.total, { timeout: 60_000 });
+    await shot(page, record, "driver-population");
+    await openHome(page, "corporate");
+    const again = page.locator(`[data-testid="issue-card"][data-issue-id="${issueId}"]`);
+    await again.locator('[data-testid="issue-title"] button').click();
+    await page.waitForURL(new RegExp(`/issues/${issueId}$`), { timeout: 60_000 });
+    await openHome(page, "corporate");
+    await page.locator(`[data-testid="issue-card"][data-issue-id="${issueId}"] [data-testid="issue-whatif"]`).click();
+    await page.waitForURL(/\/what-if\?cohort=coh-[0-9a-f]+&from=issue/, { timeout: 60_000 });
+    const cohortId = new URL(page.url()).searchParams.get("cohort");
+    const saved = (await api(`/objects/${cohortId}`)).body;
+    record.cohort_entities = saved.body.counts.entities;
+    assert.equal(saved.body.counts.entities, issue.cohort.entities, "the exact issue population, not visible rows");
+    await page.waitForFunction((id) => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") === id, cohortId, { timeout: 60_000 });
+    await shot(page, record, "whatif-handoff");
+  });
+}
 
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
@@ -1982,6 +2078,7 @@ async function main() {
     await p11bJourneys();
     await p12Journeys();
     await p13Journeys();
+    await p16Journeys();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

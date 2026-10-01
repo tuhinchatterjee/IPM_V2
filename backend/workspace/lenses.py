@@ -27,7 +27,7 @@ from backend.workspace import metric_catalog as mc
 from backend.workspace.objects import LIBRARY_OWNER, ObjectService, Principal, can_edit
 
 VISUALS = ("kpi", "trend", "breakdown", "stage_mix", "top_owners",
-           "scenario_results", "alerts", "sensitivity", "table")
+           "scenario_results", "alerts", "sensitivity", "table", "groups")
 CADENCES = ("manual", "on_publication", "on_result", "daily", "weekly",
             "monthly", "continuous")
 COMPARISONS = ("gt", "lt", "abs_gt", "move_pct_gt", "move_abs_gt")
@@ -313,10 +313,17 @@ def _render_visual(book, spec, vis, *, period: str, cross: list
         out["rows"] = _top_owners(book, v, flt, int(vis.get("n") or 10))
         out["total_ead"] = metrics.evaluate(book, "M018", period=v.period,
                                             filters=flt).get("value")
-    elif t in ("scenario_results", "alerts", "sensitivity"):
+    elif t in ("scenario_results", "alerts", "sensitivity", "groups"):
+        # `groups`: any catalogue metric whose evaluator publishes named
+        # groups (EWS reasons, alerts by state / metric / owner, a result
+        # by method / segment / stage), drawn as one bar per group.
         r = metrics.evaluate(book, mid, period=v.period, filters=flt)
         out["groups"] = r.get("groups") or []
         out["value"] = r.get("value")
+        for k in ("latest_result", "scenario_name", "stage_policy", "note",
+                  "rules_not_evaluated"):
+            if r.get(k) is not None:
+                out[k] = r[k]
     elif t == "table":
         q = grid.query(book, period=v.period, filters=flt or None,
                        sort=vis.get("sort") or "ecl_sar_mn", limit=25)

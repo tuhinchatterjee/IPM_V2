@@ -122,8 +122,18 @@ def _actions(obj: dict[str, Any], *, recipient: bool) -> list[dict[str, str]]:
         add("save", "Save my own copy")
     elif kind == "run":
         add("open", "Open the run", f"/what-if?run={oid}")
+    elif kind == "investigation" and b.get("thread_id"):
+        add("open", "Open the investigation",
+            f"/cockpit/thread/{b['thread_id']}")
+    elif kind == "issue" and b.get("issue_id"):
+        add("open", "Open the issue", f"/issues/{b['issue_id']}")
+    elif kind == "metric" and b.get("metric_id"):
+        add("open", "Open in the Metric Catalogue",
+            f"/metrics?m={b['metric_id']}")
     else:
-        add("open", "Open", f"/objects/{oid}")
+        # Findings and anything without a page of its own open in the
+        # governance Trace, which renders every object the viewer may read.
+        add("open", "Open", f"/trace/object/{oid}")
     add("comment", "Comment")
     if not recipient:
         out = [a for a in out if a["action"] in ("open", "comment",

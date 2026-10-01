@@ -170,8 +170,18 @@ class GuidedProvider:
 
         turn = sum(1 for m in messages if m.get("role") == "assistant")
         time.sleep(0.3)
+        # The guided stress-test suggestion ("Stress test: ...") names no
+        # method, so the scripted analyst assumes none: the preview is
+        # method-free and confirming leads to METHOD SELECTION (UAT-01 rule).
+        method_free = question.strip().lower().startswith("stress test")
         if turn > 0:
-            return _clarify(messages, question)
+            return _clarify(messages, question, method_free=method_free)
+        parameters = {"operation": "preview_scenario",
+                      "cohort": {"cohort_id": cohort_ref},
+                      "shocks": shocks_from(question),
+                      "clauses": [question[:400]]}
+        if not method_free:
+            parameters["methods"] = ["delta"]
         return ScriptedResult(tool_calls=[tool_call(
             "execute_analysis",
             {"intent": intent("DATA_ANALYSIS", "COCKPIT", understood=question),
@@ -183,12 +193,7 @@ class GuidedProvider:
              "steps": [{"step_id": "s1", "language": "whatif_scenario",
                         "code": "Preview: the rules asked for, over the "
                                 "active What-If cohort named by id.",
-                        "parameters": {
-                            "operation": "preview_scenario",
-                            "cohort": {"cohort_id": cohort_ref},
-                            "shocks": shocks_from(question),
-                            "methods": ["delta"],
-                            "clauses": [question[:400]]},
+                        "parameters": parameters,
                         "purpose": "preview the scenario before anything runs",
                         "input_artifact_ids": None,
                         "depends_on_step_ids": None}],

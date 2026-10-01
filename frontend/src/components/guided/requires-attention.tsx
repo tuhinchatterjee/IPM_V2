@@ -14,7 +14,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, Loader2, Save, Search, Table2, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, FlaskConical, Loader2, Save, Search, Table2, TrendingUp } from "lucide-react";
 
 import { PlotlyChart } from "@/components/viz/plotly-chart";
 import { sparkline } from "@/lib/viz/figures";
@@ -67,13 +67,11 @@ function IssueCard({
   issue,
   isNew,
   onInvestigate,
-  onAsk,
   busy,
 }: {
   issue: Issue;
   isNew: boolean;
   onInvestigate: (issue: Issue, question?: string, suggestionId?: string, kind?: string) => void;
-  onAsk?: (question: string) => void;
   busy: boolean;
 }) {
   const router = useRouter();
@@ -104,7 +102,14 @@ function IssueCard({
         </span>
       </header>
       <h3 className="mt-2 text-sm font-semibold leading-snug text-text-primary" data-testid="issue-title">
-        {issue.title}
+        <button
+          type="button"
+          onClick={() => router.push(`/issues/${issue.issue_id}`)}
+          className="text-left hover:underline"
+          title="Open the evidence and the affected population"
+        >
+          {issue.title}
+        </button>
       </h3>
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
         <div>
@@ -150,7 +155,17 @@ function IssueCard({
       {top && (
         <p className="mt-1 text-xs text-text-secondary">
           <TrendingUp className="mr-1 inline h-3 w-3" />
-          Largest contributor: <span className="font-medium">{top.label}</span> ({top.display})
+          Largest contributor:{" "}
+          <button
+            type="button"
+            onClick={() => router.push(`/issues/${issue.issue_id}?driver=${encodeURIComponent(String(top.label))}`)}
+            className="font-medium text-accent hover:underline"
+            data-testid="issue-driver"
+            title="Open the population behind this contributor"
+          >
+            {top.label}
+          </button>{" "}
+          ({top.display})
         </p>
       )}
       <p className="mt-1 line-clamp-3 text-xs text-text-muted" data-testid="issue-interpretation">
@@ -186,6 +201,20 @@ function IssueCard({
         >
           <Save className="h-3 w-3" /> Save cohort
         </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            saveIssueCohort(issue.issue_id)
+              .then((c) => router.push(`/what-if?cohort=${encodeURIComponent(c.object_id)}&from=issue`))
+              .catch((e: unknown) => setSaved(e instanceof Error ? e.message : String(e)))
+          }
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"
+          data-testid="issue-whatif"
+          title="Freeze this exact population and open it in What-If"
+        >
+          <FlaskConical className="h-3 w-3" /> What-If
+        </button>
       </div>
       {saved && (
         <p className="mt-1 text-[11px] text-positive" data-testid="issue-cohort-saved">
@@ -200,7 +229,7 @@ function IssueCard({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => (onAsk && s.required_capability === "execute_analysis" ? onAsk(s.exact_request) : onInvestigate(issue, s.exact_request, s.suggestion_id, s.type))}
+                onClick={() => onInvestigate(issue, s.exact_request, s.suggestion_id, s.type)}
                 title={s.rationale}
                 className="group flex w-full items-start gap-1 text-left text-xs text-accent hover:underline disabled:opacity-60"
                 data-testid="issue-nbq"

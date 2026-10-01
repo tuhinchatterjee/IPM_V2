@@ -3,7 +3,7 @@
 import { wsGet, wsSend } from "./client";
 import type { Filter, GovernedObject } from "./objects";
 
-export type VisualType = "kpi" | "trend" | "breakdown" | "stage_mix" | "top_owners" | "scenario_results" | "alerts" | "sensitivity" | "table";
+export type VisualType = "kpi" | "trend" | "breakdown" | "stage_mix" | "top_owners" | "scenario_results" | "alerts" | "sensitivity" | "table" | "groups";
 
 export interface LensVisualSpec {
   visual_id: string;

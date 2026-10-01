@@ -44,7 +44,10 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
 
   React.useEffect(() => {
     let live = true;
-    Promise.all([readScenario(scenarioId), previewScenario(scenarioId)])
+    // A shared definition is opened at the version that was shared
+    // (Messages links ?version=N); without one, the latest.
+    const v = Number(new URLSearchParams(window.location.search).get("version") || "") || undefined;
+    Promise.all([readScenario(scenarioId, v), previewScenario(scenarioId, v)])
       .then(([d, p]) => {
         if (!live) return;
         setDetail(d);

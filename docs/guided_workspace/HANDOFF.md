@@ -1,17 +1,20 @@
-# Guided Risk Workspace — handoff (P15)
+# Guided Risk Workspace — handoff (P15, updated P16)
 
 | Item | Value |
 |---|---|
 | Specification | Master specification v3.1, Guided Risk Workspace, What-If & Live Lenses |
-| Branch | `claude/eager-keller-7ue2yk` |
+| Branch | `claude/guided-workspace-final-gap-closure` (P16; continues `claude/eager-keller-7ue2yk` from `57e4cf4f`) |
 | Parent | H2 `feb80f58982addf6e9474200b22451d1e303d276` |
 | Candidate | The SHA in `docs/guided_workspace/UAT_CANDIDATE.json` (`expected_guided_uat_sha`): the commit the final regression of record ran on. No tag, by instruction. |
 | Record | `PHASE_LEDGER.md` (per phase, measured), `REQUIREMENT_MATRIX.md` (generated, 325 ids), `PROTECTED_EXTENSION_MAP.md`, `BASELINE_PROVENANCE.md` |
 | Acceptance gate still open | The Mac live-provider UAT (`MAC_LIVE_UAT.md`): a paid provider run, the user's decision |
 
-**Final regression of record** on `f490ab9fad8f14bea13dc0aa39a7f6e5481a5fcc` (`evidence/final_regression/`):
-- **Steps:** 16 of 17 PASS. 1 BLOCKED_ENV (emulator pickle bytes). 0 unexpected failures.
-- **Requirement matrix:** 325 ids; 251 PASS, 67 PARTIAL, 7 BLOCKED, 0 FAILED.
+**Final regression of record:** the candidate and counts are recorded in `UAT_CANDIDATE.json`, `evidence/final_regression/` and `REQUIREMENT_MATRIX.md` by the evidence commit that follows the candidate.
+
+**Previous candidate F:** `f490ab9f` (historical; not amended).
+- **Steps:** 16 of 17 PASS.
+- **Requirement matrix:** 251 PASS, 67 PARTIAL, 7 BLOCKED, 0 FAILED.
+- **Evidence:** in commit `57e4cf4f`. P16 closed what was closable of the 67 PARTIAL; see `PARTIAL_CLOSURE_AUDIT.md`.
 
 Every browser journey in this round ran as MODEL MOCK, a scripted analyst. No
 provider credential exists in the container and no paid call was made.
@@ -30,7 +33,7 @@ Measured detail, tests and journeys for each phase are in `PHASE_LEDGER.md`.
 | P5 | What-If workspace: server-side grid, selection, cohort explorer. |
 | P6 | Method gate. Nothing runs until a method is chosen. Dual-scope ECL decomposition with a universal Plotly bridge. |
 | P7 | Composition, branching, lineage, sharing, Messages. |
-| P8 | Metric Catalogue 2.0: 64 metrics with versioned definitions, covering the 50 specified ids M001–M050. |
+| P8 | Metric Catalogue 2.0: 75 metrics with versioned definitions (catalogue 1.1.0), covering the 50 specified ids M001–M050. |
 | P9 | Lenses 2.0: 20 seeded Lenses, covering the 18 specified. |
 | P10 | Monitoring Centre: refresh, breach rules, alerts, Inbox. |
 | P11 | Product-wide reactive Plotly platform and chart inventory. |
@@ -38,6 +41,7 @@ Measured detail, tests and journeys for each phase are in `PHASE_LEDGER.md`.
 | P13 | The approved protected fix (no typed credential in V4 durable storage), the MAC07 tornado, grid, scope and label gaps closed, 12 mutation gates, the regression runner (clone at an exact SHA) and the generated requirement matrix. |
 | P14 | The Mac UAT package: a preflight pinned to the candidate SHA, START/STOP/STATUS launchers and the evidence collector. Dry-run in the container; not run on a Mac. |
 | P15 | This document. |
+| P16 | Gap closure. Independent metric oracles; Lens content (overlay, warning reasons, recoveries, alerts by state/metric/owner, result facets); M050 computed; card and link wiring (no dead route); the DECOMP10 overlap fixed; clicks-only root cause (GX-08); candidate G and its clean regression. |
 
 ## 2. Known limitations
 
@@ -61,14 +65,13 @@ Each limitation is exact. The generated matrix carries the same reasons per id.
 **Partial**
 * **LAUNCH01–12, UAT-07 — Mac launcher.** The logic is tested in the container (`test_gw_uat_preflight.py`, `test_launcher_safety.py`). Execution on a Mac with the Keychain is pending.
 * **UAT-03, UAT-05 — protected Cockpit surfaces.** The protected thread renderer (`components/cockpit-v4/visuals.tsx`) and the flags-off legacy pages keep their own stage display and money formatting. Migrating them needs a protected-core decision.
-* **GX-08.** A complete Issue-to-Decision path by clicks only is not exercised end to end.
 * **Templates without governed translation.**
   * SCEN07, RET-04, RET-05, RET-08, RET-14, RET-17 have components with no governed translation. They run only as User-defined.
   * RET-02's CCF component is UNSUPPORTED.
 * **Signs kept as fitted (CORP-03, RET-07).** Collateral and property-value translations reduce LGD when collateral falls. They are shown with SIGN_REVIEW and are not corrected.
-* **ML-path decomposition (DECOMP02, DECOMP03, M042).** The calibration-gap component exists, but no test measures it on an ML result. ML runtime tests skip on the accepted interpreter.
-* **Lens content.** LENS-04/05/06/08/09/12/16/18 lack one or more visuals or metrics the specification lists (see the matrix). LENS-09 has no salary feed in the book.
-* **Metric formulas.** 30 metrics are evaluated on both books but not independently recomputed in Python (see the matrix rows Mxxx).
+* **LENS-09 — salary signals.** The Retail book has no salary-credit feed. The Lens shows the governed salary-interruption PROXY (EWS rule R-SALARY), labelled as a proxy.
+* **LENS-16 — stage migration.** Scenario-induced migration is not modelled (DECOMP12). The Lens shows ECL change by stage under the result's own policy, labelled "not migration". Method comparison and concentration are complete.
+* **Legacy EWS model lab.** `app/early-warning/lab` (accepted at H2, unchanged) draws CSS bars. It is linked only from the legacy page and is reachable with the guided flag on only by URL.
 
 ## 3. Rollback
 
@@ -94,9 +97,9 @@ The full runbook with pass criteria is `MAC_LIVE_UAT.md`. The short form:
 
 ```bash
 git clone https://github.com/tuhinchatterjee/ipm_v2.git CreditProbe_GW_UAT && cd CreditProbe_GW_UAT
-git fetch origin claude/eager-keller-7ue2yk
-git branch -f claude/eager-keller-7ue2yk origin/claude/eager-keller-7ue2yk
-EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/eager-keller-7ue2yk:docs/guided_workspace/UAT_CANDIDATE.json \
+git fetch origin claude/guided-workspace-final-gap-closure
+git branch -f claude/guided-workspace-final-gap-closure origin/claude/guided-workspace-final-gap-closure
+EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/guided-workspace-final-gap-closure:docs/guided_workspace/UAT_CANDIDATE.json \
   | python3 -c 'import json,sys;print(json.load(sys.stdin)["expected_guided_uat_sha"])')
 git checkout --detach "$EXPECTED_GUIDED_UAT_SHA"
 # build once: MAC_LIVE_UAT.md §2 (venv, npm ci, seed releases, train emulators, restore committed gate record)
@@ -138,4 +141,6 @@ open scripts/guided_workspace/STOP_GUIDED_WORKSPACE_UAT.command
 | 5 | The run that overlapped a commit is diagnostic, not of record. The final regression runs on a clean clone at the frozen SHA, with zero edits while it runs. | User process correction | Ledger P13 |
 | 6 | The UAT candidate is pinned by SHA in `UAT_CANDIDATE.json` (no tag). There is no `--any-revision`. The credential comes from the approved Keychain item only, unless `--credential-from-shell` is given. | User directive | `guided_preflight.py`; `MAC_LIVE_UAT.md` |
 | 7 | No tag and no paid provider run in this round. | User directive | — |
+| 9 | DECOMP10's P0 "environment-bound" failure was reclassified as a real defect: a model input shared a name with an attribution driver. It was fixed by labelling model inputs, not by changing analytics, and the test was removed from the known-failure list. | Implementation (P16) | `bridge.py`; ledger P16 |
+| 10 | Recoveries and write-offs are exposed as hidden governed grid columns from the published base tables. Overlay, recovery, reasons, alert and result-facet metrics M065–M075 were added; no value is synthesised. | Implementation (P16) | `grid.py`, `metric_catalog.py`; ledger P16 |
 | 8 | Two mutation gates that survived their first run were fixed by adding the missing test (tenant isolation per layer) and naming the test that exercises the branch (method selection). No gate was weakened. | Implementation | `mutation_gates.py`; ledger P13 |

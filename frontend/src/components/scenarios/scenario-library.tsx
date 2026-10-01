@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Copy, GitMerge, Loader2, Plus, Search } from "lucide-react";
 
 import { PreviewPanel } from "@/components/scenarios/preview-panel";
@@ -36,7 +36,12 @@ const OWNERS = [
 
 export function ScenarioLibrary() {
   const router = useRouter();
-  const [domain, setDomain] = React.useState("");
+  // `/scenarios?domain=retail` (the What-If "Scenario Library" link) opens
+  // on that book; read once on mount, the user can widen it after.
+  // `/scenarios?domain=retail` (the What-If "Scenario Library" link) opens
+  // on that book; the user can widen it after.
+  const asked = useSearchParams().get("domain");
+  const [domain, setDomain] = React.useState(asked === "corporate" || asked === "retail" ? asked : "");
   const [owner, setOwner] = React.useState("");
   const [severity, setSeverity] = React.useState("");
   const [tag, setTag] = React.useState("");
