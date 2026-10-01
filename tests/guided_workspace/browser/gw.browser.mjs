@@ -632,11 +632,22 @@ async function clickBar(page, chartTestId, label) {
     [chart, label],
   );
   assert.ok(index >= 0, `${label} is a bar of ${chartTestId}`);
-  await page.locator(chart).scrollIntoViewIfNeeded();
+  // Centre the chart: "if needed" scrolling can leave it under the What-If
+  // selection bar (sticky, z-10), so a coordinate click lands on the overlay
+  // and the bar never receives it (GW-P5-06 in candidate G's regression).
+  await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "center" }), chart);
+  await page.waitForTimeout(300);
   const box = await page.locator(`${chart} g.point path`).nth(index).boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const onChart = await page.evaluate(
+    ([sel, px, py]) => Boolean(document.querySelector(sel)?.contains(document.elementFromPoint(px, py))),
+    [chart, x, y],
+  );
+  assert.ok(onChart, `the ${label} bar of ${chartTestId} is covered by another element at (${x}, ${y})`);
+  await page.mouse.move(x, y);
   await page.waitForTimeout(250);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.click(x, y);
 }
 
 async function waitSelectionEntities(page, n) {

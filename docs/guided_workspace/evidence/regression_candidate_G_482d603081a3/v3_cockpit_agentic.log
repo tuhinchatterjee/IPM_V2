@@ -1,0 +1,31 @@
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+......F................................................................. [ 36%]
+........................................................................ [ 48%]
+........................................................................ [ 61%]
+........................................................................ [ 73%]
+........................................................................ [ 85%]
+........................................................................ [ 97%]
+..............                                                           [100%]
+=================================== FAILURES ===================================
+____________ test_the_namespace_is_where_the_release_actually_goes _____________
+
+isolated = <function isolated.<locals>.configure at 0x7efe1c7632e0>
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-234/test_the_namespace_is_where_th0')
+
+    def test_the_namespace_is_where_the_release_actually_goes(isolated, tmp_path):
+        target = store.release_dir("demo-20q-v1")
+>       assert "cockpit_agentic_v3" in str(target)
+E       AssertionError: assert 'cockpit_agentic_v3' in '/tmp/pytest-of-root/pytest-234/test_the_namespace_is_where_th0/cockpit_v4/demo-20q-v1'
+E        +  where '/tmp/pytest-of-root/pytest-234/test_the_namespace_is_where_th0/cockpit_v4/demo-20q-v1' = str(PosixPath('/tmp/pytest-of-root/pytest-234/test_the_namespace_is_where_th0/cockpit_v4/demo-20q-v1'))
+
+tests/cockpit_agentic/test_data.py:244: AssertionError
+=============================== warnings summary ===============================
+tests/cockpit_agentic/test_thread_and_api.py::test_an_unknown_mode_is_refused_rather_than_defaulted
+  /home/user/.venv312/lib/python3.12/site-packages/anyio/_backends/_asyncio.py:1100: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    result = context.run(func, *args)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/cockpit_agentic/test_data.py::test_the_namespace_is_where_the_release_actually_goes
+1 failed, 589 passed, 1 warning in 181.51s (0:03:01)

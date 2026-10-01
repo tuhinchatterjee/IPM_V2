@@ -950,7 +950,16 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
     * The analyst added `methods: ["delta"]` to every cohort scenario preview, playing a user who had chosen Delta.
     * The guided stress suggestion names no method, so the analyst now previews it method-free, as UAT-01 requires.
   * **Evidence restored:** the evidence files those runs overwrote were restored with `git checkout`.
-* **Candidate G and its final regression:** recorded by the evidence commit that follows the candidate.
+* **Candidate G `482d603081a3f58e888623913d415cb5c22accef`: regression run, NOT accepted.** Kept as measured in `evidence/regression_candidate_G_482d603081a3/`.
+  * **Result:** 15 PASS, 1 BLOCKED_ENV, 1 FAIL.
+  * **Suites:** V4 4808 tests, with only the P0-recorded failures; What-If 1407; V3 590; frontend 666/666; accepted browser 76/76; What-If browser 15/15 per book.
+  * **BLOCKED_ENV:** emulator pickle bytes only, as for F.
+  * **FAIL:** GW journeys 47 of 48. GW-P5-06's bar click did not narrow the grid.
+  * **Diagnosis, not a rerun.** The journey and the product path were unchanged and had passed in three earlier runs. The UI log's Plotly console errors also occur in F's passing run. The cause is the harness `clickBar` helper:
+    * it clicked at computed coordinates after an "if needed" scroll;
+    * the What-If selection bar is sticky and z-10, so it can cover the target bar.
+  * **Fixed in candidate H.** The helper centres the chart, re-reads the box after layout settles and asserts that `elementFromPoint` hits the chart before clicking. A new candidate and a new full regression follow, since repository code changed.
+* **Candidate H and its final regression:** recorded by the evidence commit that follows the candidate.
 * **Status:** IN PROGRESS until the final regression of G is recorded
 
 ---

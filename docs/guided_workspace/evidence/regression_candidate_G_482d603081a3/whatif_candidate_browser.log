@@ -1,0 +1,68 @@
+
+What-If journeys: corporate
+───────────────────────────
+✓ API on http://127.0.0.1:8424 (corporate)
+✓ UI on http://127.0.0.1:5424 (HTTP 200, identified by CreditProbe)
+  warmed / compiled in 0.1s (HTTP 200)
+  warmed /cockpit/thread/warmup compiled in 0.6s (HTTP 200)
+  warmed /cockpit/trace/warmup compiled in 0.6s (HTTP 200)
+
+J01-J15 · corporate · MODEL MOCK
+────────────────────────────────
+
+J01-J15 against http://127.0.0.1:5424 / http://127.0.0.1:8424  (corporate, MODEL MOCK)
+
+  ok   J01  ask a scenario question and get a preview first
+  ok   J02  confirm the preview and receive a computed result
+  ok   J03  ask a methodology question and get the stored sensitivity
+  ok   J04  run every eligible method on one confirmed scenario
+  ok   J05  supply an assumption and see it labelled as one
+  ok   J06  reopen the scenario and reproduce the same numbers
+  ok   J07  change the book and see the confirmation invalidated
+  ok   J08  ask for a chart the renderer cannot draw and be told
+  ok   J09  export a result and reconcile it against the chat
+  ok   J10  hit an unready model and see MODEL_NOT_READY
+  ok   J11  an unseen category is refused with the real values
+  ok   J12  an out-of-range parameter is reported, not clipped
+  ok   J13  cancel a run mid-flight and see it stop
+  ok   J14  press Run twice and get one result, reported once
+  ok   J15  a table that cannot render loses one figure, not the page
+
+15/15 journeys passed (MODEL MOCK)
+
+  stopped UI
+  stopped what-if stub API
+
+What-If journeys: retail
+────────────────────────
+✓ API on http://127.0.0.1:8424 (retail)
+✓ UI on http://127.0.0.1:5424 (HTTP 200, identified by CreditProbe)
+  warmed / compiled in 0.1s (HTTP 200)
+  warmed /cockpit/thread/warmup compiled in 0.6s (HTTP 200)
+  warmed /cockpit/trace/warmup compiled in 0.6s (HTTP 200)
+
+J01-J15 · retail · MODEL MOCK
+─────────────────────────────
+
+J01-J15 against http://127.0.0.1:5424 / http://127.0.0.1:8424  (retail, MODEL MOCK)
+
+  ok   J01  ask a scenario question and get a preview first
+  ok   J02  confirm the preview and receive a computed result
+  ok   J03  ask a methodology question and get the stored sensitivity
+  ok   J04  run every eligible method on one confirmed scenario
+  ok   J05  supply an assumption and see it labelled as one
+  ok   J06  reopen the scenario and reproduce the same numbers
+  ok   J07  change the book and see the confirmation invalidated
+  ok   J08  ask for a chart the renderer cannot draw and be told
+  ok   J09  export a result and reconcile it against the chat
+  ok   J10  hit an unready model and see MODEL_NOT_READY
+  ok   J11  an unseen category is refused with the real values
+  ok   J12  an out-of-range parameter is reported, not clipped
+  ok   J13  cancel a run mid-flight and see it stop
+  ok   J14  press Run twice and get one result, reported once
+  ok   J15  a table that cannot render loses one figure, not the page
+
+15/15 journeys passed (MODEL MOCK)
+
+  stopped UI
+  stopped what-if stub API
