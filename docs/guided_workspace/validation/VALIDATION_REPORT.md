@@ -1,0 +1,186 @@
+# Exhaustive validation report
+
+Generated 2026-10-02T22:21:55Z by `scripts/guided_workspace/validation_report.py`; every figure below is read from a measured file.
+
+| Item | Value |
+|---|---|
+| Validation branch | `claude/guided-workspace-exhaustive-validation` |
+| Starting candidate H | `8b1592f46b06d03cec089d5b49cb93280b819993` |
+| Final candidate (regression of record) | `62ba4dda50363b7700849ff9e11a4731d118f11b` |
+| Evidence commit | the commit that adds this file (the next commit after the candidate on the branch) |
+| Round started | 2026-10-02T16:22:29Z |
+| Environment | Linux container; Python 3.12.3 (accepted `/home/user/.venv312`, candidate ML `.venv-whatif`); Node 22; Next.js 16.3.2; Chromium (Playwright) |
+| Model | MODEL MOCK (scripted analyst) for every browser journey; no provider credential, no paid call |
+| Verdict | **READY FOR MAC LIVE UAT** |
+
+## Regression of record (fresh detached clone, output outside the repository)
+
+| Step | Status | Tests | Failed | Skipped | Seconds |
+|---|---|---|---|---|---|
+| v4_backend_and_frontend_py_accepted | PASS | 4847 | 3 | 39 | 1567.8 |
+| whatif_suite_whatif_venv | PASS | 1446 | 9 | 2 | 593.9 |
+| v3_cockpit_agentic | PASS | 590 | 1 | 0 | 148.8 |
+| llm_adapters | PASS | 25 | 0 | 8 | 6.6 |
+| frontend_unit | PASS | 669 | 0 | 0 | 6.7 |
+| frontend_typecheck | PASS |  |  |  | 16.7 |
+| frontend_lint_new_code | PASS |  |  |  | 33.3 |
+| python_lint_round_code | PASS |  |  |  | 0.1 |
+| protected_baseline_round | PASS |  |  |  | 0.4 |
+| protected_hashes_accepted_tool | PASS |  |  |  | 0.3 |
+| release_fingerprints | PASS |  |  |  | 0.8 |
+| release_report_digests | PASS |  |  |  | 26.5 |
+| sensitivity_libraries_reproduce | PASS |  |  |  | 50.7 |
+| emulator_artifacts_reproduce | BLOCKED_ENV |  |  |  | 536.3 |
+| gw_browser_journeys_clean_store | PASS |  |  |  | 1114.1 |
+| validation_inventory_runtime | PASS |  |  |  | 0.3 |
+| whatif_candidate_browser | PASS |  |  |  | 140.3 |
+| accepted_browser_suite_flags_off | PASS |  |  |  | 200.2 |
+
+Failures counted in a PASS step are the pre-existing baseline failures the step's known list names (unchanged from candidate H); each step's detail is in its log.
+
+## Browser journeys
+
+- Guided Workspace suite: **82/82** PASS (MODEL MOCK).
+- GOLD cross-module journeys: 10 run: GW-GOLD-01, GW-GOLD-02, GW-GOLD-03, GW-GOLD-04, GW-GOLD-05, GW-GOLD-06, GW-GOLD-07, GW-GOLD-08, GW-GOLD-09, GW-GOLD-10.
+- Back-navigation journeys: 22 (23 matrix rows, by status {"PASS": 23}).
+
+## Inventories
+
+| Inventory | Rows | By status |
+|---|---|---|
+| Routes | 27 | {"PASS": 25, "PARTIAL": 2} |
+| Interactive controls | 395 (with test id 204; exercised 101) | {"PASS": 101, "PARTIAL": 294} |
+| API functions | 107 | {"PASS": 107} |
+| Integration handoffs | 41 (carrying their origin 41) | {"PASS": 39, "PARTIAL": 2} |
+| Plotly chart audit rows | 70 | {"PASS": 70} |
+
+A control is EXERCISED only when a browser journey clicked an element carrying its test id (recorded at runtime); a PARTIAL control is present and wired in source but was not clicked in the run.
+
+## Validation matrix
+
+| Id | Area | Status | Missing / blocked | Failed |
+|---|---|---|---|---|
+| VAL-04 | Routes and navigation (direct, refresh, deep link, params) | **PASS** | — | — |
+| VAL-05 | Back-button master matrix (in-app + browser Back/Forward) | **PASS** | — | — |
+| VAL-06 | Dead button / link / action audit | **PASS** | — | — |
+| VAL-07 | Guided Cockpit (Corporate and Retail journeys) | **PASS** | — | — |
+| VAL-08 | Early Warning integration | **PASS** | — | — |
+| VAL-09 | What-If workspace (scopes, grid, selection, cohort) | **PASS** | — | — |
+| VAL-10 | Scenario Library — every verb | **PASS** | — | — |
+| VAL-11 | Method-selection governance (incl. Retail ML unavailable, no fallback) | **PASS** | — | — |
+| VAL-12 | Scenario stacking / baseline lineage (A, B, A+B, A+B+C, A+D) | **PASS** | — | — |
+| VAL-13 | ECL calculation and decomposition (independent oracle) | **PASS** | — | — |
+| VAL-14 | Plotly interactivity / reactivity audit | **PASS** | — | — |
+| VAL-15 | Macro-sensitivity tornado | **PASS** | — | — |
+| VAL-16 | Lenses (every seeded Lens) | **PASS** | — | — |
+| VAL-17 | Metric Catalogue (formula and metadata) | **PASS** | — | — |
+| VAL-18 | Monitoring Centre / breach lifecycle | **PASS** | — | — |
+| VAL-19 | Messages / sharing (sender and recipient) | **PASS** | — | — |
+| VAL-20 | Persistence / reopen / restart (no model call) | **PASS** | — | — |
+| VAL-21 | Exports (incl. conversation cohort never the whole book) | **PASS** | — | — |
+| VAL-22 | Full LLM Exchange Trace | **PASS** | — | — |
+| VAL-23 | Security / secrets / tenant isolation | **PASS** | — | — |
+| VAL-24 | Data / domain / release integrity | **PASS** | — | — |
+| VAL-25 | Responsive / accessibility (1440, 390) | **PASS** | — | — |
+| VAL-26 | Frontend console / network cleanliness | **PASS** | — | — |
+| VAL-27 | Negative / error states | **PASS** | — | — |
+| VAL-28 | Concurrency / idempotency / duplication | **PASS** | — | — |
+| VAL-29 | Performance smoke (p50/p95) | **PASS** | — | — |
+| VAL-33 | GOLD cross-module journeys (10) | **PASS** | — | — |
+| REG-V4 | V4 backend + frontend-python (accepted interpreter) | **PASS** | — | — |
+| REG-WI | What-If + Guided Workspace suite (candidate interpreter) | **PASS** | — | — |
+| REG-V3 | V3 Cockpit regression | **PASS** | — | — |
+| REG-FE | Frontend unit, TypeScript, lint | **PASS** | — | — |
+| REG-BR | Browser suites (guided, What-If candidate, flags-OFF) | **PASS** | — | — |
+| REG-EM | Emulator artifact reproducibility | **BLOCKED** | emulator_artifacts_reproduce BLOCKED_ENV: only component pickle hashes differ (refit nondeterminism); weights, gates, verdicts, versions, seeds and splits reproduced: corporate: ['lightgbm']; retail: ['additive_log', 'lightgbm'] | — |
+| VAL-30 | Live model validation | **BLOCKED** | Live-provider use is not authorised in this environment; no paid call was made. PENDING_LIVE: run docs/guided_workspace/MAC_LIVE_UAT.md on the Mac. | — |
+
+Area status counts: {"PASS": 32, "BLOCKED": 2}. Evidence per row: `VALIDATION_MATRIX.csv`.
+
+## Content counts at the candidate (seed definitions)
+
+- Scenario Library templates: 36 ({"corporate": 18, "retail": 18}).
+- Seeded Lenses: 20; personas {"CRO": 1, "Corporate Credit Head": 1, "Retail Risk Head": 1, "IFRS 9 / ECL team": 1, "EWS team": 1, "Portfolio manager": 2, "Product risk head": 5, "Collections": 1, "CRO / Risk Appetite": 1, "Board / Executive": 1, "Sector specialist": 2, "Stress / Portfolio team": 1, "Risk data owner": 1, "CRO / Operations": 1}.
+- Metric Catalogue: 75 governed metrics.
+
+## Defects
+
+- Found: 31 ({"HIGH": 9, "MEDIUM": 12, "LOW": 9, "CRITICAL": 1}).
+- Fixed: 27.
+- Remaining: 4 ({"LOW": 4}). Detail: `DEFECT_REGISTER.md`.
+
+## Security, isolation, reconciliation
+
+- Security / secret persistence / tenant isolation: **PASS**: v4_accepted.xml:test_gw_secret_leak.py 4 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_secret_leak.py 4 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_v4_secret_persistence.py 9 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_v4_secret_persistence.py 9 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_objects.py 31 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_objects.py 31 tests, 0 failed, 0 skipped | GW-GOLD-09*: 1/1 PASS | mutation gate 'tenant isolation': PASS
+- ECL reconciliation (independent oracle): **PASS**: v4_accepted.xml:test_gw_ecl_reconciliation.py 6 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_ecl_reconciliation.py 6 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_ml_decomposition.py 3 tests, 0 failed, 0 skipped | GW-P6-01*: 1/1 PASS | GW-P13-04*: 1/1 PASS
+- Release fingerprints and seeds: **PASS**: v4_accepted.xml:test_gw_uat_preflight.py 19 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_uat_preflight.py 19 tests, 0 failed, 0 skipped | step release_fingerprints: PASS | step release_report_digests: PASS | step sensitivity_libraries_reproduce: PASS | step protected_baseline_round: PASS
+
+Mutation gates: 18 of 18 killed.
+
+## Performance smoke (this machine, warm, sequential)
+
+| Endpoint | p50 ms | p95 ms |
+|---|---|---|
+| issues feed (corporate) | 2.7 | 3.2 |
+| issue detail | 3.4 | 3.9 |
+| grid page (50 rows) | 60.0 | 65.5 |
+| grid filtered + summary | 58.0 | 70.9 |
+| selection summary | 75.9 | 89.3 |
+| scenario library | 19.9 | 23.7 |
+| scenario preview (template) | 82.5 | 108.4 |
+| lens render (lens-02) | 82.1 | 101.0 |
+| monitoring centre | 26.0 | 28.1 |
+| metric catalogue | 7.3 | 9.1 |
+| messages | 1.8 | 2.1 |
+
+## Protected files
+
+No protected file changed in this round; the protected set equals the six mapped in `PROTECTED_EXTENSION_MAP.md` (step `protected_baseline_round`).
+
+## Live provider
+
+BLOCKED / PENDING_LIVE: live-provider use is not authorised in this environment and no paid call was made. The Mac live UAT (`docs/guided_workspace/MAC_LIVE_UAT.md`) is the remaining gate.
+
+## Acceptance bar (§38)
+
+| Criterion | Status | Proven by |
+|---|---|---|
+| no CRITICAL defects remain | PASS | defects:CRITICAL |
+| no HIGH defects remain | PASS | defects:HIGH |
+| no dead primary buttons/links/routes remain | PASS | VAL-06 |
+| all intended Back controls pass | PASS | VAL-05 |
+| browser Back/Forward does not corrupt core state | PASS | VAL-05 |
+| all GOLD cross-module journeys pass | PASS | VAL-33 |
+| cohort identity is preserved across handoffs | PASS | VAL-33 |
+| method-selection governance passes | PASS | VAL-11 |
+| scenario lineage/stacking passes | PASS | VAL-12 |
+| ECL decompositions reconcile | PASS | VAL-13 |
+| selected-scope and total-book views reconcile | PASS | VAL-13 |
+| sharing opens real governed objects | PASS | VAL-19 |
+| save/reopen survives restart | PASS | VAL-20 |
+| exports match UI state | PASS | VAL-21 |
+| secret persistence passes | PASS | VAL-23 |
+| tenant isolation passes | PASS | VAL-23 |
+| Guided Workspace regression passes | PASS | REG-WI |
+| flags-OFF accepted regression passes | PASS | REG-BR |
+
+**READY FOR MAC LIVE UAT**
+
+## Rollback
+
+```bash
+git checkout --detach 8b1592f46b06d03cec089d5b49cb93280b819993   # candidate H, unchanged
+# or keep the branch and revert this round's commits:
+git revert --no-edit 55bfb9a4..62ba4dda5036
+```
+
+## Mac launch / UAT
+
+Follow `docs/guided_workspace/MAC_LIVE_UAT.md`. The pinned SHA is read from `docs/guided_workspace/UAT_CANDIDATE.json` on `claude/guided-workspace-exhaustive-validation`:
+
+```bash
+git fetch origin claude/guided-workspace-exhaustive-validation
+EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/guided-workspace-exhaustive-validation:docs/guided_workspace/UAT_CANDIDATE.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["expected_guided_uat_sha"])')
+git checkout --detach "$EXPECTED_GUIDED_UAT_SHA"
+python3 scripts/guided_workspace/guided_preflight.py
+```

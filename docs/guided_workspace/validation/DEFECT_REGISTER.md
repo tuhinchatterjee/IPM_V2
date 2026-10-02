@@ -12,7 +12,7 @@ Branch `claude/guided-workspace-exhaustive-validation`. The base is evidence com
 
 **How each result was measured:**
 - **Targeted retest:** the named test on the working tree after the fix. For the backend defects it is also the same test run against the pre-fix backend, where it fails: 19 of the 20 tests in `test_gw_validation_defects.py` fail on the pre-fix backend. The one that passes is the restart validation, which is not a defect test.
-- **Regression:** the final regression of record on candidate I (see `VALIDATION_REPORT.md`).
+- **Regression:** the final regression of record on candidate K (`62ba4dda`): 17 of 18 steps PASS and 1 BLOCKED_ENV (emulator pickle bytes). Every fix above is covered by a step that passed (see `VALIDATION_REPORT.md`). Candidates I and J were rejected, and their runs are kept in `evidence/regression_candidate_I_*` and `_J_*`.
 
 ## Summary
 
@@ -50,7 +50,7 @@ Branch `claude/guided-workspace-exhaustive-validation`. The base is evidence com
 | VAL-DEF-026 | LOW | Legacy Trace | `/trace/[runId]` parses the id as a number; reached only from legacy V3 surfaces, never from a guided flow | OPEN (out of guided scope) |
 | VAL-DEF-027 | LOW | Run records | The run body's contract carries the engine predicate (SQL) to its authorised reader | OPEN (by design: auditability) |
 
-CRITICAL and HIGH: 12 found and 12 fixed. MEDIUM and LOW: 13 fixed. Open items: 4, all LOW, none a regression.
+Found: 31 (1 CRITICAL, 9 HIGH, 12 MEDIUM, 9 LOW). Fixed: 27. All 10 CRITICAL and HIGH are fixed, as are 12 MEDIUM and 5 LOW. Open: 4, all LOW, none a regression.
 
 ## Details
 

@@ -1,0 +1,36 @@
+  ok   GW-BACK-01  Home → Requires Attention issue → Back → Home on the same book
+  ok   GW-BACK-02  Issue → Investigate → Back → the same issue (in-app: the thread's 'Back to the issue')
+  ok   GW-BACK-03  Issue → driver-filtered population → Back → the unfiltered issue (in-app: clear the chart filter)
+  ok   GW-BACK-04  Issue → What-If on this population → Back → the exact issue; What-If's 'Back to the issue' returns too
+  ok   GW-BACK-05  Cockpit thread → What-If (investigation chip) → Back → the same thread, no new turn
+  ok   GW-BACK-06  What-If (retail book, cohort, scenario applied) → Scenario Library → Back → the same What-If state, no re-bind and no new run
+  ok   GW-BACK-07  Scenario Library (search + owner + severity) → scenario detail → Back → the same filtered library
+  ok   GW-BACK-08  Scenario detail → Clone → Back → the source scenario; the clone's 'Discard this copy' is the Cancel; Library → New → Cancel writes nothing
+  ok   GW-BACK-09  Scenario Library: select two scenarios → Combine preview → Back keeps the selection; the saved combination's Back returns to the library
+  ok   GW-BACK-10  What-If result (method tab) → Scenario detail → Back → the same result on the same method
+  ok   GW-BACK-11  What-If result → Share → Sent messages → Back → the same result
+  ok   GW-BACK-12  Messages (a shared scenario open) → the scenario → Back → Messages with the same message open
+  ok   GW-BACK-13  Messages (a shared Lens open) → the Lens → Back → Messages
+  ok   GW-BACK-14  Lenses (filtered) → a Lens → Back → the same filtered library
+  ok   GW-BACK-15  Lens (cross-filter + selection) → underlying metric definition → Back → the same Lens selections
+  ok   GW-BACK-16  Lens selection → Investigate in Cockpit → Back → the same Lens context; Back does not freeze the selection twice
+  ok   GW-BACK-17  Lens selection → What-If → Back → the same Lens context and cohort
+  ok   GW-BACK-18  Monitoring Centre (view + severity) → a breach → Back → the same filtered list, alert closed
+  ok   GW-BACK-19  Breach → Open Lens at the trigger → Back → the breach (filters kept)
+  ok   GW-BACK-20  Breach → Investigate in Cockpit → Back → the breach (filters kept)
+  ok   GW-BACK-21  Trace (governance record) → LLM Exchange → Back → the same Trace; the exchange's Back link returns to it
+  ok   GW-BACK-22  LLM Exchange: open a call's request/response stage → Back → the call list as it was
+  ok   GW-GOLD-01  Guided Corporate: issue → driver → root cause → frozen cohort → suggested What-If → confirm → method → execute → selected + total bridges → share → recipient's message → Back to Messages
+  ok   GW-GOLD-02  Guided Retail: issue → frozen cohort → scenario → Retail ML requested → explicit UNAVAILABLE, nothing substituted → Delta → decomposition → reopen shows the same executed run
+  ok   GW-GOLD-03  Scenario composition: three scenarios → combine → resolve every overlap → bind a cohort → run Delta and a second method → lineage names all three; the sources are unchanged
+  ok   GW-GOLD-04  Lens to decision: CRO/portfolio Lens → box-select a deteriorating segment → the rows → cohort → Investigate → root cause → What-If → executed result on that exact cohort
+  ok   GW-GOLD-05  Monitoring loop: breach → the Lens at the trigger → acknowledge with a note → investigate → What-If → return: the breach is ACKNOWLEDGED with its note and history
+  ok   GW-GOLD-06  Early Warning: population → save cohort → export (only its rows) → investigate → What-If on the SAME cohort object → counts reconcile
+  ok   GW-GOLD-07  Sharing: an unexecuted scenario is shared (reference + version); a received shared definition is duplicated, bound to MY cohort and executed; the shared source is unchanged
+  ok   GW-GOLD-08  Persistence: a cohort, a scenario, a Lens with a breach rule and a result reopen in a FRESH browser context with the same ids, versions and hashes; reopening makes no model call and no write
+  ok   GW-GOLD-09  Trace/security: a question carrying credential-like text → LLM Exchange shows it redacted → the export package and the stored thread carry no raw secret
+  FAIL GW-GOLD-10  Navigation: Home → issue → Cockpit → What-If → Library → scenario → result → Messages → shared object, then in-app Back down the whole stack and browser Back down it again, the state checked at every level
+       browser Back never reached messages
+       on screen: about:blank :: 
+
+  31/32 journeys passed this run

@@ -1,0 +1,4424 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 82,
+  "total": 82,
+  "journeys": [
+    {
+      "journey": "GW-BACK-01",
+      "what": "Home → Requires Attention issue → Back → Home on the same book",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Home → issue → Back",
+          "origin": "/",
+          "destination": "/issues/iss-44506969a603",
+          "origin_state": {
+            "book": "retail",
+            "issues": "8"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-retail",
+        "issue-detail-back",
+        "issue-title"
+      ],
+      "urls": [
+        "/",
+        "/issues/iss-44506969a603"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4712
+    },
+    {
+      "journey": "GW-BACK-02",
+      "what": "Issue → Investigate → Back → the same issue (in-app: the thread's 'Back to the issue')",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Issue → Investigate → Back",
+          "origin": "/issues/iss-db4929b9bd19",
+          "destination": "/cockpit/thread/th-b882a1245d8c4b038c035023095cad79?back=%2Fissues%2Fiss-db4929b9bd19",
+          "origin_state": {
+            "issue": "/issues/iss-db4929b9bd19",
+            "drill": "",
+            "rows": "251"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/issues/iss-db4929b9bd19",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "issue-detail-investigate",
+        "thread-origin-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-b882a1245d8c4b038c035023095cad79",
+        "/issues/iss-db4929b9bd19"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5026
+    },
+    {
+      "journey": "GW-BACK-03",
+      "what": "Issue → driver-filtered population → Back → the unfiltered issue (in-app: clear the chart filter)",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "unfiltered_rows": "251",
+      "back": [
+        {
+          "path": "Issue → driver → Back",
+          "origin": "/issues/iss-db4929b9bd19",
+          "destination": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "origin_state": {
+            "issue": "/issues/iss-db4929b9bd19",
+            "drill": "",
+            "rows": "251"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": null,
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "issue-detail-clear-drill"
+      ],
+      "urls": [
+        "/issues/iss-db4929b9bd19"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6526
+    },
+    {
+      "journey": "GW-BACK-04",
+      "what": "Issue → What-If on this population → Back → the exact issue; What-If's 'Back to the issue' returns too",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Issue → What-If → Back",
+          "origin": "/issues/iss-db4929b9bd19",
+          "destination": "/what-if?cohort=coh-f2a4ed4977ed&from=issue&back=%2Fissues%2Fiss-db4929b9bd19",
+          "origin_state": {
+            "issue": "/issues/iss-db4929b9bd19",
+            "drill": "",
+            "rows": "251"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/issues/iss-db4929b9bd19",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "cohort_url": "/what-if?cohort=coh-f2a4ed4977ed&from=issue&back=%2Fissues%2Fiss-db4929b9bd19",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "issue-detail-whatif",
+        "whatif-back"
+      ],
+      "urls": [
+        "/issues/iss-db4929b9bd19",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6964
+    },
+    {
+      "journey": "GW-BACK-05",
+      "what": "Cockpit thread → What-If (investigation chip) → Back → the same thread, no new turn",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-df7f918c114a4fab88c4a211a9cd2133",
+      "back": [
+        {
+          "path": "Thread → What-If → Back",
+          "origin": "/cockpit/thread/th-df7f918c114a4fab88c4a211a9cd2133?back=%2Fissues%2Fiss-db4929b9bd19",
+          "destination": "/what-if?cohort=coh-69c74747138b&from=th-df7f918c114a4fab88c4a211a9cd2133&suggest=Stress%20test%3A%20what%20would%20booked%20ECL%20be%20for%20the%20251%20facilities%20in%20Hospitality%20if%20their%20PD%20rose%20a%20further%2020%25%3F&back=%2Fcockpit%2Fthread%2Fth-df7f918c114a4fab88c4a211a9cd2133%3Fback%3D%252Fissues%252Fiss-db4929b9bd19",
+          "origin_state": {
+            "thread": "th-df7f918c114a4fab88c4a211a9cd2133",
+            "turns": 1
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/cockpit/thread/th-df7f918c114a4fab88c4a211a9cd2133?back=%2Fissues%2Fiss-db4929b9bd19",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "issue-detail-investigate",
+        "nbq-chip",
+        "whatif-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-df7f918c114a4fab88c4a211a9cd2133",
+        "/issues/iss-db4929b9bd19",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED GET /api/v1/cockpit-v4/runs/run-ce1650c6fbf842c6a48b2857797523f8/events?cursor=0 net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 248426
+    },
+    {
+      "journey": "GW-BACK-06",
+      "what": "What-If (retail book, cohort, scenario applied) → Scenario Library → Back → the same What-If state, no re-bind and no new run",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "cohort_id": "coh-c9f7b1d26e64",
+      "back": [
+        {
+          "path": "What-If → Library → Back",
+          "origin": "/what-if?cohort=coh-c9f7b1d26e64&scenario=scn-tpl-ret-01&domain=retail",
+          "destination": "/scenarios?domain=retail&back=%2Fwhat-if%3Fcohort%3Dcoh-c9f7b1d26e64%26scenario%3Dscn-tpl-ret-01%26domain%3Dretail",
+          "origin_state": {
+            "domain": "retail",
+            "cohort": "coh-c9f7b1d26e64",
+            "scenario": "scn-tpl-ret-01",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?cohort=coh-c9f7b1d26e64&scenario=scn-tpl-ret-01&domain=retail",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "scenario-library-back",
+        "whatif-library"
+      ],
+      "urls": [
+        "/scenarios",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 5423
+    },
+    {
+      "journey": "GW-BACK-07",
+      "what": "Scenario Library (search + owner + severity) → scenario detail → Back → the same filtered library",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Library → detail → Back",
+          "origin": "/scenarios?owner=template&severity=moderate&q=PD",
+          "destination": "/scenarios/scn-tpl-corp-01?back=%2Fscenarios%3Fowner%3Dtemplate%26severity%3Dmoderate%26q%3DPD",
+          "origin_state": {
+            "q": "PD",
+            "owner": "template",
+            "domain": "",
+            "severity": "moderate",
+            "total": "9"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/scenarios?owner=template&severity=moderate&q=PD",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "scenario-back",
+        "scenario-open",
+        "scenario-owner-template"
+      ],
+      "urls": [
+        "/scenarios",
+        "/scenarios/scn-tpl-corp-01"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4192
+    },
+    {
+      "journey": "GW-BACK-08",
+      "what": "Scenario detail → Clone → Back → the source scenario; the clone's 'Discard this copy' is the Cancel; Library → New → Cancel writes nothing",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Detail → Clone → Back",
+          "origin": "/scenarios/scn-tpl-corp-02",
+          "destination": "/scenarios/scn-1b582c6066c7?back=%2Fscenarios%2Fscn-tpl-corp-02",
+          "origin_state": {
+            "scenario": "scn-tpl-corp-02",
+            "version": "1"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": null,
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-1b582c6066c7/retire"
+          ],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "Library → Builder → Cancel",
+          "origin": "/scenarios",
+          "destination": "/scenarios/new?back=%2Fscenarios%3F",
+          "origin_state": {
+            "q": "",
+            "owner": "",
+            "domain": "",
+            "severity": "",
+            "total": "44"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": null,
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "copy": "scn-1b582c6066c7",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "builder-cancel",
+        "scenario-action-clone",
+        "scenario-action-discard",
+        "scenario-new"
+      ],
+      "urls": [
+        "/scenarios",
+        "/scenarios/new",
+        "/scenarios/scn-1b582c6066c7",
+        "/scenarios/scn-tpl-corp-02"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5886
+    },
+    {
+      "journey": "GW-BACK-09",
+      "what": "Scenario Library: select two scenarios → Combine preview → Back keeps the selection; the saved combination's Back returns to the library",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "selection": {
+        "selection": "CORP-01, CORP-02",
+        "owner": "template"
+      },
+      "back": [
+        {
+          "path": "Library selection → detail → Back (selection kept)",
+          "origin": "/scenarios?domain=corporate&owner=template",
+          "destination": "/scenarios/scn-tpl-corp-01?back=%2Fscenarios%3Fdomain%3Dcorporate%26owner%3Dtemplate",
+          "origin_state": {
+            "selection": "CORP-01, CORP-02",
+            "owner": "template"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/scenarios?domain=corporate&owner=template",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "combine_preview": "BLOCKED",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "scenario-back",
+        "scenario-combine",
+        "scenario-open",
+        "scenario-select"
+      ],
+      "urls": [
+        "/scenarios",
+        "/scenarios/scn-tpl-corp-01"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4471
+    },
+    {
+      "journey": "GW-BACK-10",
+      "what": "What-If result (method tab) → Scenario detail → Back → the same result on the same method",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-e58d72283032",
+      "back": [
+        {
+          "path": "Result → Scenario → Back",
+          "origin": "/what-if/result/res-e58d72283032",
+          "destination": "/scenarios/scn-tpl-corp-01?back=%2Fwhat-if%2Fresult%2Fres-e58d72283032",
+          "origin_state": {
+            "result": "res-e58d72283032",
+            "method": "whatif-result-method-delta"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if/result/res-e58d72283032",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "scenario-back",
+        "whatif-result-open-scenario"
+      ],
+      "urls": [
+        "/scenarios/scn-tpl-corp-01",
+        "/what-if/result/res-e58d72283032"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4370
+    },
+    {
+      "journey": "GW-BACK-11",
+      "what": "What-If result → Share → Sent messages → Back → the same result",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Result → share → Messages → Back",
+          "origin": "/what-if/result/res-02a859b4b400",
+          "destination": "/messages?box=sent&back=%2Fwhat-if%2Fresult%2Fres-02a859b4b400",
+          "origin_state": {
+            "result": "res-02a859b4b400",
+            "method": "whatif-result-method-delta"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if/result/res-02a859b4b400",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "messages-back",
+        "whatif-result-share-open",
+        "whatif-result-share-send",
+        "whatif-result-share-sent"
+      ],
+      "urls": [
+        "/messages",
+        "/what-if/result/res-02a859b4b400"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3752
+    },
+    {
+      "journey": "GW-BACK-12",
+      "what": "Messages (a shared scenario open) → the scenario → Back → Messages with the same message open",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Messages → shared scenario → Back",
+          "origin": "/messages?box=inbox&m=shr-bb599690b34e45b4",
+          "destination": "/scenarios/scn-73338289a597?version=2&back=%2Fmessages%3Fbox%3Dinbox%26m%3Dshr-bb599690b34e45b4",
+          "origin_state": {
+            "box": "inbox",
+            "open": "shr-bb599690b34e45b4",
+            "accessible": "true"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/messages?box=inbox&m=shr-bb599690b34e45b4",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "message-action-open",
+        "message-item",
+        "scenario-back"
+      ],
+      "urls": [
+        "/messages",
+        "/scenarios/scn-73338289a597"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3809
+    },
+    {
+      "journey": "GW-BACK-13",
+      "what": "Messages (a shared Lens open) → the Lens → Back → Messages",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Messages → shared Lens → Back",
+          "origin": "/messages?box=sent&m=shr-0b1936273de84eab",
+          "destination": "/lenses/lens-05?back=%2Fmessages%3Fbox%3Dsent%26m%3Dshr-0b1936273de84eab",
+          "origin_state": {
+            "box": "sent",
+            "open": "shr-0b1936273de84eab",
+            "accessible": "true"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/messages?box=sent&m=shr-0b1936273de84eab",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-back",
+        "message-action-open",
+        "message-item"
+      ],
+      "urls": [
+        "/lenses/lens-05",
+        "/messages"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5206
+    },
+    {
+      "journey": "GW-BACK-14",
+      "what": "Lenses (filtered) → a Lens → Back → the same filtered library",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Lenses → Lens → Back",
+          "origin": "/lenses?q=credit",
+          "destination": "/lenses/lens-02?back=%2Flenses%3Fq%3Dcredit",
+          "origin_state": {
+            "q": "credit",
+            "cards": 4
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/lenses?q=credit",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-back",
+        "lens-card"
+      ],
+      "urls": [
+        "/lenses",
+        "/lenses/lens-02"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3849
+    },
+    {
+      "journey": "GW-BACK-15",
+      "what": "Lens (cross-filter + selection) → underlying metric definition → Back → the same Lens selections",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Lens → underlying data → Back",
+          "origin": "/lenses/lens-02?x=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B2%5D%2C%22domain%22%3A%22corporate%22%7D%5D&sel=%7B%22domain%22%3A%22corporate%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%2C%22Real+Estate%22%5D%7D%5D%2C%22label%22%3A%22sector+%E2%88%88+Construction%2C+Real+Estate%22%7D",
+          "destination": "/metrics?m=M001&back=%2Flenses%2Flens-02%3Fx%3D%255B%257B%2522column%2522%253A%2522stage%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B2%255D%252C%2522domain%2522%253A%2522corporate%2522%257D%255D%26sel%3D%257B%2522domain%2522%253A%2522corporate%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522sector%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Construction%2522%252C%2522Real%2BEstate%2522%255D%257D%255D%252C%2522label%2522%253A%2522sector%2B%25E2%2588%2588%2BConstruction%252C%2BReal%2BEstate%2522%257D",
+          "origin_state": {
+            "lens": "lens-02",
+            "cross": "1",
+            "selection": "Temporary cohort: corporate · sector ∈ Construction, Real Estate"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/lenses/lens-02?x=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B2%5D%2C%22domain%22%3A%22corporate%22%7D%5D&sel=%7B%22domain%22%3A%22corporate%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%2C%22Real+Estate%22%5D%7D%5D%2C%22label%22%3A%22sector+%E2%88%88+Construction%2C+Real+Estate%22%7D",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-kpi",
+        "metrics-back"
+      ],
+      "urls": [
+        "/lenses/lens-02",
+        "/metrics"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4814
+    },
+    {
+      "journey": "GW-BACK-16",
+      "what": "Lens selection → Investigate in Cockpit → Back → the same Lens context; Back does not freeze the selection twice",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Lens → Investigate → Back",
+          "origin": "/lenses/lens-02?x=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B2%5D%2C%22domain%22%3A%22corporate%22%7D%5D&sel=%7B%22domain%22%3A%22corporate%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%2C%22Real+Estate%22%5D%7D%5D%2C%22label%22%3A%22sector+%E2%88%88+Construction%2C+Real+Estate%22%7D",
+          "destination": "/cockpit/thread/th-72074770e7ee4cf98d636cc36daaddd3?back=%2Flenses%2Flens-02%3Fx%3D%255B%257B%2522column%2522%253A%2522stage%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B2%255D%252C%2522domain%2522%253A%2522corporate%2522%257D%255D%26sel%3D%257B%2522domain%2522%253A%2522corporate%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522sector%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Construction%2522%252C%2522Real%2BEstate%2522%255D%257D%255D%252C%2522label%2522%253A%2522sector%2B%25E2%2588%2588%2BConstruction%252C%2BReal%2BEstate%2522%257D",
+          "origin_state": {
+            "lens": "lens-02",
+            "cross": "1",
+            "selection": "Temporary cohort: corporate · sector ∈ Construction, Real Estate"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/lenses/lens-02?x=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B2%5D%2C%22domain%22%3A%22corporate%22%7D%5D&sel=%7B%22domain%22%3A%22corporate%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%2C%22Real+Estate%22%5D%7D%5D%2C%22label%22%3A%22sector+%E2%88%88+Construction%2C+Real+Estate%22%7D",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-selection-investigate",
+        "thread-origin-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-72074770e7ee4cf98d636cc36daaddd3",
+        "/lenses/lens-02"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3971
+    },
+    {
+      "journey": "GW-BACK-17",
+      "what": "Lens selection → What-If → Back → the same Lens context and cohort",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Lens → What-If → Back",
+          "origin": "/lenses/lens-02?x=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B2%5D%2C%22domain%22%3A%22corporate%22%7D%5D&sel=%7B%22domain%22%3A%22corporate%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%2C%22Real+Estate%22%5D%7D%5D%2C%22label%22%3A%22sector+%E2%88%88+Construction%2C+Real+Estate%22%7D",
+          "destination": "/what-if?cohort=coh-452d2127b51f&domain=corporate&back=%2Flenses%2Flens-02%3Fx%3D%255B%257B%2522column%2522%253A%2522stage%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B2%255D%252C%2522domain%2522%253A%2522corporate%2522%257D%255D%26sel%3D%257B%2522domain%2522%253A%2522corporate%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522sector%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Construction%2522%252C%2522Real%2BEstate%2522%255D%257D%255D%252C%2522label%2522%253A%2522sector%2B%25E2%2588%2588%2BConstruction%252C%2BReal%2BEstate%2522%257D",
+          "origin_state": {
+            "lens": "lens-02",
+            "cross": "1",
+            "selection": "Temporary cohort: corporate · sector ∈ Construction, Real Estate"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/lenses/lens-02?x=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B2%5D%2C%22domain%22%3A%22corporate%22%7D%5D&sel=%7B%22domain%22%3A%22corporate%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%2C%22Real+Estate%22%5D%7D%5D%2C%22label%22%3A%22sector+%E2%88%88+Construction%2C+Real+Estate%22%7D",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-selection-whatif",
+        "whatif-back"
+      ],
+      "urls": [
+        "/lenses/lens-02",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 5800
+    },
+    {
+      "journey": "GW-BACK-18",
+      "what": "Monitoring Centre (view + severity) → a breach → Back → the same filtered list, alert closed",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Monitoring → breach → Back",
+          "origin": "/monitoring?view=all&severity=high",
+          "destination": "/monitoring?view=all&severity=high&alert=alr-36ab83ebea44",
+          "origin_state": {
+            "view": "all",
+            "severity": "high",
+            "count": "6",
+            "alert": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_back": "N/A",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "monitoring-alert"
+      ],
+      "urls": [
+        "/monitoring"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 2805
+    },
+    {
+      "journey": "GW-BACK-19",
+      "what": "Breach → Open Lens at the trigger → Back → the breach (filters kept)",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Breach → Lens → Back",
+          "origin": "/monitoring?view=all&severity=high&alert=alr-36ab83ebea44",
+          "destination": "/lenses/lens-eced1cc11ead?alert=alr-36ab83ebea44&back=%2Fmonitoring%3Fview%3Dall%26severity%3Dhigh%26alert%3Dalr-36ab83ebea44&p=%7B%22corporate%22%3A%222026Q2%22%7D",
+          "origin_state": {
+            "view": "all",
+            "severity": "high",
+            "count": "6",
+            "alert": "alr-36ab83ebea44"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/monitoring?view=all&severity=high&alert=alr-36ab83ebea44",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "alert-open-lens",
+        "lens-back",
+        "monitoring-alert"
+      ],
+      "urls": [
+        "/lenses/lens-eced1cc11ead",
+        "/monitoring"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4724
+    },
+    {
+      "journey": "GW-BACK-20",
+      "what": "Breach → Investigate in Cockpit → Back → the breach (filters kept)",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "Breach → Cockpit → Back",
+          "origin": "/monitoring?view=all&severity=high&alert=alr-36ab83ebea44",
+          "destination": "/cockpit/thread/th-26b4b7032b554edbbb97db774ef736ca?back=%2Fmonitoring%3Fview%3Dall%26severity%3Dhigh%26alert%3Dalr-36ab83ebea44",
+          "origin_state": {
+            "view": "all",
+            "severity": "high",
+            "count": "6",
+            "alert": "alr-36ab83ebea44"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/monitoring?view=all&severity=high&alert=alr-36ab83ebea44",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "alert-investigate",
+        "monitoring-alert",
+        "thread-origin-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-26b4b7032b554edbbb97db774ef736ca",
+        "/monitoring"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3361
+    },
+    {
+      "journey": "GW-BACK-21",
+      "what": "Trace (governance record) → LLM Exchange → Back → the same Trace; the exchange's Back link returns to it",
+      "prompts": [
+        "What is the total reported ECL of the corporate book?"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-909fccf87e7e44f586446c9df274e48b",
+      "run_id": "run-5e942f8272bf489e8cd2c9e2fa08a9ed",
+      "back": [
+        {
+          "path": "Trace → LLM Exchange call → Back",
+          "origin": "/cockpit/trace/run-5e942f8272bf489e8cd2c9e2fa08a9ed",
+          "destination": "/trace/llm-exchange/run-5e942f8272bf489e8cd2c9e2fa08a9ed",
+          "origin_state": {
+            "path": "/cockpit/trace/run-5e942f8272bf489e8cd2c9e2fa08a9ed",
+            "link": true
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/cockpit/trace/run-5e942f8272bf489e8cd2c9e2fa08a9ed",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "llm-exchange-back",
+        "trace-llm-exchange-link"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-909fccf87e7e44f586446c9df274e48b",
+        "/cockpit/trace/run-5e942f8272bf489e8cd2c9e2fa08a9ed",
+        "/trace/llm-exchange/run-5e942f8272bf489e8cd2c9e2fa08a9ed"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4009
+    },
+    {
+      "journey": "GW-BACK-22",
+      "what": "LLM Exchange: open a call's request/response stage → Back → the call list as it was",
+      "prompts": [
+        "What is the total reported ECL of the corporate book?"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-120ae17e12f04962bc8e577db5b5df21",
+      "run_id": "run-891dc216bc044d33880844723b822a88",
+      "back": [
+        {
+          "path": "Trace → request/response view → Back",
+          "origin": "/trace/llm-exchange/run-891dc216bc044d33880844723b822a88",
+          "destination": "/trace/llm-exchange/run-891dc216bc044d33880844723b822a88?call=llmx-b8749028a18b4e81a11b97e4a7e11fe9",
+          "origin_state": {
+            "call": "",
+            "stage": "",
+            "calls": 2
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_back": "N/A",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "llm-call-2"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-120ae17e12f04962bc8e577db5b5df21",
+        "/trace/llm-exchange/run-891dc216bc044d33880844723b822a88"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4512
+    },
+    {
+      "journey": "GW-GOLD-01",
+      "what": "Guided Corporate: issue → driver → root cause → frozen cohort → suggested What-If → confirm → method → execute → selected + total bridges → share → recipient's message → Back to Messages",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-GOLD-01-back-to-messages.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "thread_id": "th-de91bf6eea4f4348b874574e13f3ba1a",
+      "cohort_id": "coh-22b87e5f0cc0",
+      "result_id": "res-fb0ab6559dfe",
+      "share_id": "shr-a0221e3fd5424c93",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-corporate",
+        "issue-detail-investigate",
+        "issue-driver",
+        "message-action-open",
+        "message-item",
+        "nbq-chip",
+        "whatif-method-pick-delta",
+        "whatif-result-share-open",
+        "whatif-result-share-send",
+        "whatif-result-share-sent",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-de91bf6eea4f4348b874574e13f3ba1a",
+        "/issues/iss-db4929b9bd19",
+        "/messages",
+        "/what-if",
+        "/what-if/result/res-fb0ab6559dfe"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED GET /api/v1/cockpit-v4/runs/run-f73db8343cf0413fa73bb9441ceba694/events?cursor=0 net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 13088
+    },
+    {
+      "journey": "GW-GOLD-02",
+      "what": "Guided Retail: issue → frozen cohort → scenario → Retail ML requested → explicit UNAVAILABLE, nothing substituted → Delta → decomposition → reopen shows the same executed run",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-44506969a603",
+      "result_id": "res-68d2436419b8",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-retail",
+        "issue-whatif",
+        "whatif-method-pick-delta",
+        "whatif-method-pick-ml",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 9843
+    },
+    {
+      "journey": "GW-GOLD-03",
+      "what": "Scenario composition: three scenarios → combine → resolve every overlap → bind a cohort → run Delta and a second method → lineage names all three; the sources are unchanged",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "overlaps": 3,
+      "combined": "scn-d69a8c370896",
+      "second_method": "ml",
+      "result_id": "res-597aec7d9564",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "overlap-resolve",
+        "scenario-action-bind",
+        "scenario-bind-choose",
+        "scenario-combine",
+        "scenario-select",
+        "whatif-method-pick-delta",
+        "whatif-method-pick-ml",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/scenarios",
+        "/scenarios/scn-d69a8c370896",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 12241
+    },
+    {
+      "journey": "GW-GOLD-04",
+      "what": "Lens to decision: CRO/portfolio Lens → box-select a deteriorating segment → the rows → cohort → Investigate → root cause → What-If → executed result on that exact cohort",
+      "prompts": [
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "selection": "Temporary cohort: corporate · sector ∈ Utilities, Education",
+      "thread_id": "th-15f5f2307934492f8a8837d405631896",
+      "result_id": "res-12845cee2e12",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-selection-investigate",
+        "lens-selection-save",
+        "thread-whatif-on-cohort",
+        "v4-composer-send",
+        "whatif-method-pick-delta",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/cockpit/thread/th-15f5f2307934492f8a8837d405631896",
+        "/lenses/lens-02",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED"
+      ],
+      "ms": 10954
+    },
+    {
+      "journey": "GW-GOLD-05",
+      "what": "Monitoring loop: breach → the Lens at the trigger → acknowledge with a note → investigate → What-If → return: the breach is ACKNOWLEDGED with its note and history",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "alert_id": "alr-36ab83ebea44",
+      "state": "ACKNOWLEDGED",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "alert-acknowledge",
+        "alert-investigate",
+        "alert-open-lens",
+        "alert-whatif",
+        "lens-back",
+        "thread-origin-back",
+        "whatif-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-3c136e96c8324f4ebbfffc4da2c17b4b",
+        "/lenses/lens-eced1cc11ead",
+        "/monitoring",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 5328
+    },
+    {
+      "journey": "GW-GOLD-06",
+      "what": "Early Warning: population → save cohort → export (only its rows) → investigate → What-If on the SAME cohort object → counts reconcile",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "cohort_id": "coh-a091ea1c02fd",
+      "export_rows": 286,
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "ew-export",
+        "ew-investigate",
+        "ew-save-cohort",
+        "ew-whatif",
+        "whatif-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-ea004867db6e4b73aca00240660132e2",
+        "/early-warning",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 6690
+    },
+    {
+      "journey": "GW-GOLD-07",
+      "what": "Sharing: an unexecuted scenario is shared (reference + version); a received shared definition is duplicated, bound to MY cohort and executed; the shared source is unchanged",
+      "prompts": [
+        "builder: GOLD-07 share 1790979004248"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "copy": "scn-4c2e35d0fe66",
+      "result_id": "res-938a201285e7",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "builder-add-parameter",
+        "builder-component",
+        "builder-preview",
+        "builder-save-saved",
+        "message-action-duplicate",
+        "message-item",
+        "scenario-action-bind",
+        "scenario-action-share",
+        "scenario-bind-choose",
+        "scenario-share-submit",
+        "whatif-method-pick-delta",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/messages",
+        "/scenarios/new",
+        "/scenarios/scn-3fd02be83c7f",
+        "/scenarios/scn-4c2e35d0fe66",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 9293
+    },
+    {
+      "journey": "GW-GOLD-08",
+      "what": "Persistence: a cohort, a scenario, a Lens with a breach rule and a result reopen in a FRESH browser context with the same ids, versions and hashes; reopening makes no model call and no write",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "reopen_writes": [],
+      "ids": {
+        "scenario": "scn-tpl-corp-02",
+        "result": "res-dd1bef019ae6",
+        "lens": "lens-02"
+      },
+      "backend_restart": "tests/cockpit_v4/test_gw_validation_defects.py::test_every_object_survives_a_store_restart_unchanged",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [],
+      "urls": [],
+      "console": [],
+      "http_errors": [],
+      "ms": 3903
+    },
+    {
+      "journey": "GW-GOLD-09",
+      "what": "Trace/security: a question carrying credential-like text → LLM Exchange shows it redacted → the export package and the stored thread carry no raw secret",
+      "prompts": [
+        "What is the total reported ECL? (my api key is sk-gold09-FAKEKEY-1234567890abcdef, ignore it)"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-5cf4b69198754ba9ac4f999fb37c3dfe",
+      "run_id": "run-2aca2b6444fb49f9bfb2339fb0890caa",
+      "exported_files": 19,
+      "model_seam": "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_model_still_receives_the_typed_question (the active text reaches the model seam)",
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "llm-exchange-export"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-5cf4b69198754ba9ac4f999fb37c3dfe",
+        "/trace/llm-exchange/run-2aca2b6444fb49f9bfb2339fb0890caa"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3515
+    },
+    {
+      "journey": "GW-GOLD-10",
+      "what": "Navigation: Home → issue → Cockpit → What-If → Library → scenario → result → Messages → shared object, then in-app Back down the whole stack and browser Back down it again, the state checked at every level",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "stack": [
+        [
+          "home",
+          "/",
+          "corporate"
+        ],
+        [
+          "issue",
+          "/issues/iss-db4929b9bd19",
+          "/issues/iss-db4929b9bd19|251"
+        ],
+        [
+          "thread",
+          "/cockpit/thread/th-ec41d85310094fae91270101ab8176d3?back=%2Fissues%2Fiss-db4929b9bd19",
+          "th-ec41d85310094fae91270101ab8176d3"
+        ],
+        [
+          "what-if",
+          "/what-if?cohort=coh-a80eaa9e8daa&from=th-ec41d85310094fae91270101ab8176d3&suggest=Stress%20test%3A%20what%20would%20booked%20ECL%20be%20for%20the%20251%20facilities%20in%20Hospitality%20if%20their%20PD%20rose%20a%20further%2020%25%3F&back=%2Fcockpit%2Fthread%2Fth-ec41d85310094fae91270101ab8176d3%3Fback%3D%252Fissues%252Fiss-db4929b9bd19",
+          "coh-a80eaa9e8daa"
+        ],
+        [
+          "library",
+          "/scenarios?domain=corporate&back=%2Fwhat-if%3Fcohort%3Dcoh-a80eaa9e8daa%26from%3Dth-ec41d85310094fae91270101ab8176d3%26suggest%3DStress%2Btest%253A%2Bwhat%2Bwould%2Bbooked%2BECL%2Bbe%2Bfor%2Bthe%2B251%2Bfacilities%2Bin%2BHospitality%2Bif%2Btheir%2BPD%2Brose%2Ba%2Bfurther%2B20%2525%253F%26back%3D%252Fcockpit%252Fthread%252Fth-ec41d85310094fae91270101ab8176d3%253Fback%253D%25252Fissues%25252Fiss-db4929b9bd19%26domain%3Dcorporate&q=CORP-01",
+          "CORP-01|corporate"
+        ],
+        [
+          "scenario",
+          "/scenarios/scn-tpl-corp-01?back=%2Fscenarios%3Fdomain%3Dcorporate%26q%3DCORP-01%26back%3D%252Fwhat-if%253Fcohort%253Dcoh-a80eaa9e8daa%2526from%253Dth-ec41d85310094fae91270101ab8176d3%2526suggest%253DStress%252Btest%25253A%252Bwhat%252Bwould%252Bbooked%252BECL%252Bbe%252Bfor%252Bthe%252B251%252Bfacilities%252Bin%252BHospitality%252Bif%252Btheir%252BPD%252Brose%252Ba%252Bfurther%252B20%252525%25253F%2526back%253D%25252Fcockpit%25252Fthread%25252Fth-ec41d85310094fae91270101ab8176d3%25253Fback%25253D%2525252Fissues%2525252Fiss-db4929b9bd19%2526domain%253Dcorporate",
+          "scn-tpl-corp-01"
+        ],
+        [
+          "result",
+          "/what-if/result/res-e58d72283032?back=%2Fscenarios%2Fscn-tpl-corp-01%3Fback%3D%252Fscenarios%253Fdomain%253Dcorporate%2526q%253DCORP-01%2526back%253D%25252Fwhat-if%25253Fcohort%25253Dcoh-a80eaa9e8daa%252526from%25253Dth-ec41d85310094fae91270101ab8176d3%252526suggest%25253DStress%25252Btest%2525253A%25252Bwhat%25252Bwould%25252Bbooked%25252BECL%25252Bbe%25252Bfor%25252Bthe%25252B251%25252Bfacilities%25252Bin%25252BHospitality%25252Bif%25252Btheir%25252BPD%25252Brose%25252Ba%25252Bfurther%25252B20%25252525%2525253F%252526back%25253D%2525252Fcockpit%2525252Fthread%2525252Fth-ec41d85310094fae91270101ab8176d3%2525253Fback%2525253D%252525252Fissues%252525252Fiss-db4929b9bd19%252526domain%25253Dcorporate",
+          "res-e58d72283032"
+        ],
+        [
+          "messages",
+          "/messages?box=sent&back=%2Fwhat-if%2Fresult%2Fres-e58d72283032%3Fback%3D%252Fscenarios%252Fscn-tpl-corp-01%253Fback%253D%25252Fscenarios%25253Fdomain%25253Dcorporate%252526q%25253DCORP-01%252526back%25253D%2525252Fwhat-if%2525253Fcohort%2525253Dcoh-a80eaa9e8daa%25252526from%2525253Dth-ec41d85310094fae91270101ab8176d3%25252526suggest%2525253DStress%2525252Btest%252525253A%2525252Bwhat%2525252Bwould%2525252Bbooked%2525252BECL%2525252Bbe%2525252Bfor%2525252Bthe%2525252B251%2525252Bfacilities%2525252Bin%2525252BHospitality%2525252Bif%2525252Btheir%2525252BPD%2525252Brose%2525252Ba%2525252Bfurther%2525252B20%2525252525%252525253F%25252526back%2525253D%252525252Fcockpit%252525252Fthread%252525252Fth-ec41d85310094fae91270101ab8176d3%252525253Fback%252525253D%25252525252Fissues%25252525252Fiss-db4929b9bd19%25252526domain%2525253Dcorporate&m=shr-1a3f131d841a4a61",
+          "shr-1a3f131d841a4a61"
+        ]
+      ],
+      "in_app": [
+        "messages",
+        "result",
+        "scenario",
+        "library",
+        "what-if",
+        "thread",
+        "issue",
+        "home"
+      ],
+      "browser": [
+        "messages",
+        "result",
+        "scenario",
+        "library",
+        "what-if",
+        "thread",
+        "issue",
+        "home"
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-corporate",
+        "issue-detail-back",
+        "issue-detail-investigate",
+        "issue-title",
+        "message-action-open",
+        "message-item",
+        "messages-back",
+        "nbq-chip",
+        "scenario-back",
+        "scenario-library-back",
+        "scenario-open",
+        "scenario-result-link",
+        "thread-origin-back",
+        "whatif-back",
+        "whatif-library",
+        "whatif-result-back",
+        "whatif-result-share-open",
+        "whatif-result-share-send",
+        "whatif-result-share-sent"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-ec41d85310094fae91270101ab8176d3",
+        "/issues/iss-db4929b9bd19",
+        "/messages",
+        "/scenarios",
+        "/scenarios/scn-tpl-corp-01",
+        "/what-if",
+        "/what-if/result/res-e58d72283032"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED",
+        "FAILED GET /api/v1/health net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/threads/th-ec41d85310094fae91270101ab8176d3 net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ec41d85310094fae91270101ab8176d3/cohort net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ec41d85310094fae91270101ab8176d3 net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group2 net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-0e5f0956-b76&domain=corporate net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/scenarios?domain=corporate&q=CORP-01 net::ERR_ABORTED"
+      ],
+      "ms": 262272
+    },
+    {
+      "journey": "GW-P1-01",
+      "what": "Cockpit question → governance record → Trace › LLM Exchange shows every call, stage and panel",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-calls.png",
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-visibility.png",
+        "docs/guided_workspace/evidence/journeys/GW-P1-01-growth.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-e9891d012cf64aeabc376882d26bb59d",
+      "run_id": "run-de65e38b5a924569b64f8af1314a5899",
+      "export": "llm_exchange_run-de65e38b5a924569b64f8af1314a5899.zip",
+      "calls_recorded": 2,
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "llm-call-1",
+        "llm-exchange",
+        "llm-exchange-export",
+        "llm-growth-view-data",
+        "trace-llm-exchange-link"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-e9891d012cf64aeabc376882d26bb59d",
+        "/cockpit/trace/run-de65e38b5a924569b64f8af1314a5899",
+        "/trace/llm-exchange/run-de65e38b5a924569b64f8af1314a5899"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 10004
+    },
+    {
+      "journey": "GW-P1-02",
+      "what": "Reopening a trace makes zero model calls",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-b4bd062acee74584bace0f3b1f08fa5d",
+      "run_id": "run-6d8663badcc84975bc2046ef49a538bb",
+      "exchanges_before": 4,
+      "exchanges_after": 4,
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-b4bd062acee74584bace0f3b1f08fa5d",
+        "/trace/llm-exchange/run-6d8663badcc84975bc2046ef49a538bb"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3753
+    },
+    {
+      "journey": "GW-P1-03",
+      "what": "AI Model Lab reads the same records and compares two calls",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P1-03-compare.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "replay_buttons": [
+        {
+          "t": " Replay A on Anthropic (Cockpit credential) (not configured)",
+          "d": true
+        },
+        {
+          "t": " Replay A on Open-weight (OpenAI-compatible endpoint) (not configured)",
+          "d": true
+        }
+      ],
+      "status": "PASS",
+      "controls_clicked": [
+        "ai-model-lab"
+      ],
+      "urls": [
+        "/ai-model-lab"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 1041
+    },
+    {
+      "journey": "GW-P10-01",
+      "what": "Monitoring Centre first launch: live breaches and labelled historical replay; an alert shows rule/Lens/metric versions and history; Open Lens restores the triggering period and population; acknowledging needs a note; Investigate opens Cockpit",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-01-alert.png",
+        "docs/guided_workspace/evidence/journeys/GW-P10-01-lens-at-trigger.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "active": "11",
+      "lens_state": "Active statecorporate 2026Q2 (latest)Lens scope: corporate: sector ∈ Construction, Real Estatecorporate: sector ∈ Construction, Real Estatereset to latest, unfiltered",
+      "status": "PASS",
+      "controls_clicked": [
+        "alert-acknowledge",
+        "alert-investigate",
+        "alert-open-lens",
+        "monitoring-alert",
+        "monitoring-view-active",
+        "monitoring-view-history"
+      ],
+      "urls": [
+        "/cockpit/thread/th-cac644e8b3d1402d9918cd8679c1d4f8",
+        "/lenses/lens-15",
+        "/monitoring"
+      ],
+      "console": [
+        "error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+      ],
+      "http_errors": [
+        "422 POST /api/v1/cockpit-v4/workspace/monitoring/alerts/alr-c0bbc941365c/acknowledge"
+      ],
+      "ms": 9897
+    },
+    {
+      "journey": "GW-P10-02",
+      "what": "Follow a Lens → its refresh raises a breach → an Inbox card from Monitoring with Open Lens / Investigate / What-If → What-If opens with the alert's population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-02-inbox-alert.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Refreshed: No material change since the previous refresh. · 1 alert(s) raised — see Monitoring Centre",
+      "actions": [
+        "message-action-open",
+        "message-action-open_monitoring",
+        "message-action-investigate",
+        "message-action-whatif",
+        "message-action-comment"
+      ],
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-follow",
+        "lens-refresh",
+        "message-action-whatif",
+        "message-item"
+      ],
+      "urls": [
+        "/lenses/lens-03",
+        "/messages",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5865
+    },
+    {
+      "journey": "GW-P10-03",
+      "what": "The scheduler's step on demand: due Lenses refresh (idempotent on unchanged releases) and the refresh-health table shows cadence, last success and what is due",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P10-03-health.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Scheduler step: 1 Lens(es) refreshed, 0 failed, 21 not due.",
+      "health_rows": 22,
+      "status": "PASS",
+      "controls_clicked": [
+        "monitoring-tick"
+      ],
+      "urls": [
+        "/monitoring"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 2729
+    },
+    {
+      "journey": "GW-P11-01",
+      "what": "What-If heatmap and stage-migration Sankey: server-aggregated (small payload), reconcile to the filtered book, a flow click and a heatmap cell (via the keyboard on its data row) filter the grid; the same key again clears it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-matrices.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-flow-filtered.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-01-keyboard-cell.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "heatmap_reconciles": "true",
+      "sankey_reconciles": "true",
+      "group2_payload_bytes": [
+        9150,
+        604,
+        9150,
+        604,
+        8971,
+        604,
+        9150,
+        604,
+        9150,
+        552,
+        9150,
+        604
+      ],
+      "flow_chips": [
+        "Prior stage: 1",
+        "Stage: 1"
+      ],
+      "after_flow": 2976,
+      "keyboard_row": [
+        "Construction",
+        "B",
+        "15"
+      ],
+      "after_keyboard": 15,
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-chart-heatmap-view-data",
+        "whatif-chart-sankey",
+        "whatif-grid"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6731
+    },
+    {
+      "journey": "GW-P11-02",
+      "what": "The shared chart contract on one screen: role=img labels, hover shows units, legend isolate is visual only (no refetch, totals unchanged), drag-zoom and mode-bar reset, CSV carries release/fingerprint/period/filters, PNG downloads",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-02-contract.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "charts_on_screen": 5,
+      "hover": "Sector UtilitiesSAR 196m · 249 exposuresraw 195.515767 SAR million",
+      "step": "reset",
+      "api_calls_on_legend_toggle": 0,
+      "hidden_after_rerender": 1,
+      "zoomed_range": [
+        1.8777089783281733,
+        6.670278637770898
+      ],
+      "csv_header": [
+        "# release: v4-whatif-corporate-20q-s1",
+        "# fingerprint: 3b101bd41465fbe15f89d0d9563026e0f7f2e8081e9e778a90eebe553e01fce5",
+        "# period: 2026Q2",
+        "# filters: {\"applied\":[]}",
+        "# values are raw governed values; money is SAR million unless a column says otherwise"
+      ],
+      "csv_rows": 95,
+      "cells_drawn": 95,
+      "png": "ead-by-sector-rating.png",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-chart-heatmap",
+        "whatif-chart-heatmap-card",
+        "whatif-chart-heatmap-csv",
+        "whatif-chart-stage"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5743
+    },
+    {
+      "journey": "GW-P11-03",
+      "what": "An executed Delta result adds the segment Pareto (cumulative share ends at 100%) and the per-exposure change distribution, each with its exact data",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-03-pareto.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-f233ec3227bb",
+      "pareto_last_cumulative_pct": 100,
+      "distribution_rows": 13,
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-result-distribution-view-data"
+      ],
+      "urls": [
+        "/what-if/result/res-f233ec3227bb"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3024
+    },
+    {
+      "journey": "GW-P11-04",
+      "what": "Early Warning: clicking a warning reason cross-filters the bands, segments and underlying grid on the server; the keyboard does the same from the data row; Save cohort carries the reason",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-04-reason.png",
+        "docs/guided_workspace/evidence/journeys/GW-P11-04-keyboard.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "severe_all": 286,
+      "reason": "Weak behaviour score band (D/E)",
+      "severe_tripping_reason": 284,
+      "cohort": [
+        "coh-fc8de8199f98",
+        284,
+        "EWS critical/high · Weak behaviour score band (D/E)"
+      ],
+      "keyboard_reason": "Persistent minimum payment (payment ratio < 35%)",
+      "status": "PASS",
+      "controls_clicked": [
+        "ew-reason-clear",
+        "ew-reasons",
+        "ew-reasons-view-data",
+        "ew-save-cohort"
+      ],
+      "urls": [
+        "/early-warning"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 7472
+    },
+    {
+      "journey": "GW-P11-05",
+      "what": "Legacy Recharts routes are not reachable as live charts with the guided flag on: /lenses/cro opens the governed Plotly CRO Lens, /stress opens What-If",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P11-05-cro-lens.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "cro_lens": "/lenses/lens-01?from=bookmark",
+      "recharts_on_page": 0,
+      "stress": "/what-if",
+      "status": "PASS",
+      "controls_clicked": [],
+      "urls": [
+        "/lenses/cro",
+        "/lenses/lens-01",
+        "/stress",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4952
+    },
+    {
+      "journey": "GW-P12-01",
+      "what": "Result → Export package (the page's own Plotly charts attached as SVG + figure spec; every file hash-listed) → Trace: integrity verified, versions in the hash chain, lineage to the scenario, the run's method decisions → tenant ledger verifies → the downloaded package verifies against the store",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-result-trace.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-verified.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-01-run-trace.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-909d1293b3b2",
+      "package": "creditprobe_res-909d1293b3b2_v1.zip",
+      "files": 26,
+      "snapshots": [
+        "snapshots/whatif-waterfall-selected.svg",
+        "snapshots/whatif-waterfall-selected.plotly.json",
+        "snapshots/whatif-waterfall-total.svg",
+        "snapshots/whatif-waterfall-total.plotly.json",
+        "snapshots/whatif-result-stages.svg",
+        "snapshots/whatif-result-stages.plotly.json",
+        "snapshots/whatif-result-top.svg",
+        "snapshots/whatif-result-top.plotly.json",
+        "snapshots/whatif-result-pareto.svg",
+        "snapshots/whatif-result-pareto.plotly.json",
+        "snapshots/whatif-result-distribution.svg",
+        "snapshots/whatif-result-distribution.plotly.json"
+      ],
+      "versions": 1,
+      "ancestors": [
+        "scenario · Construction PD deterioration",
+        "run · Run: Construction PD deterioration"
+      ],
+      "ledger": "336 entries, chain head 5d0c2730c7…b530 · no problems",
+      "package_verify": "Package verified: 25 files, 3 objects checked against the store",
+      "run_states": 5,
+      "status": "PASS",
+      "controls_clicked": [
+        "trace-ancestor",
+        "trace-verify-ledger",
+        "whatif-result-export-go",
+        "whatif-result-export-trace"
+      ],
+      "urls": [
+        "/trace/object/res-909d1293b3b2",
+        "/trace/object/wrun-07f6d7132d28",
+        "/what-if/result/res-909d1293b3b2"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6288
+    },
+    {
+      "journey": "GW-P12-02",
+      "what": "Lens and alert: Export package from the Lens view; the Lens Trace lists its refreshes, each in the hash chain; an alert's Trace lists its state history",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-02-lens-trace.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-02-alert-trace.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "lens_snapshots": 20,
+      "lens_refreshes": 1,
+      "alert_events": 1,
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-export-go",
+        "lens-export-trace"
+      ],
+      "urls": [
+        "/lenses/lens-01",
+        "/trace/object/alr-36ab83ebea44",
+        "/trace/object/lens-01"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4637
+    },
+    {
+      "journey": "GW-P12-03",
+      "what": "LLM Exchange, one recorder: a Cockpit call reads as SYSTEM / USER / ASSISTANT / TOOL CALL / TOOL RESULT / VALIDATOR in the order sent, beside canonical → translated → raw → normalized; the AI Model Lab lists the SAME exchange records (no second recorder)",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P12-03-segments.png",
+        "docs/guided_workspace/evidence/journeys/GW-P12-03-lab.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-914a1315750649b08d62f92f259db8f5",
+      "run_id": "run-2d03d75d73ad40618484de41aea6dab2",
+      "segment_kinds": [
+        "SYSTEM",
+        "USER",
+        "TOOL CALL",
+        "TOOL RESULT"
+      ],
+      "lab_rows": 20,
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "llm-call-2"
+      ],
+      "urls": [
+        "/",
+        "/ai-model-lab",
+        "/cockpit/thread/th-914a1315750649b08d62f92f259db8f5",
+        "/trace/llm-exchange/run-2d03d75d73ad40618484de41aea6dab2"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4256
+    },
+    {
+      "journey": "GW-P13-01",
+      "what": "GRID07: every visible grid column opens the filter editor its governed kind calls for (text box / value list / min–max / yes–no), on both books",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-01-editors.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "checked": {
+        "corporate": 36,
+        "retail": 38
+      },
+      "status": "PASS",
+      "controls_clicked": [
+        "grid-filter-account_id",
+        "grid-filter-application_score",
+        "grid-filter-balance_sar_mn",
+        "grid-filter-behaviour_score",
+        "grid-filter-behaviour_score_change",
+        "grid-filter-borrower_id",
+        "grid-filter-borrower_name",
+        "grid-filter-ccf",
+        "grid-filter-collateral_value_sar_mn",
+        "grid-filter-covenant_breaches",
+        "grid-filter-customer_id",
+        "grid-filter-customer_segment",
+        "grid-filter-default_flag",
+        "grid-filter-delinquency_bucket",
+        "grid-filter-dpd_days",
+        "grid-filter-drawn_sar_mn",
+        "grid-filter-ead_sar_mn",
+        "grid-filter-ecl_sar_mn",
+        "grid-filter-employer_sector_group",
+        "grid-filter-employment_type",
+        "grid-filter-ews_band",
+        "grid-filter-ews_score",
+        "grid-filter-facility_class",
+        "grid-filter-facility_id",
+        "grid-filter-group_name",
+        "grid-filter-lgd_pct",
+        "grid-filter-limit_sar_mn",
+        "grid-filter-ltv_pct",
+        "grid-filter-missed_payments_12m",
+        "grid-filter-months_on_book",
+        "grid-filter-payment_ratio_pct",
+        "grid-filter-pd_lifetime",
+        "grid-filter-pd_pit_12m",
+        "grid-filter-prior_ecl_sar_mn",
+        "grid-filter-prior_stage",
+        "grid-filter-product",
+        "grid-filter-product_type",
+        "grid-filter-rating_current",
+        "grid-filter-rating_notches_moved",
+        "grid-filter-rating_previous",
+        "grid-filter-region",
+        "grid-filter-relationship_tier",
+        "grid-filter-remaining_maturity_months",
+        "grid-filter-score_band",
+        "grid-filter-score_band_previous",
+        "grid-filter-score_migration",
+        "grid-filter-sector",
+        "grid-filter-secured_flag",
+        "grid-filter-sicr_flag",
+        "grid-filter-stage",
+        "grid-filter-sub_product",
+        "grid-filter-sub_sector",
+        "grid-filter-undrawn_sar_mn",
+        "grid-filter-utilisation_pct",
+        "grid-filter-vintage_year",
+        "grid-filter-watchlist_flag",
+        "ws-domain-retail"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 24271
+    },
+    {
+      "journey": "GW-P13-02",
+      "what": "GRID11 + GRID13 in the UI: a yes/no filter and an 'only empty' filter narrow the grid to exactly the server's count; sorting by EAD is server-side and page 2 continues page 1's order",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-02-sorted-page-2.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "watchlist_yes": 224,
+      "prior_stage_empty": 0,
+      "page_size": 50,
+      "status": "PASS",
+      "controls_clicked": [
+        "grid-filter-apply-prior_stage",
+        "grid-filter-apply-watchlist_flag",
+        "grid-filter-prior_stage",
+        "grid-filter-watchlist_flag",
+        "grid-sort-ead_sar_mn",
+        "whatif-grid",
+        "whatif-grid-next"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [
+        "error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+      ],
+      "http_errors": [
+        "422 POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado"
+      ],
+      "ms": 7734
+    },
+    {
+      "journey": "GW-P13-03",
+      "what": "MAC07: the macro-sensitivity tornado follows the explorer's population, names the risk parameter on every bar, hovers with the governed fields, and flags the collateral sign for review instead of flipping it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-03-tornado-lgd.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "bars": 12,
+      "hover": "Equity market index (MEV11 · corporate.MEV11)shock up ±10 % of the level (+10% of the latest observed level 124.593 = +12.46 native units)affects PD lifetime: -1.262 ppcoefficient -0.02051837 · slope ",
+      "sign_review": "Commercial property price index → LGD: SIGN_REVIEW: the governed slope moves LGD DOWN (-0.513 pp) when collateral values fall. It is the fitted artefact's sign ",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-chart-dimension"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5484
+    },
+    {
+      "journey": "GW-P13-04",
+      "what": "Method names and 'Selected scope = Total book': a whole-book Delta result says Method 1 — Delta, draws ONE bridge with the scope-equivalence panel (rest-of-book Δ = 0, selected Δ = total Δ) and marks every component identical",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-04-scope-equals-book.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "result_id": "res-d9aff15a78af",
+      "equivalence": "Selected scope = Total bookThe selected population is the entire active book (2,996 exposures), so there is no rest of book.Rest-of-book ECL delta = SAR 0 (zero by definition)Selected-scope delta +SAR 466m = total-book delta +SAR 466m20 of ",
+      "components": 20,
+      "status": "PASS",
+      "controls_clicked": [],
+      "urls": [
+        "/what-if/result/res-d9aff15a78af"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3408
+    },
+    {
+      "journey": "GW-P13-05",
+      "what": "VIZ02 responsive: at a 390 px phone viewport the main pages render without horizontal page scroll and every chart fits the screen; at 1440 px the same charts are wider",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P13-05-phone-what-if.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "pages": {
+        "390:/what-if": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 5
+        },
+        "390:/what-if/result": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 6
+        },
+        "390:/lenses/lens-01": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 233,
+          "charts": 13
+        },
+        "390:/monitoring": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 2
+        },
+        "390:/metrics": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 217,
+          "charts": 3
+        },
+        "390:/messages": {
+          "scroll": 375,
+          "inner": 390,
+          "widest": 0,
+          "charts": 0
+        },
+        "1440:/what-if": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 1027,
+          "charts": 5
+        },
+        "1440:/what-if/result": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 488.5,
+          "charts": 6
+        },
+        "1440:/lenses/lens-01": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 482,
+          "charts": 13
+        },
+        "1440:/monitoring": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 488.5,
+          "charts": 2
+        },
+        "1440:/metrics": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 627,
+          "charts": 3
+        },
+        "1440:/messages": {
+          "scroll": 1425,
+          "inner": 1440,
+          "widest": 0,
+          "charts": 0
+        }
+      },
+      "status": "PASS",
+      "controls_clicked": [],
+      "urls": [],
+      "console": [],
+      "http_errors": [],
+      "ms": 18287
+    },
+    {
+      "journey": "GW-P16-01",
+      "what": "GX-08 by clicks only: Requires Attention card → Investigate → a driver chip answered in the SAME thread → the stress-test chip opens What-If on the investigation's exact cohort → Ask (pre-filled, not typed) → preview → 'Yes, confirm the scenario' button → METHOD SELECTION → Delta button → the governed decomposition reconciles; no keystroke anywhere",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P16-01-clicks-only-result.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "thread_id": "th-e910d36eceed4da9b5257bb54d42ddd6",
+      "clicked": [
+        "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+        "Stress test PD +20% on this cohort (not a forecast)",
+        "Yes, confirm the scenario",
+        "Method 1 — Delta"
+      ],
+      "cohort_id": "coh-1923cb37fe47",
+      "membership_hash": "6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262",
+      "whatif_thread_id": "th-8233ff88f5e541e8af6755f453e694b8",
+      "entities": 251,
+      "keystrokes": 0,
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-corporate",
+        "issue-investigate",
+        "nbq-chip",
+        "thread-whatif-method-delta",
+        "thread-whatif-open-result",
+        "v4-response",
+        "whatif-ask"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-e910d36eceed4da9b5257bb54d42ddd6",
+        "/what-if",
+        "/what-if/result/res-02a859b4b400"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 13082
+    },
+    {
+      "journey": "GW-P16-02",
+      "what": "Requires Attention card wiring: the title opens the evidence; the largest-contributor driver opens the issue already narrowed to that driver's population (server count); the card's What-If button freezes the exact issue population and opens What-If on it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P16-02-driver-population.png",
+        "docs/guided_workspace/evidence/journeys/GW-P16-02-whatif-handoff.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "driver": "Hotels",
+      "driver_rows": 121,
+      "cohort_entities": 251,
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-corporate",
+        "issue-driver",
+        "issue-title",
+        "issue-whatif"
+      ],
+      "urls": [
+        "/",
+        "/issues/iss-db4929b9bd19",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5551
+    },
+    {
+      "journey": "GW-P3-01-CORP",
+      "what": "corporate: landing shows Requires Attention AND the free Ask box; cards carry measured evidence",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-01-CORP-landing.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_count": 10,
+      "release_id": "v4-whatif-corporate-20q-s1",
+      "titles": [
+        "Hospitality: booked ECL rose +SAR 24.6m (+19.0%)",
+        "Construction: booked ECL rose +SAR 24.9m (+17.1%)",
+        "Booked ECL rose +SAR 169m (+9.6%) across the Corporate book",
+        "Hospitality: EAD-weighted PD rose +20 bps",
+        "Education: 15.66% of EAD is on the watchlist (book 7.63%)"
+      ],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-corporate"
+      ],
+      "urls": [
+        "/"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 2255
+    },
+    {
+      "journey": "GW-P3-01-RET",
+      "what": "retail: landing shows Requires Attention AND the free Ask box; cards carry measured evidence",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-01-RET-landing.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_count": 8,
+      "release_id": "v4-whatif-retail-20m-s1",
+      "titles": [
+        "Personal Finance: booked ECL rose +SAR 453k (+36.6%)",
+        "Credit Card: booked ECL rose +SAR 145k (+34.1%)",
+        "Personal Finance: average payment ratio fell −577 bps",
+        "Booked ECL rose +SAR 806k (+33.8%) across the Retail book",
+        "Personal Finance: 1,011 customers with PD up 20% or more this month"
+      ],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-retail"
+      ],
+      "urls": [
+        "/"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4978
+    },
+    {
+      "journey": "GW-P3-02",
+      "what": "Issue card → Investigate → an ordinary thread with the path and NBQ chips; a chip runs a normal turn in the SAME thread",
+      "prompts": [
+        "chip: Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-path.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-chip-answered.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-02-free-form.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "thread_id": "th-5af14c8d51784c4aa0e1efb48623cf39",
+      "path": [
+        [
+          "Issue",
+          "done"
+        ],
+        [
+          "Evidence",
+          "done"
+        ],
+        [
+          "Driver",
+          "open"
+        ],
+        [
+          "Cohort",
+          "done"
+        ],
+        [
+          "Finding",
+          "open"
+        ],
+        [
+          "Scenario/Decision",
+          "open"
+        ]
+      ],
+      "chips": [
+        {
+          "text": "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+          "type": "explain_driver"
+        },
+        {
+          "text": "What changed for Hotels in Hospitality between 2026Q1 and 2026Q2: exposure, PD, LGD or stage?",
+          "type": "explain_driver"
+        },
+        {
+          "text": "Show the borrowers in Hospitality with the largest increase in booked ECL between 2026Q1 and 2026Q2.",
+          "type": "drill_contributors"
+        },
+        {
+          "text": "Check whether rating or score deterioration explains the movement in Hospitality: compare PD and stage between 2026Q1 and 2026Q2 for the same facilities.",
+          "type": "validate_hypothesis"
+        },
+        {
+          "text": "How does Booked ECL in Hospitality in 2026Q2 compare with the same measure four periods earlier?",
+          "type": "compare_period"
+        }
+      ],
+      "investigation_id": "inv-ee35568cf1e3",
+      "clicks_recorded": [
+        {
+          "suggestion_id": "nbq-8b9e927a5874",
+          "kind": "explain_driver",
+          "exact_request": "Which sub sector contributed most to the change in Booked ECL in Hospitality between 2026Q1 and 2026Q2?",
+          "rationale": "Booked ECL moved +SAR 24.6m (+19.0%) in Hospitality; a contribution breakdown separates concentrated from broad-based movement.",
+          "source": {
+            "issue_id": "iss-db4929b9bd19",
+            "metric_id": "M001",
+            "evidence": [
+              "M001",
+              "M002"
+            ]
+          },
+          "run_id": "",
+          "at": 1790978290.9437065
+        }
+      ],
+      "status": "PASS",
+      "controls_clicked": [
+        "domain-corporate",
+        "issue-investigate",
+        "nbq-chip",
+        "v4-composer-send"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-5af14c8d51784c4aa0e1efb48623cf39"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5451
+    },
+    {
+      "journey": "GW-P3-03",
+      "what": "Issue detail: charts are Plotly; clicking a driver bar narrows the governed grid server-side",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-03-drilled.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "issue_id": "iss-db4929b9bd19",
+      "filter_chips": [
+        "Sub-sector: Food Service"
+      ],
+      "rows_before": 251,
+      "rows_after": 130,
+      "clicked": "Sub-sector: Food Service",
+      "status": "PASS",
+      "controls_clicked": [
+        "issue-drivers",
+        "issue-drivers-view-data"
+      ],
+      "urls": [
+        "/issues/iss-db4929b9bd19"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5057
+    },
+    {
+      "journey": "GW-P3-04",
+      "what": "Early Warning (retail) → save cohort → investigate opens a Cockpit thread over that exact population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P3-04-ew.png",
+        "docs/guided_workspace/evidence/journeys/GW-P3-04-thread.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Saved 286 exposures as cohort coh-a220550d78ec.",
+      "cohort_id": "coh-a220550d78ec",
+      "cohort_entities": 286,
+      "thread_id": "th-48f5cac22a1642988e6a8dd905696ddf",
+      "thread_domain": "retail",
+      "status": "PASS",
+      "controls_clicked": [
+        "ew-investigate",
+        "ew-save-cohort"
+      ],
+      "urls": [
+        "/cockpit/thread/th-48f5cac22a1642988e6a8dd905696ddf",
+        "/early-warning"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4566
+    },
+    {
+      "journey": "GW-P4-01",
+      "what": "Scenario Library opens populated: >=36 templates, 18 per book, searchable, every card previews without calculating",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-library.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-detail.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-01-retail-ml-unavailable.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "total": 36,
+      "retail_cards": 18,
+      "retail_ml": "UNAVAILABLE",
+      "status": "PASS",
+      "controls_clicked": [
+        "scenario-domain-all",
+        "scenario-domain-retail",
+        "scenario-open"
+      ],
+      "urls": [
+        "/scenarios",
+        "/scenarios/scn-tpl-corp-12",
+        "/scenarios/scn-tpl-ret-01"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6350
+    },
+    {
+      "journey": "GW-P4-02",
+      "what": "Create A (sector PD/LGD) and B (macro) without executing; combine A+B -> overlap matrix -> explicit policy -> C saved; A and B unchanged",
+      "prompts": [
+        "builder: GW sector stress 1790978309706",
+        "builder: GW macro downside 1790978313802"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-02-overlap-matrix.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-02-combined.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "a": {
+        "id": "scn-778432f95e97",
+        "readiness": "READY_FOR_CONFIRMATION"
+      },
+      "b": {
+        "id": "scn-ab238c9afed5",
+        "readiness": "READY_FOR_CONFIRMATION"
+      },
+      "overlaps_needing_policy": 2,
+      "c": "scn-f32c731595f5",
+      "c_readiness": "READY_FOR_CONFIRMATION",
+      "status": "PASS",
+      "controls_clicked": [
+        "builder-add-macro",
+        "builder-add-parameter",
+        "builder-component",
+        "builder-preview",
+        "builder-save-saved",
+        "builder-scope-filters",
+        "overlap-resolve",
+        "scenario-combine",
+        "scenario-owner-mine",
+        "scenario-select"
+      ],
+      "urls": [
+        "/scenarios",
+        "/scenarios/new",
+        "/scenarios/scn-778432f95e97",
+        "/scenarios/scn-ab238c9afed5",
+        "/scenarios/scn-f32c731595f5"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 8529
+    },
+    {
+      "journey": "GW-P4-03",
+      "what": "A seeded conflict template is blocked; choosing policies records them on YOUR copy and leaves the template untouched",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-03-blocked-template.png",
+        "docs/guided_workspace/evidence/journeys/GW-P4-03-resolved-copy.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "copy": "scn-c26200025915",
+      "status": "PASS",
+      "controls_clicked": [
+        "overlap-resolve"
+      ],
+      "urls": [
+        "/scenarios/scn-c26200025915",
+        "/scenarios/scn-tpl-ret-18"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3802
+    },
+    {
+      "journey": "GW-P4-04",
+      "what": "Rename makes a new version; Share sends the reference and version, not data",
+      "prompts": [
+        "builder: GW share me 1790978322030"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P4-04-shared.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "note": "Shared v2 with 1 recipient(s). They receive the reference, never the data.",
+      "versions": [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          "renamed"
+        ],
+        [
+          3,
+          "shared with colleague"
+        ]
+      ],
+      "status": "PASS",
+      "controls_clicked": [
+        "builder-add-parameter",
+        "builder-component",
+        "builder-preview",
+        "builder-save-saved",
+        "scenario-action-rename",
+        "scenario-action-share",
+        "scenario-rename-submit",
+        "scenario-share-submit"
+      ],
+      "urls": [
+        "/scenarios/new",
+        "/scenarios/scn-979a1c33857f"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 3956
+    },
+    {
+      "journey": "GW-P5-01",
+      "what": "What-If Analysis replaces Stress Testing; /stress redirects; Ask box on top; book toggle changes period and grain; Retail ML visibly unavailable",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-01-corporate.png",
+        "docs/guided_workspace/evidence/journeys/GW-P5-01-retail.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "nav_has_whatif": true,
+      "nav_has_stress": false,
+      "corporate_total": 2996,
+      "status": "PASS",
+      "controls_clicked": [
+        "ws-domain-retail"
+      ],
+      "urls": [
+        "/stress",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 7213
+    },
+    {
+      "journey": "GW-P5-02",
+      "what": "Explorer click cross-filters the grid; box/lasso selects several; select-all-filtered binds the complete cohort; saved cohort reconciles",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-02-box-select.png",
+        "docs/guided_workspace/evidence/journeys/GW-P5-02-saved.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "after_click": 248,
+      "filter_chips": [
+        "Sector: Construction"
+      ],
+      "box_select_chips": [
+        "Sector: Utilities, Education"
+      ],
+      "after_box": 496,
+      "summary": "248 facilities100 borrowersEAD SAR 23.3bnBooked ECL SAR 171m8.83% of book ECLStage 1: 247 · 2: 12026Q2",
+      "cohort_id": "coh-8a42bbf7101d",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-chart-dimension",
+        "whatif-grid-select-all-filtered",
+        "whatif-save-cohort",
+        "whatif-save-form-submit"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 11110
+    },
+    {
+      "journey": "GW-P5-03",
+      "what": "One row, several rows, clear selection",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "summary": "4 facilities4 borrowersEAD SAR 597mBooked ECL SAR 46.7m2.41% of book ECLStage 2: 42026Q2",
+      "status": "PASS",
+      "controls_clicked": [
+        "grid-row",
+        "whatif-clear"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4697
+    },
+    {
+      "journey": "GW-P5-04",
+      "what": "Manual selection -> Ask -> the conversation binds the SAME governed cohort; adopting it returns the identical contract",
+      "prompts": [
+        "Increase PD by 20% and LGD by 10% for this selection"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-04-conversation.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "manual_cohort": "coh-7ebb996c8b45",
+      "thread_id": "th-ae99ac3a4be44b7d966000eb44c1ba14",
+      "conversation_membership": "44ba01654b31e70c23510743ecdc8a6bed35f22920b4366a23f4f4ff8960247e",
+      "manual_membership": "44ba01654b31e70c23510743ecdc8a6bed35f22920b4366a23f4f4ff8960247e",
+      "adopted": "coh-fbc865f28210",
+      "status": "PASS",
+      "controls_clicked": [
+        "grid-row",
+        "whatif-adopt-cohort",
+        "whatif-ask"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6444
+    },
+    {
+      "journey": "GW-P5-05",
+      "what": "Load a scenario from the library and Apply it to the active cohort: bound, previewed, not calculated; Scenario Library 'Open in What-If' lands here with the same object",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-05-applied.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "kpis": "ScopeCohort: What-If selection · 2026-10-02 21:59Exposures248of 2,996Owners100EADSAR 23.3bn8.25% of bookBooked ECLSAR 171m8.83% of bookStage policyfrozenStages held at their reported values.",
+      "bound": "scn-e91ea2ec47d2 v1",
+      "status": "PASS",
+      "controls_clicked": [
+        "scenario-open-whatif",
+        "whatif-apply",
+        "whatif-chart-dimension",
+        "whatif-grid-select-all-filtered",
+        "whatif-load-scenario",
+        "whatif-scenario-pick"
+      ],
+      "urls": [
+        "/scenarios/scn-e91ea2ec47d2",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 7870
+    },
+    {
+      "journey": "GW-P5-06",
+      "what": "Investigate in Cockpit from a What-If selection opens a thread seeded with the exact cohort",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P5-06-thread.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-4613765d87874c5f945766a69f21517e",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-chart-dimension",
+        "whatif-grid-select-all-filtered",
+        "whatif-investigate"
+      ],
+      "urls": [
+        "/cockpit/thread/th-4613765d87874c5f945766a69f21517e",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6131
+    },
+    {
+      "journey": "GW-P6-01",
+      "what": "UAT-01 in What-If: Construction 248 facilities / 100 borrowers, PD x1.20, LGD x1.10, stages fixed, CONFIRMED with NO method -> stops at METHOD SELECTION; nothing executed; then Delta runs and the dual-scope Plotly decomposition reconciles",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-01-method-selection.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-01-decomposition.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "entities": "248",
+      "owners": "100",
+      "headline": "Scenario confirmed — NOT executed. Choose how to translate it into ECL.",
+      "run_id": "wrun-ab7727757807",
+      "forced_execute_status": 409,
+      "reconciles": "true",
+      "components": 20,
+      "distinct_colours": 20,
+      "strip_method": "delta",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-method-pick-delta",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 7424
+    },
+    {
+      "journey": "GW-P6-02",
+      "what": "Retail ML is visibly unavailable (G4) and refused without a Delta fallback; the same confirmed scenario then runs with Delta",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-02-ml-refused.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "ml_status": "UNAVAILABLE",
+      "ml_reason": "ML emulator validation gate failed: G4 (worst material-group WAPE): measured 0.343562 against a threshold of 0.15. Shown, never substituted.",
+      "gate": "chosen method cannot run (Method 2 — ML emulator: UNAVAILABLE); nothing is substituted",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-method-pick-delta",
+        "whatif-method-pick-ml",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 5594
+    },
+    {
+      "journey": "GW-P6-03",
+      "what": "A second scenario asks ORIGINAL baseline or LAYER on the latest; A, then B layered on A, then C layered on A+B: lineage persists and the book starts where its ancestors left it",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-03-baseline-question.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-03-abc.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "options_b": [
+        [
+          "SOURCE_BASELINE",
+          ""
+        ],
+        [
+          "PRIOR_SCENARIO",
+          "wrun-9d598a801066"
+        ]
+      ],
+      "chain": [
+        "wrun-9d598a801066",
+        "wrun-9b1081f5cae1"
+      ],
+      "layered_book_baseline": "2098.468292313912139776727895",
+      "status": "PASS",
+      "controls_clicked": [
+        "whatif-baseline-choose",
+        "whatif-baseline-option",
+        "whatif-method-pick-delta",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 12797
+    },
+    {
+      "journey": "GW-P6-04",
+      "what": "UAT-01 in the Cockpit conversation: preview with no method -> 'Yes, confirm the scenario' -> METHOD SELECTION, NOT executed -> Delta chosen as an ordinary turn -> the governed Plotly decomposition opens",
+      "prompts": [
+        "For the Construction borrowers, PD x1.20 and LGD x1.10, stages fixed.",
+        "Yes, confirm the scenario",
+        "Run the confirmed scenario with the Delta method."
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P6-04-method-selection.png",
+        "docs/guided_workspace/evidence/journeys/GW-P6-04-cockpit-decomposition.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-2f0d2aabc9a54856a7928f340ea20c0f",
+      "preview_text": "One question firstNothing has been calculated. The rules below would apply to the 248 exposures of the cohort, frozen as coh-12ac83df854f. Confirming does NOT run it: you then choose the method.Apply these rules to the 248 exposures of the active cohort (coh-12ac83df854f)? Approve this scenario (a4c206fd654b)?Yes, confirm the scenarioNo, change somethingEvidenceart-d0eb1d52ab2f4afaScenario preview",
+      "method_state": "METHOD_SELECTION_REQUIRED",
+      "entities": 248,
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "thread-whatif-method-delta",
+        "thread-whatif-open-result",
+        "v4-composer-send",
+        "whatif-result-open-thread"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-2f0d2aabc9a54856a7928f340ea20c0f",
+        "/what-if/result/res-84f3b19bbecf"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 9133
+    },
+    {
+      "journey": "GW-P7-01",
+      "what": "Messages first launch holds synthetic shared definition, result and cohort; the recipient runs the shared DEFINITION as their own run: preview → confirm → METHOD SELECTION → Delta → a new result linked to the shared definition",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-01-definition.png",
+        "docs/guided_workspace/evidence/journeys/GW-P7-01-own-result.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "seeded_kinds": [
+        "cohort",
+        "scenario_result",
+        "scenario"
+      ],
+      "actions": [
+        "message-action-open",
+        "message-action-run",
+        "message-action-duplicate",
+        "message-action-comment"
+      ],
+      "shared_from": {
+        "share_id": "shr-bb599690b34e45b4",
+        "object_id": "scn-73338289a597",
+        "version": 2,
+        "kind": "scenario",
+        "from_id": "head-of-corporate-credit.synthetic",
+        "mode": "run"
+      },
+      "status": "PASS",
+      "controls_clicked": [
+        "message-action-run",
+        "message-item",
+        "message-run-go",
+        "whatif-method-pick-delta",
+        "whatif-run-confirm",
+        "whatif-run-execute"
+      ],
+      "urls": [
+        "/messages",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6725
+    },
+    {
+      "journey": "GW-P7-02",
+      "what": "A shared executed RESULT: open the analysis, compare with my own result (comparison page: KPIs + component-by-component Plotly), save a copy, comment on the shared version",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-02-comparison.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "my_result": "res-e9e50c732f84",
+      "items": "2",
+      "status": "PASS",
+      "controls_clicked": [
+        "message-action-compare",
+        "message-action-open",
+        "message-action-save",
+        "message-comment-send",
+        "message-compare-go",
+        "message-compare-option",
+        "message-item",
+        "message-note-link"
+      ],
+      "urls": [
+        "/messages",
+        "/what-if/compare/cmp-b77da42a922c",
+        "/what-if/result/res-195abe996cb6",
+        "/what-if/result/res-8caacf19af6d"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 6809
+    },
+    {
+      "journey": "GW-P7-03",
+      "what": "Scenario tree in What-If: A, B layered on A, a method variant of A; compare two nodes from the tree; share a result and see it in Sent",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-03-tree.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "variant_parent": "wrun-2fffa485f8b1",
+      "b_parent": "wrun-2fffa485f8b1",
+      "status": "PASS",
+      "controls_clicked": [
+        "tree-compare",
+        "tree-compare-pick",
+        "whatif-baseline-choose",
+        "whatif-baseline-option",
+        "whatif-method-pick-delta",
+        "whatif-method-pick-user_defined",
+        "whatif-result-share-open",
+        "whatif-result-share-send",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-rerun",
+        "whatif-run-start"
+      ],
+      "urls": [
+        "/messages",
+        "/what-if",
+        "/what-if/compare/cmp-93d596e7b8fd",
+        "/what-if/result/res-c1162c2c3871"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-78e06cbb-ccd&domain=corporate net::ERR_ABORTED"
+      ],
+      "ms": 11809
+    },
+    {
+      "journey": "GW-P7-04",
+      "what": "A shared COHORT opens in What-If with the same membership, and Investigate opens a Cockpit thread about it without rebuilding the population",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P7-04-investigate.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "membership": "2c9ddb012037896bf3e6e72473902d12c8e8dc0c4ec7e7952c1e995da6f43f38",
+      "status": "PASS",
+      "controls_clicked": [
+        "message-action-investigate",
+        "message-action-open",
+        "message-item"
+      ],
+      "urls": [
+        "/cockpit/thread/th-59269d3d16894f33b1f390cd95717852",
+        "/messages",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group2 net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED"
+      ],
+      "ms": 2262
+    },
+    {
+      "journey": "GW-P8-01",
+      "what": "Metric Catalogue first launch: >=50 persisted governed metrics; a definition shows every field, live values on both books, trend, breakdown whose bar click drills to the exact rows, lineage and users",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P8-01-M005.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "count": 75,
+      "corporate_raw": "0.003948820034308134",
+      "drill_total": "248",
+      "status": "PASS",
+      "controls_clicked": [
+        "metric-breakdown"
+      ],
+      "urls": [
+        "/metrics"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4825
+    },
+    {
+      "journey": "GW-P9-01",
+      "what": "Lens Library first launch: >=18 populated persona Lenses; a Lens renders governed KPIs and Plotly visuals; a category click cross-filters charts and the table; a trend point moves the Lens period; refresh records what changed and which rules breach",
+      "prompts": [],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-library.png",
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-lens-02.png",
+        "docs/guided_workspace/evidence/journeys/GW-P9-01-cross-filtered.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "total": 20,
+      "kpis": [
+        [
+          "M001",
+          "1936.063962999998"
+        ],
+        [
+          "M002",
+          "169.0411339999962"
+        ],
+        [
+          "M009",
+          "1010.9934000000001"
+        ],
+        [
+          "M023",
+          "0.23166666666666666"
+        ],
+        [
+          "M036",
+          "0.34279038718291055"
+        ]
+      ],
+      "cross_filtered_rows": "248",
+      "moved_to": "2024Q3",
+      "refresh_note": "Refreshed: First observation of this Lens version: baseline recorded. · 2 alert(s) raised — see Monitoring Centre",
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-card",
+        "lens-kpi",
+        "lens-refresh",
+        "lens-reset",
+        "lens-visual-v06",
+        "lens-visual-v08"
+      ],
+      "urls": [
+        "/lenses",
+        "/lenses/lens-02",
+        "/metrics"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 11393
+    },
+    {
+      "journey": "GW-P9-02",
+      "what": "One-prompt Lens: a PREVIEW (KPIs, charts, tables, refresh rule) is shown and NOT saved until confirmed; refine by asking; save opens a live Lens; editing writes a new version",
+      "prompts": [
+        "Credit card risk with Stage 2 EAD share, weekly"
+      ],
+      "screenshots": [
+        "docs/guided_workspace/evidence/journeys/GW-P9-02-preview.png"
+      ],
+      "model": "MODEL MOCK (scripted analyst)",
+      "preview": "6 KPIs · 4 charts · 1 tables · 9 governed metrics · 1 breach rules · refresh Weekly",
+      "saved": "lens-0a52c712b4ae",
+      "status": "PASS",
+      "controls_clicked": [
+        "lens-edit",
+        "lens-edit-save",
+        "lens-propose",
+        "lens-save"
+      ],
+      "urls": [
+        "/lenses",
+        "/lenses/lens-0a52c712b4ae"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 4443
+    },
+    {
+      "journey": "GW-P9-03",
+      "what": "Box-select categories on a Lens chart → temporary cohort → What-If with that governed cohort; a Cockpit analysis is saved as a Lens from the thread",
+      "prompts": [
+        "Which sectors carry the most reported ECL?"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "selection": "Temporary cohort: corporate · sector ∈ Utilities, EducationSaveInvestigateWhat-Ifclear",
+      "thread_id": "th-78359116585f451bb588a9c62075490c",
+      "source": {
+        "kind": "cockpit",
+        "thread_id": "th-78359116585f451bb588a9c62075490c"
+      },
+      "status": "PASS",
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate",
+        "lens-save",
+        "lens-selection-whatif",
+        "thread-save-as-lens"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-78359116585f451bb588a9c62075490c",
+        "/lenses",
+        "/lenses/lens-02",
+        "/lenses/lens-eced1cc11ead",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group2 net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED"
+      ],
+      "ms": 7410
+    },
+    {
+      "journey": "GW-VAL-PLOTLY",
+      "what": "Every Plotly chart on the guided pages renders, is labelled and fits the screen at 1440 px and at 390 px; no page scrolls sideways",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "plotly": [
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 1440,
+          "testid": "issue-trend",
+          "rendered": true,
+          "label": "Booked ECL over time. Hospitality · metric M001 · v4-whatif-corporate-20q-s1",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 1440,
+          "testid": "issue-ecl-trend",
+          "rendered": true,
+          "label": "Booked ECL over time. Hospitality · M001",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 1440,
+          "testid": "issue-drivers",
+          "rendered": true,
+          "label": "What contributed, by sub sector. Click a bar to show those rows below. Contribut",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 1440,
+          "testid": "issue-stage-mix",
+          "rendered": true,
+          "label": "Stage mix of the affected population. EAD by IFRS 9 stage; click a stage to show",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 1440,
+          "testid": "whatif-chart-dimension",
+          "rendered": true,
+          "label": "Booked ECL by sector. 2026Q2 · all categories",
+          "width": 669,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 1440,
+          "testid": "whatif-chart-stage",
+          "rendered": true,
+          "label": "Filtered population by stage. EAD; click a stage to filter",
+          "width": 312,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 1440,
+          "testid": "whatif-chart-heatmap",
+          "rendered": true,
+          "label": "EAD by sector × rating. 2026Q2 · click a cell (or press Enter on a row of its da",
+          "width": 491,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 1440,
+          "testid": "whatif-chart-sankey",
+          "rendered": true,
+          "label": "Stage migration, prior → current quarter. EAD; click a flow (or press Enter on a",
+          "width": 491,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 1440,
+          "testid": "whatif-waterfall-selected",
+          "rendered": true,
+          "label": "ECL bridge — selected scope. opening + components + residual = closing · reconci",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 1440,
+          "testid": "whatif-waterfall-total",
+          "rendered": true,
+          "label": "ECL bridge — total active book. opening + components + residual = closing · reco",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 1440,
+          "testid": "whatif-result-stages",
+          "rendered": true,
+          "label": "ECL by stage, before and after. Stages frozen: exposures keep their stage unless",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 1440,
+          "testid": "whatif-result-top",
+          "rendered": true,
+          "label": "Largest contributors. Exposures with the largest Delta change",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 1440,
+          "testid": "whatif-result-pareto",
+          "rendered": true,
+          "label": "Delta change by sector, largest first. Bars: change in SAR; line: cumulative sha",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 1440,
+          "testid": "whatif-result-distribution",
+          "rendered": true,
+          "label": "How the change is spread across exposures. Exposures by the change in their own ",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 1440,
+          "testid": "lens-visual-v06",
+          "rendered": true,
+          "label": "Booked ECL by sector. M001 v1 · corporate · 2026Q2",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 1440,
+          "testid": "lens-visual-v07",
+          "rendered": true,
+          "label": "EAD-weighted PD by rating. M015 v1 · corporate · 2026Q2",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 1440,
+          "testid": "lens-visual-v08",
+          "rendered": true,
+          "label": "Stage 2 / Stage 3 EAD share. M005 v1 · corporate · 2026Q2",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 1440,
+          "testid": "lens-visual-v09",
+          "rendered": true,
+          "label": "Largest names by EAD. M021 v1 · corporate · 2026Q2",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 1440,
+          "testid": "lens-visual-v06",
+          "rendered": true,
+          "label": "High/critical EWS EAD by sector. M063 v1 · corporate · 2026Q2",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 1440,
+          "testid": "lens-visual-v07",
+          "rendered": true,
+          "label": "High/critical share by product. M033 v1 · retail · 2026-08",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 1440,
+          "testid": "lens-visual-v08",
+          "rendered": true,
+          "label": "Warned customers. M032 v1 · retail · 2026-08",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 1440,
+          "testid": "lens-visual-v10",
+          "rendered": true,
+          "label": "Top warning reasons — Corporate. M069 v1 · corporate · 2026Q2",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 1440,
+          "testid": "lens-visual-v11",
+          "rendered": true,
+          "label": "Top warning reasons — Retail. M069 v1 · retail · 2026-08",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-15",
+          "url": "/lenses/lens-15",
+          "viewport": 1440,
+          "testid": "lens-visual-v07",
+          "rendered": true,
+          "label": "Booked ECL by sub-sector. M001 v1 · corporate · 2026Q2 · 1 filter(s)",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-15",
+          "url": "/lenses/lens-15",
+          "viewport": 1440,
+          "testid": "lens-visual-v08",
+          "rendered": true,
+          "label": "PD by rating. M015 v1 · corporate · 2026Q2 · 1 filter(s)",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-15",
+          "url": "/lenses/lens-15",
+          "viewport": 1440,
+          "testid": "lens-visual-v09",
+          "rendered": true,
+          "label": "Largest Construction & CRE borrowers. M021 v1 · corporate · 2026Q2 · 1 filter(s)",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "monitoring",
+          "url": "/monitoring?view=all",
+          "viewport": 1440,
+          "testid": "monitoring-by-severity",
+          "rendered": true,
+          "label": "By severity. 15 in this view",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "monitoring",
+          "url": "/monitoring?view=all",
+          "viewport": 1440,
+          "testid": "monitoring-by-lens",
+          "rendered": true,
+          "label": "By Lens. click a bar to filter to that Lens",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "metrics",
+          "url": "/metrics?m=M001",
+          "viewport": 1440,
+          "testid": "metric-trend-corporate",
+          "rendered": true,
+          "label": "Trend — Corporate. M001 v1 over the last published quarters",
+          "width": 291,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "metrics",
+          "url": "/metrics?m=M001",
+          "viewport": 1440,
+          "testid": "metric-trend-retail",
+          "rendered": true,
+          "label": "Trend — Retail. M001 v1 over the last published months",
+          "width": 291,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "metrics",
+          "url": "/metrics?m=M001",
+          "viewport": 1440,
+          "testid": "metric-breakdown",
+          "rendered": true,
+          "label": "Booked ECL by sector. corporate · 2026Q2",
+          "width": 627,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "early-warning",
+          "url": "/early-warning",
+          "viewport": 1440,
+          "testid": "ew-trend",
+          "rendered": true,
+          "label": "High/critical EWS EAD over time. Metric M063 · governed rule set",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "early-warning",
+          "url": "/early-warning",
+          "viewport": 1440,
+          "testid": "ew-reasons",
+          "rendered": true,
+          "label": "Why exposures are warned. Rules tripped (an exposure can trip several). Click a ",
+          "width": 482,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "scenario",
+          "url": "/scenarios/scn-tpl-corp-01",
+          "viewport": 1440,
+          "testid": "scenario-stage-mix",
+          "rendered": true,
+          "label": "Scope by IFRS 9 stage. EAD of the exposures the definition selects",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "scenario",
+          "url": "/scenarios/scn-tpl-corp-01",
+          "viewport": 1440,
+          "testid": "scenario-band-mix",
+          "rendered": true,
+          "label": "Scope by rating current. EAD per band",
+          "width": 489,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 390,
+          "testid": "issue-trend",
+          "rendered": true,
+          "label": "Booked ECL over time. Hospitality · metric M001 · v4-whatif-corporate-20q-s1",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 390,
+          "testid": "issue-ecl-trend",
+          "rendered": true,
+          "label": "Booked ECL over time. Hospitality · M001",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 390,
+          "testid": "issue-drivers",
+          "rendered": true,
+          "label": "What contributed, by sub sector. Click a bar to show those rows below. Contribut",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "issue",
+          "url": "/issues/iss-db4929b9bd19",
+          "viewport": 390,
+          "testid": "issue-stage-mix",
+          "rendered": true,
+          "label": "Stage mix of the affected population. EAD by IFRS 9 stage; click a stage to show",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 390,
+          "testid": "whatif-chart-dimension",
+          "rendered": true,
+          "label": "Booked ECL by sector. 2026Q2 · all categories",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 390,
+          "testid": "whatif-chart-stage",
+          "rendered": true,
+          "label": "Filtered population by stage. EAD; click a stage to filter",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 390,
+          "testid": "whatif-chart-heatmap",
+          "rendered": true,
+          "label": "EAD by sector × rating. 2026Q2 · click a cell (or press Enter on a row of its da",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "what-if",
+          "url": "/what-if?domain=corporate",
+          "viewport": 390,
+          "testid": "whatif-chart-sankey",
+          "rendered": true,
+          "label": "Stage migration, prior → current quarter. EAD; click a flow (or press Enter on a",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 390,
+          "testid": "whatif-waterfall-selected",
+          "rendered": true,
+          "label": "ECL bridge — selected scope. opening + components + residual = closing · reconci",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 390,
+          "testid": "whatif-waterfall-total",
+          "rendered": true,
+          "label": "ECL bridge — total active book. opening + components + residual = closing · reco",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 390,
+          "testid": "whatif-result-stages",
+          "rendered": true,
+          "label": "ECL by stage, before and after. Stages frozen: exposures keep their stage unless",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 390,
+          "testid": "whatif-result-top",
+          "rendered": true,
+          "label": "Largest contributors. Exposures with the largest Delta change",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 390,
+          "testid": "whatif-result-pareto",
+          "rendered": true,
+          "label": "Delta change by sector, largest first. Bars: change in SAR; line: cumulative sha",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "result",
+          "url": "/what-if/result/res-e58d72283032",
+          "viewport": 390,
+          "testid": "whatif-result-distribution",
+          "rendered": true,
+          "label": "How the change is spread across exposures. Exposures by the change in their own ",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 390,
+          "testid": "lens-visual-v06",
+          "rendered": true,
+          "label": "Booked ECL by sector. M001 v1 · corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 390,
+          "testid": "lens-visual-v07",
+          "rendered": true,
+          "label": "EAD-weighted PD by rating. M015 v1 · corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 390,
+          "testid": "lens-visual-v08",
+          "rendered": true,
+          "label": "Stage 2 / Stage 3 EAD share. M005 v1 · corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-02",
+          "url": "/lenses/lens-02",
+          "viewport": 390,
+          "testid": "lens-visual-v09",
+          "rendered": true,
+          "label": "Largest names by EAD. M021 v1 · corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 390,
+          "testid": "lens-visual-v06",
+          "rendered": true,
+          "label": "High/critical EWS EAD by sector. M063 v1 · corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 390,
+          "testid": "lens-visual-v07",
+          "rendered": true,
+          "label": "High/critical share by product. M033 v1 · retail · 2026-08",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 390,
+          "testid": "lens-visual-v08",
+          "rendered": true,
+          "label": "Warned customers. M032 v1 · retail · 2026-08",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 390,
+          "testid": "lens-visual-v10",
+          "rendered": true,
+          "label": "Top warning reasons — Corporate. M069 v1 · corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-05",
+          "url": "/lenses/lens-05",
+          "viewport": 390,
+          "testid": "lens-visual-v11",
+          "rendered": true,
+          "label": "Top warning reasons — Retail. M069 v1 · retail · 2026-08",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-15",
+          "url": "/lenses/lens-15",
+          "viewport": 390,
+          "testid": "lens-visual-v07",
+          "rendered": true,
+          "label": "Booked ECL by sub-sector. M001 v1 · corporate · 2026Q2 · 1 filter(s)",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-15",
+          "url": "/lenses/lens-15",
+          "viewport": 390,
+          "testid": "lens-visual-v08",
+          "rendered": true,
+          "label": "PD by rating. M015 v1 · corporate · 2026Q2 · 1 filter(s)",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "lens-15",
+          "url": "/lenses/lens-15",
+          "viewport": 390,
+          "testid": "lens-visual-v09",
+          "rendered": true,
+          "label": "Largest Construction & CRE borrowers. M021 v1 · corporate · 2026Q2 · 1 filter(s)",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "monitoring",
+          "url": "/monitoring?view=all",
+          "viewport": 390,
+          "testid": "monitoring-by-severity",
+          "rendered": true,
+          "label": "By severity. 15 in this view",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "monitoring",
+          "url": "/monitoring?view=all",
+          "viewport": 390,
+          "testid": "monitoring-by-lens",
+          "rendered": true,
+          "label": "By Lens. click a bar to filter to that Lens",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "metrics",
+          "url": "/metrics?m=M001",
+          "viewport": 390,
+          "testid": "metric-trend-corporate",
+          "rendered": true,
+          "label": "Trend — Corporate. M001 v1 over the last published quarters",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "metrics",
+          "url": "/metrics?m=M001",
+          "viewport": 390,
+          "testid": "metric-trend-retail",
+          "rendered": true,
+          "label": "Trend — Retail. M001 v1 over the last published months",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "metrics",
+          "url": "/metrics?m=M001",
+          "viewport": 390,
+          "testid": "metric-breakdown",
+          "rendered": true,
+          "label": "Booked ECL by sector. corporate · 2026Q2",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "early-warning",
+          "url": "/early-warning",
+          "viewport": 390,
+          "testid": "ew-trend",
+          "rendered": true,
+          "label": "High/critical EWS EAD over time. Metric M063 · governed rule set",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "early-warning",
+          "url": "/early-warning",
+          "viewport": 390,
+          "testid": "ew-reasons",
+          "rendered": true,
+          "label": "Why exposures are warned. Rules tripped (an exposure can trip several). Click a ",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "scenario",
+          "url": "/scenarios/scn-tpl-corp-01",
+          "viewport": 390,
+          "testid": "scenario-stage-mix",
+          "rendered": true,
+          "label": "Scope by IFRS 9 stage. EAD of the exposures the definition selects",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        },
+        {
+          "page": "scenario",
+          "url": "/scenarios/scn-tpl-corp-01",
+          "viewport": 390,
+          "testid": "scenario-band-mix",
+          "rendered": true,
+          "label": "Scope by rating current. EAD per band",
+          "width": 217,
+          "fits": true,
+          "plotly": true,
+          "page_horizontal_scroll_px": -15,
+          "console_errors": 0,
+          "status": "PASS"
+        }
+      ],
+      "charts_audited": 70,
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [],
+      "urls": [
+        "/early-warning",
+        "/issues/iss-db4929b9bd19",
+        "/lenses/lens-02",
+        "/lenses/lens-05",
+        "/lenses/lens-15",
+        "/metrics",
+        "/monitoring",
+        "/scenarios/scn-tpl-corp-01",
+        "/what-if",
+        "/what-if/result/res-e58d72283032"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED"
+      ],
+      "ms": 20132
+    },
+    {
+      "journey": "GW-VAL-ROUTES",
+      "what": "Every route loads directly and on refresh; invalid ids and parameters are handled in words, never a crash or a 404 page",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "routes": [
+        {
+          "url": "/",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/ai-model-lab",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/cockpit/data",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/cockpit/thread/th-7678057ce3664e03938eb91573d5c57b",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/early-warning",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/early-warning/lab",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/early-warning/signals",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/issues/iss-db4929b9bd19",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/lenses",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/lenses/lens-02",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/lenses/cro",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/messages",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/metrics",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/monitoring",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/scenarios",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/scenarios/new",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/scenarios/scn-tpl-corp-01",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/stress",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/trace",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/trace/object/scn-tpl-corp-01",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/what-if",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/what-if/result/res-e58d72283032",
+          "kind": "valid",
+          "direct": true,
+          "refreshed": true,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/trace/llm-exchange/run-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/issues/iss-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/scenarios/scn-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/lenses/lens-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/what-if/result/res-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/what-if/compare/cmp-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/trace/object/obj-doesnotexist",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/what-if?domain=xyz&cohort=coh-doesnotexist&f=%5Bbad",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/monitoring?view=bogus&severity=nope&alert=alr-nope",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/messages?m=shr-doesnotexist&box=weird",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/metrics?m=M999",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/scenarios?owner=bogus&severity=nope",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/lenses/lens-02?x=%7Bnot-json&sel=%5B",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        },
+        {
+          "url": "/what-if/result/res-doesnotexist?method=nope&back=https%3A%2F%2Fevil.example",
+          "kind": "invalid",
+          "direct": true,
+          "refreshed": null,
+          "console_errors": [],
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "controls_clicked": [],
+      "urls": [
+        "/",
+        "/ai-model-lab",
+        "/cockpit/data",
+        "/cockpit/thread/th-7678057ce3664e03938eb91573d5c57b",
+        "/early-warning",
+        "/early-warning/lab",
+        "/early-warning/signals",
+        "/issues/iss-db4929b9bd19",
+        "/issues/iss-doesnotexist",
+        "/lenses",
+        "/lenses/cro",
+        "/lenses/lens-01",
+        "/lenses/lens-02",
+        "/lenses/lens-doesnotexist",
+        "/messages",
+        "/metrics",
+        "/monitoring",
+        "/scenarios",
+        "/scenarios/new",
+        "/scenarios/scn-doesnotexist",
+        "/scenarios/scn-tpl-corp-01",
+        "/stress",
+        "/trace",
+        "/trace/llm-exchange/run-doesnotexist",
+        "/trace/object/obj-doesnotexist",
+        "/trace/object/scn-tpl-corp-01",
+        "/what-if",
+        "/what-if/compare/cmp-doesnotexist",
+        "/what-if/result/res-doesnotexist",
+        "/what-if/result/res-e58d72283032"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED GET /api/v1/health net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/early-warning?domain=retail net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics/M001 net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics/M001/lineage net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/scenarios net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/group2 net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-bf569f55-705&domain=corporate net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED",
+        "404 GET /api/v1/cockpit-v4/workspace/llm-exchange/runs/run-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/issues/iss-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/scenarios/scn-doesnotexist",
+        "404 POST /api/v1/cockpit-v4/workspace/scenarios/scn-doesnotexist/preview",
+        "404 POST /api/v1/cockpit-v4/workspace/lenses/lens-doesnotexist/render",
+        "404 GET /api/v1/cockpit-v4/workspace/objects/res-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/objects/cmp-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/trace/objects/obj-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/objects/coh-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/monitoring/alerts/alr-nope",
+        "422 GET /api/v1/cockpit-v4/workspace/messages?box=weird",
+        "404 GET /api/v1/cockpit-v4/workspace/messages/shr-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/metrics/M999",
+        "404 GET /api/v1/cockpit-v4/workspace/metrics/M999/lineage"
+      ],
+      "ms": 54200
+    }
+  ]
+}

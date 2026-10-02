@@ -1044,7 +1044,13 @@ The fix is a docstring-only change ("NO MODEL", "INDEPENDENT ORACLE"). Because a
 
 The journey now waits for the re-bound object, and it passed three consecutive times. The inventory step's failure was derived from that journey. Candidate K carries the harness fix. Candidate J's output is kept in `evidence/regression_candidate_J_84b0ca12f140/`.
 
-**Results.** `validation/VALIDATION_REPORT.md`, `VALIDATION_MATRIX.csv` and `VALIDATION_RESULTS.json` are generated from the final regression of record on candidate I. Its SHA is pinned in `UAT_CANDIDATE.json`.
+**Results.** The final regression of record is on candidate K (`62ba4dda50363b7700849ff9e11a4731d118f11b`).
+- **Steps:** 17 of 18 PASS, 1 BLOCKED_ENV (emulator pickle bytes, as at H).
+- **Browser journeys:** guided 82/82, What-If candidate 15/15 per book, flags-OFF accepted 76/76.
+- **Validation matrix:** 32 PASS, 2 BLOCKED (emulator bytes; live provider). The verdict is READY FOR MAC LIVE UAT.
+- **Requirement matrix:** unchanged at 293 PASS, 26 PARTIAL, 6 BLOCKED, 0 FAILED.
+
+The performance smoke (`validation/perf_smoke.json`) was measured on the working tree before candidate I was cut, and the backend code is identical at K. The report, matrix and inventories are generated from K's regression output. K is pinned in `UAT_CANDIDATE.json`; there is no tag.
 
 ---
 

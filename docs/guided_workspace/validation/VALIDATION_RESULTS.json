@@ -1,0 +1,588 @@
+{
+  "candidate_sha": "62ba4dda50363b7700849ff9e11a4731d118f11b",
+  "regression": {
+    "v4_backend_and_frontend_py_accepted": {
+      "status": "PASS",
+      "counts": {
+        "tests": 4847,
+        "failures": 3,
+        "errors": 0,
+        "skipped": 39
+      },
+      "seconds": 1567.8
+    },
+    "whatif_suite_whatif_venv": {
+      "status": "PASS",
+      "counts": {
+        "tests": 1446,
+        "failures": 9,
+        "errors": 0,
+        "skipped": 2
+      },
+      "seconds": 593.9
+    },
+    "v3_cockpit_agentic": {
+      "status": "PASS",
+      "counts": {
+        "tests": 590,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "seconds": 148.8
+    },
+    "llm_adapters": {
+      "status": "PASS",
+      "counts": {
+        "tests": 25,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 8
+      },
+      "seconds": 6.6
+    },
+    "frontend_unit": {
+      "status": "PASS",
+      "counts": {
+        "tests": 669,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "seconds": 6.7
+    },
+    "frontend_typecheck": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 16.7
+    },
+    "frontend_lint_new_code": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 33.3
+    },
+    "python_lint_round_code": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 0.1
+    },
+    "protected_baseline_round": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 0.4
+    },
+    "protected_hashes_accepted_tool": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 0.3
+    },
+    "release_fingerprints": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 0.8
+    },
+    "release_report_digests": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 26.5
+    },
+    "sensitivity_libraries_reproduce": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 50.7
+    },
+    "emulator_artifacts_reproduce": {
+      "status": "BLOCKED_ENV",
+      "counts": null,
+      "seconds": 536.3
+    },
+    "gw_browser_journeys_clean_store": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 1114.1
+    },
+    "validation_inventory_runtime": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 0.3
+    },
+    "whatif_candidate_browser": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 140.3
+    },
+    "accepted_browser_suite_flags_off": {
+      "status": "PASS",
+      "counts": null,
+      "seconds": 200.2
+    }
+  },
+  "journeys": {
+    "total": 82,
+    "passed": 82,
+    "gold": [
+      "GW-GOLD-01",
+      "GW-GOLD-02",
+      "GW-GOLD-03",
+      "GW-GOLD-04",
+      "GW-GOLD-05",
+      "GW-GOLD-06",
+      "GW-GOLD-07",
+      "GW-GOLD-08",
+      "GW-GOLD-09",
+      "GW-GOLD-10"
+    ],
+    "back": [
+      "GW-BACK-01",
+      "GW-BACK-02",
+      "GW-BACK-03",
+      "GW-BACK-04",
+      "GW-BACK-05",
+      "GW-BACK-06",
+      "GW-BACK-07",
+      "GW-BACK-08",
+      "GW-BACK-09",
+      "GW-BACK-10",
+      "GW-BACK-11",
+      "GW-BACK-12",
+      "GW-BACK-13",
+      "GW-BACK-14",
+      "GW-BACK-15",
+      "GW-BACK-16",
+      "GW-BACK-17",
+      "GW-BACK-18",
+      "GW-BACK-19",
+      "GW-BACK-20",
+      "GW-BACK-21",
+      "GW-BACK-22"
+    ]
+  },
+  "inventory": {
+    "controls": 395,
+    "controls_by_status": {
+      "PASS": 101,
+      "PARTIAL": 294
+    },
+    "controls_with_testid": 204,
+    "controls_exercised": 101,
+    "routes": 27,
+    "routes_by_status": {
+      "PASS": 25,
+      "PARTIAL": 2
+    },
+    "functions": 107,
+    "functions_by_status": {
+      "PASS": 107
+    },
+    "handoffs": 41,
+    "handoffs_by_status": {
+      "PASS": 39,
+      "PARTIAL": 2
+    },
+    "handoffs_carrying_origin": 41,
+    "back_paths": 23,
+    "back_by_status": {
+      "PASS": 23
+    },
+    "plotly_rows": 70,
+    "plotly_by_status": {
+      "PASS": 70
+    },
+    "journeys": 82,
+    "journeys_by_status": {
+      "PASS": 82
+    }
+  },
+  "perf": {
+    "api": "http://127.0.0.1:8444",
+    "note": "warm, sequential, this machine; smoke only",
+    "rows": [
+      {
+        "endpoint": "issues feed (corporate)",
+        "request": "GET /issues?domain=corporate",
+        "n": 20,
+        "p50_ms": 2.7,
+        "p95_ms": 3.2,
+        "max_ms": 3.8
+      },
+      {
+        "endpoint": "issue detail",
+        "request": "GET /issues/iss-db4929b9bd19",
+        "n": 20,
+        "p50_ms": 3.4,
+        "p95_ms": 3.9,
+        "max_ms": 3.9
+      },
+      {
+        "endpoint": "grid page (50 rows)",
+        "request": "POST /grid/query",
+        "n": 20,
+        "p50_ms": 60.0,
+        "p95_ms": 65.5,
+        "max_ms": 67.5
+      },
+      {
+        "endpoint": "grid filtered + summary",
+        "request": "POST /grid/query",
+        "n": 20,
+        "p50_ms": 58.0,
+        "p95_ms": 70.9,
+        "max_ms": 72.6
+      },
+      {
+        "endpoint": "selection summary",
+        "request": "POST /whatif/selection/summary",
+        "n": 20,
+        "p50_ms": 75.9,
+        "p95_ms": 89.3,
+        "max_ms": 97.7
+      },
+      {
+        "endpoint": "scenario library",
+        "request": "GET /scenarios",
+        "n": 20,
+        "p50_ms": 19.9,
+        "p95_ms": 23.7,
+        "max_ms": 30.9
+      },
+      {
+        "endpoint": "scenario preview (template)",
+        "request": "POST /scenarios/scn-tpl-corp-01/preview",
+        "n": 20,
+        "p50_ms": 82.5,
+        "p95_ms": 108.4,
+        "max_ms": 124.8
+      },
+      {
+        "endpoint": "lens render (lens-02)",
+        "request": "POST /lenses/lens-02/render",
+        "n": 20,
+        "p50_ms": 82.1,
+        "p95_ms": 101.0,
+        "max_ms": 113.6
+      },
+      {
+        "endpoint": "monitoring centre",
+        "request": "GET /monitoring?view=all",
+        "n": 20,
+        "p50_ms": 26.0,
+        "p95_ms": 28.1,
+        "max_ms": 28.6
+      },
+      {
+        "endpoint": "metric catalogue",
+        "request": "GET /metrics",
+        "n": 20,
+        "p50_ms": 7.3,
+        "p95_ms": 9.1,
+        "max_ms": 9.9
+      },
+      {
+        "endpoint": "messages",
+        "request": "GET /messages",
+        "n": 20,
+        "p50_ms": 1.8,
+        "p95_ms": 2.1,
+        "max_ms": 2.3
+      }
+    ]
+  },
+  "mutation_gates": {
+    "tenant isolation (access rule)": "KILLED",
+    "tenant isolation (store scope)": "KILLED",
+    "method selection (no silent Delta)": "KILLED",
+    "scenario lineage": "KILLED",
+    "metric formula": "KILLED",
+    "breach evaluation": "KILLED",
+    "LLM Exchange sanitisation": "KILLED",
+    "cohort identity": "KILLED",
+    "V4 persistence boundary (approved fix)": "KILLED",
+    "governance ledger": "KILLED",
+    "tornado sign preservation": "KILLED",
+    "ML input labels apart from drivers (DECOMP10)": "KILLED",
+    "EWS reasons evaluate each rule's own condition": "KILLED",
+    "selected scope = total book": "KILLED",
+    "unrunnable scenario refused (VAL-DEF-010)": "KILLED",
+    "binding is idempotent (VAL-DEF-016)": "KILLED",
+    "an unevaluable Lens rule is refused (VAL-DEF-013)": "KILLED",
+    "a wrong-type filter is a 422 (VAL-DEF-012)": "KILLED"
+  },
+  "areas": [
+    {
+      "id": "VAL-04",
+      "area": "Routes and navigation (direct, refresh, deep link, params)",
+      "status": "PASS",
+      "evidence": "GW-BACK-*: 22/22 PASS | GW-GOLD-10*: 1/1 PASS | GW-VAL-ROUTES*: 1/1 PASS | routes: 27 rows {\"PASS\": 25, \"PARTIAL\": 2}",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-05",
+      "area": "Back-button master matrix (in-app + browser Back/Forward)",
+      "status": "PASS",
+      "evidence": "GW-BACK-*: 22/22 PASS | back: 23 rows {\"PASS\": 23}",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-06",
+      "area": "Dead button / link / action audit",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_validation_endpoints.py 11 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_validation_endpoints.py 11 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_p16_wiring.py 25 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_p16_wiring.py 25 tests, 0 failed, 0 skipped | GW-P16-02*: 1/1 PASS | controls: 395 rows {\"PASS\": 101, \"PARTIAL\": 294} | handoffs: 41 rows {\"PASS\": 39, \"PARTIAL\": 2}",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-07",
+      "area": "Guided Cockpit (Corporate and Retail journeys)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_guided.py 17 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_guided.py 17 tests, 0 failed, 0 skipped | GW-P3-*: 5/5 PASS | GW-P16-*: 2/2 PASS | GW-GOLD-01*: 1/1 PASS | GW-GOLD-02*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-08",
+      "area": "Early Warning integration",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_guided.py 17 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_guided.py 17 tests, 0 failed, 0 skipped | GW-P3-04*: 1/1 PASS | GW-P11-04*: 1/1 PASS | GW-GOLD-06*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-09",
+      "area": "What-If workspace (scopes, grid, selection, cohort)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_whatif.py 20 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_whatif.py 20 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_grid.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_grid.py 15 tests, 0 failed, 0 skipped | GW-P5-*: 6/6 PASS | GW-P13-01*: 1/1 PASS | GW-P13-02*: 1/1 PASS | GW-BACK-06*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-10",
+      "area": "Scenario Library \u2014 every verb",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_scenarios.py 37 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_scenarios.py 37 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_p16_libraries.py 2 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_p16_libraries.py 2 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | GW-P4-*: 4/4 PASS | GW-BACK-07*: 1/1 PASS | GW-BACK-08*: 1/1 PASS | GW-BACK-09*: 1/1 PASS | GW-GOLD-03*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-11",
+      "area": "Method-selection governance (incl. Retail ML unavailable, no fallback)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_method_gate.py 16 tests, 0 failed, 3 skipped | whatif_venv.xml:test_gw_method_gate.py 16 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_runs.py 31 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_runs.py 31 tests, 0 failed, 0 skipped | GW-P6-01*: 1/1 PASS | GW-P6-02*: 1/1 PASS | GW-P6-04*: 1/1 PASS | GW-GOLD-02*: 1/1 PASS | mutation gate 'method selection': PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-12",
+      "area": "Scenario stacking / baseline lineage (A, B, A+B, A+B+C, A+D)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_runs.py 31 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_runs.py 31 tests, 0 failed, 0 skipped | GW-P6-03*: 1/1 PASS | GW-P7-03*: 1/1 PASS | GW-GOLD-03*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-13",
+      "area": "ECL calculation and decomposition (independent oracle)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_ecl_reconciliation.py 6 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_ecl_reconciliation.py 6 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_ml_decomposition.py 3 tests, 0 failed, 0 skipped | GW-P6-01*: 1/1 PASS | GW-P13-04*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-14",
+      "area": "Plotly interactivity / reactivity audit",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_charts.py 10 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_charts.py 10 tests, 0 failed, 0 skipped | GW-P11-*: 5/5 PASS | GW-VAL-PLOTLY*: 1/1 PASS | plotly: 70 rows {\"PASS\": 70}",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-15",
+      "area": "Macro-sensitivity tornado",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_macro_tornado.py 10 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_macro_tornado.py 10 tests, 0 failed, 0 skipped | GW-P13-03*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-16",
+      "area": "Lenses (every seeded Lens)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_lenses.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_lenses.py 15 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_lens_content.py 18 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_lens_content.py 18 tests, 0 failed, 0 skipped | GW-P9-*: 3/3 PASS | GW-BACK-13*: 1/1 PASS | GW-BACK-14*: 1/1 PASS | GW-BACK-15*: 1/1 PASS | GW-GOLD-04*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-17",
+      "area": "Metric Catalogue (formula and metadata)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_metrics.py 16 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_metrics.py 16 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_metric_oracles.py 31 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_metric_oracles.py 31 tests, 0 failed, 0 skipped | GW-P8-*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-18",
+      "area": "Monitoring Centre / breach lifecycle",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_monitoring.py 26 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_monitoring.py 26 tests, 0 failed, 0 skipped | GW-P10-*: 3/3 PASS | GW-BACK-18*: 1/1 PASS | GW-BACK-19*: 1/1 PASS | GW-BACK-20*: 1/1 PASS | GW-GOLD-05*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-19",
+      "area": "Messages / sharing (sender and recipient)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_messages.py 13 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_messages.py 13 tests, 0 failed, 0 skipped | GW-P7-*: 4/4 PASS | GW-BACK-11*: 1/1 PASS | GW-BACK-12*: 1/1 PASS | GW-BACK-13*: 1/1 PASS | GW-GOLD-07*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-20",
+      "area": "Persistence / reopen / restart (no model call)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_objects.py 31 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_objects.py 31 tests, 0 failed, 0 skipped | GW-GOLD-08*: 1/1 PASS | GW-P1-02*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-21",
+      "area": "Exports (incl. conversation cohort never the whole book)",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_trace.py 18 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_trace.py 18 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_grid.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_grid.py 15 tests, 0 failed, 0 skipped | GW-P12-*: 3/3 PASS | GW-GOLD-06*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-22",
+      "area": "Full LLM Exchange Trace",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_llm_exchange.py 27 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_llm_exchange.py 27 tests, 0 failed, 0 skipped | GW-P1-*: 3/3 PASS | GW-P12-03*: 1/1 PASS | GW-BACK-21*: 1/1 PASS | GW-BACK-22*: 1/1 PASS | GW-GOLD-09*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-23",
+      "area": "Security / secrets / tenant isolation",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_secret_leak.py 4 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_secret_leak.py 4 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_v4_secret_persistence.py 9 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_v4_secret_persistence.py 9 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_objects.py 31 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_objects.py 31 tests, 0 failed, 0 skipped | GW-GOLD-09*: 1/1 PASS | mutation gate 'tenant isolation': PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-24",
+      "area": "Data / domain / release integrity",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_uat_preflight.py 19 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_uat_preflight.py 19 tests, 0 failed, 0 skipped | step release_fingerprints: PASS | step release_report_digests: PASS | step sensitivity_libraries_reproduce: PASS | step protected_baseline_round: PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-25",
+      "area": "Responsive / accessibility (1440, 390)",
+      "status": "PASS",
+      "evidence": "GW-P13-05*: 1/1 PASS | GW-VAL-PLOTLY*: 1/1 PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-26",
+      "area": "Frontend console / network cleanliness",
+      "status": "PASS",
+      "evidence": "GW-BACK-*: 22/22 PASS | GW-GOLD-*: 10/10 PASS | GW-VAL-*: 2/2 PASS | validation journeys' console errors: 0",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-27",
+      "area": "Negative / error states",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_validation_endpoints.py 11 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_validation_endpoints.py 11 tests, 0 failed, 0 skipped",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-28",
+      "area": "Concurrency / idempotency / duplication",
+      "status": "PASS",
+      "evidence": "v4_accepted.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_validation_defects.py 22 tests, 0 failed, 0 skipped | GW-BACK-*: 22/22 PASS | GW-GOLD-06*: 1/1 PASS | mutation gate 'binding is idempotent': PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-29",
+      "area": "Performance smoke (p50/p95)",
+      "status": "PASS",
+      "evidence": "11 endpoints; worst p95 108.4 ms (scenario preview (template))",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "VAL-33",
+      "area": "GOLD cross-module journeys (10)",
+      "status": "PASS",
+      "evidence": "GW-GOLD-*: 10/10 PASS | GOLD journeys run: 10",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "REG-V4",
+      "area": "V4 backend + frontend-python (accepted interpreter)",
+      "status": "PASS",
+      "evidence": "step v4_backend_and_frontend_py_accepted: PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "REG-WI",
+      "area": "What-If + Guided Workspace suite (candidate interpreter)",
+      "status": "PASS",
+      "evidence": "step whatif_suite_whatif_venv: PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "REG-V3",
+      "area": "V3 Cockpit regression",
+      "status": "PASS",
+      "evidence": "step v3_cockpit_agentic: PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "REG-FE",
+      "area": "Frontend unit, TypeScript, lint",
+      "status": "PASS",
+      "evidence": "step frontend_unit: PASS | step frontend_typecheck: PASS | step frontend_lint_new_code: PASS | step python_lint_round_code: PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "REG-BR",
+      "area": "Browser suites (guided, What-If candidate, flags-OFF)",
+      "status": "PASS",
+      "evidence": "step gw_browser_journeys_clean_store: PASS | step whatif_candidate_browser: PASS | step accepted_browser_suite_flags_off: PASS | step validation_inventory_runtime: PASS",
+      "missing_or_blocked": "",
+      "failed": ""
+    },
+    {
+      "id": "REG-EM",
+      "area": "Emulator artifact reproducibility",
+      "status": "BLOCKED",
+      "evidence": "step emulator_artifacts_reproduce: BLOCKED_ENV",
+      "missing_or_blocked": "emulator_artifacts_reproduce BLOCKED_ENV: only component pickle hashes differ (refit nondeterminism); weights, gates, verdicts, versions, seeds and splits reproduced: corporate: ['lightgbm']; retail: ['additive_log', 'lightgbm']",
+      "failed": ""
+    },
+    {
+      "id": "VAL-30",
+      "area": "Live model validation",
+      "status": "BLOCKED",
+      "evidence": "",
+      "missing_or_blocked": "Live-provider use is not authorised in this environment; no paid call was made. PENDING_LIVE: run docs/guided_workspace/MAC_LIVE_UAT.md on the Mac.",
+      "failed": ""
+    }
+  ],
+  "area_status_counts": {
+    "PASS": 32,
+    "BLOCKED": 2
+  }
+}

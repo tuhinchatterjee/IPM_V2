@@ -1,0 +1,94 @@
+{
+  "api": "http://127.0.0.1:8444",
+  "note": "warm, sequential, this machine; smoke only",
+  "rows": [
+    {
+      "endpoint": "issues feed (corporate)",
+      "request": "GET /issues?domain=corporate",
+      "n": 20,
+      "p50_ms": 2.7,
+      "p95_ms": 3.2,
+      "max_ms": 3.8
+    },
+    {
+      "endpoint": "issue detail",
+      "request": "GET /issues/iss-db4929b9bd19",
+      "n": 20,
+      "p50_ms": 3.4,
+      "p95_ms": 3.9,
+      "max_ms": 3.9
+    },
+    {
+      "endpoint": "grid page (50 rows)",
+      "request": "POST /grid/query",
+      "n": 20,
+      "p50_ms": 60.0,
+      "p95_ms": 65.5,
+      "max_ms": 67.5
+    },
+    {
+      "endpoint": "grid filtered + summary",
+      "request": "POST /grid/query",
+      "n": 20,
+      "p50_ms": 58.0,
+      "p95_ms": 70.9,
+      "max_ms": 72.6
+    },
+    {
+      "endpoint": "selection summary",
+      "request": "POST /whatif/selection/summary",
+      "n": 20,
+      "p50_ms": 75.9,
+      "p95_ms": 89.3,
+      "max_ms": 97.7
+    },
+    {
+      "endpoint": "scenario library",
+      "request": "GET /scenarios",
+      "n": 20,
+      "p50_ms": 19.9,
+      "p95_ms": 23.7,
+      "max_ms": 30.9
+    },
+    {
+      "endpoint": "scenario preview (template)",
+      "request": "POST /scenarios/scn-tpl-corp-01/preview",
+      "n": 20,
+      "p50_ms": 82.5,
+      "p95_ms": 108.4,
+      "max_ms": 124.8
+    },
+    {
+      "endpoint": "lens render (lens-02)",
+      "request": "POST /lenses/lens-02/render",
+      "n": 20,
+      "p50_ms": 82.1,
+      "p95_ms": 101.0,
+      "max_ms": 113.6
+    },
+    {
+      "endpoint": "monitoring centre",
+      "request": "GET /monitoring?view=all",
+      "n": 20,
+      "p50_ms": 26.0,
+      "p95_ms": 28.1,
+      "max_ms": 28.6
+    },
+    {
+      "endpoint": "metric catalogue",
+      "request": "GET /metrics",
+      "n": 20,
+      "p50_ms": 7.3,
+      "p95_ms": 9.1,
+      "max_ms": 9.9
+    },
+    {
+      "endpoint": "messages",
+      "request": "GET /messages",
+      "n": 20,
+      "p50_ms": 1.8,
+      "p95_ms": 2.1,
+      "max_ms": 2.3
+    }
+  ]
+}

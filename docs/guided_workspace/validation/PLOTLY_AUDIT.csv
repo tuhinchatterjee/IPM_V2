@@ -1,0 +1,71 @@
+journey,page,url,viewport,testid,rendered,plotly,label,width,fits,page_horizontal_scroll_px,console_errors,status
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,1440,issue-trend,True,True,Booked ECL over time. Hospitality · metric M001 · v4-whatif-corporate-20q-s1,489,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,1440,issue-ecl-trend,True,True,Booked ECL over time. Hospitality · M001,489,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,1440,issue-drivers,True,True,"What contributed, by sub sector. Click a bar to show those rows below. Contribut",489,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,1440,issue-stage-mix,True,True,Stage mix of the affected population. EAD by IFRS 9 stage; click a stage to show,489,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,1440,whatif-chart-dimension,True,True,Booked ECL by sector. 2026Q2 · all categories,669,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,1440,whatif-chart-stage,True,True,Filtered population by stage. EAD; click a stage to filter,312,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,1440,whatif-chart-heatmap,True,True,EAD by sector × rating. 2026Q2 · click a cell (or press Enter on a row of its da,491,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,1440,whatif-chart-sankey,True,True,"Stage migration, prior → current quarter. EAD; click a flow (or press Enter on a",491,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,1440,whatif-waterfall-selected,True,True,ECL bridge — selected scope. opening + components + residual = closing · reconci,489,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,1440,whatif-waterfall-total,True,True,ECL bridge — total active book. opening + components + residual = closing · reco,489,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,1440,whatif-result-stages,True,True,"ECL by stage, before and after. Stages frozen: exposures keep their stage unless",489,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,1440,whatif-result-top,True,True,Largest contributors. Exposures with the largest Delta change,489,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,1440,whatif-result-pareto,True,True,"Delta change by sector, largest first. Bars: change in SAR; line: cumulative sha",489,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,1440,whatif-result-distribution,True,True,How the change is spread across exposures. Exposures by the change in their own ,489,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,1440,lens-visual-v06,True,True,Booked ECL by sector. M001 v1 · corporate · 2026Q2,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,1440,lens-visual-v07,True,True,EAD-weighted PD by rating. M015 v1 · corporate · 2026Q2,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,1440,lens-visual-v08,True,True,Stage 2 / Stage 3 EAD share. M005 v1 · corporate · 2026Q2,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,1440,lens-visual-v09,True,True,Largest names by EAD. M021 v1 · corporate · 2026Q2,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,1440,lens-visual-v06,True,True,High/critical EWS EAD by sector. M063 v1 · corporate · 2026Q2,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,1440,lens-visual-v07,True,True,High/critical share by product. M033 v1 · retail · 2026-08,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,1440,lens-visual-v08,True,True,Warned customers. M032 v1 · retail · 2026-08,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,1440,lens-visual-v10,True,True,Top warning reasons — Corporate. M069 v1 · corporate · 2026Q2,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,1440,lens-visual-v11,True,True,Top warning reasons — Retail. M069 v1 · retail · 2026-08,482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-15,/lenses/lens-15,1440,lens-visual-v07,True,True,Booked ECL by sub-sector. M001 v1 · corporate · 2026Q2 · 1 filter(s),482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-15,/lenses/lens-15,1440,lens-visual-v08,True,True,PD by rating. M015 v1 · corporate · 2026Q2 · 1 filter(s),482,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-15,/lenses/lens-15,1440,lens-visual-v09,True,True,Largest Construction & CRE borrowers. M021 v1 · corporate · 2026Q2 · 1 filter(s),482,True,-15,0,PASS
+GW-VAL-PLOTLY,monitoring,/monitoring?view=all,1440,monitoring-by-severity,True,True,By severity. 15 in this view,489,True,-15,0,PASS
+GW-VAL-PLOTLY,monitoring,/monitoring?view=all,1440,monitoring-by-lens,True,True,By Lens. click a bar to filter to that Lens,489,True,-15,0,PASS
+GW-VAL-PLOTLY,metrics,/metrics?m=M001,1440,metric-trend-corporate,True,True,Trend — Corporate. M001 v1 over the last published quarters,291,True,-15,0,PASS
+GW-VAL-PLOTLY,metrics,/metrics?m=M001,1440,metric-trend-retail,True,True,Trend — Retail. M001 v1 over the last published months,291,True,-15,0,PASS
+GW-VAL-PLOTLY,metrics,/metrics?m=M001,1440,metric-breakdown,True,True,Booked ECL by sector. corporate · 2026Q2,627,True,-15,0,PASS
+GW-VAL-PLOTLY,early-warning,/early-warning,1440,ew-trend,True,True,High/critical EWS EAD over time. Metric M063 · governed rule set,482,True,-15,0,PASS
+GW-VAL-PLOTLY,early-warning,/early-warning,1440,ew-reasons,True,True,Why exposures are warned. Rules tripped (an exposure can trip several). Click a ,482,True,-15,0,PASS
+GW-VAL-PLOTLY,scenario,/scenarios/scn-tpl-corp-01,1440,scenario-stage-mix,True,True,Scope by IFRS 9 stage. EAD of the exposures the definition selects,489,True,-15,0,PASS
+GW-VAL-PLOTLY,scenario,/scenarios/scn-tpl-corp-01,1440,scenario-band-mix,True,True,Scope by rating current. EAD per band,489,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,390,issue-trend,True,True,Booked ECL over time. Hospitality · metric M001 · v4-whatif-corporate-20q-s1,217,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,390,issue-ecl-trend,True,True,Booked ECL over time. Hospitality · M001,217,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,390,issue-drivers,True,True,"What contributed, by sub sector. Click a bar to show those rows below. Contribut",217,True,-15,0,PASS
+GW-VAL-PLOTLY,issue,/issues/iss-db4929b9bd19,390,issue-stage-mix,True,True,Stage mix of the affected population. EAD by IFRS 9 stage; click a stage to show,217,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,390,whatif-chart-dimension,True,True,Booked ECL by sector. 2026Q2 · all categories,217,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,390,whatif-chart-stage,True,True,Filtered population by stage. EAD; click a stage to filter,217,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,390,whatif-chart-heatmap,True,True,EAD by sector × rating. 2026Q2 · click a cell (or press Enter on a row of its da,217,True,-15,0,PASS
+GW-VAL-PLOTLY,what-if,/what-if?domain=corporate,390,whatif-chart-sankey,True,True,"Stage migration, prior → current quarter. EAD; click a flow (or press Enter on a",217,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,390,whatif-waterfall-selected,True,True,ECL bridge — selected scope. opening + components + residual = closing · reconci,217,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,390,whatif-waterfall-total,True,True,ECL bridge — total active book. opening + components + residual = closing · reco,217,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,390,whatif-result-stages,True,True,"ECL by stage, before and after. Stages frozen: exposures keep their stage unless",217,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,390,whatif-result-top,True,True,Largest contributors. Exposures with the largest Delta change,217,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,390,whatif-result-pareto,True,True,"Delta change by sector, largest first. Bars: change in SAR; line: cumulative sha",217,True,-15,0,PASS
+GW-VAL-PLOTLY,result,/what-if/result/res-e58d72283032,390,whatif-result-distribution,True,True,How the change is spread across exposures. Exposures by the change in their own ,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,390,lens-visual-v06,True,True,Booked ECL by sector. M001 v1 · corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,390,lens-visual-v07,True,True,EAD-weighted PD by rating. M015 v1 · corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,390,lens-visual-v08,True,True,Stage 2 / Stage 3 EAD share. M005 v1 · corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-02,/lenses/lens-02,390,lens-visual-v09,True,True,Largest names by EAD. M021 v1 · corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,390,lens-visual-v06,True,True,High/critical EWS EAD by sector. M063 v1 · corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,390,lens-visual-v07,True,True,High/critical share by product. M033 v1 · retail · 2026-08,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,390,lens-visual-v08,True,True,Warned customers. M032 v1 · retail · 2026-08,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,390,lens-visual-v10,True,True,Top warning reasons — Corporate. M069 v1 · corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-05,/lenses/lens-05,390,lens-visual-v11,True,True,Top warning reasons — Retail. M069 v1 · retail · 2026-08,217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-15,/lenses/lens-15,390,lens-visual-v07,True,True,Booked ECL by sub-sector. M001 v1 · corporate · 2026Q2 · 1 filter(s),217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-15,/lenses/lens-15,390,lens-visual-v08,True,True,PD by rating. M015 v1 · corporate · 2026Q2 · 1 filter(s),217,True,-15,0,PASS
+GW-VAL-PLOTLY,lens-15,/lenses/lens-15,390,lens-visual-v09,True,True,Largest Construction & CRE borrowers. M021 v1 · corporate · 2026Q2 · 1 filter(s),217,True,-15,0,PASS
+GW-VAL-PLOTLY,monitoring,/monitoring?view=all,390,monitoring-by-severity,True,True,By severity. 15 in this view,217,True,-15,0,PASS
+GW-VAL-PLOTLY,monitoring,/monitoring?view=all,390,monitoring-by-lens,True,True,By Lens. click a bar to filter to that Lens,217,True,-15,0,PASS
+GW-VAL-PLOTLY,metrics,/metrics?m=M001,390,metric-trend-corporate,True,True,Trend — Corporate. M001 v1 over the last published quarters,217,True,-15,0,PASS
+GW-VAL-PLOTLY,metrics,/metrics?m=M001,390,metric-trend-retail,True,True,Trend — Retail. M001 v1 over the last published months,217,True,-15,0,PASS
+GW-VAL-PLOTLY,metrics,/metrics?m=M001,390,metric-breakdown,True,True,Booked ECL by sector. corporate · 2026Q2,217,True,-15,0,PASS
+GW-VAL-PLOTLY,early-warning,/early-warning,390,ew-trend,True,True,High/critical EWS EAD over time. Metric M063 · governed rule set,217,True,-15,0,PASS
+GW-VAL-PLOTLY,early-warning,/early-warning,390,ew-reasons,True,True,Why exposures are warned. Rules tripped (an exposure can trip several). Click a ,217,True,-15,0,PASS
+GW-VAL-PLOTLY,scenario,/scenarios/scn-tpl-corp-01,390,scenario-stage-mix,True,True,Scope by IFRS 9 stage. EAD of the exposures the definition selects,217,True,-15,0,PASS
+GW-VAL-PLOTLY,scenario,/scenarios/scn-tpl-corp-01,390,scenario-band-mix,True,True,Scope by rating current. EAD per band,217,True,-15,0,PASS
