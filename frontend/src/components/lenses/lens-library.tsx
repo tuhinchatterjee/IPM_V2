@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 
 import { listLenses, proposeLens, saveLens, type LensCard, type Proposal } from "@/lib/workspace/lenses";
+import { OriginBackLink } from "@/components/workspace/origin-back";
 import { urlWith, withBack } from "@/lib/workspace/nav";
 
 const CADENCE: Record<string, string> = {
@@ -88,7 +89,7 @@ export function LensLibrary() {
     setBusy(true);
     try {
       const obj = await saveLens(proposal.spec, proposal.source);
-      router.push(withBack(`/lenses/${obj.object_id}`, "/lenses"));
+      router.push(withBack(`/lenses/${obj.object_id}`, urlWith({ from_investigation: null, from_thread: null })));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -100,6 +101,7 @@ export function LensLibrary() {
 
   return (
     <div className="space-y-4" data-testid="lens-library" data-total={lib?.total ?? 0}>
+      <OriginBackLink testId="lens-library-back" />
       <header className="flex flex-wrap items-end gap-3">
         <div>
           <h1 className="text-lg font-semibold">Lenses</h1>
@@ -171,7 +173,7 @@ export function LensLibrary() {
       )}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="lens-grid">
         {shown.map((c) => (
-          <Link key={c.object_id} href={withBack(`/lenses/${c.object_id}`, `/lenses${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`)} className="block rounded-xl border border-border bg-surface p-3 hover:border-accent" data-testid="lens-card" data-lens-id={c.lens_id} data-object-id={c.object_id}>
+          <Link key={c.object_id} href={withBack(`/lenses/${c.object_id}`, urlWith({ q: q.trim() || null, from_investigation: null, from_thread: null }))} className="block rounded-xl border border-border bg-surface p-3 hover:border-accent" data-testid="lens-card" data-lens-id={c.lens_id} data-object-id={c.object_id}>
             <div className="flex items-start gap-2">
               <div className="min-w-0">
                 <div className="text-xs text-text-muted">

@@ -103,8 +103,8 @@ def test_an_alert_cohort_and_investigation_carry_the_alert_population(
     cohort = c.json()
     assert cohort["kind"] == "cohort"
     assert cohort["domain_id"] == alert["body"]["domain_id"]
-    inv = client.post(f"{P}/monitoring/alerts/{alert['object_id']}/"
-                      f"investigate")
+    aid = alert["object_id"]
+    inv = client.post(f"{P}/monitoring/alerts/{aid}/investigate")
     assert inv.status_code == 201, inv.text
     assert inv.json()["thread_id"].startswith("th-")
     seeded = client.get(f"{P}/whatif/threads/{inv.json()['thread_id']}/"

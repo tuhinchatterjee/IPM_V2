@@ -102,7 +102,9 @@ export function ScenarioLibrary() {
     const next = urlWith({ domain, owner, severity, tag, q: query });
     if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
   }, [domain, owner, severity, tag, query, router]);
-  const here = `/scenarios?${new URLSearchParams(Object.entries({ domain, owner, severity, tag, q: query }).filter(([, v]) => v)).toString()}`;
+  // This page's own address, its origin (`back=`) included, so a chain of
+  // Backs never loses a level.
+  const here = `/scenarios?${new URLSearchParams(Object.entries({ domain, owner, severity, tag, q: query, back: params.get("back") ?? "" }).filter(([, v]) => v)).toString()}`;
 
   function toggle(card: ScenarioCard) {
     setCombining(null);

@@ -43,6 +43,7 @@ Branch `claude/guided-workspace-exhaustive-validation`. The base is evidence com
 | VAL-DEF-023 | HIGH | Lenses / What-If | The URL-state `replace` could overtake a navigation `push` and cancel it (Lens → What-If did nothing) | FIXED |
 | VAL-DEF-028 | MEDIUM | Scenario detail | Binding your own scenario left the page on the old version, with a Back link pointing to itself | FIXED |
 | VAL-DEF-029 | HIGH | Cockpit thread → What-If | A conversation opened on a governed cohort (Lens, alert, Early Warning, What-If) had no click path to What-If on that population | FIXED |
+| VAL-DEF-030 | MEDIUM | Navigation chain | A chain of in-product Backs lost a level: the Scenario Library, its result links and the Lens Library rebuilt their address without their own origin; long origin chains were dropped above 1,500 characters | FIXED |
 | VAL-DEF-024 | LOW | Workspace API | Pydantic validation errors are returned as raw lists, not the product's error envelope | OPEN (accepted, LOW) |
 | VAL-DEF-025 | LOW | Workspace API | No `GET /lenses/{id}`: the UI reads Lenses through `/objects/{id}`; a direct call is a bare 404 | OPEN (accepted, LOW) |
 | VAL-DEF-026 | LOW | Legacy Trace | `/trace/[runId]` parses the id as a number; reached only from legacy V3 surfaces, never from a guided flow | OPEN (out of guided scope) |
@@ -390,6 +391,18 @@ CRITICAL and HIGH: 12 found and 12 fixed. MEDIUM and LOW: 13 fixed. Open items: 
 | Files | `backend/workspace/whatif.py` (`seed_cohort_id`), `frontend/src/lib/workspace/whatif.ts`, `components/guided/thread-whatif.tsx` (`thread-whatif-on-cohort`) |
 | Test | `test_gw_validation_endpoints.py::test_an_alert_cohort_and_investigation_carry_the_alert_population` (the seeded id); `GW-GOLD-04`, `GW-GOLD-06` |
 | Retest | PASS. The first run failed and is preserved; the rerun passed. |
+| Disposition | FIXED |
+
+### VAL-DEF-030: The in-product Back chain lost a level (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Home → issue → thread → What-If → Library (search) → scenario → result → Messages, then in-product Back repeatedly |
+| Expected | Each Back lands on the previous level with its state |
+| Actual | Library → What-If was lost: the library's card links and the scenario's result links carried an origin without its own `back=`; the Lens Library had no Back link at all; `safeBack` dropped chains longer than 1,500 characters |
+| Files | `scenario-library.tsx` (`here` keeps `back`), `scenario-detail.tsx` (result links use the full current address), `lens-library.tsx` (Back link; origin kept), `lib/workspace/nav.ts` (6,000-character limit), `nav.test.ts` (NAV01 long chain) |
+| Test | `GW-GOLD-10` (in-product then browser Back through all eight levels). The first run failed and is preserved; the rerun passed. NAV01. |
+| Retest | PASS |
 | Disposition | FIXED |
 
 ### Open items (all LOW)

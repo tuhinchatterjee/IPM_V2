@@ -270,7 +270,19 @@ HANDOFF = re.compile(
     r"cockpit/trace|metrics|issues|trace|early-warning)[^`\"]*)")
 
 
+def _app_routes() -> list[re.Pattern]:
+    """Every page under `frontend/src/app` (any module) as a path pattern."""
+    out = []
+    for page in APP.rglob("page.tsx"):
+        rel = page.relative_to(APP).parent.as_posix()
+        route = "/" + ("" if rel == "." else rel)
+        out.append(re.compile("^" + re.sub(r"\[[^\]]+\]", "[^/]+", route)
+                              + "/?$"))
+    return out
+
+
 def scan_handoffs(visits: dict[str, set[str]]) -> list[dict[str, str]]:
+    pages = _app_routes()
     rows = []
     for d in GUIDED_DIRS:
         for f in sorted((SRC / d).rglob("*.tsx")):
@@ -290,16 +302,19 @@ def scan_handoffs(visits: dict[str, set[str]]) -> list[dict[str, str]]:
                     if dest == source:
                         continue
                     stat = re.sub(r"\[id\]", "[^/]+", route)
+                    probe = re.sub(r"\[id\]", "x", route)
+                    exists = any(r.match(probe) for r in pages)
                     hits = sorted(visits.get(stat, set()))
                     rows.append({
                         "source_module": source, "file": rel, "line": n,
                         "target": target[:160], "destination_module": dest,
                         "carries_origin": "yes" if "withBack(" in line
                         or "leave(" in line else "no",
+                        "route_exists": "yes" if exists else "NO",
                         "journeys": ";".join(hits)[:300],
-                        "status": ("FAILED" if any(h.endswith(":FAILED")
-                                                   for h in hits) else
-                                   "PASS" if hits else "PARTIAL")})
+                        "status": ("FAILED" if not exists or any(
+                            h.endswith(":FAILED") for h in hits) else
+                            "PASS" if hits else "PARTIAL")})
     return rows
 
 
@@ -409,8 +424,8 @@ def main() -> int:
     with (out / "INTEGRATION_HANDOFF_INVENTORY.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["source_module", "file", "line",
                                           "target", "destination_module",
-                                          "carries_origin", "journeys",
-                                          "status"])
+                                          "carries_origin", "route_exists",
+                                          "journeys", "status"])
         w.writeheader()
         w.writerows(handoffs)
 

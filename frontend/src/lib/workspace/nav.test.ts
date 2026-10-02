@@ -8,7 +8,8 @@ test("NAV01 safeBack keeps same-origin paths only", () => {
   for (const bad of ["https://evil.example/x", "//evil.example", "javascript:alert(1)", "issues/x", "/\\evil", "", null, undefined]) {
     assert.equal(safeBack(bad as string), "", String(bad));
   }
-  assert.equal(safeBack(`/${"a".repeat(2000)}`), "");
+  assert.equal(safeBack(`/${"a".repeat(7000)}`), "");
+  assert.equal(safeBack(`/x?back=${"a".repeat(3000)}`).length, 3008, "a nested chain of origins is kept");
 });
 
 test("NAV02 withBack appends an encoded origin and never an unsafe one", () => {

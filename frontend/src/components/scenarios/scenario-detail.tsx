@@ -355,7 +355,7 @@ function ScenarioResults({ scenarioId }: { scenarioId: string }) {
       <ul className="space-y-1">
         {rows.map((r) => (
           <li key={r.object_id} className="flex flex-wrap gap-2">
-            <Link href={withBack(`/what-if/result/${r.object_id}`, `/scenarios/${scenarioId}`)} className="text-accent underline" data-testid="scenario-result-link">
+            <Link href={withBack(`/what-if/result/${r.object_id}`)} className="text-accent underline" data-testid="scenario-result-link">
               {r.object_id}
             </Link>
             <span>v{r.scenario_version}</span>

@@ -12,7 +12,9 @@ export function safeBack(raw: string | null | undefined): string {
   if (!raw) return "";
   const v = raw.trim();
   if (!v.startsWith("/") || v.startsWith("//") || v.includes("\\") || /^\/\s/.test(v)) return "";
-  if (v.length > 1500) return "";
+  // Nested origins (Home → issue → thread → What-If → …) stay well under
+  // what browsers and Next accept in a URL.
+  if (v.length > 6000) return "";
   return v;
 }
 
