@@ -1,4 +1,5 @@
-"""Independent ECL reconciliation: every published Delta figure, for every
+"""Independent ECL reconciliation (EVIDENCE LABEL: INDEPENDENT ORACLE; NO
+MODEL -- no provider is called): every published Delta figure, for every
 scope a What-If run can take, recomputed from the source rows by this test's
 own arithmetic -- not through the engine's plan, SQL compiler or the UI.
 

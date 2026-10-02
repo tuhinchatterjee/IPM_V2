@@ -1,0 +1,1023 @@
+(node:11846) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/agentic/__tests__/officer.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ the stage vocabulary
+  ✔ is §7's eleven states, in order (3.794823ms)
+  ✔ gives every stage a caption and a short label (0.246341ms)
+  ✔ says nothing about how the model is thinking (7.522478ms)
+✔ the stage vocabulary (14.82157ms)
+▶ when the indicator is on screen
+  ✔ is working while a stage is not terminal (0.878267ms)
+  ✔ stops completely when the work is done (0.471545ms)
+  ✔ shows nothing at all when there is no run (0.332319ms)
+✔ when the indicator is on screen (2.42301ms)
+▶ the status line
+  ✔ names the officer working, in §4's words (0.385341ms)
+  ✔ prefers the title the run recorded over the one the level implies (0.30241ms)
+  ✔ says nobody is working once the run has finished (0.804027ms)
+✔ the status line (2.12653ms)
+▶ the caption
+  ✔ prefers the run's own detail — §8's 'Validating 6 calculations' (0.288558ms)
+  ✔ falls back to the API's caption before the local copy (0.107947ms)
+  ✔ ignores a detail that is only whitespace (0.06294ms)
+✔ the caption (0.586515ms)
+▶ the specialist line
+  ✔ lists the specialists in §8's form (0.19928ms)
+  ✔ says nothing for one specialist (0.096725ms)
+  ✔ counts only when there is genuinely coordination (0.059415ms)
+✔ the specialist line (0.48594ms)
+▶ elapsed time
+  ✔ is seconds, then minutes — never milliseconds (0.104162ms)
+  ✔ shows nothing before the first second (0.043759ms)
+✔ elapsed time (0.195543ms)
+▶ what has already happened
+  ✔ is the stages before this one (0.171327ms)
+  ✔ prefers the list the run actually recorded (0.071188ms)
+  ✔ has nothing to show for a stage outside the sequence (0.05221ms)
+✔ what has already happened (0.35887ms)
+▶ escalation
+  ✔ is shown only when a run actually escalated — §9 (0.136309ms)
+  ✔ carries the reason beside the line, never a bare heading (0.40075ms)
+  ✔ does not leave a dangling reason when there is none (0.235402ms)
+✔ escalation (2.395916ms)
+▶ the screen-reader announcement
+  ✔ says in words what the pulse says visually — §10 (0.414142ms)
+  ✔ is the same words that are on screen, not a separate description (0.259045ms)
+  ✔ is empty when nothing is running (0.142579ms)
+✔ the screen-reader announcement (0.983132ms)
+▶ polling
+  ✔ is fast early and slow later (0.297812ms)
+  ✔ never polls fast enough to be a request per frame (0.227523ms)
+✔ polling (0.674823ms)
+(node:11847) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/analytics/__tests__/playback.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ nothing plays until somebody presses Play (4.546975ms)
+✔ play then tick advances one period at a time (0.358682ms)
+✔ playback stops at the last period rather than looping (0.23411ms)
+✔ pressing Play at the end restarts (0.186236ms)
+✔ a tick while paused changes nothing (0.227407ms)
+✔ scrubbing takes over from playback (0.1329ms)
+✔ Next on the last period does not run off the end (2.024041ms)
+✔ Previous on the first period does not run off the start (0.250396ms)
+✔ speed changes how long a period is held (0.641629ms)
+✔ comparing a period with itself turns comparison off (0.578561ms)
+✔ comparing shows both periods together, in period order (1.739255ms)
+✔ without a comparison only the current period is drawn (0.166745ms)
+✔ reset returns to the first period, paused, at normal speed (0.093913ms)
+✔ one period is not eligible for playback (0.076043ms)
+✔ play does nothing where there is nothing to play (0.05578ms)
+✔ periods keep the result's own order, never an alphabetical one (0.123213ms)
+✔ the caption says where the cursor is and what it is compared with (0.181634ms)
+(node:11848) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/analytics/__tests__/registry.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ one row of figures is a KPI, not a one-bar bar chart (3.211205ms)
+✔ a from/to pair with a measure is a transition matrix (0.667041ms)
+✔ a period column makes it a trend (0.191141ms)
+✔ a few series over time stay on one axis; many do not (0.38587ms)
+✔ signed changes get a zero line rather than a plain bar (0.234974ms)
+✔ two measures per name is a relationship, not a ranking (0.334855ms)
+✔ three measures per name adds size (0.243923ms)
+✔ a handful of groups is a bar; a couple of dozen is a horizontal bar (0.22307ms)
+✔ too many categories falls back to the table, and says why (0.595622ms)
+✔ no measure means no chart, and no crash (0.58311ms)
+✔ an empty result never claims a chart (0.178178ms)
+✔ hidden lineage columns are not treated as measures (0.113993ms)
+✔ every choice explains itself (0.113502ms)
+✔ a sector ranking is a bar chart (0.259106ms)
+✔ a time series is a line (0.132216ms)
+✔ an ECL movement offers a waterfall (0.088576ms)
+✔ a stage migration is a matrix and offers a Sankey (0.183143ms)
+✔ a concentration offers a treemap (0.160731ms)
+✔ a multidimensional borrower result is a scatter or a bubble (0.216814ms)
+✔ a dense heterogeneous result is a table, and says why (0.188888ms)
+✔ the registry never names a series the result does not have (0.325601ms)
+✔ the chosen form is always one the result supports (0.1069ms)
+✔ a table is offered as an alternative wherever a chart is chosen (0.186144ms)
+✔ a share of the measure is not a second measure (0.129097ms)
+✔ a genuine second measure still makes it a relationship (0.103167ms)
+✔ a governed code column is a dimension, not a measure (0.099649ms)
+✔ a column with no declared semantic is still read from its data (0.082941ms)
+✔ two measures across a small governed scale is a comparison, not a scatter (0.07632ms)
+✔ two measures per named thing is still a scatter (0.167126ms)
+✔ three measures per named thing is a bubble (0.093331ms)
+(node:11869) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/analytics/__tests__/selection.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ hiding a series removes it from what is drawn (2.242952ms)
+✔ hiding the same series twice brings it back (0.220675ms)
+✔ hiding every series still draws the chart (0.115875ms)
+✔ isolating a series shows it alone (0.121338ms)
+✔ isolating the same series again shows them all (0.219015ms)
+✔ isolation ends when the reader asks for a second series (0.253826ms)
+✔ an isolated series that is no longer in the result does not blank the chart (0.150658ms)
+✔ a brushed range narrows what is drawn, not what was calculated (0.16727ms)
+✔ a range beyond the rows is clamped rather than producing nothing (0.365867ms)
+✔ picking a category emphasises it without dropping the others (0.500852ms)
+✔ with nothing picked every row is drawn at full strength (0.185587ms)
+✔ reset undoes everything, not most of it (0.112647ms)
+✔ arrow keys walk the categories and wrap (0.078414ms)
+✔ moving focus in an empty result focuses nothing (0.045473ms)
+✔ the reducer never mutates the state it was given (0.158755ms)
+✔ the description says what the reader chose, in their words (0.23616ms)
+✔ an untouched selection describes itself as nothing (0.050819ms)
+(node:11870) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/ask/__tests__/cockpit-v3-outcome.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a request settles into exactly one of five things, and none of them is silence (2.304871ms)
+✔ each envelope kind the server writes maps to what the reader is shown (1.606342ms)
+✔ a response this client cannot read is an error, not an empty answer (0.166127ms)
+✔ every governed terminal state is a supported outcome with its own explanation (0.189786ms)
+✔ a budget stop renders the backend's own sentence, not a generic outage (0.215126ms)
+✔ a partial answer is still an answer, and a redirect is still a redirect (0.070214ms)
+✔ a plan the model could not fit in its allowance is a supported stop (2.440639ms)
+✔ the terminal list is the server's, and nothing invented sits in it (0.113286ms)
+✔ a timeout is reported, with the sentence the transport layer wrote (0.340679ms)
+✔ a governed 503 keeps the server's explanation instead of becoming an outage (0.453139ms)
+✔ a failure is never empty and never a bare status code (0.362193ms)
+✔ a raw exception never reaches the reader: no stack trace, no class name (0.25451ms)
+✔ cockpitV3Ask waits 120 seconds, and the shared default is untouched (0.470597ms)
+✔ the measured 20.517-second request would have survived (0.119876ms)
+✔ nothing about the server's deadlines was changed to fix the transport (0.436123ms)
+✔ a credential can never reach the reader through a failure (0.199115ms)
+✔ the running indicator is off once a request has settled, whatever it settled as (0.06013ms)
+✔ the transport error this reads is the one the API client throws (0.178785ms)
+(node:11882) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/ask/__tests__/coverage.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a fully answered request reads as n of n (0.894016ms)
+✔ a partly verified request never reads as n of n (4.640245ms)
+✔ every objective that is not complete carries a reason (0.239868ms)
+✔ an unavailable coverage block still says something (0.126709ms)
+✔ a partial objective is presentable, not a failure (0.220493ms)
+(node:11891) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/ask/__tests__/insight.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ an ordinary paragraph splits into its sentences (2.127802ms)
+✔ a decimal is never a sentence boundary (0.172907ms)
+✔ an abbreviation followed by a lowercase word does not split (0.106025ms)
+✔ a quoted sentence opening is a boundary (0.117372ms)
+✔ empty and blank input produce nothing rather than an empty sentence (0.19898ms)
+(node:11893) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/ask/__tests__/response.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the promoted observation is one the backend already wrote (1.088022ms)
+✔ a finding that only restates the headline is not promoted (0.221485ms)
+✔ a finding carrying figures beats a louder one without them (0.231615ms)
+✔ nothing to promote renders nothing rather than a platitude (1.651904ms)
+✔ the insight says why it was chosen (0.202509ms)
+✔ a refusal is an implication in the strongest sense (1.150972ms)
+✔ named contributors become an implication, in the engine's own order (0.158813ms)
+✔ implications are capped and deduplicated (0.216468ms)
+✔ nothing to say produces no section (0.284279ms)
+✔ an empty result is a conclusion, not an empty table (0.340527ms)
+✔ a result with figures but no rows is not a negative finding (0.218319ms)
+✔ a step that failed is not reported as having found nothing (0.087482ms)
+✔ an inline token's colour follows the ontology, not the sign (0.083566ms)
+(node:11901) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/assurance/__tests__/present.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ dimension cells
+  ✔ never reads an unmeasured dimension as a pass (0.682943ms)
+  ✔ distinguishes a warning from a failure (0.186326ms)
+✔ dimension cells (1.720398ms)
+▶ the score
+  ✔ shows the status in words rather than a zero when nothing was scored (0.261067ms)
+  ✔ uses the label the payload supplied, never the word accuracy (1.3194ms)
+  ✔ leaves no dangling space where the surrounding label names it (0.211985ms)
+✔ the score (1.991305ms)
+▶ reference match
+  ✔ explains the absence rather than rendering a blank (0.206734ms)
+  ✔ reports the figure where an approved reference exists (0.247878ms)
+✔ reference match (0.689884ms)
+▶ staleness
+  ✔ never presents a stale record as current validation (0.189301ms)
+  ✔ leaves a current record alone (1.710028ms)
+✔ staleness (2.175084ms)
+▶ what needs attention
+  ✔ flags a critical failure (0.253906ms)
+  ✔ flags a record where somebody pressed Bad (0.063825ms)
+  ✔ leaves a clean record alone (0.045729ms)
+✔ what needs attention (0.463046ms)
+▶ review order
+  ✔ puts what needs attention first, not what scored lowest (1.553597ms)
+  ✔ does not sort unscored records to an end by their missing score (13.800263ms)
+  ✔ does not mutate the array it was given (0.168902ms)
+✔ review order (15.651731ms)
+(node:11915) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/attention/__tests__/severity.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ ordering — §46
+  ✔ is the stored priority, and nothing else (3.940186ms)
+  ✔ breaks a tie on the severity arithmetic, then on age (10.768064ms)
+  ✔ does not mutate the list it was given (0.241248ms)
+✔ ordering — §46 (20.193412ms)
+▶ the filter tabs — §40
+  ✔ are the five the brief names, in order (0.128311ms)
+  ✔ each map to a case level, and ALL to none (4.460442ms)
+  ✔ take their counts from the backend's grouped query (0.19042ms)
+  ✔ show zero rather than a guess when no counts have arrived (0.170172ms)
+✔ the filter tabs — §40 (5.36175ms)
+▶ the severity band
+  ✔ carries a word for every band, not colour alone — §10 (0.296736ms)
+  ✔ uses tokens rather than a literal colour (0.536512ms)
+✔ the severity band (1.059401ms)
+▶ urgency
+  ✔ is narrow enough to mean something (0.26451ms)
+  ✔ never marks a closed case (0.072558ms)
+✔ urgency (0.47263ms)
+▶ the due date
+  ✔ counts in days, in the reader's terms (0.564863ms)
+  ✔ says nothing for a closed case or a missing date (0.097339ms)
+  ✔ does not fall over on a date it cannot read (0.04875ms)
+✔ the due date (0.882621ms)
+▶ evidence coverage — §54
+  ✔ is words, not a percentage (0.112675ms)
+  ✔ never renders a number (0.158705ms)
+✔ evidence coverage — §54 (0.32843ms)
+▶ the row subtitle
+  ✔ shows a segment's share of the book — §42 (6.392246ms)
+  ✔ shows a borrower's exposure and position — §43 (0.479218ms)
+  ✔ names the dataset for a data case rather than an exposure (0.132328ms)
+  ✔ degrades to the period alone rather than to an empty row (0.101228ms)
+✔ the row subtitle (7.281392ms)
+▶ number formatting
+  ✔ drops precision nobody reads as the figure grows (0.408984ms)
+  ✔ treats a negative figure the same way (0.190419ms)
+✔ number formatting (0.6963ms)
+(node:11921) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/attention-client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the feed is read from the V4 attention endpoint (6.913532ms)
+✔ one item is read from its own V4 path (0.635759ms)
+✔ an item id is encoded, never interpolated raw (0.618609ms)
+✔ Investigate Further posts to the V4 investigate action (0.644735ms)
+✔ no home-feed call addresses the legacy backend (0.3944ms)
+✔ an open investigation survives a reload (0.402703ms)
+✔ a malformed remembered investigation is discarded, not rendered (0.380604ms)
+(node:11928) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/chart-download.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ what a downloaded chart is called
+  ✔ puts the PNG beside the SVG of the same chart (1.0817ms)
+  ✔ does not double an extension the API left off (0.306848ms)
+  ✔ replaces the extension rather than the word (0.413612ms)
+✔ what a downloaded chart is called (3.220173ms)
+▶ the size of a raster
+  ✔ keeps the drawing's own shape, not the window's (0.590262ms)
+  ✔ is legible in a slide (2.086514ms)
+  ✔ gives a drawing with no stated size a page rather than refusing (0.405498ms)
+  ✔ ignores a size that is not a size (0.427286ms)
+✔ the size of a raster (4.208676ms)
+▶ handing the drawing to the browser
+  ✔ survives a label that is not ASCII (0.521096ms)
+  ✔ escapes the characters that would end the URL early (2.829434ms)
+✔ handing the drawing to the browser (3.741773ms)
+(node:11936) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/chart-geometry.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ the scale a chart is drawn against
+  ✔ takes the extent the server published (2.657313ms)
+  ✔ falls back to the data for an answer saved before axes existed (0.390537ms)
+  ✔ falls back for an axis whose ticks the server could not build (0.208434ms)
+  ✔ reaches zero for a length-encoded form when it has to guess (0.133953ms)
+  ✔ gives a usable scale when every value is the same (2.048334ms)
+  ✔ gives a usable scale when there are no values at all (0.274219ms)
+  ✔ ignores a tick the payload left unusable (0.204987ms)
+✔ the scale a chart is drawn against (7.298071ms)
+▶ where a mark goes
+  ✔ puts the low at the floor and the high at the ceiling (0.515462ms)
+  ✔ puts the midpoint halfway up (0.269123ms)
+  ✔ spreads positions from edge to edge (0.423953ms)
+  ✔ centres a lone point rather than pinning it to the left edge (0.157948ms)
+  ✔ tiles bands across the box without a gap (0.14546ms)
+✔ where a mark goes (1.968924ms)
+▶ which mark the cursor is over
+  ✔ finds the nearest position (0.236834ms)
+  ✔ keeps hold past the edge rather than blinking out (0.091792ms)
+  ✔ reports nothing to be near when there is nothing (0.050343ms)
+  ✔ finds the band the cursor is inside, not the nearest edge (0.106548ms)
+✔ which mark the cursor is over (0.622464ms)
+▶ zoom
+  ✔ shows everything until it is asked not to (0.205089ms)
+  ✔ narrows about the middle of what is on screen (0.133859ms)
+  ✔ widens back out to everything (0.196317ms)
+  ✔ never narrows below what a trend needs to be a trend (0.29937ms)
+  ✔ pans without changing how much is shown (0.221212ms)
+  ✔ stops panning at the ends instead of running off them (0.252452ms)
+  ✔ clamps a window that outlives the result it was made on (0.27671ms)
+✔ zoom (1.843753ms)
+▶ x labels
+  ✔ shows every one when they fit (0.171441ms)
+  ✔ thins them when they do not (0.059204ms)
+  ✔ never divides by a stride of nothing (0.056254ms)
+✔ x labels (0.404617ms)
+(node:11943) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/claim-display.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the published string is what is shown (1.035433ms)
+✔ a full-precision cross-check never reaches the screen (0.331795ms)
+✔ the declared precision is respected when the server sent no string (0.107625ms)
+✔ nothing is shown when there is nothing to show (0.104134ms)
+✔ a non-numeric cross-check is not printed as digits either (0.187699ms)
+✔ the unit is not said twice (0.115394ms)
+✔ the fallback still says what the number measures (0.248171ms)
+(node:11949) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the configured V4 API origin is used (7.302268ms)
+✔ an alternate selected port propagates (0.460604ms)
+✔ a trailing slash is normalised away (0.157132ms)
+✔ an unset V4 variable fails loudly instead of defaulting (0.419664ms)
+✔ the generic API variable is NEVER used as a fall back (0.500915ms)
+✔ no V4 request can be addressed to the legacy backend port (0.251662ms)
+✔ an empty or whitespace value is not configuration (0.210757ms)
+✔ same-origin is an explicit opt-in, not an accident (0.175404ms)
+✔ the thrown error is typed so callers can render it (4.992824ms)
+✔ V4 mode is decided by the Cockpit variable alone (0.487769ms)
+✔ a remembered run survives and is forgotten deliberately (1.429452ms)
+✔ the remembered run keeps the question it is answering (0.250946ms)
+✔ export links name the run, the artifact and the row scope (0.419328ms)
+✔ an export link escapes a run id rather than pasting it into a path (0.162211ms)
+(node:11957) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/clock.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a running stage counts forward between events (1.2501ms)
+✔ the step that is running is the one that counts (1.778833ms)
+✔ a settled run stops counting and reports the authoritative total (0.49162ms)
+✔ a refresh at eleven seconds displays eleven, not zero and not twenty-two (0.155332ms)
+✔ a replayed event does not advance the clock twice (0.12955ms)
+✔ the headline names what is running and how long it has been (0.207085ms)
+✔ elapsed is whole seconds, and minutes past sixty (0.09605ms)
+✔ nothing counts before the first event (0.083688ms)
+(node:11963) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/collaboration-client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ every collaboration call addresses the V4 prefix and no other (6.494638ms)
+✔ a share carries the audience and the optional address, nothing else (0.333094ms)
+✔ only a delivered notification may be described as sent (0.809095ms)
+✔ a state of SENT without delivered is still not a delivery claim (0.532255ms)
+✔ no notification at all says so plainly (8.645422ms)
+✔ the outbox is read from the V4 prefix (0.23107ms)
+(node:11970) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/domain-guard.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a payload about this book is rendered (2.320209ms)
+✔ a payload about the other book is dropped (0.222024ms)
+✔ a panel that was told no book takes what the server resolved (0.171556ms)
+✔ a payload from an older server is not treated as a mismatch (0.175797ms)
+✔ nothing at all is not a payload (0.114008ms)
+✔ the late response from the previous book cannot land (0.1904ms)
+(node:11978) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/domain-meta.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the cover line is the selected book's own, both ways (1.117815ms)
+✔ the corporate cover line never says monthly (0.226926ms)
+✔ switching back restores the first book's line (0.115929ms)
+✔ corporate prompts are quarterly and retail prompts monthly (1.400516ms)
+✔ no corporate chip says month and no retail chip says quarter (0.47475ms)
+✔ the templates themselves name no calendar (0.433305ms)
+✔ the calendar follows the payload, not the name of the book (0.418827ms)
+✔ a release that states only its frequency still gets a noun (0.309479ms)
+✔ a release that states only its periods still gets a frequency (2.106306ms)
+✔ before the payload arrives nothing claims a calendar (0.605821ms)
+✔ a payload missing this book states nothing about it (0.297951ms)
+(node:11985) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/follow-ups.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ what the reader is offered next
+  ✔ opens a seeded thread on the questions the card carried (§31) (1.106695ms)
+  ✔ shows between three and five openers, never more (0.17936ms)
+  ✔ prefers the answer's own suggestions once there is an answer (4.652889ms)
+  ✔ falls back to the book's own prompts when an answer offered none (§32) (0.173617ms)
+  ✔ falls back to the RETAIL prompts in the retail book (0.147414ms)
+  ✔ offers nothing rather than the wrong book's prompts (0.113472ms)
+  ✔ offers nothing while a run is working (0.157676ms)
+  ✔ drops blank and whitespace-only suggestions (0.263036ms)
+  ✔ never mixes an opening set with a follow-up set (0.284592ms)
+  ✔ caps follow-ups at four so the strip stays one or two lines (0.412943ms)
+  ✔ has a fallback set for every book the Cockpit serves (0.218497ms)
+✔ what the reader is offered next (10.183169ms)
+(node:11992) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/greeting.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the greeting follows the reader's own clock (0.815057ms)
+✔ a display name is used when there is one (1.376656ms)
+✔ no name means no name, never a placeholder person (0.336239ms)
+✔ the name is trimmed, not reformatted (0.17014ms)
+(node:11998) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/live-trace.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the recorded run reconstructs a truthful trace, not '0s / not started' (5.159249ms)
+✔ every stage the backend emitted is present, and none that it did not (0.30062ms)
+✔ a failed attempt is not erased by the later success (0.193033ms)
+✔ the second model attempt is visible as attempt 2 (1.057642ms)
+✔ a model response closes its attempt with a duration (0.266493ms)
+✔ the real tool is named, not a generic label (0.205024ms)
+✔ intent, answer validation and answer.ready are all reflected (0.31285ms)
+✔ replay from cursor 0 reconstructs exactly the live state (0.378051ms)
+✔ a run that completed before the browser subscribed still reconstructs (0.43663ms)
+✔ a duplicate or replayed event does not double-count a substep (0.387153ms)
+✔ an out-of-order event older than the cursor is ignored (0.169602ms)
+✔ a missing event does not fabricate the stage it would have created (0.085684ms)
+✔ a very fast run still renders its stages and a real duration (0.335303ms)
+✔ the panel opens on the stage that failed, even after it recovered (1.051687ms)
+✔ durations are formatted so a short run is still legible (0.079483ms)
+(node:12006) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/markdown.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a heading, a paragraph and bullets parse as themselves (2.300172ms)
+✔ a single-hash heading renders at the answer's top level (0.275874ms)
+✔ bold and italic become nodes, not visible asterisks (0.380539ms)
+✔ the module list style from a real answer renders cleanly (0.245668ms)
+✔ numbered lists keep their start (1.321501ms)
+✔ a table parses into a header and rows (0.336018ms)
+✔ inline code and fenced code are distinguished (0.125961ms)
+✔ a blockquote and a horizontal rule parse (0.092114ms)
+✔ a wrapped bullet continuation stays in its own item (0.265961ms)
+✔ markup in an answer is data, not markup (0.34355ms)
+✔ only safe link schemes reach an href (0.23286ms)
+✔ an unsafe link keeps its words and loses its href (0.090321ms)
+✔ a safe link becomes a link node (0.060592ms)
+✔ empty and whitespace input produce nothing rather than throwing (0.075787ms)
+✔ unbalanced emphasis does not lose the text (0.050167ms)
+✔ a plain answer with no markup is a single paragraph (0.045107ms)
+(node:12013) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/reducer.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a run that has done nothing shows no steps at all (2.260029ms)
+✔ a step appears when it starts, and only then (2.612471ms)
+✔ an event from another run is ignored (0.176069ms)
+✔ a replayed event does not duplicate a step (0.178175ms)
+✔ a failed event marks the step and exposes its error id (0.292201ms)
+✔ a settled status closes any step still marked running (0.252863ms)
+✔ a stop is summarised as a stop, not as an answer (0.322128ms)
+✔ V4-AT-082: connection loss is a client state, not a server failure (0.131387ms)
+✔ V4-AT-068: the failed step is identifiable for auto-expansion (0.594578ms)
+✔ V4-AT-069: substeps keep their operation and detail reference (0.455994ms)
+✔ a step closes when the server says it closed, not by array order (0.380876ms)
+✔ two passes through one stage are two rows, in the order they ran (0.266082ms)
+✔ a terminal event leaves no step running (0.15265ms)
+✔ replaying the whole stream lands where the live stream did (0.287756ms)
+✔ an out-of-order frame cannot reorder the trace (0.132382ms)
+✔ a stream from an older server still closes its stages (0.145422ms)
+✔ a stated stage is not closed by one of its own operations (0.072919ms)
+✔ a run that computed rows carries them into the view, narrative or not (0.155451ms)
+✔ an accepted run that is still working is not an ending (1.592777ms)
+✔ every working state reads as work, never as a stop (0.345996ms)
+✔ every terminal state is still an ending (0.291972ms)
+✔ a mid-run gap followed by a real settle ends exactly once (0.180007ms)
+✔ the server's own terminal flag is honoured when it is sent (0.119039ms)
+✔ a working status still refreshes the clock it does not end (0.080795ms)
+(node:12020) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/cockpit-v4/visuals.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a ranked comparison of several categories is worth charting (1.540464ms)
+✔ a single value is a number, and a chart of it is decoration (0.311361ms)
+✔ no rows is not an empty chart (3.087956ms)
+✔ a chart with no series to plot is not drawn (0.220927ms)
+✔ a chart whose points carry no numbers is not drawn (0.194276ms)
+✔ an absent chart is not useful (0.122479ms)
+✔ a table shows a readable top slice before the whole result (0.104487ms)
+✔ the displayed value is what the server wrote, not a local rounding (0.15945ms)
+✔ a grid with filled cells is worth drawing (0.310172ms)
+✔ a grid with no filled cell is not (0.402645ms)
+✔ a grid is not judged by whether it has point series (0.203339ms)
+✔ the axis keeps the order the result was returned in (1.372324ms)
+✔ an absent cell is absent, not zero (0.146227ms)
+✔ a box plot is worth drawing when it has a box (0.132191ms)
+✔ every useful chart survives the choice, in the analyst's order (0.202758ms)
+✔ a chart that is not worth drawing is dropped, not the ones after it (0.0702ms)
+✔ charts and tables are peers, not two sides of a toggle (0.099216ms)
+✔ the browser's vocabulary is the contract's vocabulary (0.827507ms)
+✔ a download button names the chart's place in the ANSWER (0.25063ms)
+✔ every index is kept when nothing is dropped (0.078335ms)
+✔ there is an index for every chart that is rendered, always (0.061369ms)
+(node:12021) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/data-builder/__tests__/relationship-layout.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the busiest dataset is the centre of the map (4.258279ms)
+✔ a ring is how many joins it takes to reach the centre (0.491599ms)
+✔ the same model always draws the same picture (0.37216ms)
+✔ boxes in a ring never overlap (0.769724ms)
+✔ a dataset the centre cannot reach is still placed (0.355846ms)
+✔ nothing declared draws nothing rather than throwing (0.205336ms)
+(node:12034) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/early-warning/__tests__/signal-view.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ ordering conditions inside one borrower
+  ✔ puts what got worse in front of what merely persists (1.508465ms)
+  ✔ breaks a lifecycle tie by severity, worst first (0.135212ms)
+  ✔ is total, so the same evidence always renders the same way (5.118702ms)
+✔ ordering conditions inside one borrower (7.487652ms)
+▶ grouping by family
+  ✔ tells one fact once rather than five times (0.682365ms)
+  ✔ leads with the family carrying the worst condition (0.254948ms)
+  ✔ takes the family's severity from its worst condition (0.194016ms)
+✔ grouping by family (1.497503ms)
+▶ the wording a row leads with
+  ✔ counts conditions and families, never a score (0.32816ms)
+  ✔ says so plainly when nothing fires (0.133384ms)
+  ✔ stays silent about movement when nothing moved (0.192815ms)
+  ✔ names what moved, worst first (0.542328ms)
+✔ the wording a row leads with (1.468493ms)
+▶ what could not be tested
+  ✔ never lets a thin standing present as a clean one (0.210901ms)
+  ✔ says nothing when everything was testable (0.118444ms)
+✔ what could not be tested (0.410276ms)
+▶ the booked accounting position
+  ✔ stays separable from the prediction (0.14084ms)
+✔ the booked accounting position (0.239102ms)
+▶ evidence pointing the other way
+  ✔ is named rather than dropped (0.208665ms)
+  ✔ is empty when the evidence all points one way (0.074202ms)
+✔ evidence pointing the other way (0.349887ms)
+▶ ordering borrowers on the overview
+  ✔ ranks by breadth first, as the backend does (0.240236ms)
+  ✔ falls through severity, persistence and worsening in that order (0.189851ms)
+  ✔ is total, so two loads of the same book render the same order (0.091969ms)
+✔ ordering borrowers on the overview (0.609203ms)
+▶ the lenses the overview offers
+  ✔ offers questions rather than score bands (0.40361ms)
+  ✔ matches new, worsening, persisting, severe and breadth correctly (0.228642ms)
+  ✔ lets everything through the default lens (0.054588ms)
+✔ the lenses the overview offers (0.834834ms)
+▶ severity presentation
+  ✔ gives each of the three levels its own weight (0.069665ms)
+  ✔ treats an unknown severity as the quietest, never the loudest (0.051909ms)
+✔ severity presentation (0.172385ms)
+▶ joining a list into a sentence
+  ✔ reads like English (0.072868ms)
+✔ joining a list into a sentence (0.114928ms)
+(node:12040) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/feedback/__tests__/answer-kind.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ §39 names eight answer kinds and the module knows all of them (1.251405ms)
+✔ a refused plan is a controlled failure, not an unsupported question (0.326716ms)
+✔ a clarification outranks unmatched (0.215106ms)
+✔ an unmatched question is unsupported (0.138882ms)
+✔ an agentic run is filed as agentic even when it produced steps (0.102498ms)
+✔ an answer with no steps is metadata rather than an empty analysis (0.098053ms)
+✔ an ordinary computed answer is an analysis (0.089036ms)
+✔ a failed status is a controlled failure whatever else is set (0.079063ms)
+✔ an empty run does not throw and lands somewhere real (0.289191ms)
+(node:12048) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/feedback/__tests__/present.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ only PARTLY and NO open the detail panel (4.956414ms)
+✔ a YES never opens a what-went-wrong panel (0.22979ms)
+✔ the server's list wins where it has one (0.196776ms)
+✔ the fallback list is the two ratings that carry a claim (1.585885ms)
+✔ an acknowledgement that promises learning is not shown (0.657049ms)
+✔ an honest acknowledgement is shown as written (0.162322ms)
+✔ an empty acknowledgement stays empty rather than becoming a thank you (0.220042ms)
+✔ a row is summarised by the fields worth scanning (0.444384ms)
+✔ a row with no known field is shown whole rather than blank (0.425541ms)
+✔ an empty row still renders something (0.585127ms)
+✔ a metric that was never measured is not shown as zero (0.323415ms)
+(node:12055) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/system/runtime-surfaces.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a V4 payload is recognised as a reachable partial runtime (1.054573ms)
+✔ an existing CreditProbe payload is completely unaffected (0.169742ms)
+✔ an optional surface that IS working is not reported as absent (0.136718ms)
+✔ an optional surface other than the dashboard does not claim one (0.192485ms)
+✔ a genuine service fault is still a fault (0.137104ms)
+(node:12062) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/trace/__tests__/clusters.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ every node lands in exactly one cluster (1.921324ms)
+✔ the clusters come back in the order an auditor asks for them (1.491127ms)
+✔ a derivation and an execution are not the same cluster (0.138421ms)
+✔ an unknown node type is still placed rather than dropped (0.090849ms)
+✔ the reuse node types belong to the conversation cluster (0.14644ms)
+✔ a failed invariant makes its whole cluster read as failed (0.460437ms)
+✔ a cluster carrying an issue never opens collapsed (0.375267ms)
+✔ the issue navigator lists the failures worst first (0.276894ms)
+✔ a collapsed cluster says what it contains without being opened (0.574725ms)
+✔ an edge across a collapsed boundary survives, pointing at the card (0.930007ms)
+✔ collapsing a cluster does not leave a dangling edge (0.566823ms)
+✔ a join that multiplied its rows marks its own edge (0.190608ms)
+✔ expanding one cluster does not move the ones above it (1.395823ms)
+✔ the same graph lays out identically every time (0.433471ms)
+✔ isolating a cluster hides the others and their edges (0.230036ms)
+✔ a step can be found by label, dataset or field (0.196989ms)
+(node:12068) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/trace/__tests__/compare.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a step that appeared is reported as added (1.216473ms)
+✔ a step that disappeared is reported as removed (1.461773ms)
+✔ a row count that moved is reported with both numbers (12.102494ms)
+✔ a step whose status changed is reported (0.257664ms)
+✔ a relabelled step is a change a reviewer needs to see (0.279801ms)
+✔ an unchanged step produces no noise (0.154983ms)
+✔ the arguments are not silently swapped (0.238759ms)
+✔ two versions that computed the same thing say so (0.299447ms)
+✔ the same steps with a different answer is called out (0.371418ms)
+✔ the summary counts what changed (0.540439ms)
+✔ a missing row count is not read as zero (0.307381ms)
+(node:12078) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/components/trace/__tests__/validation-status.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a blocked presentation does not fail the calculation validation (5.772915ms)
+✔ the blocked presentation is still shown, in its own stage (4.873858ms)
+✔ a genuinely failed invariant still fails the validation stage (0.303647ms)
+✔ no stage ever prints FAILED beside its own all-passed count (1.47628ms)
+✔ the same holds for the detailed cluster view (0.966318ms)
+(node:12085) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/analysis-links.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a composed analysis has no method page (1.345678ms)
+✔ a composed analysis links to the run that produced it instead (0.289227ms)
+✔ a registered method still opens its definition (0.298141ms)
+✔ a catalogue lookup is neither, and offers no dead link (0.184435ms)
+✔ a registered-looking id on an uncertified run is still not a method (0.147415ms)
+✔ a run without an id has nowhere to go, and says so (0.15322ms)
+(node:12092) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/back-paths.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Cockpit → Investigation → Trace → back to the exact turn (2.621211ms)
+✔ Cockpit → Investigation → Method → back to the exact turn (0.333914ms)
+✔ Project → Project Investigation → Trace → back to that investigation, then to the project (0.194091ms)
+✔ Saved Analysis → Trace → back to the saved analysis (4.174656ms)
+✔ Lens → Analysis → Trace → back to the lens (0.492765ms)
+✔ Early Warning → Borrower → Investigation → back to that borrower (0.171007ms)
+✔ Data Builder → Dataset → Relationship map → back to the dataset and period (0.198352ms)
+✔ Trace → Open dataset in Data Builder → back to the same node in the same mode (0.155663ms)
+✔ a dynamic Analysis Run links to its run, not to a Method page that does not exist (0.667632ms)
+✔ a source that no longer exists falls back rather than stranding the reader (0.431674ms)
+✔ every source type's fallback index is a real in-product path (0.206042ms)
+✔ a return context survives being carried through two hops (0.129856ms)
+(node:12099) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/borrower-link.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the link carries the borrower and the period (1.614782ms)
+✔ a link with no period does not ask for a quarter called nothing (0.322478ms)
+✔ no borrower means the landing table, not a broken query (0.473511ms)
+✔ a borrower id that needs escaping is escaped (0.271344ms)
+✔ the period survives the round trip (0.29388ms)
+✔ both period spellings are read as the same quarter (0.120516ms)
+✔ a year-first period is understood too (0.356756ms)
+✔ something that is not a quarter is left alone (0.194143ms)
+✔ the url spelling has no spaces to be mangled (0.320858ms)
+✔ the older parameter name still opens the borrower (0.527538ms)
+✔ the mandated name wins where both are present (0.25804ms)
+✔ no params at all is a plain visit (0.227263ms)
+(node:12106) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/credit-semantics.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a rising risk measure is adverse and a falling one is favourable (1.010337ms)
+✔ a rising performance measure is favourable (0.181273ms)
+✔ the sign alone never decides (0.197667ms)
+✔ nothing moved is neutral, whatever the measure (0.225875ms)
+✔ an ungoverned measure is not coloured (0.229045ms)
+✔ a missing or unusable change is neutral rather than an error (0.141415ms)
+✔ assistive text carries what the colour carries (0.321181ms)
+(node:12113) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/decimals.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+▶ the contract has one ceiling
+  ✔ is two (0.529671ms)
+✔ the contract has one ceiling (1.375898ms)
+▶ every formatter respects it
+  ✔ money, at every decimals argument a caller could pass (398.014853ms)
+  ✔ percent, delta, count and compact money (123.333741ms)
+  ✔ byUnit, across every governed unit (260.727615ms)
+  ✔ byContract, across every semantic and declared precision (3320.791855ms)
+  ✔ figure and deltaFigure, which feed KPIs and chart labels (388.21956ms)
+✔ every formatter respects it (4491.64838ms)
+▶ prose is scrubbed
+  ✔ rewrites floating-point debris a backend formatter missed (1.086309ms)
+  ✔ catches three decimals, not only four (0.480326ms)
+  ✔ leaves a period, a version and an identifier alone (0.348947ms)
+  ✔ never introduces debris of its own (9.718338ms)
+✔ prose is scrubbed (12.30029ms)
+▶ what the ceiling does not do
+  ✔ does not round a value across a governed threshold (0.423051ms)
+  ✔ keeps an integer count whole (0.241514ms)
+✔ what the ceiling does not do (0.790496ms)
+(node:12120) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/downloads.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the server's own filename is used (1.492458ms)
+✔ the quoted name wins over the percent-encoded one (0.461702ms)
+✔ the extended form is decoded when it is the only one (0.397842ms)
+✔ a malformed encoding falls back to the raw value rather than throwing (0.370805ms)
+✔ a missing header falls back to a name that still identifies the run (0.429306ms)
+✔ the button says what it is doing, not only which icon it shows (0.203725ms)
+✔ a failed download returns to its label rather than lying about success (0.260899ms)
+(node:12127) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/early-warning-format.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ money is riyals, in millions, never bare (23.007966ms)
+✔ money becomes billions when the millions stop reading (0.436115ms)
+✔ a negative amount keeps its sign (0.350754ms)
+✔ a very small amount does not round to nothing (0.213921ms)
+✔ another deployment's currency is not renamed to riyals (0.213586ms)
+✔ a percentage is a percentage (2.142717ms)
+✔ a multiple is a multiple, not a percentage (0.602491ms)
+✔ days are counted, and one day is singular (0.275026ms)
+✔ notches are counted the same way (0.364919ms)
+✔ a stage is named, not left as a number (0.40132ms)
+✔ a flag is yes or no (0.224164ms)
+✔ nothing is nothing, and zero is not nothing (0.408047ms)
+✔ an unknown unit is a plain number, not a guessed currency (0.236974ms)
+✔ a value that is not a number survives as itself (0.077283ms)
+✔ a movement is signed (0.461928ms)
+✔ a movement in a percentage is in POINTS (0.283275ms)
+✔ a movement in money is money (0.170655ms)
+✔ a movement in days or notches is counted (0.165126ms)
+✔ a flag and a stage do not have a movement (0.071859ms)
+✔ no movement is not a movement of zero (0.072171ms)
+(node:12134) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/links.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ return context survives a link that already has a query string (1.285475ms)
+✔ the anchor identifying one turn is carried intact (0.234003ms)
+✔ a label with an ampersand does not break the query string (0.136366ms)
+✔ only same-origin paths are accepted as a destination (0.193709ms)
+✔ a domain name containing a slash round-trips through its URL (0.191056ms)
+✔ a domain name with no slash still produces one segment (0.09361ms)
+(node:12141) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/presentation.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ with nothing remembered the registry decides (0.803057ms)
+✔ the reader's choice wins over the registry (0.137966ms)
+✔ an unrelated remembered preference does not change the default (0.121123ms)
+✔ with no governed decision the table opens (0.094153ms)
+✔ a chart opens only when the gate said so (0.136275ms)
+✔ the reader still overrides the opening view (0.090838ms)
+(node:12147) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/relationship-layout.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a parent is drawn above the borrower (1.364548ms)
+✔ a subsidiary is drawn below the borrower (0.226014ms)
+✔ a sister is drawn level with the borrower, not above or below (0.168118ms)
+✔ every party is placed exactly once, and so is the centre (0.185996ms)
+✔ an empty network still places the borrower (0.313901ms)
+✔ parties in the same band do not overlap (1.590452ms)
+✔ direct-only keeps the parents and drops the sisters (1.998809ms)
+✔ direct-only keeps every band present, even the emptied ones (0.23492ms)
+✔ money never prints a bare number (0.330385ms)
+✔ money says nothing rather than zero when there is no figure (0.564405ms)
+✔ the stake shows voting rights only when they differ from ownership (0.361473ms)
+✔ a guarantee shows its amount and claims no ownership (0.892796ms)
+✔ an edge with nothing on it says nothing rather than 0% (0.608541ms)
+(node:12155) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/return-context.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ an investigation carries the exact turn as its anchor (8.857444ms)
+✔ turn zero is an anchor, not a missing one (0.178559ms)
+✔ an investigation without a turn returns to the thread itself (0.076671ms)
+✔ an untitled investigation still names something in the Back control (0.067845ms)
+✔ a project carries the tab that was open (0.147291ms)
+✔ a saved analysis returns to its row in the list (0.076882ms)
+✔ the built-in CRO lens keeps its own route (0.214088ms)
+✔ a borrower carries both the selection and the anchor (0.100775ms)
+✔ a dataset carries the period being read (0.273321ms)
+✔ a trace node carries the mode and the selected step (0.323954ms)
+✔ every source type has an index to fall back to (0.161636ms)
+✔ a link carries where it came from, what it says and what kind it is (0.256561ms)
+✔ a link that already has a query string keeps it (0.17192ms)
+✔ a source href with its own query and anchor survives the round trip (2.50967ms)
+✔ a carried context is honoured (0.223885ms)
+✔ nothing carried falls back to the caller's own default (0.061134ms)
+✔ an off-site return is refused, not followed (0.057799ms)
+✔ a carried context with no label still says something (0.038262ms)
+✔ an unknown source type is recorded as unknown rather than trusted (0.04787ms)
+✔ anchors are stable and unique per object (0.041303ms)
+✔ a playbook run returns to the playbooks screen (0.041215ms)
+(node:12162) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/scorecard-validation.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the module has the twelve tabs the brief names (1.038538ms)
+✔ no approved limit is styled apart from pass and from not measured (1.199974ms)
+✔ the limits table carries a source column (0.278359ms)
+✔ an unavailable section renders its reason rather than a zero (0.235377ms)
+✔ validation statistics and business figures use different formatters (0.388113ms)
+✔ the three month notions are shown separately (0.214364ms)
+✔ an immature month is labelled in the month picker (0.752805ms)
+✔ the opinion is shown with its reasoning and its disclaimer (0.290683ms)
+✔ the diagnostics panel shows the restated question and claim strength (0.386709ms)
+✔ the module is reachable from the navigation (0.371136ms)
+✔ the api client sends no rows and asks for summaries (0.997006ms)
+✔ the reports tab offers both downloads and a way to record one (0.242728ms)
+✔ the report panel shows coverage and refuses to claim certification (0.349638ms)
+✔ a section that was not reported shows its reason in the section list (0.347209ms)
+✔ the download link is a navigation, not a fetch-and-rename (0.806792ms)
+(node:12169) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/__tests__/ux-remediation.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the answer puts the interpretation before the numbers, unboxed (1.282447ms)
+✔ supporting analysis is collapsed and follow-ups come last (0.458678ms)
+✔ an analysis header can carry a certification mark (0.276826ms)
+✔ the navigation collapses and remembers the choice (1.257471ms)
+✔ the page header is eyebrow, title and actions — and no paragraph (0.531518ms)
+✔ data builder shows domains as tiles with a summary strip (0.502986ms)
+✔ the data grid is period-aware (0.242876ms)
+✔ the relationship map has a layout, a canvas and an inspector (0.274373ms)
+✔ the method library is a compact grid, not a wall of prose (0.359522ms)
+(node:12176) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/runtime-guard.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ outside a V4 runtime every path is served as before (1.135352ms)
+✔ inside a V4 runtime the legacy paths are not requested (0.398945ms)
+✔ inside a V4 runtime the V4 paths are served (0.306154ms)
+✔ the runtime flag reads only the Cockpit variable (0.399272ms)
+✔ the guard decides on the path, never on a response (0.422302ms)
+(node:12183) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/advanced.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ VIZ08 the stage Sankey reconciles counts and EAD to the book (1.675257ms)
+✔ VIZ12 the heatmap places every cell and leaves absent cells empty (not zero) (1.977521ms)
+✔ VIZ10 the Pareto ends at 100% cumulative (0.684112ms)
+✔ VIZ11 the distribution plots moved exposures and leaves the unmoved out of the bars (2.038023ms)
+(node:12189) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/chart-inventory.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ INV01 recharts is imported in exactly one legacy module (5.829151ms)
+✔ INV02 only the documented legacy pages consume the Recharts building blocks (3.725763ms)
+✔ INV03 no other chart library, and Plotly is loaded only through the one wrapper (32.194482ms)
+✔ INV04 a Plotly chart outside ChartCard is a documented sparkline (2.246913ms)
+✔ INV05 every file drawing a chart is named in CHART_INVENTORY.md (3.001633ms)
+✔ INV06 legacy Recharts pages are gated: the guided flag redirects or swaps them (0.383204ms)
+(node:12197) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/decomposition.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ DEC01 both scopes list every taxonomy component in the one order (1.657942ms)
+✔ DEC02 a component has the same colour and label in both scope charts (5.789082ms)
+✔ DEC03 the waterfall walks opening + movements to closing (0.326683ms)
+✔ DEC04 the table beneath carries every plotted component, by id (0.327766ms)
+✔ DEC05 N/A components are shown as N/A, never dropped or redefined (0.234989ms)
+✔ DEC06 both identities hold on the published strings (0.490736ms)
+✔ DEC07 KPIs, method comparison and stage figures read the server's values (0.685927ms)
+✔ DEC08 a small movement on a large book cuts the axis and says so (0.208128ms)
+✔ DEC09 a comparison plots every compared result, component by component, from the published values (0.55767ms)
+✔ DEC10 selected scope = total book is proven component by component (4.33588ms)
+✔ DEC11 one differing component, a non-zero rest of book, or no flag: not proven (3.193207ms)
+(node:12204) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ FIG01 sparkline emphasises the last point and formats hover in the metric's unit (2.108987ms)
+✔ FIG02 trend scales money series to ONE shared unit and keeps the raw value in hover (0.459276ms)
+✔ FIG03 trend shows a fraction metric as percent on the axis (0.220475ms)
+✔ FIG04 contributions: sorted by magnitude, sign-coloured, label carried in customdata for drill (0.451654ms)
+✔ FIG05 contributions never show more than twelve bars (0.37603ms)
+✔ FIG06 stage mix uses the governed stage colours and stacks (0.342293ms)
+✔ FIG07 category bars grey out what is not selected (cross-filter context) (0.451363ms)
+(node:12212) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/format.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ FMT02 narrative money is compact finance notation, never 'SAR million' (1.179449ms)
+✔ FMT01 a table column carries its scale once in the header, plain numbers in cells (1.632192ms)
+✔ FMT05 PD is a percentage, never 0.02x (0.187793ms)
+✔ FMT06 the multiplier notation is reserved for scenario multipliers (0.113659ms)
+✔ FMT07 small Retail money changes remain visible and do not round to zero (0.433809ms)
+✔ FMT04/FMT08 the raw value is never altered by display (0.129038ms)
+✔ counts, basis points and changes (0.255037ms)
+✔ FMT10 a money column states its scale once, cells carry no unit, the CSV keeps raw SAR million (1.751884ms)
+(node:12219) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/palette.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ VIZ14 the §10.2 semantic tokens are exactly the specification's (0.815174ms)
+✔ driver identity is stable: unique ids, fixed order, colour by id (0.273417ms)
+✔ increase and decrease are separable without hue (luminance differs) (0.242391ms)
+✔ decomposition colours are varied: no two components share a colour (0.134678ms)
+(node:12226) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/viz/tornado.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ TOR01 a Plotly tornado: two horizontal bar traces from zero, largest swing on top (3.199185ms)
+✔ TOR02 values are the server's, signs as fitted (a negative slope is drawn negative) (0.301395ms)
+✔ TOR03 PD and LGD are distinct in label and colour (0.312123ms)
+✔ TOR04 hover carries MEV, series, shock, coefficient, parameter, movement, sign, status, method, window and the sign review (0.168084ms)
+(node:12232) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/exchange-segments.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ EXS01 every part of the request is labelled in the order sent (2.070774ms)
+✔ EXS02 counts cover all six kinds; a plain tool result is never called a validator (0.366694ms)
+✔ EXS03 string system text and an empty request are handled (0.231306ms)
+(node:12240) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/lens-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ LENS01 a worse move by the metric's own direction is 'bad', with a signed label (1.260278ms)
+✔ LENS02 a category click becomes a cross-filter on that dimension and book (1.25992ms)
+✔ LENS03 trends keep periods as categories (quarters and months never reinterpreted) (0.288062ms)
+✔ LENS04 group charts drop nulls and sign-colour the rest (0.237896ms)
+(node:12247) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/llm-exchange-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ context growth plots measured bytes and exact provider tokens per call (1.513083ms)
+✔ composition stacks every component of every call, in a fixed order (0.320022ms)
+(node:12254) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/method-labels.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ MLB01 every method is shown by its governed name (0.876646ms)
+(node:12261) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/metric-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ MET01 values render by their governed unit (1.045808ms)
+✔ MET02 breakdown bars sort, keep the raw value and drop nulls (1.446985ms)
+✔ MET03 a trend draws one line per book (1.749279ms)
+✔ MET04 only grid columns drill to rows (0.234981ms)
+(node:12268) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/nav.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ NAV01 safeBack keeps same-origin paths only (1.009259ms)
+✔ NAV02 withBack appends an encoded origin and never an unsafe one (0.158636ms)
+✔ NAV03 backLabel names the origin module (0.195213ms)
+(node:12275) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/scenario-figures.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ SCN01 only overlaps still needing a decision are pending (5.80829ms)
+✔ SCN02 a blank choice is never defaulted into a resolution (0.26086ms)
+✔ SCN03 readiness tones never show a blocked scenario as ready (0.171367ms)
+✔ SCN04 the component matrix names each carried component's source (0.25816ms)
+✔ SCN05 derived macro rows keep the sign and the governed slope (0.227227ms)
+✔ SCN06 the band figure plots the server's band mix, one bar per band (0.48446ms)
+✔ SCN07 builder offers ratings only to Corporate and scores only to Retail (0.280517ms)
+(node:12282) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/trace.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ TRC01 snapshot names are safe file stems the server accepts (1.128641ms)
+✔ TRC02 hashes are shortened for display but never invented (0.185257ms)
+(node:12289) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/user/gw_final_fc8754a19e72/frontend/src/lib/workspace/whatif-filters.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/user/gw_final_fc8754a19e72/frontend/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ WIF01 a chart click adds its value as an `in` filter, a second click removes it (2.18384ms)
+✔ WIF02 cross-filter keeps every other column's filter untouched (0.292885ms)
+✔ WIF03 a box/lasso selection replaces that column's values; empty clears it (0.242834ms)
+✔ WIF04 numeric categories (stage) match regardless of string/number form (0.121746ms)
+✔ WIF05 each book offers its own governed dimensions, never the other's (0.250389ms)
+✔ WIF06 a heatmap cell or flow link narrows to both coordinates; the same click clears them (0.257551ms)
+ℹ tests 669
+ℹ suites 47
+ℹ pass 669
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7587.809521

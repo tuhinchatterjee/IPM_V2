@@ -245,8 +245,8 @@ def main() -> int:
                 if hit and not ok:
                     bad.append(f"gate {name}")
         status = ("FAILED" if bad else
-                  "BLOCKED" if any("BLOCKED_ENV" in m for m in missing)
-                  and not ev else
+                  "BLOCKED" if missing and all("BLOCKED_ENV" in m
+                                               for m in missing) else
                   "PARTIAL" if missing else "PASS")
         rows.append({"id": aid, "area": area, "status": status,
                      "evidence": " | ".join(ev),

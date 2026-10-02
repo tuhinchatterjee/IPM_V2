@@ -1,0 +1,32 @@
+READ ONLY. Nothing below writes to the lake.
+
+  v4-saudi-corporate-20q-v4  (corporate)
+    byte fingerprint   c79d0fdf8753576f  verified   (machine-specific -- see the module docstring)
+    content digest     40c05896f0ef2f17   (portable -- this is the one to compare)
+    rows               1,260,267
+      corp_borrower_quarter          108,240
+      corp_collateral_quarter        384,009
+      corp_covenant_quarter          384,009
+      corp_facility_quarter          384,009
+    entities           borrowers=5,412  facilities=21,918  groups=2,533  product_types=8  regions=10  sectors=14  sub_sectors=75
+    relations          4
+    fields             113
+    periods            20  2021Q3..2026Q2  (quarterly)
+    amounts            SAR million
+    built with         numpy=2.5.0  pandas=3.0.3  pyarrow=24.0.0  python=3.12.3
+
+  v4-saudi-retail-20m-v5  (retail)
+    byte fingerprint   c23a15d78ba88d39  verified   (machine-specific -- see the module docstring)
+    content digest     54b77d6d0baf4a49   (portable -- this is the one to compare)
+    rows               1,888,134
+      retail_account_month           584,372
+      retail_behaviour_month         584,372
+      retail_collateral_month        281,330
+      retail_customer_month          438,060
+    entities           accounts=44,027  customers=26,000  employment_types=4  products=5  regions=8  sub_products=12
+    relations          4
+    fields             92
+    periods            20  2025-01..2026-08  (monthly)
+    amounts            SAR million
+    built with         numpy=2.5.0  pandas=3.0.3  pyarrow=24.0.0  python=3.12.3
+

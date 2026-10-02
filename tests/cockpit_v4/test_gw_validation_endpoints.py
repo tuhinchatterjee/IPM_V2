@@ -1,4 +1,7 @@
-"""Exhaustive validation: the workspace endpoints no earlier suite called by
+"""EVIDENCE LABEL: NO MODEL (a scripted provider with an empty script is
+attached and every test asserts nothing was sent to it).
+
+Exhaustive validation: the workspace endpoints no earlier suite called by
 HTTP, each asserted on the business state it returns or writes (not only its
 status code).
 

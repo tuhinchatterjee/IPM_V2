@@ -1,0 +1,126 @@
+
+V4 stub API
+───────────
+✓ stub API on http://127.0.0.1:8471
+
+V4 UI
+────────
+  warmed /cockpit/thread/warmup compiled in 0.5s (HTTP 200)
+  warmed /cockpit/data compiled in 0.6s (HTTP 200)
+  warmed /cockpit/trace/warmup compiled in 0.6s (HTTP 200)
+  warmed /cockpit/saved/warmup compiled in 0.9s (HTTP 200)
+✓ UI on http://127.0.0.1:5471 (HTTP 200, identified by CreditProbe)
+  NEXT_PUBLIC_COCKPIT_V4_API=http://127.0.0.1:8471
+  NEXT_PUBLIC_API_URL=http://127.0.0.1:8471
+
+Browser suite
+─────────────
+
+Cockpit V4 browser tests — UI http://127.0.0.1:5471, API http://127.0.0.1:8471
+
+  ok   asking 'Who are you?' posts to the V4 run API and never to the legacy flow
+  ok   the process panel appears and consumes the V4 event stream
+  ok   progress events are rendered before the answer arrives
+  ok   the final answer renders with its disposition
+  ok   an evidence-bound analysis renders artifact links
+  ok   a terminal failure renders explicitly with a support reference
+  ok   stop cancels the run through the V4 cancel endpoint
+  ok   a browser refresh replays the same run instead of re-asking
+  ok   optional landing widgets show a neutral state and request nothing
+  ok   no request from the page goes to the legacy backend port
+  ok   the process panel shows real stages, not 'not started' at 0s
+  ok   the answer renders as Markdown, with no raw syntax left over
+  ok   suggested-question chips stay interactive UI, not Markdown
+  ok   a cut-off action shows the retry and then the real stages
+  ok   a result survives an answer that could not be written
+  ok   a failed attempt stays visible after a later attempt succeeds
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/thread_analytical_chart.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/thread_investigation.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/home_corporate.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/ecl_panel_corporate.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/drawer_segment_corporate.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/drawer_ecl_corporate.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/home_retail.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/ecl_panel_retail.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/drawer_segment_retail.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/drawer_ecl_retail.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/data_books.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/data_relation_detail.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/data_builder_sidebar.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/answer_export.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/thread_retail.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/landing_phone.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/thread_multi_turn.png
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/cockpit_v4_answer.png
+  ok   asking from home opens a conversation at its own URL
+  ok   the follow-up composer is waiting under the answer
+  ok   a follow-up appends and does not replace what came before
+  ok   a refresh restores the transcript without asking again
+  ok   the thread header names the conversation and renames it
+  ok   the way back to Cockpit is at the top left
+  ok   browser back also returns to Cockpit
+  ok   the conversation is named by the question, not 'New conversation'
+  ok   a seeded thread opens on three to five questions, before anybody types (§31)
+  ok   the Ask next strip never overlaps what is behind it (§34)
+  ok   follow-up chips sit directly above the composer and stay in the thread
+  ok   a published figure is written once, the way a credit paper writes it
+     306ms  thread opens after asking (budget 5000ms)
+     311ms  first process event on screen (budget 10000ms)
+      20ms  chart and table rendered (budget 5000ms)
+     454ms  transcript restored after reload (budget 10000ms)
+     105ms  follow-up appears in the transcript (budget 5000ms)
+  ok   the conversation is quick to open, restore and ask again in
+  ok   the conversation can be shared, and says how it was delivered
+  ok   a conversation opens an investigation, and Projects are not faked
+  ok   the conversation links to the trace of its latest answer
+  ok   Investigate Further opens the conversation, not just the context
+  ok   an analytical answer shows every chart it sent, and its table
+  ok   the active stage counts seconds while it is working
+  ok   segments requiring attention loads from the pinned release
+  ok   latest-quarter ECL highlights load below it
+  ok   clicking a segment card opens the right-side drawer
+  ok   the drawer offers borrower drill-down and no invented subsegment
+  ok   possible drivers are stated as association, never as cause
+  ok   Investigate Further opens a seeded V4 thread
+  ok   a follow-up uses the seeded context without restating it
+  ok   the seeded context load appears in the process panel
+  ok   an ECL highlight opens the same drawer and investigates
+  ok   a refresh keeps the open investigation
+  ok   an attention-feed failure does not break Ask
+  ok   the landing page greets, then asks what is on your mind
+  ok   the Ask box is the primary element and spans the workspace
+  ok   prompt chips render, ask when clicked, and can be dismissed
+  ok   the Trace line is there and explains itself
+  ok   Segments requiring attention shows its period and only segments
+  ok   the two dashboards are distinct and share no card
+  ok   switching the book asks the server again, it is not a filter
+  ok   each book shows its own release, currency and ECL position
+  ok   switching back shows the first book's numbers, not a cached other
+  ok   Home states each book's own frequency, from the release
+  ok   prompt chips are asked in the selected book's own period
+  ok   Home and the dashboard under it agree on the calendar
+  ok   five switch cycles leave no calendar behind
+  ok   the drawer's seed note names the card's own period
+  ok   a question asked in a book opens a thread badged with that book
+  ok   both dashboards open the same right-hand drawer
+  ok   Continue where you left off uses real V4 threads
+  ok   an Arabic answer renders right-to-left without breaking the page
+  ok   the landing page mounts the V4 Cockpit and nothing legacy
+  ok   no page shows a currency the selected release does not use
+  ok   attention cards and ECL highlights use the release's currency
+  ok   borrower names in the drawer belong to the selected release
+  ok   an answer, its table and its chart use one currency
+  ok   the landing page fills a mac-16-inch window
+  ok   the landing page fills a desktop-1440 window
+  ok   the landing page fills a laptop-1280 window
+  ok   the landing page fills a tablet-834 window
+  ok   the landing page fills a phone-390 window
+  ok   the navigation rail collapses itself on a phone
+  ok   the greeting never addresses a deployment profile as a person
+  screenshot /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/cockpit_v4_landing.png
+
+76/76 browser tests passed
+
+evidence written to /home/user/gw_final_fc8754a19e72/docs/cockpit_v4/evidence/browser.json
+  stopped UI
+  stopped stub API

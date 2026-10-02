@@ -1036,6 +1036,10 @@ The first browser runs that found VAL-DEF-022, -023, -028, -029 and -030 are pre
 - BACK-08 declares the Discard write of its Cancel.
 - BACK-10 picks a What-If-entry result.
 
+**Candidate I (`fc8754a1`) rejected.** In its regression, the accepted-interpreter step failed one test that is not on the known list: `test_multilingual_and_evidence_labels.py::test_no_test_in_this_suite_claims_a_live_provider_measurement`. The three new test modules named their evidence in words outside the allowed label vocabulary.
+
+The fix is a docstring-only change ("NO MODEL", "INDEPENDENT ORACLE"). Because a tracked test file had to change, candidate I is rejected rather than re-run, per the round's rule. Candidate J carries the fix, and the complete accepted suite was run on the working tree before J was cut. Candidate I's regression output is kept as measured in `evidence/regression_candidate_I_fc8754a19e72/`.
+
 **Results.** `validation/VALIDATION_REPORT.md`, `VALIDATION_MATRIX.csv` and `VALIDATION_RESULTS.json` are generated from the final regression of record on candidate I. Its SHA is pinned in `UAT_CANDIDATE.json`.
 
 ---

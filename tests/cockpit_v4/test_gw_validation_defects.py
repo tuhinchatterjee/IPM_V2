@@ -1,4 +1,7 @@
-"""Exhaustive validation round: one regression test per proven backend defect
+"""EVIDENCE LABEL: NO MODEL (a scripted provider with an empty script is
+attached and every test asserts nothing was sent to it).
+
+Exhaustive validation round: one regression test per proven backend defect
 (docs/guided_workspace/validation/DEFECT_REGISTER.md), plus restart
 persistence and the HTTP negative states the round measured.
 
