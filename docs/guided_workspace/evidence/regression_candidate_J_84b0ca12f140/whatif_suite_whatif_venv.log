@@ -1,0 +1,227 @@
+..................................................................FF.... [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+........................................................................ [ 24%]
+........................................................FFFFFFF......... [ 29%]
+........................................................................ [ 34%]
+........................................................................ [ 39%]
+.................................ss..................................... [ 44%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+........................................................................ [ 59%]
+........................................................................ [ 64%]
+........................................................................ [ 69%]
+........................................................................ [ 74%]
+........................................................................ [ 79%]
+........................................................................ [ 84%]
+........................................................................ [ 89%]
+........................................................................ [ 94%]
+........................................................................ [ 99%]
+......                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_the_accepted_releases_are_byte_identical[v4-saudi-corporate-20q-v4-e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f] _
+
+release = 'v4-saudi-corporate-20q-v4'
+digest = 'e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f'
+
+    @pytest.mark.parametrize("release,digest", sorted(
+        ACCEPTED_FINGERPRINTS.items()))
+    def test_the_accepted_releases_are_byte_identical(release, digest) -> None:
+        """A01, A02 and D09. The candidate is written into the same lake root,
+        so this is not a formality."""
+        assert lake.exists(release)
+>       assert lake.fingerprint(release) == digest
+E       AssertionError: assert 'c79d0fdf8753...9f6a43e22a740' == 'e37236d0f6d4...95ea87a36750f'
+E         
+E         - e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f
+E         + c79d0fdf8753576f391f2a6bb84f281595e7445291a558abe639f6a43e22a740
+
+tests/cockpit_v4/test_whatif_candidate_release.py:96: AssertionError
+_ test_the_accepted_releases_are_byte_identical[v4-saudi-retail-20m-v5-a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb] _
+
+release = 'v4-saudi-retail-20m-v5'
+digest = 'a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb'
+
+    @pytest.mark.parametrize("release,digest", sorted(
+        ACCEPTED_FINGERPRINTS.items()))
+    def test_the_accepted_releases_are_byte_identical(release, digest) -> None:
+        """A01, A02 and D09. The candidate is written into the same lake root,
+        so this is not a formality."""
+        assert lake.exists(release)
+>       assert lake.fingerprint(release) == digest
+E       AssertionError: assert 'c23a15d78ba8...9085399f04e5b' == 'a1e797dcc732...9c78d893706cb'
+E         
+E         - a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb
+E         + c23a15d78ba88d39aeae6983e68fff2230b644f5c8f91bec5c89085399f04e5b
+
+tests/cockpit_v4/test_whatif_candidate_release.py:96: AssertionError
+___ test_the_accepted_environment_carries_none_of_the_ml_libraries[xgboost] ____
+
+library = 'xgboost'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: xgboost is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='xgboost', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fc0068277a0>, origin='/hom...py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/xgboost']) is None
+E        +  where ModuleSpec(name='xgboost', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fc0068277a0>, origin='/hom...py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/xgboost']) = <function find_spec at 0x7fc02a7b09a0>('xgboost')
+E        +    where <function find_spec at 0x7fc02a7b09a0> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+___ test_the_accepted_environment_carries_none_of_the_ml_libraries[lightgbm] ___
+
+library = 'lightgbm'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: lightgbm is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='lightgbm', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbfd47bde20>, origin='/ho...y', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/lightgbm']) is None
+E        +  where ModuleSpec(name='lightgbm', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbfd47bde20>, origin='/ho...y', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/lightgbm']) = <function find_spec at 0x7fc02a7b09a0>('lightgbm')
+E        +    where <function find_spec at 0x7fc02a7b09a0> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+___ test_the_accepted_environment_carries_none_of_the_ml_libraries[sklearn] ____
+
+library = 'sklearn'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: sklearn is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='sklearn', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbffcf9b920>, origin='/hom...py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/sklearn']) is None
+E        +  where ModuleSpec(name='sklearn', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbffcf9b920>, origin='/hom...py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/sklearn']) = <function find_spec at 0x7fc02a7b09a0>('sklearn')
+E        +    where <function find_spec at 0x7fc02a7b09a0> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+_____ test_the_accepted_environment_carries_none_of_the_ml_libraries[shap] _____
+
+library = 'shap'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: shap is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='shap', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbfd0969a60>, origin='/home/u...__.py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/shap']) is None
+E        +  where ModuleSpec(name='shap', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbfd0969a60>, origin='/home/u...__.py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/shap']) = <function find_spec at 0x7fc02a7b09a0>('shap')
+E        +    where <function find_spec at 0x7fc02a7b09a0> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+____ test_the_accepted_environment_carries_none_of_the_ml_libraries[scipy] _____
+
+library = 'scipy'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: scipy is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='scipy', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fc00684ff80>, origin='/home/..._.py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/scipy']) is None
+E        +  where ModuleSpec(name='scipy', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fc00684ff80>, origin='/home/..._.py', submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/scipy']) = <function find_spec at 0x7fc02a7b09a0>('scipy')
+E        +    where <function find_spec at 0x7fc02a7b09a0> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+__ test_the_accepted_environment_carries_none_of_the_ml_libraries[matplotlib] __
+
+library = 'matplotlib'
+
+    @pytest.mark.parametrize("library", ["xgboost", "lightgbm", "sklearn",
+                                         "shap", "scipy", "matplotlib"])
+    def test_the_accepted_environment_carries_none_of_the_ml_libraries(library):
+        """The candidate can see the accepted environment; not the reverse.
+    
+        This suite runs on the ACCEPTED interpreter. If one of these ever
+        becomes importable here, a dependency has leaked out of
+        `requirements-whatif.txt` into the accepted environment.
+        """
+>       assert importlib.util.find_spec(library) is None, (
+            f"{library} is importable from the accepted interpreter. It belongs "
+            f"in .venv-whatif only; see requirements-whatif.txt.")
+E       AssertionError: matplotlib is importable from the accepted interpreter. It belongs in .venv-whatif only; see requirements-whatif.txt.
+E       assert ModuleSpec(name='matplotlib', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbfd47e70e0>, origin='/..., submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/matplotlib']) is None
+E        +  where ModuleSpec(name='matplotlib', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7fbfd47e70e0>, origin='/..., submodule_search_locations=['/home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/matplotlib']) = <function find_spec at 0x7fc02a7b09a0>('matplotlib')
+E        +    where <function find_spec at 0x7fc02a7b09a0> = <module 'importlib.util' (frozen)>.find_spec
+E        +      where <module 'importlib.util' (frozen)> = importlib.util
+
+tests/cockpit_v4/test_whatif_ml.py:534: AssertionError
+_________ test_importing_the_ml_package_needs_none_of_those_libraries __________
+
+    def test_importing_the_ml_package_needs_none_of_those_libraries() -> None:
+        """Every import of them is inside a function, so this suite can run."""
+        from backend.cockpit_v4.scenario.ml import components as cp
+    
+        assert set(cp.available()) == set(ml.COMPONENTS)
+>       assert sorted(cp.missing()) == sorted(ml.COMPONENTS)
+E       AssertionError: assert [] == ['additive_lo...m', 'xgboost']
+E         
+E         Right contains 3 more items, first extra item: 'additive_log'
+E         Use -v to get more diff
+
+tests/cockpit_v4/test_whatif_ml.py:544: AssertionError
+=============================== warnings summary ===============================
+tests/cockpit_v4/test_whatif_bridge.py::test_p8b_an_unavailable_method_keeps_its_row_and_its_empty_cells
+  /home/user/gw_final_84b0ca12f140/.venv-whatif/lib/python3.12/site-packages/matplotlib/_mathtext.py:45: PyparsingDeprecationWarning: 'enablePackrat' deprecated - use 'enable_packrat'
+    ParserElement.enablePackrat()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/cockpit_v4/test_whatif_candidate_release.py::test_the_accepted_releases_are_byte_identical[v4-saudi-corporate-20q-v4-e37236d0f6d4e494fea0fe2f2b66b83085e76cb9eabdd2c2e2b95ea87a36750f]
+FAILED tests/cockpit_v4/test_whatif_candidate_release.py::test_the_accepted_releases_are_byte_identical[v4-saudi-retail-20m-v5-a1e797dcc73236b7a0bdac3635712a912c5680a1b3c7de60f059c78d893706cb]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[xgboost]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[lightgbm]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[sklearn]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[shap]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[scipy]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_the_accepted_environment_carries_none_of_the_ml_libraries[matplotlib]
+FAILED tests/cockpit_v4/test_whatif_ml.py::test_importing_the_ml_package_needs_none_of_those_libraries
+9 failed, 1435 passed, 2 skipped, 1 warning in 577.31s (0:09:37)

@@ -852,7 +852,14 @@ async function p5Journeys() {
     await page.fill('[data-testid="whatif-scenario-filter"]', "CORP-02");
     await page.click('[data-testid="whatif-scenario-pick"][data-template-id="CORP-02"]');
     await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id"), null, { timeout: 60_000 });
+    // Before Apply the template already previews on its own scope; Apply
+    // saves the selection as a cohort and re-binds. Wait for THAT binding
+    // (a new object, the cohort set), not for a preview already on screen.
     await page.click('[data-testid="whatif-apply"]');
+    await page.waitForFunction(() => {
+      const id = document.querySelector('[data-testid="whatif-application"]')?.getAttribute("data-scenario-id");
+      return id && id !== "scn-tpl-corp-02" && document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id");
+    }, null, { timeout: 120_000 });
     await page.waitForSelector('[data-testid="whatif-preview"]', { timeout: 120_000 });
     const statement = await page.textContent('[data-testid="whatif-preview"] [data-testid="scenario-not-calculated"]');
     assert.match(statement, /Nothing has been calculated/);

@@ -1,0 +1,104 @@
+
+Guided Risk Workspace journeys · MODEL MOCK
+───────────────────────────────────────────
+✓ API on http://127.0.0.1:8444
+✓ UI on http://127.0.0.1:5444
+  warmed / compiled in 0.0s (HTTP 200)
+  warmed /cockpit/thread/warmup compiled in 1.1s (HTTP 200)
+  warmed /cockpit/trace/warmup compiled in 1.0s (HTTP 200)
+  warmed /trace/llm-exchange/warmup compiled in 1.0s (HTTP 200)
+  warmed /ai-model-lab compiled in 0.4s (HTTP 200)
+  warmed /what-if compiled in 0.8s (HTTP 200)
+  warmed /lenses compiled in 0.4s (HTTP 200)
+  warmed /monitoring compiled in 0.5s (HTTP 200)
+  warmed /metrics compiled in 0.4s (HTTP 200)
+  warmed /messages compiled in 0.4s (HTTP 200)
+  warmed /early-warning compiled in 0.4s (HTTP 200)
+  ok   GW-P1-01  Cockpit question → governance record → Trace › LLM Exchange shows every call, stage and panel
+  ok   GW-P1-02  Reopening a trace makes zero model calls
+  ok   GW-P1-03  AI Model Lab reads the same records and compares two calls
+  ok   GW-P3-01-CORP  corporate: landing shows Requires Attention AND the free Ask box; cards carry measured evidence
+  ok   GW-P3-01-RET  retail: landing shows Requires Attention AND the free Ask box; cards carry measured evidence
+  ok   GW-P3-02  Issue card → Investigate → an ordinary thread with the path and NBQ chips; a chip runs a normal turn in the SAME thread
+  ok   GW-P3-03  Issue detail: charts are Plotly; clicking a driver bar narrows the governed grid server-side
+  ok   GW-P3-04  Early Warning (retail) → save cohort → investigate opens a Cockpit thread over that exact population
+  ok   GW-P4-01  Scenario Library opens populated: >=36 templates, 18 per book, searchable, every card previews without calculating
+  ok   GW-P4-02  Create A (sector PD/LGD) and B (macro) without executing; combine A+B -> overlap matrix -> explicit policy -> C saved; A and B unchanged
+  ok   GW-P4-03  A seeded conflict template is blocked; choosing policies records them on YOUR copy and leaves the template untouched
+  ok   GW-P4-04  Rename makes a new version; Share sends the reference and version, not data
+  ok   GW-P5-01  What-If Analysis replaces Stress Testing; /stress redirects; Ask box on top; book toggle changes period and grain; Retail ML visibly unavailable
+  ok   GW-P5-02  Explorer click cross-filters the grid; box/lasso selects several; select-all-filtered binds the complete cohort; saved cohort reconciles
+  ok   GW-P5-03  One row, several rows, clear selection
+  ok   GW-P5-04  Manual selection -> Ask -> the conversation binds the SAME governed cohort; adopting it returns the identical contract
+  FAIL GW-P5-05  Load a scenario from the library and Apply it to the active cohort: bound, previewed, not calculated; Scenario Library 'Open in What-If' lands here with the same object
+       Expected values to be strictly equal: | + actual - expected |  | + 'filters' | - 'cohort' | 
+       on screen: http://127.0.0.1:5444/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%5D%7D%5D&scenario=scn-tpl-corp-02 :: app-content-column whatif-workspace ws-domain-switch ws-domain-corporate ws-domain-retail whatif-book whatif-method-badges whatif-method-delta whatif-method-ml whatif-method-user_defined whatif-ask-box whatif-ask-input whatif-ask whatif-strip whatif-strip-cohort whatif-load-cohort whatif-strip-scenario whatif-load-scenario whatif-strip-baseline whatif-strip-method whatif-explorer whatif-explorer-dimension whatif-chart-dimension-card whatif-chart-dimension-view-data whatif-chart-dimension-csv whatif-chart-dimension whatif-chart-stage-card whatif-chart-stage-view-data whatif-chart-stage-csv whatif-chart-stage whatif-matrices whatif-chart-heatmap-card whatif-chart-heatmap-view-data whatif-chart-heatmap-csv whatif-chart-heatmap whatif-heatmap-reconcile whatif-chart-sankey-card whatif-chart-sankey-view-data whatif-chart-sankey-csv whatif-chart-sankey whatif-sankey-reconcile whatif-macro-tornado tornado-parameter whatif-chart-tornado-card whatif-chart-tornado-view-data whatif-chart-tornado-csv whatif-chart-tornado tornado-sign-review tornado-excluded whatif-selection
+  ok   GW-P5-06  Investigate in Cockpit from a What-If selection opens a thread seeded with the exact cohort
+  ok   GW-P6-01  UAT-01 in What-If: Construction 248 facilities / 100 borrowers, PD x1.20, LGD x1.10, stages fixed, CONFIRMED with NO method -> stops at METHOD SELECTION; nothing executed; then Delta runs and the dual-scope Plotly decomposition reconciles
+  ok   GW-P6-02  Retail ML is visibly unavailable (G4) and refused without a Delta fallback; the same confirmed scenario then runs with Delta
+  ok   GW-P6-03  A second scenario asks ORIGINAL baseline or LAYER on the latest; A, then B layered on A, then C layered on A+B: lineage persists and the book starts where its ancestors left it
+  ok   GW-P6-04  UAT-01 in the Cockpit conversation: preview with no method -> 'Yes, confirm the scenario' -> METHOD SELECTION, NOT executed -> Delta chosen as an ordinary turn -> the governed Plotly decomposition opens
+  ok   GW-P7-01  Messages first launch holds synthetic shared definition, result and cohort; the recipient runs the shared DEFINITION as their own run: preview → confirm → METHOD SELECTION → Delta → a new result linked to the shared definition
+  ok   GW-P7-02  A shared executed RESULT: open the analysis, compare with my own result (comparison page: KPIs + component-by-component Plotly), save a copy, comment on the shared version
+  ok   GW-P7-03  Scenario tree in What-If: A, B layered on A, a method variant of A; compare two nodes from the tree; share a result and see it in Sent
+  ok   GW-P7-04  A shared COHORT opens in What-If with the same membership, and Investigate opens a Cockpit thread about it without rebuilding the population
+  ok   GW-P8-01  Metric Catalogue first launch: >=50 persisted governed metrics; a definition shows every field, live values on both books, trend, breakdown whose bar click drills to the exact rows, lineage and users
+  ok   GW-P9-01  Lens Library first launch: >=18 populated persona Lenses; a Lens renders governed KPIs and Plotly visuals; a category click cross-filters charts and the table; a trend point moves the Lens period; refresh records what changed and which rules breach
+  ok   GW-P9-02  One-prompt Lens: a PREVIEW (KPIs, charts, tables, refresh rule) is shown and NOT saved until confirmed; refine by asking; save opens a live Lens; editing writes a new version
+  ok   GW-P9-03  Box-select categories on a Lens chart → temporary cohort → What-If with that governed cohort; a Cockpit analysis is saved as a Lens from the thread
+  ok   GW-P10-01  Monitoring Centre first launch: live breaches and labelled historical replay; an alert shows rule/Lens/metric versions and history; Open Lens restores the triggering period and population; acknowledging needs a note; Investigate opens Cockpit
+  ok   GW-P10-02  Follow a Lens → its refresh raises a breach → an Inbox card from Monitoring with Open Lens / Investigate / What-If → What-If opens with the alert's population
+  ok   GW-P10-03  The scheduler's step on demand: due Lenses refresh (idempotent on unchanged releases) and the refresh-health table shows cadence, last success and what is due
+  ok   GW-P11-01  What-If heatmap and stage-migration Sankey: server-aggregated (small payload), reconcile to the filtered book, a flow click and a heatmap cell (via the keyboard on its data row) filter the grid; the same key again clears it
+  ok   GW-P11-02  The shared chart contract on one screen: role=img labels, hover shows units, legend isolate is visual only (no refetch, totals unchanged), drag-zoom and mode-bar reset, CSV carries release/fingerprint/period/filters, PNG downloads
+  ok   GW-P11-03  An executed Delta result adds the segment Pareto (cumulative share ends at 100%) and the per-exposure change distribution, each with its exact data
+  ok   GW-P11-04  Early Warning: clicking a warning reason cross-filters the bands, segments and underlying grid on the server; the keyboard does the same from the data row; Save cohort carries the reason
+  ok   GW-P11-05  Legacy Recharts routes are not reachable as live charts with the guided flag on: /lenses/cro opens the governed Plotly CRO Lens, /stress opens What-If
+  ok   GW-P12-01  Result → Export package (the page's own Plotly charts attached as SVG + figure spec; every file hash-listed) → Trace: integrity verified, versions in the hash chain, lineage to the scenario, the run's method decisions → tenant ledger verifies → the downloaded package verifies against the store
+  ok   GW-P12-02  Lens and alert: Export package from the Lens view; the Lens Trace lists its refreshes, each in the hash chain; an alert's Trace lists its state history
+  ok   GW-P12-03  LLM Exchange, one recorder: a Cockpit call reads as SYSTEM / USER / ASSISTANT / TOOL CALL / TOOL RESULT / VALIDATOR in the order sent, beside canonical → translated → raw → normalized; the AI Model Lab lists the SAME exchange records (no second recorder)
+  ok   GW-P13-01  GRID07: every visible grid column opens the filter editor its governed kind calls for (text box / value list / min–max / yes–no), on both books
+  ok   GW-P13-02  GRID11 + GRID13 in the UI: a yes/no filter and an 'only empty' filter narrow the grid to exactly the server's count; sorting by EAD is server-side and page 2 continues page 1's order
+  ok   GW-P13-03  MAC07: the macro-sensitivity tornado follows the explorer's population, names the risk parameter on every bar, hovers with the governed fields, and flags the collateral sign for review instead of flipping it
+  ok   GW-P13-04  Method names and 'Selected scope = Total book': a whole-book Delta result says Method 1 — Delta, draws ONE bridge with the scope-equivalence panel (rest-of-book Δ = 0, selected Δ = total Δ) and marks every component identical
+  ok   GW-P13-05  VIZ02 responsive: at a 390 px phone viewport the main pages render without horizontal page scroll and every chart fits the screen; at 1440 px the same charts are wider
+  ok   GW-P16-01  GX-08 by clicks only: Requires Attention card → Investigate → a driver chip answered in the SAME thread → the stress-test chip opens What-If on the investigation's exact cohort → Ask (pre-filled, not typed) → preview → 'Yes, confirm the scenario' button → METHOD SELECTION → Delta button → the governed decomposition reconciles; no keystroke anywhere
+  ok   GW-P16-02  Requires Attention card wiring: the title opens the evidence; the largest-contributor driver opens the issue already narrowed to that driver's population (server count); the card's What-If button freezes the exact issue population and opens What-If on it
+  ok   GW-BACK-01  Home → Requires Attention issue → Back → Home on the same book
+  ok   GW-BACK-02  Issue → Investigate → Back → the same issue (in-app: the thread's 'Back to the issue')
+  ok   GW-BACK-03  Issue → driver-filtered population → Back → the unfiltered issue (in-app: clear the chart filter)
+  ok   GW-BACK-04  Issue → What-If on this population → Back → the exact issue; What-If's 'Back to the issue' returns too
+  ok   GW-BACK-05  Cockpit thread → What-If (investigation chip) → Back → the same thread, no new turn
+  ok   GW-BACK-06  What-If (retail book, cohort, scenario applied) → Scenario Library → Back → the same What-If state, no re-bind and no new run
+  ok   GW-BACK-07  Scenario Library (search + owner + severity) → scenario detail → Back → the same filtered library
+  ok   GW-BACK-08  Scenario detail → Clone → Back → the source scenario; the clone's 'Discard this copy' is the Cancel; Library → New → Cancel writes nothing
+  ok   GW-BACK-09  Scenario Library: select two scenarios → Combine preview → Back keeps the selection; the saved combination's Back returns to the library
+  ok   GW-BACK-10  What-If result (method tab) → Scenario detail → Back → the same result on the same method
+  ok   GW-BACK-11  What-If result → Share → Sent messages → Back → the same result
+  ok   GW-BACK-12  Messages (a shared scenario open) → the scenario → Back → Messages with the same message open
+  ok   GW-BACK-13  Messages (a shared Lens open) → the Lens → Back → Messages
+  ok   GW-BACK-14  Lenses (filtered) → a Lens → Back → the same filtered library
+  ok   GW-BACK-15  Lens (cross-filter + selection) → underlying metric definition → Back → the same Lens selections
+  ok   GW-BACK-16  Lens selection → Investigate in Cockpit → Back → the same Lens context; Back does not freeze the selection twice
+  ok   GW-BACK-17  Lens selection → What-If → Back → the same Lens context and cohort
+  ok   GW-BACK-18  Monitoring Centre (view + severity) → a breach → Back → the same filtered list, alert closed
+  ok   GW-BACK-19  Breach → Open Lens at the trigger → Back → the breach (filters kept)
+  ok   GW-BACK-20  Breach → Investigate in Cockpit → Back → the breach (filters kept)
+  ok   GW-BACK-21  Trace (governance record) → LLM Exchange → Back → the same Trace; the exchange's Back link returns to it
+  ok   GW-BACK-22  LLM Exchange: open a call's request/response stage → Back → the call list as it was
+  ok   GW-GOLD-01  Guided Corporate: issue → driver → root cause → frozen cohort → suggested What-If → confirm → method → execute → selected + total bridges → share → recipient's message → Back to Messages
+  ok   GW-GOLD-02  Guided Retail: issue → frozen cohort → scenario → Retail ML requested → explicit UNAVAILABLE, nothing substituted → Delta → decomposition → reopen shows the same executed run
+  ok   GW-GOLD-03  Scenario composition: three scenarios → combine → resolve every overlap → bind a cohort → run Delta and a second method → lineage names all three; the sources are unchanged
+  ok   GW-GOLD-04  Lens to decision: CRO/portfolio Lens → box-select a deteriorating segment → the rows → cohort → Investigate → root cause → What-If → executed result on that exact cohort
+  ok   GW-GOLD-05  Monitoring loop: breach → the Lens at the trigger → acknowledge with a note → investigate → What-If → return: the breach is ACKNOWLEDGED with its note and history
+  ok   GW-GOLD-06  Early Warning: population → save cohort → export (only its rows) → investigate → What-If on the SAME cohort object → counts reconcile
+  ok   GW-GOLD-07  Sharing: an unexecuted scenario is shared (reference + version); a received shared definition is duplicated, bound to MY cohort and executed; the shared source is unchanged
+  ok   GW-GOLD-08  Persistence: a cohort, a scenario, a Lens with a breach rule and a result reopen in a FRESH browser context with the same ids, versions and hashes; reopening makes no model call and no write
+  ok   GW-GOLD-09  Trace/security: a question carrying credential-like text → LLM Exchange shows it redacted → the export package and the stored thread carry no raw secret
+  ok   GW-GOLD-10  Navigation: Home → issue → Cockpit → What-If → Library → scenario → result → Messages → shared object, then in-app Back down the whole stack and browser Back down it again, the state checked at every level
+  ok   GW-VAL-PLOTLY  Every Plotly chart on the guided pages renders, is labelled and fits the screen at 1440 px and at 390 px; no page scrolls sideways
+  ok   GW-VAL-ROUTES  Every route loads directly and on refresh; invalid ids and parameters are handled in words, never a crash or a 404 page
+
+  81/82 journeys passed this run
+  stopped UI
+  stopped guided-workspace stub API

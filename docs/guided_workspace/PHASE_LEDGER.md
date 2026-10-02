@@ -1040,6 +1040,10 @@ The first browser runs that found VAL-DEF-022, -023, -028, -029 and -030 are pre
 
 The fix is a docstring-only change ("NO MODEL", "INDEPENDENT ORACLE"). Because a tracked test file had to change, candidate I is rejected rather than re-run, per the round's rule. Candidate J carries the fix, and the complete accepted suite was run on the working tree before J was cut. Candidate I's regression output is kept as measured in `evidence/regression_candidate_I_fc8754a19e72/`.
 
+**Candidate J (`84b0ca12`) rejected.** In its regression, the guided browser step ran 81/82. `GW-P5-05`, a journey that existed before this round, read the What-If application's scenario before Apply had re-bound it to the saved cohort: it waited for a preview selector that was already on screen. That is a harness race, not product behaviour.
+
+The journey now waits for the re-bound object, and it passed three consecutive times. The inventory step's failure was derived from that journey. Candidate K carries the harness fix. Candidate J's output is kept in `evidence/regression_candidate_J_84b0ca12f140/`.
+
 **Results.** `validation/VALIDATION_REPORT.md`, `VALIDATION_MATRIX.csv` and `VALIDATION_RESULTS.json` are generated from the final regression of record on candidate I. Its SHA is pinned in `UAT_CANDIDATE.json`.
 
 ---
