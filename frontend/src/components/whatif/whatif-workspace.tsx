@@ -159,8 +159,10 @@ export function WhatIfWorkspace() {
   // returns here with the same state, and a remount reopens the same run
   // instead of starting another (binding is idempotent server-side).
   const runId = activeRun?.object_id ?? (pending ? initialRunId : "");
+  // Set when this page navigates away, so a replace never overtakes the push.
+  const leaving = React.useRef(false);
   React.useEffect(() => {
-    if (pending) return;
+    if (pending || leaving.current) return;
     const f = filters.length ? JSON.stringify(filters) : "";
     const next = urlWith({
       domain,
@@ -431,7 +433,8 @@ export function WhatIfWorkspace() {
                 const active = await ensureCohort();
                 if (!active) return;
                 const out = await investigateCohort(active.object_id);
-                router.push(`/cockpit/thread/${out.thread_id}`);
+                leaving.current = true;
+                router.push(withBack(`/cockpit/thread/${out.thread_id}`));
               })
             }
           >

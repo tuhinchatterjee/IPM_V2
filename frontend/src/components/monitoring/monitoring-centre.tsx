@@ -379,7 +379,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
           <>
             <button type="button" disabled={busy} onClick={() => void go(async () => {
               const t = await investigateAlert(a.object_id);
-              router.push(`/cockpit/thread/${t.thread_id}`);
+              router.push(withBack(`/cockpit/thread/${t.thread_id}`));
             })} className="rounded-md border border-border px-2 py-1" data-testid="alert-investigate">
               Investigate in Cockpit
             </button>

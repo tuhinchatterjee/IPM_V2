@@ -80,8 +80,16 @@ export function LensView({ lensId }: { lensId: string }) {
   const alertId = params.get("alert") ?? "";
   const back = safeBack(params.get("back"));
   const restored = React.useRef(params.has("x") || params.has("p"));
+  // Set when this page navigates away: the URL is then left alone, so a
+  // replace cannot overtake (and cancel) the navigation in flight.
+  const leaving = React.useRef(false);
+  const leave = React.useCallback((href: string) => {
+    leaving.current = true;
+    router.push(href);
+  }, [router]);
 
   React.useEffect(() => {
+    if (leaving.current) return;
     const enc = (v: unknown, empty: boolean) => (empty ? null : JSON.stringify(v));
     const next = urlWith({
       p: enc(periods, !Object.keys(periods).length),
@@ -186,7 +194,7 @@ export function LensView({ lensId }: { lensId: string }) {
   async function investigateOwner(domain: "corporate" | "retail", owner: string) {
     const c = await saveSelection(domain, { mode: "filtered", filters: [{ column: OWNER[domain], op: "in", values: [owner] }] }, `${owner} (from ${spec.name})`.slice(0, 150));
     const t = await investigateCohort(c.object_id);
-    router.push(`/cockpit/thread/${t.thread_id}`);
+    leave(withBack(`/cockpit/thread/${t.thread_id}`));
   }
 
   function chart(v: RenderedVisual) {
@@ -259,8 +267,8 @@ export function LensView({ lensId }: { lensId: string }) {
         layout={fig.layout}
         onPointClick={(p) => {
           const oid = Array.isArray(p.customdata) ? String(p.customdata[0]) : "";
-          if ((v.type === "scenario_results" || v.type === "groups") && oid) router.push(withBack(`/what-if/result/${oid}`));
-          if (v.type === "alerts" || (v.type === "groups" && ALERT_GROUPS.has(v.metric_id ?? ""))) router.push(withBack("/monitoring"));
+          if ((v.type === "scenario_results" || v.type === "groups") && oid) leave(withBack(`/what-if/result/${oid}`));
+          if (v.type === "alerts" || (v.type === "groups" && ALERT_GROUPS.has(v.metric_id ?? ""))) leave(withBack("/monitoring"));
         }}
         footer={!(v.groups ?? []).some((g) => g.value != null) ? <p className="mt-2 text-xs text-text-muted">{v.type === "scenario_results" ? "No executed scenario you can open on this book yet." : v.type === "alerts" ? "No active breach on this book." : (v.note ?? "Nothing to show yet.")}</p> : null}
         table={{ columns: [{ key: "dimension", label: "Item" }, { key: "value", label: "Value (raw)", align: "right" }], rows: (v.groups ?? []) as unknown as Record<string, unknown>[] }}
@@ -331,7 +339,7 @@ export function LensView({ lensId }: { lensId: string }) {
             void go(async () => {
               const obj = await reviseLens(lens.object_id, { name, refresh: { ...spec.refresh, cadence } }, "edited in the Lens view");
               setEditing(false);
-              if (obj.object_id !== lens.object_id) router.push(`/lenses/${obj.object_id}`);
+              if (obj.object_id !== lens.object_id) leave(`/lenses/${obj.object_id}`);
               else setData(await renderLens(lens.object_id, { periods, cross_filters: cross }));
             });
           }}
@@ -404,13 +412,13 @@ export function LensView({ lensId }: { lensId: string }) {
           <button type="button" disabled={busy} onClick={() => void go(async () => {
             const id = await freezeSelection();
             const t = await investigateCohort(id);
-            router.push(`/cockpit/thread/${t.thread_id}`);
+            leave(withBack(`/cockpit/thread/${t.thread_id}`));
           })} className="rounded-md border border-border px-2 py-1" data-testid="lens-selection-investigate">
             Investigate
           </button>
           <button type="button" disabled={busy} onClick={() => void go(async () => {
             const id = await freezeSelection();
-            router.push(withBack(`/what-if?cohort=${id}&domain=${selection?.domain ?? ""}`));
+            leave(withBack(`/what-if?cohort=${id}&domain=${selection?.domain ?? ""}`));
           })} className="rounded-md border border-border px-2 py-1" data-testid="lens-selection-whatif">
             What-If
           </button>
@@ -426,7 +434,7 @@ export function LensView({ lensId }: { lensId: string }) {
           const k = kpiTile(v);
           const spark = sparkFigure(v);
           return (
-            <Link key={v.visual_id} href={withBack(`/metrics?m=${v.metric_id}`, `/lenses/${lensId}`)} className="block rounded-lg border border-border bg-surface p-2" title={`${k.metric} — open the definition`} data-testid="lens-kpi" data-metric-id={v.metric_id} data-raw={k.raw} data-tone={k.tone}>
+            <Link key={v.visual_id} href={withBack(`/metrics?m=${v.metric_id}`)} className="block rounded-lg border border-border bg-surface p-2" title={`${k.metric} — open the definition`} data-testid="lens-kpi" data-metric-id={v.metric_id} data-raw={k.raw} data-tone={k.tone}>
               <div className="truncate text-[11px] text-text-muted">
                 {k.title} · {v.domain}
               </div>
@@ -473,7 +481,7 @@ export function LensView({ lensId }: { lensId: string }) {
                       const key = String(r[v.key ?? ""] ?? "");
                       const c = await saveSelection(v.domain, { mode: "rows", ids: [key] }, `${key} (from ${spec.name})`);
                       const t = await investigateCohort(c.object_id);
-                      router.push(`/cockpit/thread/${t.thread_id}`);
+                      leave(withBack(`/cockpit/thread/${t.thread_id}`));
                     })
                   }
                 >
@@ -530,7 +538,7 @@ export function LensView({ lensId }: { lensId: string }) {
           <p className="mt-2 text-text-muted">
             Metrics:{" "}
             {spec.metrics.map((m) => (
-              <Link key={`${m.metric_id}${m.domain}`} href={withBack(`/metrics?m=${m.metric_id}`, `/lenses/${lensId}`)} className="mr-1 text-accent underline">
+              <Link key={`${m.metric_id}${m.domain}`} href={withBack(`/metrics?m=${m.metric_id}`)} className="mr-1 text-accent underline">
                 {m.metric_id}v{m.version}
               </Link>
             ))}

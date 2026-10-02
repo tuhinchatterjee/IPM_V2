@@ -32,7 +32,8 @@ import {
   type MessageItem,
   type ShareCard,
 } from "@/lib/workspace/messages";
-import { withBack } from "@/lib/workspace/nav";
+import { urlWith, withBack } from "@/lib/workspace/nav";
+import { OriginBackLink } from "@/components/workspace/origin-back";
 
 const KIND_LABEL: Record<string, string> = {
   scenario: "Scenario definition · not executed",
@@ -77,12 +78,13 @@ export function MessagesCenter() {
   }, [box, reload, selected]);
 
   function pick(id: string) {
-    router.replace(`/messages?box=${box}&m=${id}`);
+    router.replace(urlWith({ box, m: id }));
   }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(20rem,26rem)_1fr]" data-testid="messages-center">
       <section className="space-y-2">
+        <OriginBackLink testId="messages-back" />
         <header className="flex items-center gap-2">
           <h1 className="text-lg font-semibold">Messages</h1>
           <span className="text-xs text-text-muted" data-testid="messages-unread">
@@ -96,7 +98,7 @@ export function MessagesCenter() {
               type="button"
               onClick={() => {
                 setBox(b);
-                router.replace(`/messages?box=${b}`);
+                router.replace(urlWith({ box: b, m: null }));
               }}
               aria-pressed={box === b}
               className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${box === b ? "border-accent bg-accent text-accent-contrast" : "border-border"}`}
@@ -273,7 +275,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
         router.push(withBack(`/what-if?cohort=${c.object_id}`));
       } else if (a.action === "investigate") {
         const t = await investigateFromMessage(shareId);
-        router.push(`/cockpit/thread/${t.thread_id}`);
+        router.push(withBack(`/cockpit/thread/${t.thread_id}`));
       }
     });
   }

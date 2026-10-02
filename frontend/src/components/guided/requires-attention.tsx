@@ -292,7 +292,7 @@ export function RequiresAttention({ domain }: { domain: DomainId }) {
       if (ask) {
         await recordStep(opened.investigation_id, { suggestion_id: suggestionId, kind, question: ask }).catch(() => undefined);
       }
-      router.push(`/cockpit/thread/${opened.thread_id}${ask ? `?ask=${encodeURIComponent(ask)}` : ""}`);
+      router.push(withBack(`/cockpit/thread/${opened.thread_id}${ask ? `?ask=${encodeURIComponent(ask)}` : ""}`));
     } catch (e) {
       setLoaded((prev) => ({ ...prev, domain, error: e instanceof Error ? e.message : String(e) }));
       setBusy(false);

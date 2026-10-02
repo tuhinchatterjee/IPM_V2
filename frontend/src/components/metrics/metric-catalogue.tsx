@@ -17,6 +17,8 @@ import { ChartCard } from "@/components/viz/chart-card";
 import { breakdownBars, formatValue, gridDimension, metricTrend } from "@/lib/workspace/metric-figures";
 import { evaluateMetric, listMetrics, metricRows, readMetric, readMetricLineage, type MetricDefinition, type MetricLineage, type MetricValue } from "@/lib/workspace/metrics";
 import type { Filter } from "@/lib/workspace/objects";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { urlWith } from "@/lib/workspace/nav";
 
 const BOOKS = ["corporate", "retail"] as const;
 const DIRECTION: Record<string, string> = { lower_is_better: "Lower is better", higher_is_better: "Higher is better", context: "Context (no preferred direction)" };
@@ -53,6 +55,7 @@ export function MetricCatalogue() {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(20rem,24rem)_1fr]" data-testid="metric-catalogue">
       <section className="space-y-2">
+        <OriginBackLink testId="metrics-back" />
         <header>
           <h1 className="text-lg font-semibold">Metric Catalogue</h1>
           <p className="text-xs text-text-muted" data-testid="metric-count" data-count={all?.length ?? 0}>
@@ -88,7 +91,7 @@ export function MetricCatalogue() {
             <li key={m.metric_id}>
               <button
                 type="button"
-                onClick={() => router.replace(`/metrics?m=${m.metric_id}`)}
+                onClick={() => router.replace(urlWith({ m: m.metric_id }))}
                 className={`w-full rounded-lg border p-2 text-left text-xs ${selected === m.metric_id ? "border-accent bg-accent/5" : "border-border bg-surface"}`}
                 data-testid="metric-item"
                 data-metric-id={m.metric_id}

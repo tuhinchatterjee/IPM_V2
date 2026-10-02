@@ -25,7 +25,8 @@ import {
 } from "@/lib/workspace/guided";
 import { ThreadWhatIf } from "@/components/guided/thread-whatif";
 import { cn } from "@/lib/utils";
-import { withBack } from "@/lib/workspace/nav";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 export function InvestigationBar(props: { threadId: string; busy: boolean; turnCount: number; onAsk: (question: string) => void }) {
   // The What-If strip rides the same thread hook: a conversation that froze
@@ -33,11 +34,14 @@ export function InvestigationBar(props: { threadId: string; busy: boolean; turnC
   // investigation.
   return (
     <>
+      {/* Opened from an issue, a Lens, an alert, Early Warning or What-If
+          (`back=`): an explicit way back there, whatever kind of thread. */}
+      {guidedEnabled() && <OriginBackLink testId="thread-origin-back" />}
       <ThreadWhatIf {...props} />
       <InvestigationPath {...props} />
       {guidedEnabled() && (
         <p className="text-right text-xs">
-          <Link href={`/lenses?from_thread=${encodeURIComponent(props.threadId)}`} className="text-accent underline" data-testid="thread-save-as-lens">
+          <Link href={withBack(`/lenses?from_thread=${encodeURIComponent(props.threadId)}`)} className="text-accent underline" data-testid="thread-save-as-lens">
             Save this analysis as a Lens
           </Link>
         </p>
@@ -78,7 +82,8 @@ function InvestigationPath({
     const pending = params.get("ask");
     if (!pending) return;
     autoAsked.current = true;
-    router.replace(`/cockpit/thread/${threadId}`);
+    // Only `ask` is dropped: the origin (`back=`) stays for the Back link.
+    router.replace(urlWith({ ask: null }));
     onAsk(pending);
   }, [params, onAsk, router, threadId, enabled]);
 
@@ -101,7 +106,7 @@ function InvestigationPath({
       return;
     }
     if (s.type === "save_share_monitor") {
-      router.push(`/lenses?from_investigation=${encodeURIComponent(state.investigation_id)}`);
+      router.push(withBack(`/lenses?from_investigation=${encodeURIComponent(state.investigation_id)}`));
       return;
     }
     onAsk(s.exact_request);

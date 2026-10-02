@@ -53,7 +53,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
     try {
       const opened = await investigateIssue(issue.issue_id);
       if (question) await recordStep(opened.investigation_id, { suggestion_id: suggestionId, kind, question }).catch(() => undefined);
-      router.push(`/cockpit/thread/${opened.thread_id}${question ? `?ask=${encodeURIComponent(question)}` : ""}`);
+      router.push(withBack(`/cockpit/thread/${opened.thread_id}${question ? `?ask=${encodeURIComponent(question)}` : ""}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);

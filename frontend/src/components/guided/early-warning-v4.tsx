@@ -127,7 +127,7 @@ export function EarlyWarningV4() {
     setBusy(true);
     try {
       const out = await wsSend<{ thread_id: string }>("/early-warning/investigate", { domain, segment, bands: ["critical", "high"], reason });
-      router.push(`/cockpit/thread/${out.thread_id}`);
+      router.push(withBack(`/cockpit/thread/${out.thread_id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);

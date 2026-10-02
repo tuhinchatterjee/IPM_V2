@@ -376,7 +376,7 @@ function BindPanel({ domain, onBind }: { domain: "corporate" | "retail"; onBind:
           <span className="flex-1">
             {c.title} · {c.counts.entities} exposures · {c.object_id} v{c.version}
           </span>
-          <button type="button" onClick={() => onBind(c.object_id)} className="rounded border border-border px-2 py-0.5" data-testid="scenario-bind-choose">
+          <button type="button" onClick={() => onBind(c.object_id)} className="rounded border border-border px-2 py-0.5" data-testid="scenario-bind-choose" data-cohort-id={c.object_id}>
             Bind
           </button>
         </li>

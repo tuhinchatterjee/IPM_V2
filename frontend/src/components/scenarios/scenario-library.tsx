@@ -29,6 +29,7 @@ import {
 } from "@/lib/workspace/scenarios";
 import { cn } from "@/lib/utils";
 import { urlWith, withBack } from "@/lib/workspace/nav";
+import { OriginBackLink } from "@/components/workspace/origin-back";
 
 const OWNERS = [
   ["", "All"],
@@ -158,6 +159,7 @@ export function ScenarioLibrary() {
 
   return (
     <div className="space-y-4" data-testid="scenario-library">
+      <OriginBackLink testId="scenario-library-back" />
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-text-primary">Scenario Library</h1>
         <span className="text-xs text-text-muted">

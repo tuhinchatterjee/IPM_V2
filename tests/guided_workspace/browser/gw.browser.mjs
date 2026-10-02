@@ -1413,8 +1413,10 @@ async function p9Journeys() {
     // Cockpit → Save this analysis as a Lens.
     await askFromHome(page, record, "Which sectors carry the most reported ECL?");
     await page.click('[data-testid="thread-save-as-lens"]');
-    await page.waitForURL(/\/lenses\?from_thread=/, { timeout: 60_000 });
+    await page.waitForURL(/\/lenses(\?|$)/, { timeout: 60_000 });
     await page.waitForSelector('[data-testid="lens-preview"]', { timeout: 60_000 });
+    // The origin is consumed once proposed: Back to /lenses never re-proposes.
+    await page.waitForFunction(() => !location.search.includes("from_thread"), null, { timeout: 30_000 });
     await page.click('[data-testid="lens-save"]');
     await page.waitForURL(/\/lenses\/lens-[0-9a-f]{12}/, { timeout: 60_000 });
     await page.waitForSelector('[data-testid="lens-kpi"]', { timeout: 120_000 });
@@ -2126,6 +2128,1133 @@ async function p16Journeys() {
   });
 }
 
+// =========================================================================
+// VALIDATION — Back navigation (BACK_NAVIGATION_MATRIX): every path is driven
+// forward, then browser Back, browser Forward and the in-product Back control
+// are each checked against the origin's own state read from the page, and
+// the store is checked for objects written by the return trip.
+// =========================================================================
+
+const here = (page) => {
+  const u = new URL(page.url());
+  return `${u.pathname}${u.search}`;
+};
+
+/** Writes and model calls a return trip must never make. */
+const WRITE_ON_BACK = /^POST \/api\/v1\/cockpit-v4\/(workspace\/(whatif\/runs($|\?|\/[^/]+\/(confirm|method|execute))|cohorts($|\?)|whatif\/selection\/cohort|scenarios\/[^/]+\/(clone|resolve|retire)|scenarios\/combine|messages($|\?)|lenses\/propose|lenses($|\?)|investigations|issues\/[^/]+\/investigate|cohorts\/[^/]+\/investigate)|threads|runs|ask)/;
+
+async function storeCounts() {
+  const n = async (p, key) => ((await api(p)).body?.[key] ?? []).length;
+  return {
+    scenarios: await n("/scenarios?owner=mine", "scenarios"),
+    cohorts: await n("/cohorts", "cohorts"),
+    results: await n("/whatif/results", "results"),
+    lenses: await n("/lenses", "lenses"),
+    sent: await n("/messages?box=sent", "items"),
+  };
+}
+
+/** Wait until the page is at `origin`'s path and `state()` reads `want`. */
+async function backAt(page, originPath, stateSrc, want) {
+  try {
+    await page.waitForFunction((p) => location.pathname === p, originPath, { timeout: 60_000 });
+    await page.waitForFunction(
+      ([src, expected]) => {
+        try {
+          // eslint-disable-next-line no-new-func
+          return JSON.stringify(new Function(`return (${src})()`)()) === expected;
+        } catch {
+          return false;
+        }
+      },
+      [stateSrc, JSON.stringify(want)],
+      { timeout: 60_000 },
+    );
+    return "PASS";
+  } catch {
+    const got = await page.evaluate((src) => {
+      try {
+        // eslint-disable-next-line no-new-func
+        return new Function(`return (${src})()`)();
+      } catch (e) {
+        return `error: ${e}`;
+      }
+    }, stateSrc).catch(() => "unreadable");
+    return `FAILED at ${here(page)}: state ${JSON.stringify(got).slice(0, 200)} != ${JSON.stringify(want).slice(0, 200)}`;
+  }
+}
+
+/**
+ * One row of the matrix. `state` is a function SOURCE evaluated in the page
+ * that reads the origin's business state (filters, selection, objects).
+ */
+async function backTrip(page, record, { path, state, go, arrived, inApp, inAppTarget, inAppWrites = null }) {
+  const stateSrc = state.toString();
+  const origin = here(page);
+  const originPath = new URL(page.url()).pathname;
+  const want = await page.evaluate((src) => new Function(`return (${src})()`)(), stateSrc);
+  await go(page);
+  await arrived(page);
+  const destination = here(page);
+  const before = await storeCounts();
+  const callMark = page.calls.length;
+  const row = { path, origin, destination, origin_state: want };
+
+  await page.goBack();
+  row.browser_back = await backAt(page, originPath, stateSrc, want);
+  await page.goForward();
+  try {
+    await arrived(page);
+    row.browser_forward = new URL(page.url()).pathname === new URL(`${UI}${destination}`).pathname ? "PASS" : `FAILED at ${here(page)}`;
+  } catch (e) {
+    row.browser_forward = `FAILED ${String(e.message).slice(0, 120)}`;
+  }
+  // Browser Back/Forward alone must write nothing; a declared in-app Cancel
+  // may then retire what the forward step made.
+  const mid = await storeCounts();
+  if (inApp) {
+    try {
+      const target = await page.getAttribute(inApp, "data-back-target", { timeout: 60_000 }).catch(() => null);
+      row.in_app_target = target;
+      await page.click(inApp, { timeout: 60_000 });
+      row.in_app_back = await backAt(page, inAppTarget ?? originPath, stateSrc, want);
+    } catch (e) {
+      row.in_app_back = `FAILED ${String(e.message).slice(0, 160)}`;
+    }
+  } else {
+    row.in_app_back = "N/A";
+  }
+  // A Cancel that discards (Clone → "Discard this copy") is a declared,
+  // intended write of the in-app control; nothing else may write.
+  const writes = page.calls.slice(callMark).filter((c) => WRITE_ON_BACK.test(c) && !(inAppWrites && inAppWrites.test(c)));
+  row.declared_in_app_writes = inAppWrites ? page.calls.slice(callMark).filter((c) => inAppWrites.test(c)) : [];
+  row.writes_on_return = writes;
+  const after = inAppWrites ? mid : await storeCounts();
+  row.objects_written_on_return = JSON.stringify(before) === JSON.stringify(after) ? "none" : `${JSON.stringify(before)} -> ${JSON.stringify(after)}`;
+  row.status =
+    row.browser_back === "PASS" && row.browser_forward === "PASS" && ["PASS", "N/A"].includes(row.in_app_back) && !writes.length && row.objects_written_on_return === "none" ? "PASS" : "FAILED";
+  record.back = [...(record.back ?? []), row];
+  assert.equal(row.browser_back, "PASS", `${path}: browser Back`);
+  assert.equal(row.browser_forward, "PASS", `${path}: browser Forward`);
+  assert.ok(["PASS", "N/A"].includes(row.in_app_back), `${path}: in-app Back — ${row.in_app_back}`);
+  assert.deepEqual(writes, [], `${path}: no write or model call on the return trip`);
+  assert.equal(row.objects_written_on_return, "none", `${path}: no object written on the return trip`);
+  return row;
+}
+
+const post = (pathname, body) => api(pathname, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
+
+async function anIssue(domain = "corporate") {
+  const feed = (await api(`/issues?domain=${domain}`)).body;
+  return feed.issues.find((i) => (i.evidence?.breakdown ?? []).length >= 2) ?? feed.issues[0];
+}
+
+async function openIssue(page, issueId, query = "") {
+  await page.goto(`${UI}/issues/${issueId}${query}`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="issue-detail"]', { timeout: 120_000 });
+  await page.waitForFunction(() => Number(document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total") || 0) > 0, null, { timeout: 120_000 });
+}
+
+const issueState = () => ({
+  issue: location.pathname,
+  drill: new URLSearchParams(location.search).get("driver") || new URLSearchParams(location.search).get("stage") || "",
+  rows: document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total") || "",
+});
+
+const whatifState = () => ({
+  domain: document.querySelector('[data-testid="whatif-workspace"]')?.getAttribute("data-domain") || "",
+  cohort: document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") || "",
+  scenario: document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id") || "",
+  filters: new URLSearchParams(location.search).get("f") || "",
+});
+
+const libraryState = () => ({
+  q: document.querySelector('[data-testid="scenario-search"]')?.value ?? null,
+  owner: document.querySelector('[data-testid="scenario-owner"]')?.getAttribute("data-value") ?? null,
+  domain: document.querySelector('[data-testid="scenario-domain"]')?.getAttribute("data-value") ?? null,
+  severity: document.querySelector('[data-testid="scenario-severity"]')?.value ?? null,
+  total: document.querySelector('[data-testid="scenario-count"]')?.getAttribute("data-total") ?? null,
+});
+
+const detailState = () => ({
+  scenario: document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id") || "",
+  version: document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-version") || "",
+});
+
+const resultState = () => ({
+  result: document.querySelector('[data-testid="whatif-result"]')?.getAttribute("data-result-id") || "",
+  method: document.querySelector('[data-testid^="whatif-result-method-"][aria-pressed="true"]')?.getAttribute("data-testid") || "",
+});
+
+const messagesState = () => ({
+  box: new URLSearchParams(location.search).get("box") || "inbox",
+  open: document.querySelector('[data-testid="message-view"]')?.getAttribute("data-share-id") || new URLSearchParams(location.search).get("m") || "",
+  accessible: document.querySelector('[data-testid="message-view"]')?.getAttribute("data-accessible") || "",
+});
+
+const lensLibraryState = () => ({
+  q: document.querySelector('[data-testid="lens-search"]')?.value ?? null,
+  cards: document.querySelectorAll('[data-testid="lens-card"]').length,
+});
+
+const lensState = () => ({
+  lens: document.querySelector('[data-testid="lens-view"]')?.getAttribute("data-object-id") || "",
+  cross: document.querySelector('[data-testid="lens-state"]')?.getAttribute("data-cross") || "",
+  selection: document.querySelector('[data-testid="lens-selection"]')?.textContent?.split("Save")[0]?.trim() || "",
+});
+
+const monitoringState = () => ({
+  view: new URLSearchParams(location.search).get("view") || "active",
+  severity: document.querySelector('[data-testid="monitoring-severity"]')?.value ?? "",
+  count: document.querySelector('[data-testid="monitoring-list"]')?.getAttribute("data-count") || "",
+  alert: new URLSearchParams(location.search).get("alert") || "",
+});
+
+const threadState = () => ({
+  thread: document.querySelector('[data-testid="cockpit-v4-thread"]')?.getAttribute("data-thread-id") || "",
+  turns: document.querySelectorAll('[data-testid="v4-turn-assistant"]').length,
+});
+
+const exchangeState = () => ({
+  call: new URLSearchParams(location.search).get("call") || "",
+  stage: new URLSearchParams(location.search).get("stage") || "",
+  calls: document.querySelectorAll('[data-testid^="llm-call-"]').length,
+});
+
+async function waitWhatIfObjects(page, { cohort = "", scenario = "" }) {
+  await page.waitForSelector('[data-testid="whatif-workspace"]', { timeout: 120_000 });
+  await page.waitForFunction(
+    ([c, s]) =>
+      (!c || document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") === c) &&
+      (!s || document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id") === s),
+    [cohort, scenario],
+    { timeout: 120_000 },
+  );
+}
+
+async function threadFromIssue(page, issueId) {
+  await openIssue(page, issueId);
+  await page.click('[data-testid="issue-detail-investigate"]');
+  await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 90_000 });
+  await page.waitForSelector('[data-testid="investigation-bar"]', { timeout: 90_000 });
+  await settle(page, 0).catch(() => undefined);
+  return page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
+}
+
+async function backJourneys() {
+  await journey("GW-BACK-01", "Home → Requires Attention issue → Back → Home on the same book", async (record) => {
+    const page = await open();
+    await openHome(page, "retail");
+    await backTrip(page, record, {
+      path: "Home → issue → Back",
+      state: () => ({ book: document.querySelector('[data-testid="domain-switch"]')?.getAttribute("data-domain") || "", issues: document.querySelector('[data-testid="requires-attention"]')?.getAttribute("data-count") || "" }),
+      go: (p) => p.locator('[data-testid="issue-card"]').first().locator('[data-testid="issue-title"] button').click(),
+      arrived: (p) => p.waitForSelector('[data-testid="issue-detail"]', { timeout: 120_000 }),
+      inApp: '[data-testid="issue-detail-back"]',
+      inAppTarget: "/",
+    });
+  });
+
+  await journey("GW-BACK-02", "Issue → Investigate → Back → the same issue (in-app: the thread's 'Back to the issue')", async (record) => {
+    const issue = await anIssue();
+    const page = await open();
+    await openIssue(page, issue.issue_id);
+    await backTrip(page, record, {
+      path: "Issue → Investigate → Back",
+      state: issueState,
+      go: (p) => p.click('[data-testid="issue-detail-investigate"]'),
+      arrived: async (p) => {
+        await p.waitForSelector('[data-testid="investigation-bar"]', { timeout: 120_000 });
+        await p.waitForSelector('[data-testid="thread-origin-back"]', { timeout: 60_000 });
+      },
+      inApp: '[data-testid="thread-origin-back"]',
+    });
+  });
+
+  await journey("GW-BACK-03", "Issue → driver-filtered population → Back → the unfiltered issue (in-app: clear the chart filter)", async (record) => {
+    const issue = await anIssue();
+    const driver = String(issue.evidence.breakdown[0].label);
+    const page = await open();
+    await openIssue(page, issue.issue_id);
+    const unfiltered = await page.getAttribute('[data-testid="issue-grid"]', "data-total");
+    record.unfiltered_rows = unfiltered;
+    await backTrip(page, record, {
+      path: "Issue → driver → Back",
+      state: issueState,
+      go: (p) => p.goto(`${UI}/issues/${issue.issue_id}?driver=${encodeURIComponent(driver)}`, { waitUntil: "domcontentloaded" }),
+      arrived: (p) => p.waitForFunction((n) => { const t = document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total"); return t && t !== n && new URLSearchParams(location.search).get("driver"); }, unfiltered, { timeout: 120_000 }),
+      inApp: '[data-testid="issue-detail-clear-drill"]',
+    });
+  });
+
+  await journey("GW-BACK-04", "Issue → What-If on this population → Back → the exact issue; What-If's 'Back to the issue' returns too", async (record) => {
+    const issue = await anIssue();
+    const page = await open();
+    await openIssue(page, issue.issue_id);
+    const row = await backTrip(page, record, {
+      path: "Issue → What-If → Back",
+      state: issueState,
+      go: (p) => p.click('[data-testid="issue-detail-whatif"]'),
+      arrived: async (p) => {
+        await p.waitForURL(/\/what-if\?/, { timeout: 120_000 });
+        await p.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+      },
+      inApp: '[data-testid="whatif-back"]',
+    });
+    record.cohort_url = row.destination;
+  });
+
+  await journey("GW-BACK-05", "Cockpit thread → What-If (investigation chip) → Back → the same thread, no new turn", async (record) => {
+    const issue = await anIssue();
+    const page = await open();
+    record.thread_id = await threadFromIssue(page, issue.issue_id);
+    const chip = page.locator('[data-testid="nbq-chip"][data-suggestion-type="freeze_cohort"], [data-testid="nbq-chip"][data-suggestion-type="run_whatif"]');
+    if (!(await chip.count())) {
+      const before = await turns(page);
+      await page.locator('[data-testid="nbq-chip"]').first().click();
+      await settle(page, before);
+    }
+    await chip.first().waitFor({ timeout: 90_000 });
+    await backTrip(page, record, {
+      path: "Thread → What-If → Back",
+      state: threadState,
+      go: (p) => p.locator('[data-testid="nbq-chip"][data-suggestion-type="freeze_cohort"], [data-testid="nbq-chip"][data-suggestion-type="run_whatif"]').first().click(),
+      arrived: async (p) => {
+        await p.waitForURL(/\/what-if\?/, { timeout: 120_000 });
+        await p.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+      },
+      inApp: '[data-testid="whatif-back"]',
+    });
+  });
+
+  await journey("GW-BACK-06", "What-If (retail book, cohort, scenario applied) → Scenario Library → Back → the same What-If state, no re-bind and no new run", async (record) => {
+    const cohort = (await post("/cohorts", { domain: "retail", name: "BACK-06 credit cards", filters: [{ column: "product", op: "in", values: ["Credit Card"] }] })).body;
+    const tpl = (await api("/scenarios?domain=retail&q=RET-01")).body.scenarios[0];
+    record.cohort_id = cohort.object_id;
+    const page = await open();
+    await page.goto(`${UI}/what-if?cohort=${cohort.object_id}&scenario=${tpl.object_id}`, { waitUntil: "domcontentloaded" });
+    await waitWhatIfObjects(page, { cohort: cohort.object_id, scenario: tpl.object_id });
+    await page.waitForSelector('[data-testid="whatif-preview"]', { timeout: 120_000 });
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("domain") === "retail", null, { timeout: 60_000 });
+    await backTrip(page, record, {
+      path: "What-If → Library → Back",
+      state: whatifState,
+      go: (p) => p.click('[data-testid="whatif-library"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="scenario-count"]', { timeout: 120_000 }),
+      inApp: '[data-testid="scenario-library-back"]',
+    });
+  });
+
+  await journey("GW-BACK-07", "Scenario Library (search + owner + severity) → scenario detail → Back → the same filtered library", async (record) => {
+    const page = await open();
+    await openLibrary(page);
+    await page.fill('[data-testid="scenario-search"]', "PD");
+    await page.press('[data-testid="scenario-search"]', "Enter");
+    await page.click('[data-testid="scenario-owner-template"]');
+    await page.selectOption('[data-testid="scenario-severity"]', "moderate");
+    await page.waitForFunction(() => /q=PD/.test(location.search) && /owner=template/.test(location.search) && /severity=moderate/.test(location.search), null, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="scenario-card"]', { timeout: 60_000 });
+    await backTrip(page, record, {
+      path: "Library → detail → Back",
+      state: libraryState,
+      go: (p) => p.locator('[data-testid="scenario-open"]').first().click(),
+      arrived: (p) => p.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 }),
+      inApp: '[data-testid="scenario-back"]',
+    });
+  });
+
+  await journey("GW-BACK-08", "Scenario detail → Clone → Back → the source scenario; the clone's 'Discard this copy' is the Cancel; Library → New → Cancel writes nothing", async (record) => {
+    const tpl = (await api("/scenarios?domain=corporate&q=CORP-02")).body.scenarios[0];
+    const page = await open();
+    await page.goto(`${UI}/scenarios/${tpl.object_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 });
+    let copy = "";
+    await backTrip(page, record, {
+      path: "Detail → Clone → Back",
+      state: detailState,
+      go: (p) => p.click('[data-testid="scenario-action-clone"]'),
+      arrived: async (p) => {
+        await p.waitForFunction((id) => { const d = document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id"); return d && d !== id; }, tpl.object_id, { timeout: 120_000 });
+        copy = await p.getAttribute('[data-testid="scenario-detail"]', "data-object-id");
+      },
+      inApp: '[data-testid="scenario-action-discard"]',
+      inAppWrites: /\/scenarios\/scn-[0-9a-f]+\/retire$/,
+    });
+    record.copy = copy;
+    const discarded = (await api(`/scenarios/${copy}`)).body.scenario;
+    assert.equal(discarded.status, "ARCHIVED", "Discard retired the copy");
+    // Library → New scenario → Cancel.
+    await openLibrary(page);
+    await backTrip(page, record, {
+      path: "Library → Builder → Cancel",
+      state: libraryState,
+      go: (p) => p.click('[data-testid="scenario-new"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="scenario-builder"]', { timeout: 120_000 }),
+      inApp: '[data-testid="builder-cancel"]',
+    });
+  });
+
+  await journey("GW-BACK-09", "Scenario Library: select two scenarios → Combine preview → Back keeps the selection; the saved combination's Back returns to the library", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/scenarios?domain=corporate&owner=template`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="scenario-card"]', { timeout: 120_000 });
+    await page.evaluate(() => sessionStorage.removeItem("gw.scenario-library.selection"));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="scenario-card"]', { timeout: 120_000 });
+    const cards = page.locator('[data-testid="scenario-card"]');
+    await cards.nth(0).locator('[data-testid="scenario-select"]').check();
+    await cards.nth(1).locator('[data-testid="scenario-select"]').check();
+    await page.waitForSelector('[data-testid="scenario-selection"]', { timeout: 30_000 });
+    const sel = () => ({ selection: document.querySelector('[data-testid="scenario-selection"]')?.textContent?.split("selected:")[1]?.split("Combine")[0]?.trim() || "", owner: document.querySelector('[data-testid="scenario-owner"]')?.getAttribute("data-value") ?? "" });
+    record.selection = await page.evaluate(sel);
+    await backTrip(page, record, {
+      path: "Library selection → detail → Back (selection kept)",
+      state: sel,
+      go: (p) => p.locator('[data-testid="scenario-open"]').first().click(),
+      arrived: (p) => p.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 }),
+      inApp: '[data-testid="scenario-back"]',
+    });
+    await page.click('[data-testid="scenario-combine"]');
+    await page.waitForSelector('[data-testid="scenario-combine-panel"]', { timeout: 120_000 });
+    record.combine_preview = await page.getAttribute('[data-testid="scenario-combine-preview"]', "data-readiness").catch(() => "");
+  });
+
+  await journey("GW-BACK-10", "What-If result (method tab) → Scenario detail → Back → the same result on the same method", async (record) => {
+    const results = [];
+    for (const r of (await api("/whatif/results")).body.results) {
+      const o = (await api(`/objects/${r.object_id}`)).body;
+      if (o.body.entry !== "cockpit") results.push({ ...r, ran: o.body.methods.ran });
+    }
+    assert.ok(results.length, "a What-If result exists");
+    const res = results.find((r) => r.ran.length >= 2) ?? results[0];
+    record.result_id = res.object_id;
+    const page = await open();
+    await page.goto(`${UI}/what-if/result/${res.object_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 120_000 });
+    const methods = await page.$$eval('[data-testid^="whatif-result-method-"]', (b) => b.map((x) => x.getAttribute("data-testid")));
+    if (methods.length > 1) {
+      await page.click(`[data-testid="${methods.at(-1)}"]`);
+      await page.waitForFunction(() => new URLSearchParams(location.search).get("method"), null, { timeout: 30_000 });
+    }
+    await backTrip(page, record, {
+      path: "Result → Scenario → Back",
+      state: resultState,
+      go: (p) => p.click('[data-testid="whatif-result-open-scenario"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 }),
+      inApp: '[data-testid="scenario-back"]',
+    });
+  });
+
+  await journey("GW-BACK-11", "What-If result → Share → Sent messages → Back → the same result", async (record) => {
+    const res = (await api("/whatif/results")).body.results[0];
+    const page = await open();
+    await page.goto(`${UI}/what-if/result/${res.object_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 120_000 });
+    await page.click('[data-testid="whatif-result-share-open"]');
+    await page.fill('[data-testid="whatif-result-share-to"]', "colleague");
+    await page.click('[data-testid="whatif-result-share-send"]');
+    await page.waitForSelector('[data-testid="whatif-result-share-sent"]', { timeout: 60_000 });
+    await backTrip(page, record, {
+      path: "Result → share → Messages → Back",
+      state: resultState,
+      go: (p) => p.click('[data-testid="whatif-result-share-sent"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="messages-center"]', { timeout: 120_000 }),
+      inApp: '[data-testid="messages-back"]',
+    });
+  });
+
+  await journey("GW-BACK-12", "Messages (a shared scenario open) → the scenario → Back → Messages with the same message open", async (record) => {
+    const page = await open();
+    await openMessage(page, "scenario");
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("m"), null, { timeout: 30_000 });
+    await backTrip(page, record, {
+      path: "Messages → shared scenario → Back",
+      state: messagesState,
+      go: (p) => p.click('[data-testid="message-action-open"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 }),
+      inApp: '[data-testid="scenario-back"]',
+    });
+  });
+
+  await journey("GW-BACK-13", "Messages (a shared Lens open) → the Lens → Back → Messages", async (record) => {
+    const lens = (await api("/lenses")).body.lenses.find((l) => l.lens_id === "lens-05") ?? (await api("/lenses")).body.lenses[0];
+    const shared = await post("/messages", { object_id: lens.object_id, to: ["colleague"], message: "BACK-13" });
+    assert.ok(shared.status < 300, `the Lens is shared (${shared.status})`);
+    const page = await open();
+    await page.goto(`${UI}/messages?box=sent`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="message-item"][data-kind="lens"]', { timeout: 120_000 });
+    await page.locator('[data-testid="message-item"][data-kind="lens"]').first().click();
+    await page.waitForSelector('[data-testid="message-view"][data-accessible="true"]', { timeout: 60_000 });
+    await backTrip(page, record, {
+      path: "Messages → shared Lens → Back",
+      state: messagesState,
+      go: (p) => p.click('[data-testid="message-action-open"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="lens-view"]', { timeout: 120_000 }),
+      inApp: '[data-testid="lens-back"]',
+    });
+  });
+
+  await journey("GW-BACK-14", "Lenses (filtered) → a Lens → Back → the same filtered library", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/lenses`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="lens-card"]', { timeout: 120_000 });
+    await page.fill('[data-testid="lens-search"]', "credit");
+    await page.waitForFunction(() => /q=credit/.test(location.search), null, { timeout: 30_000 });
+    await backTrip(page, record, {
+      path: "Lenses → Lens → Back",
+      state: lensLibraryState,
+      go: (p) => p.locator('[data-testid="lens-card"]').first().click(),
+      arrived: (p) => p.waitForSelector('[data-testid="lens-view"]', { timeout: 120_000 }),
+      inApp: '[data-testid="lens-back"]',
+    });
+  });
+
+  const lensWithSelection = async (page) => {
+    const sel = { domain: "corporate", filters: [{ column: "sector", op: "in", values: ["Construction", "Real Estate"] }], label: "sector ∈ Construction, Real Estate" };
+    const cross = [{ column: "stage", op: "in", values: [2], domain: "corporate" }];
+    await page.goto(`${UI}/lenses/lens-02?x=${encodeURIComponent(JSON.stringify(cross))}&sel=${encodeURIComponent(JSON.stringify(sel))}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="lens-view"]', { timeout: 120_000 });
+    await page.waitForSelector('[data-testid="lens-selection"]', { timeout: 60_000 });
+  };
+
+  await journey("GW-BACK-15", "Lens (cross-filter + selection) → underlying metric definition → Back → the same Lens selections", async (record) => {
+    const page = await open();
+    await lensWithSelection(page);
+    await backTrip(page, record, {
+      path: "Lens → underlying data → Back",
+      state: lensState,
+      go: (p) => p.locator('[data-testid="lens-kpi"]').first().click(),
+      arrived: (p) => p.waitForSelector('[data-testid="metric-catalogue"]', { timeout: 120_000 }),
+      inApp: '[data-testid="metrics-back"]',
+    });
+  });
+
+  await journey("GW-BACK-16", "Lens selection → Investigate in Cockpit → Back → the same Lens context; Back does not freeze the selection twice", async (record) => {
+    const page = await open();
+    await lensWithSelection(page);
+    await backTrip(page, record, {
+      path: "Lens → Investigate → Back",
+      state: lensState,
+      go: (p) => p.click('[data-testid="lens-selection-investigate"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 120_000 }),
+      inApp: '[data-testid="thread-origin-back"]',
+    });
+  });
+
+  await journey("GW-BACK-17", "Lens selection → What-If → Back → the same Lens context and cohort", async (record) => {
+    const page = await open();
+    await lensWithSelection(page);
+    await backTrip(page, record, {
+      path: "Lens → What-If → Back",
+      state: lensState,
+      go: (p) => p.click('[data-testid="lens-selection-whatif"]'),
+      arrived: async (p) => {
+        await p.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 120_000 });
+        await p.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+      },
+      inApp: '[data-testid="whatif-back"]',
+    });
+  });
+
+  const monitoringFiltered = async (page) => {
+    await page.goto(`${UI}/monitoring?view=all`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="monitoring-list"]')?.getAttribute("data-count") || 0) > 0, null, { timeout: 180_000 });
+    await page.selectOption('[data-testid="monitoring-severity"]', "high");
+    await page.waitForFunction(() => /severity=high/.test(location.search), null, { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="monitoring-alert"][data-type="breach"]', { timeout: 60_000 });
+  };
+
+  await journey("GW-BACK-18", "Monitoring Centre (view + severity) → a breach → Back → the same filtered list, alert closed", async (record) => {
+    const page = await open();
+    await monitoringFiltered(page);
+    await backTrip(page, record, {
+      path: "Monitoring → breach → Back",
+      state: monitoringState,
+      go: (p) => p.locator('[data-testid="monitoring-alert"][data-type="breach"]').first().click(),
+      arrived: (p) => p.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 }),
+    });
+  });
+
+  await journey("GW-BACK-19", "Breach → Open Lens at the trigger → Back → the breach (filters kept)", async (record) => {
+    const page = await open();
+    await monitoringFiltered(page);
+    await page.locator('[data-testid="monitoring-alert"][data-type="breach"]').first().click();
+    await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 });
+    await backTrip(page, record, {
+      path: "Breach → Lens → Back",
+      state: monitoringState,
+      go: (p) => p.click('[data-testid="alert-open-lens"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="lens-alert-banner"]', { timeout: 120_000 }),
+      inApp: '[data-testid="lens-back"]',
+    });
+  });
+
+  await journey("GW-BACK-20", "Breach → Investigate in Cockpit → Back → the breach (filters kept)", async (record) => {
+    const page = await open();
+    await monitoringFiltered(page);
+    await page.locator('[data-testid="monitoring-alert"][data-type="breach"]').first().click();
+    await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 });
+    await backTrip(page, record, {
+      path: "Breach → Cockpit → Back",
+      state: monitoringState,
+      go: (p) => p.click('[data-testid="alert-investigate"]'),
+      arrived: async (p) => {
+        await p.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 120_000 });
+        await p.waitForSelector('[data-testid="thread-origin-back"]', { timeout: 120_000 });
+      },
+      inApp: '[data-testid="thread-origin-back"]',
+    });
+  });
+
+  const exchangeRun = async (page, record) => {
+    await askFromHome(page, record, "What is the total reported ECL of the corporate book?");
+    const runId = await latestRun(record.thread_id);
+    assert.ok(runId, "a recorded run");
+    record.run_id = runId;
+    return runId;
+  };
+
+  await journey("GW-BACK-21", "Trace (governance record) → LLM Exchange → Back → the same Trace; the exchange's Back link returns to it", async (record) => {
+    const page = await open();
+    const runId = await exchangeRun(page, record);
+    await page.goto(`${UI}/cockpit/trace/${runId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="trace-llm-exchange-link"]', { timeout: 120_000 });
+    await backTrip(page, record, {
+      path: "Trace → LLM Exchange call → Back",
+      state: () => ({ path: location.pathname, link: Boolean(document.querySelector('[data-testid="trace-llm-exchange-link"]')) }),
+      go: (p) => p.click('[data-testid="trace-llm-exchange-link"]'),
+      arrived: (p) => p.waitForSelector('[data-testid="llm-call-1"]', { timeout: 120_000 }),
+      inApp: '[data-testid="llm-exchange-back"]',
+    });
+  });
+
+  await journey("GW-BACK-22", "LLM Exchange: open a call's request/response stage → Back → the call list as it was", async (record) => {
+    const page = await open();
+    const runId = await exchangeRun(page, record);
+    await page.goto(`${UI}/trace/llm-exchange/${runId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="llm-call-1"]', { timeout: 120_000 });
+    const last = await page.$$eval('[data-testid^="llm-call-"]', (a) => a.at(-1).getAttribute("data-testid"));
+    await backTrip(page, record, {
+      path: "Trace → request/response view → Back",
+      state: exchangeState,
+      go: async (p) => {
+        await p.locator(`[data-testid="${last}"] header button`).first().click();
+        await p.waitForFunction(() => new URLSearchParams(location.search).get("call"), null, { timeout: 30_000 });
+      },
+      arrived: (p) => p.waitForFunction(() => new URLSearchParams(location.search).get("call"), null, { timeout: 60_000 }),
+    });
+  });
+}
+
+// =========================================================================
+// VALIDATION — GOLD cross-module journeys. Each ends on an assertion about
+// the business state the journey produced (objects, hashes, lineage, figures),
+// never only on a page being visible.
+// =========================================================================
+
+async function runHere(page, methods = ["delta"]) {
+  await page.waitForSelector('[data-testid="whatif-run-start"]', { timeout: 120_000 });
+  await page.click('[data-testid="whatif-run-start"]');
+  await waitRunState(page, "SCENARIO_PREVIEW");
+  await page.click('[data-testid="whatif-run-confirm"]');
+  await waitRunState(page, "METHOD_SELECTION");
+  for (const m of methods) await page.check(`[data-testid="whatif-method-pick-${m}"]`);
+  await page.click('[data-testid="whatif-run-execute"]');
+  await waitRunState(page, "EXECUTED", 240_000);
+  await resultRendered(page);
+  const runId = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+  const run = (await api(`/whatif/runs/${runId}`)).body;
+  return { runId, run, result: (await api(`/objects/${run.body.result_id}`)).body };
+}
+
+function reconciles(result) {
+  const d = result.body.decomposition.delta;
+  return d.scopes.selected.reconciles === true && d.scopes.total.reconciles === true && d.cross_scope.reconciles === true;
+}
+
+async function chipToWhatIf(page) {
+  const stress = page.locator('[data-testid="nbq-chip"][data-suggestion-type="run_whatif"]');
+  if (!(await stress.count())) {
+    const before = await turns(page);
+    await page.locator('[data-testid="nbq-chip"][data-suggestion-type="explain_driver"], [data-testid="nbq-chip"]').first().click();
+    await settle(page, before);
+  }
+  await stress.first().waitFor({ timeout: 90_000 });
+  await stress.first().click();
+  await page.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 120_000 });
+  await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+  return page.getAttribute('[data-testid="whatif-strip-cohort"]', "data-cohort-id");
+}
+
+async function goldJourneys() {
+  await journey("GW-GOLD-01", "Guided Corporate: issue → driver → root cause → frozen cohort → suggested What-If → confirm → method → execute → selected + total bridges → share → recipient's message → Back to Messages", async (record) => {
+    const page = await open();
+    await openHome(page, "corporate");
+    const card = page.locator('[data-testid="issue-card"]').filter({ has: page.locator('[data-testid="issue-driver"]') }).first();
+    record.issue_id = await card.getAttribute("data-issue-id");
+    await card.locator('[data-testid="issue-driver"]').click();
+    await page.waitForURL(/\/issues\/.+\?driver=/, { timeout: 60_000 });
+    await page.waitForSelector('[data-testid="issue-detail"]', { timeout: 120_000 });
+    await page.click('[data-testid="issue-detail-investigate"]');
+    await page.waitForSelector('[data-testid="investigation-bar"]', { timeout: 120_000 });
+    record.thread_id = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
+    const inv = (await api(`/investigations/by-thread/${record.thread_id}`)).body;
+    record.cohort_id = await chipToWhatIf(page);
+    assert.equal(record.cohort_id, inv.cohort_id, "What-If opens on the investigation's frozen cohort");
+    const scenario = (await api("/scenarios?domain=corporate&q=CORP-01")).body.scenarios[0];
+    await page.goto(`${UI}/what-if?cohort=${record.cohort_id}&scenario=${scenario.object_id}`, { waitUntil: "domcontentloaded" });
+    const { run, result } = await runHere(page, ["delta"]);
+    record.result_id = result.object_id;
+    assert.ok(reconciles(result), "selected, total and cross-scope identities reconcile");
+    assert.equal(result.body.cohort.membership_hash, (await api(`/objects/${record.cohort_id}`)).body.body.membership_hash, "executed on exactly the frozen population");
+    assert.equal(run.status, "EXECUTED");
+    await page.goto(`${UI}/what-if/result/${result.object_id}`, { waitUntil: "domcontentloaded" });
+    await resultRendered(page);
+    await page.click('[data-testid="whatif-result-share-open"]');
+    await page.fill('[data-testid="whatif-result-share-to"]', "colleague");
+    await page.click('[data-testid="whatif-result-share-send"]');
+    await page.waitForSelector('[data-testid="whatif-result-share-sent"]', { timeout: 60_000 });
+    const sent = (await api("/messages?box=sent")).body.items.find((m) => m.object_id === result.object_id);
+    assert.ok(sent && sent.to_id === "colleague", "the recipient's message exists, addressed to them");
+    record.share_id = sent.share_id;
+    await page.click('[data-testid="whatif-result-share-sent"]');
+    await page.waitForSelector('[data-testid="messages-center"]', { timeout: 120_000 });
+    await page.click(`[data-testid="message-item"][data-share-id="${sent.share_id}"]`);
+    await page.waitForSelector('[data-testid="message-view"][data-accessible="true"]', { timeout: 60_000 });
+    await page.click('[data-testid="message-action-open"]');
+    await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 120_000 });
+    await page.goBack();
+    await page.waitForFunction((id) => document.querySelector('[data-testid="message-view"]')?.getAttribute("data-share-id") === id, sent.share_id, { timeout: 60_000 });
+    await shot(page, record, "back-to-messages");
+  });
+
+  await journey("GW-GOLD-02", "Guided Retail: issue → frozen cohort → scenario → Retail ML requested → explicit UNAVAILABLE, nothing substituted → Delta → decomposition → reopen shows the same executed run", async (record) => {
+    const page = await open();
+    await openHome(page, "retail");
+    const card = page.locator('[data-testid="issue-card"]').first();
+    record.issue_id = await card.getAttribute("data-issue-id");
+    const issue = (await api(`/issues/${record.issue_id}`)).body;
+    await card.locator('[data-testid="issue-whatif"]').click();
+    await page.waitForURL(/\/what-if\?cohort=coh-/, { timeout: 120_000 });
+    const cohortId = new URL(page.url()).searchParams.get("cohort");
+    const cohort = (await api(`/objects/${cohortId}`)).body;
+    assert.equal(cohort.body.counts.entities, issue.cohort.entities, "the exact issue population");
+    const tpl = (await api("/scenarios?domain=retail&q=RET-01")).body.scenarios[0];
+    await page.goto(`${UI}/what-if?cohort=${cohortId}&scenario=${tpl.object_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="whatif-run-start"]', { timeout: 120_000 });
+    await page.click('[data-testid="whatif-run-start"]');
+    await waitRunState(page, "SCENARIO_PREVIEW");
+    await page.click('[data-testid="whatif-run-confirm"]');
+    await waitRunState(page, "METHOD_SELECTION");
+    assert.equal(await page.getAttribute('[data-testid="whatif-method-ml"]', "data-status"), "UNAVAILABLE");
+    await page.check('[data-testid="whatif-method-pick-ml"]');
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "METHOD_UNAVAILABLE");
+    assert.match(await page.textContent('[data-testid="whatif-method-gate"]'), /nothing is substituted/);
+    assert.equal(await page.$('[data-testid="whatif-result"]'), null, "no result from an unavailable method");
+    await page.uncheck('[data-testid="whatif-method-pick-ml"]');
+    await page.check('[data-testid="whatif-method-pick-delta"]');
+    await page.click('[data-testid="whatif-run-execute"]');
+    await waitRunState(page, "EXECUTED", 240_000);
+    await resultRendered(page);
+    const runId = await page.getAttribute('[data-testid="whatif-run"]', "data-run-id");
+    const run = (await api(`/whatif/runs/${runId}`)).body;
+    const result = (await api(`/objects/${run.body.result_id}`)).body;
+    assert.deepEqual(result.body.methods.ran, ["delta"]);
+    assert.ok(Object.keys(result.body.methods.unavailable ?? {}).includes("ml"), "the result records ML as unavailable");
+    assert.ok(reconciles(result));
+    // Reopen: the URL carries the run; a fresh load shows the same executed run, no re-execution.
+    await page.waitForFunction((id) => new URLSearchParams(location.search).get("run") === id, runId, { timeout: 60_000 });
+    const marks = page.calls.length;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitRunState(page, "EXECUTED", 120_000);
+    await resultRendered(page);
+    assert.equal(await page.getAttribute('[data-testid="whatif-run"]', "data-run-id"), runId);
+    assert.deepEqual(page.calls.slice(marks).filter((c) => WRITE_ON_BACK.test(c)), [], "reopening wrote nothing and ran nothing");
+    record.result_id = result.object_id;
+  });
+
+  await journey("GW-GOLD-03", "Scenario composition: three scenarios → combine → resolve every overlap → bind a cohort → run Delta and a second method → lineage names all three; the sources are unchanged", async (record) => {
+    const page = await open();
+    const ids = [];
+    for (const t of ["CORP-01", "CORP-05", "CORP-06"]) ids.push((await api(`/scenarios?domain=corporate&q=${t}`)).body.scenarios[0].object_id);
+    const before = await Promise.all(ids.map(async (id) => (await api(`/objects/${id}/history`)).body));
+    await page.goto(`${UI}/scenarios?domain=corporate&owner=template`, { waitUntil: "domcontentloaded" });
+    for (const id of ids) {
+      await page.waitForSelector(`[data-object-id="${id}"] [data-testid="scenario-select"]`, { timeout: 120_000 });
+      await page.check(`[data-object-id="${id}"] [data-testid="scenario-select"]`);
+    }
+    await page.click('[data-testid="scenario-combine"]');
+    await waitPreview(page, "scenario-combine-preview");
+    const selects = page.locator('[data-testid="overlap-policy-select"]');
+    const n = await selects.count();
+    record.overlaps = n;
+    for (let i = 0; i < n; i += 1) {
+      const options = await selects.nth(i).locator("option").evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
+      await selects.nth(i).selectOption(options.includes("compound") ? "compound" : options[0]);
+    }
+    if (n) await page.click('[data-testid="overlap-resolve"]');
+    else await page.click('[data-testid="scenario-combine-save"]');
+    await page.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 });
+    const c = await page.getAttribute('[data-testid="scenario-detail"]', "data-object-id");
+    record.combined = c;
+    assert.notEqual(await waitPreview(page), "BLOCKED", "every overlap carries a chosen policy");
+    const cohort = (await post("/cohorts", { domain: "corporate", name: "GOLD-03 Construction", filters: [{ column: "sector", op: "in", values: ["Construction"] }] })).body;
+    await page.click('[data-testid="scenario-action-bind"]');
+    await page.click(`[data-testid="scenario-bind-choose"][data-cohort-id="${cohort.object_id}"]`);
+    await page.waitForFunction((id) => document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-version") !== "1" || document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id") !== id, c, { timeout: 120_000 });
+    const bound = (await api(`/scenarios/${c}`)).body.scenario;
+    assert.equal(bound.body.scope.cohort_id, cohort.object_id, "the combination is bound to the cohort");
+    const ctx = (await api("/whatif/context?domain=corporate")).body;
+    const second = ctx.methods.ml.status === "AVAILABLE" ? "ml" : "";
+    record.second_method = second || "none available (ML not ready in this runtime)";
+    await page.goto(`${UI}/what-if?scenario=${c}`, { waitUntil: "domcontentloaded" });
+    const { result } = await runHere(page, second ? ["delta", second] : ["delta"]);
+    record.result_id = result.object_id;
+    assert.ok(reconciles(result));
+    if (second) assert.deepEqual([...result.body.methods.ran].sort(), ["delta", second].sort(), "both methods ran on the same contract");
+    assert.equal(result.body.cohort.membership_hash, cohort.body.membership_hash);
+    await page.goto(`${UI}/scenarios/${c}`, { waitUntil: "domcontentloaded" });
+    const lineage = await page.textContent('[data-testid="scenario-lineage"]');
+    for (const id of ids) {
+      const name = (await api(`/objects/${id}`)).body.body.name;
+      assert.ok(lineage.includes(name), `lineage names ${name}`);
+    }
+    const after = await Promise.all(ids.map(async (id) => (await api(`/objects/${id}/history`)).body));
+    assert.deepEqual(after, before, "the three sources are unchanged");
+  });
+
+  await journey("GW-GOLD-04", "Lens to decision: CRO/portfolio Lens → box-select a deteriorating segment → the rows → cohort → Investigate → root cause → What-If → executed result on that exact cohort", async (record) => {
+    const page = await open();
+    await openLens(page, "lens-02");
+    const chart = '[data-testid="lens-visual-v06"]';
+    await page.waitForSelector(`${chart}[data-rendered="true"]`, { timeout: 120_000 });
+    await page.locator(chart).scrollIntoViewIfNeeded();
+    const b0 = await page.locator(`${chart} g.point path`).nth(0).boundingBox();
+    const b1 = await page.locator(`${chart} g.point path`).nth(1).boundingBox();
+    const plot = await page.locator(`${chart} rect.nsewdrag`).boundingBox();
+    await page.mouse.move(Math.max(b0.x - 4, plot.x + 2), plot.y + 3);
+    await page.mouse.down();
+    await page.mouse.move(b1.x + b1.width + 4, b0.y + b0.height - 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForSelector('[data-testid="lens-selection"]', { timeout: 60_000 });
+    record.selection = (await page.textContent('[data-testid="lens-selection"]')).split("Save")[0].trim();
+    await page.click('[data-testid="lens-selection-save"]');
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("cohort"), null, { timeout: 60_000 });
+    const cohortId = new URL(page.url()).searchParams.get("cohort");
+    const cohort = (await api(`/objects/${cohortId}`)).body;
+    const rows = await gridApi(cohort.body.filters, { domain: cohort.domain_id });
+    assert.equal(rows.total, cohort.body.counts.entities, "the frozen cohort is exactly the rows the selection names");
+    await page.click('[data-testid="lens-selection-investigate"]');
+    await page.waitForSelector('[data-testid="investigation-bar"]', { timeout: 120_000 });
+    record.thread_id = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
+    const whatifCohort = await chipToWhatIf(page);
+    const frozen = (await api(`/objects/${whatifCohort}`)).body;
+    assert.equal(frozen.body.membership_hash, cohort.body.membership_hash, "the investigation's What-If is on the Lens population");
+    const scenario = (await api("/scenarios?domain=corporate&q=CORP-01")).body.scenarios[0];
+    await page.goto(`${UI}/what-if?cohort=${whatifCohort}&scenario=${scenario.object_id}`, { waitUntil: "domcontentloaded" });
+    const { result } = await runHere(page, ["delta"]);
+    record.result_id = result.object_id;
+    assert.ok(reconciles(result));
+    assert.equal(result.body.cohort.membership_hash, cohort.body.membership_hash, "the decision is on the Lens's selected population");
+  });
+
+  await journey("GW-GOLD-05", "Monitoring loop: breach → the Lens at the trigger → acknowledge with a note → investigate → What-If → return: the breach is ACKNOWLEDGED with its note and history", async (record) => {
+    const page = await open();
+    const live = (await api("/monitoring?view=all")).body.alerts.filter((a) => a.type !== "change" && !a.demo_historical && a.alert_type !== "change");
+    let alert = live.find((a) => ["NEW", "ACTIVE", "WORSENING"].includes(a.state)) ?? live[0];
+    if (!["NEW", "ACTIVE", "WORSENING"].includes(alert.state)) await post(`/monitoring/alerts/${alert.alert_id}/reopen`, { note: "GOLD-05 rerun" });
+    record.alert_id = alert.alert_id;
+    await page.goto(`${UI}/monitoring?view=all&alert=${alert.alert_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 });
+    await page.click('[data-testid="alert-open-lens"]');
+    await page.waitForSelector('[data-testid="lens-alert-banner"]', { timeout: 120_000 });
+    await page.click('[data-testid="lens-back"]');
+    await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 });
+    const note = `GOLD-05 ${Date.now()}`;
+    await page.fill('[data-testid="alert-note"]', note);
+    await page.click('[data-testid="alert-acknowledge"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="alert-panel"]')?.getAttribute("data-state") === "ACKNOWLEDGED", null, { timeout: 60_000 });
+    const breach = (await api(`/monitoring/alerts/${alert.alert_id}`)).body;
+    if (breach.alert.body.alert_type === "breach") {
+      await page.click('[data-testid="alert-investigate"]');
+      await page.waitForSelector('[data-testid="thread-origin-back"]', { timeout: 120_000 });
+      await page.click('[data-testid="thread-origin-back"]');
+      await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 });
+      await page.click('[data-testid="alert-whatif"]');
+      await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+      await page.click('[data-testid="whatif-back"]');
+      await page.waitForSelector('[data-testid="alert-panel"]', { timeout: 120_000 });
+    }
+    const after = (await api(`/monitoring/alerts/${alert.alert_id}`)).body;
+    record.state = after.alert.status;
+    assert.equal(after.alert.status, "ACKNOWLEDGED", "the breach state persists across the loop");
+    assert.ok(after.events.some((e) => e.note === note), "the acknowledgement note is in the history");
+    assert.equal(await page.getAttribute('[data-testid="alert-panel"]', "data-state"), "ACKNOWLEDGED");
+  });
+
+  await journey("GW-GOLD-06", "Early Warning: population → save cohort → export (only its rows) → investigate → What-If on the SAME cohort object → counts reconcile", async (record) => {
+    const page = await open();
+    await page.goto(`${UI}/early-warning`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="ew-band-critical"]', { timeout: 120_000 });
+    await page.click('[data-testid="ew-save-cohort"]');
+    await page.waitForSelector('[data-testid="ew-note"]', { timeout: 60_000 });
+    const cohortId = /\b(coh-[0-9a-f]+)/.exec(await page.textContent('[data-testid="ew-note"]'))[1];
+    const cohort = (await api(`/objects/${cohortId}`)).body;
+    record.cohort_id = cohortId;
+    const [download] = await Promise.all([page.waitForEvent("download", { timeout: 60_000 }), page.click('[data-testid="ew-export"]')]);
+    const csvText = fs.readFileSync(await download.path(), "utf8");
+    const dataRows = csvText.split("\n").filter((l) => l && !l.startsWith("#")).length - 1;
+    record.export_rows = dataRows;
+    assert.equal(dataRows, cohort.body.counts.entities, "the export is the cohort's rows, not the book");
+    assert.match(await page.textContent('[data-testid="ew-note"]'), new RegExp(cohortId), "export reused the saved cohort");
+    await page.click('[data-testid="ew-whatif"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+    assert.equal(await page.getAttribute('[data-testid="whatif-strip-cohort"]', "data-cohort-id"), cohortId, "What-If opens on the same cohort object (no second freeze)");
+    await page.waitForFunction((n) => Number(document.querySelector('[data-testid="whatif-strip-cohort"]')?.textContent?.match(/([\d,]+) exposures/)?.[1]?.replace(/,/g, "") ?? -1) === n, cohort.body.counts.entities, { timeout: 60_000 });
+    await page.click('[data-testid="whatif-back"]');
+    await page.waitForSelector('[data-testid="ew-investigate"]', { timeout: 120_000 });
+    await page.click('[data-testid="ew-investigate"]');
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 120_000 });
+    const thread = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
+    const inv = (await api(`/investigations/by-thread/${thread}`)).body;
+    const invCohort = (await api(`/objects/${inv.cohort_id}`)).body;
+    assert.equal(invCohort.body.membership_hash, cohort.body.membership_hash, "the investigation reads the same population");
+  });
+
+  await journey("GW-GOLD-07", "Sharing: an unexecuted scenario is shared (reference + version); a received shared definition is duplicated, bound to MY cohort and executed; the shared source is unchanged", async (record) => {
+    const page = await open();
+    const made = await build(page, record, { name: `GOLD-07 share ${Date.now()}`, components: [{ kind: "parameter", field: "pd_pit_12m", operation: "relative_pct", value: "10" }] });
+    await page.click('[data-testid="scenario-action-share"]');
+    await page.fill('[data-testid="scenario-share-input"]', "colleague");
+    await page.click('[data-testid="scenario-share-submit"]');
+    await page.waitForSelector('[data-testid="scenario-note"]', { timeout: 60_000 });
+    const sent = (await api("/messages?box=sent")).body.items.find((m) => m.object_id === made.id);
+    assert.ok(sent && sent.to_id === "colleague", "shared by reference to the recipient");
+    assert.equal((await api(`/scenarios/${made.id}/results`)).body.results.length, 0, "sharing executed nothing");
+    // The received half: the seeded definition a colleague shared with this user.
+    await openMessage(page, "scenario");
+    const sourceId = await page.getAttribute('[data-testid="message-object"]', "data-object-id");
+    const sourceBefore = (await api(`/objects/${sourceId}/history`)).body;
+    await page.click('[data-testid="message-action-duplicate"]');
+    await page.waitForSelector('[data-testid="message-note"]', { timeout: 60_000 });
+    const copyId = /\b(scn-[0-9a-f]+)/.exec(await page.textContent('[data-testid="message-note"]'))?.[1];
+    assert.ok(copyId && copyId !== sourceId, "a copy of my own");
+    const mine = (await post("/cohorts", { domain: "corporate", name: "GOLD-07 mine", filters: [{ column: "sector", op: "in", values: ["Real Estate"] }] })).body;
+    await page.goto(`${UI}/scenarios/${copyId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="scenario-detail"]', { timeout: 120_000 });
+    await page.click('[data-testid="scenario-action-bind"]');
+    await page.click(`[data-testid="scenario-bind-choose"][data-cohort-id="${mine.object_id}"]`);
+    await page.waitForFunction(() => document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-version") === "2", null, { timeout: 120_000 });
+    await page.goto(`${UI}/what-if?scenario=${copyId}`, { waitUntil: "domcontentloaded" });
+    const { result } = await runHere(page, ["delta"]);
+    assert.equal(result.body.cohort.membership_hash, mine.body.membership_hash, "executed on MY cohort");
+    assert.ok(reconciles(result));
+    assert.deepEqual((await api(`/objects/${sourceId}/history`)).body, sourceBefore, "the shared source is unchanged");
+    record.copy = copyId;
+    record.result_id = result.object_id;
+  });
+
+  await journey("GW-GOLD-08", "Persistence: a cohort, a scenario, a Lens with a breach rule and a result reopen in a FRESH browser context with the same ids, versions and hashes; reopening makes no model call and no write", async (record) => {
+    const cohort = (await post("/cohorts", { domain: "corporate", name: "GOLD-08", filters: [{ column: "sector", op: "in", values: ["Hotels"] }] })).body;
+    const tpl = (await api("/scenarios?domain=corporate&q=CORP-02")).body.scenarios[0];
+    const result = (await apiRun(tpl.object_id, `gold08-${Date.now()}`)).result;
+    const lens = (await api("/lenses")).body.lenses.find((l) => l.lens_id === "lens-02");
+    const ids = { cohort: cohort.object_id, scenario: tpl.object_id, result: result.object_id, lens: lens.object_id };
+    const snap = {};
+    for (const [k, id] of Object.entries(ids)) {
+      const o = (await api(`/objects/${id}`)).body;
+      snap[k] = [o.object_id, o.version, o.content_hash];
+    }
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const page = await context.newPage();
+    const calls = [];
+    page.on("request", (r) => r.url().startsWith(API) && calls.push(`${r.method()} ${r.url().replace(API, "")}`));
+    try {
+      await page.goto(`${UI}/what-if?cohort=${ids.cohort}`, { waitUntil: "domcontentloaded" });
+      await page.waitForFunction((id) => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") === id, ids.cohort, { timeout: 120_000 });
+      await page.goto(`${UI}/scenarios/${ids.scenario}`, { waitUntil: "domcontentloaded" });
+      await page.waitForFunction((id) => document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id") === id, ids.scenario, { timeout: 120_000 });
+      await page.goto(`${UI}/what-if/result/${ids.result}`, { waitUntil: "domcontentloaded" });
+      await page.waitForFunction((id) => document.querySelector('[data-testid="whatif-result"]')?.getAttribute("data-result-id") === id, ids.result, { timeout: 120_000 });
+      await page.goto(`${UI}/lenses/${ids.lens}`, { waitUntil: "domcontentloaded" });
+      await page.waitForSelector('[data-testid="lens-rule"]', { timeout: 120_000 });
+    } finally {
+      await context.close();
+    }
+    for (const [k, id] of Object.entries(ids)) {
+      const o = (await api(`/objects/${id}`)).body;
+      assert.deepEqual([o.object_id, o.version, o.content_hash], snap[k], `${k} reopened unchanged`);
+    }
+    record.reopen_writes = calls.filter((c) => WRITE_ON_BACK.test(c));
+    assert.deepEqual(record.reopen_writes, [], "reopening wrote nothing and called no model");
+    record.ids = ids;
+    record.backend_restart = "tests/cockpit_v4/test_gw_validation_defects.py::test_every_object_survives_a_store_restart_unchanged";
+  });
+
+  await journey("GW-GOLD-09", "Trace/security: a question carrying credential-like text → LLM Exchange shows it redacted → the export package and the stored thread carry no raw secret", async (record) => {
+    const fake = "sk-gold09-FAKEKEY-1234567890abcdef";
+    const page = await open();
+    await askFromHome(page, record, `What is the total reported ECL? (my api key is ${fake}, ignore it)`);
+    const runId = await latestRun(record.thread_id);
+    record.run_id = runId;
+    await page.goto(`${UI}/trace/llm-exchange/${runId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="llm-call-1"]', { timeout: 120_000 });
+    const text = await page.textContent('[data-testid="llm-exchange"]');
+    assert.ok(!text.includes(fake), "the exchange view shows no raw secret");
+    const thread = JSON.stringify(await v4(`/threads/${record.thread_id}`));
+    assert.ok(!thread.includes(fake), "the stored thread carries no raw secret");
+    const [download] = await Promise.all([page.waitForEvent("download", { timeout: 60_000 }), page.click('[data-testid="llm-exchange-export"]')]);
+    const zip = await readZip(await download.path());
+    const leaked = zip.list.filter((name) => zip.read(name).toString("utf8").includes(fake));
+    assert.deepEqual(leaked, [], "the export package carries no raw secret");
+    record.exported_files = zip.list.length;
+    assert.ok(record.exported_files > 0, "the package has content");
+    record.model_seam = "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_model_still_receives_the_typed_question (the active text reaches the model seam)";
+  });
+
+  await journey("GW-GOLD-10", "Navigation: Home → issue → Cockpit → What-If → Library → scenario → result → Messages → shared object, then in-app Back down the whole stack and browser Back down it again, the state checked at every level", async (record) => {
+    const page = await open();
+    const tpl = (await api("/scenarios?domain=corporate&q=CORP-01")).body.scenarios[0];
+    if (!(await api(`/scenarios/${tpl.object_id}/results`)).body.results.length) await apiRun(tpl.object_id, `gold10-${Date.now()}`);
+    await openHome(page, "corporate");
+    const stack = [];
+    const push = async (name, check) => stack.push({ name, url: here(page), check, state: await page.evaluate(check) });
+    const homeCheck = () => document.querySelector('[data-testid="domain-switch"]')?.getAttribute("data-domain") || "";
+    await push("home", homeCheck);
+    await page.locator('[data-testid="issue-card"]').first().locator('[data-testid="issue-title"] button').click();
+    await page.waitForFunction(() => Number(document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total") || 0) > 0, null, { timeout: 120_000 });
+    await push("issue", () => `${location.pathname}|${document.querySelector('[data-testid="issue-grid"]')?.getAttribute("data-total")}`);
+    await page.click('[data-testid="issue-detail-investigate"]');
+    await page.waitForSelector('[data-testid="investigation-bar"]', { timeout: 120_000 });
+    await settle(page, 0).catch(() => undefined);
+    const chip = page.locator('[data-testid="nbq-chip"][data-suggestion-type="freeze_cohort"], [data-testid="nbq-chip"][data-suggestion-type="run_whatif"]');
+    if (!(await chip.count())) {
+      const before = await turns(page);
+      await page.locator('[data-testid="nbq-chip"]').first().click();
+      await settle(page, before);
+    }
+    await push("thread", () => document.querySelector('[data-testid="cockpit-v4-thread"]')?.getAttribute("data-thread-id") || "");
+    await chip.first().click();
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+    await push("what-if", () => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") || "");
+    await page.click('[data-testid="whatif-library"]');
+    await page.waitForSelector('[data-testid="scenario-count"]', { timeout: 120_000 });
+    await page.fill('[data-testid="scenario-search"]', "CORP-01");
+    await page.press('[data-testid="scenario-search"]', "Enter");
+    await page.waitForFunction(() => /q=CORP-01/.test(location.search) && document.querySelectorAll('[data-testid="scenario-card"]').length >= 1, null, { timeout: 60_000 });
+    await push("library", () => `${document.querySelector('[data-testid="scenario-search"]')?.value}|${document.querySelector('[data-testid="scenario-domain"]')?.getAttribute("data-value")}`);
+    await page.locator('[data-testid="scenario-open"]').first().click();
+    await page.waitForSelector('[data-testid="scenario-result-link"]', { timeout: 120_000 });
+    await push("scenario", () => document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id") || "");
+    await page.locator('[data-testid="scenario-result-link"]').first().click();
+    await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 120_000 });
+    await push("result", () => document.querySelector('[data-testid="whatif-result"]')?.getAttribute("data-result-id") || "");
+    await page.click('[data-testid="whatif-result-share-open"]');
+    await page.fill('[data-testid="whatif-result-share-to"]', "colleague");
+    await page.click('[data-testid="whatif-result-share-send"]');
+    await page.waitForSelector('[data-testid="whatif-result-share-sent"]', { timeout: 60_000 });
+    await page.click('[data-testid="whatif-result-share-sent"]');
+    await page.waitForSelector('[data-testid="message-item"]', { timeout: 120_000 });
+    await page.locator('[data-testid="message-item"]').first().click();
+    await page.waitForSelector('[data-testid="message-view"][data-accessible="true"]', { timeout: 60_000 });
+    await push("messages", () => document.querySelector('[data-testid="message-view"]')?.getAttribute("data-share-id") || "");
+    await page.click('[data-testid="message-action-open"]');
+    await page.waitForSelector('[data-testid="whatif-result"]', { timeout: 120_000 });
+    record.stack = stack.map((s) => [s.name, s.url, s.state]);
+
+    const backControl = {
+      messages: '[data-testid="whatif-result-back"]',
+      result: '[data-testid="messages-back"]',
+      scenario: '[data-testid="whatif-result-back"]',
+      library: '[data-testid="scenario-back"]',
+      "what-if": '[data-testid="scenario-library-back"]',
+      thread: '[data-testid="whatif-back"]',
+      issue: '[data-testid="thread-origin-back"]',
+      home: '[data-testid="issue-detail-back"]',
+    };
+    const levels = [...stack].reverse();
+    record.in_app = [];
+    for (const level of levels) {
+      await page.click(backControl[level.name], { timeout: 60_000 });
+      await page.waitForFunction(([src, want]) => JSON.stringify(new Function(`return (${src})()`)()) === want, [level.check.toString(), JSON.stringify(level.state)], { timeout: 60_000 });
+      record.in_app.push(level.name);
+    }
+    // Browser Back down the same stack from its top.
+    await page.goto(`${UI}${stack.at(-1).url}`, { waitUntil: "domcontentloaded" });
+    record.browser = [];
+    for (const level of levels) {
+      for (let hops = 0; hops < 40; hops += 1) {
+        const at = await page.evaluate(([src, want]) => { try { return JSON.stringify(new Function(`return (${src})()`)()) === want; } catch { return false; } }, [level.check.toString(), JSON.stringify(level.state)]);
+        if (at && new URL(page.url()).pathname === new URL(`${UI}${level.url}`).pathname) break;
+        if (hops === 39) throw new Error(`browser Back never reached ${level.name}`);
+        await page.goBack();
+        await page.waitForLoadState("domcontentloaded");
+        await page.waitForFunction(([src]) => { try { return new Function(`return (${src})()`)() !== undefined; } catch { return false; } }, [level.check.toString()], { timeout: 60_000 }).catch(() => undefined);
+      }
+      await page.waitForFunction(([src, want]) => JSON.stringify(new Function(`return (${src})()`)()) === want, [level.check.toString(), JSON.stringify(level.state)], { timeout: 60_000 });
+      record.browser.push(level.name);
+    }
+    assert.equal(record.in_app.length, stack.length);
+    assert.equal(record.browser.length, stack.length);
+  });
+}
+
+// =========================================================================
+// VALIDATION — runtime Plotly audit (PLOTLY_AUDIT.csv): every Plotly chart on
+// the guided pages, at a desktop and a phone width: rendered, labelled, inside
+// the viewport, no page-level horizontal scroll, and the console clean.
+// =========================================================================
+
+async function plotlyAudit() {
+  await journey("GW-VAL-PLOTLY", "Every Plotly chart on the guided pages renders, is labelled and fits the screen at 1440 px and at 390 px; no page scrolls sideways", async (record) => {
+    const issue = await anIssue();
+    const results = (await api("/whatif/results")).body.results;
+    const pages = [
+      ["issue", `/issues/${issue.issue_id}`],
+      ["what-if", "/what-if?domain=corporate"],
+      ["result", results.length ? `/what-if/result/${results[0].object_id}` : ""],
+      ["lens-02", "/lenses/lens-02"],
+      ["lens-05", "/lenses/lens-05"],
+      ["lens-15", "/lenses/lens-15"],
+      ["monitoring", "/monitoring?view=all"],
+      ["metrics", "/metrics?m=M001"],
+      ["early-warning", "/early-warning"],
+      ["scenario", "/scenarios/scn-tpl-corp-01"],
+    ].filter(([, u]) => u);
+    record.plotly = [];
+    for (const width of [1440, 390]) {
+      const page = await open();
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+      for (const [name, url] of pages) {
+        const consoleBefore = page.consoleLog.length;
+        await page.goto(`${UI}${url}`, { waitUntil: "domcontentloaded" });
+        await page.waitForFunction(() => document.querySelectorAll('[role="img"][data-testid]').length > 0, null, { timeout: 180_000 }).catch(() => undefined);
+        await page.waitForFunction(() => [...document.querySelectorAll('[role="img"][data-testid]')].every((c) => c.getAttribute("data-rendered") === "true" || c.closest("[hidden]")), null, { timeout: 180_000 }).catch(() => undefined);
+        const charts = await page.evaluate(() => {
+          const vw = document.documentElement.clientWidth;
+          return [...document.querySelectorAll('[role="img"][data-testid]')].map((c) => {
+            const r = c.getBoundingClientRect();
+            return { testid: c.getAttribute("data-testid"), rendered: c.getAttribute("data-rendered") === "true", label: (c.getAttribute("aria-label") || "").slice(0, 80), width: Math.round(r.width), fits: r.left >= -1 && r.right <= vw + 1, plotly: Boolean(c.querySelector(".js-plotly-plot, .main-svg")) };
+          });
+        });
+        const pageScroll = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        const errors = page.consoleLog.slice(consoleBefore).filter((l) => /^(error|pageerror)/.test(l));
+        for (const c of charts) {
+          const status = c.rendered && c.plotly && c.label && c.fits && pageScroll <= 1 && !errors.length ? "PASS" : "FAILED";
+          record.plotly.push({ page: name, url, viewport: width, ...c, page_horizontal_scroll_px: pageScroll, console_errors: errors.length, status });
+        }
+        if (!charts.length) record.plotly.push({ page: name, url, viewport: width, testid: "(none)", rendered: false, label: "", width: 0, fits: true, plotly: false, page_horizontal_scroll_px: pageScroll, console_errors: errors.length, status: "NO_CHART" });
+      }
+      await page.close();
+    }
+    const failed = record.plotly.filter((r) => r.status === "FAILED");
+    record.charts_audited = record.plotly.filter((r) => r.testid !== "(none)").length;
+    assert.ok(record.charts_audited >= 30, `charts audited: ${record.charts_audited}`);
+    assert.deepEqual(failed.map((f) => `${f.page}@${f.viewport}:${f.testid} rendered=${f.rendered} fits=${f.fits} scroll=${f.page_horizontal_scroll_px} errors=${f.console_errors}`), [], "every chart passes");
+  });
+}
+
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
   try {
@@ -2143,6 +3272,9 @@ async function main() {
     await p12Journeys();
     await p13Journeys();
     await p16Journeys();
+    await backJourneys();
+    await goldJourneys();
+    await plotlyAudit();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

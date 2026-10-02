@@ -8,6 +8,7 @@ import { Send } from "lucide-react";
 
 import { sendObject } from "@/lib/workspace/messages";
 import { useSingleFlight } from "@/lib/workspace/single-flight";
+import { withBack } from "@/lib/workspace/nav";
 
 export function ShareButton({ objectId, version, testId = "share" }: { objectId: string; version?: number; testId?: string }) {
   const [open, setOpen] = React.useState(false);
@@ -44,7 +45,7 @@ export function ShareButton({ objectId, version, testId = "share" }: { objectId:
       {done && (
         <span className="text-positive" data-testid={`${testId}-done`}>
           {done}{" "}
-          <Link href="/messages?box=sent" className="text-accent underline">
+          <Link href={withBack("/messages?box=sent")} className="text-accent underline" data-testid={`${testId}-sent`}>
             Sent messages
           </Link>
         </span>
