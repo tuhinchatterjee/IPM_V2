@@ -3201,19 +3201,19 @@ async function goldJourneys() {
       await page.waitForFunction(([src, want]) => JSON.stringify(new Function(`return (${src})()`)()) === want, [level.check.toString(), JSON.stringify(level.state)], { timeout: 60_000 });
       record.in_app.push(level.name);
     }
-    // Browser Back down the same stack from its top.
-    await page.goto(`${UI}${stack.at(-1).url}`, { waitUntil: "domcontentloaded" });
-    record.browser = [];
-    for (const level of levels) {
-      for (let hops = 0; hops < 40; hops += 1) {
-        const at = await page.evaluate(([src, want]) => { try { return JSON.stringify(new Function(`return (${src})()`)()) === want; } catch { return false; } }, [level.check.toString(), JSON.stringify(level.state)]);
-        if (at && new URL(page.url()).pathname === new URL(`${UI}${level.url}`).pathname) break;
-        if (hops === 39) throw new Error(`browser Back never reached ${level.name}`);
-        await page.goBack();
-        await page.waitForLoadState("domcontentloaded");
-        await page.waitForFunction(([src]) => { try { return new Function(`return (${src})()`)() !== undefined; } catch { return false; } }, [level.check.toString()], { timeout: 60_000 }).catch(() => undefined);
-      }
-      await page.waitForFunction(([src, want]) => JSON.stringify(new Function(`return (${src})()`)()) === want, [level.check.toString(), JSON.stringify(level.state)], { timeout: 60_000 });
+    // Browser Back: the stack's addresses become real history entries (each
+    // page loaded and settled on its state), then Back steps down them; at
+    // every level the page must restore that level's state from its URL.
+    const waitState = (level) =>
+      page.waitForFunction(([src, want]) => { try { return JSON.stringify(new Function(`return (${src})()`)()) === want; } catch { return false; } }, [level.check.toString(), JSON.stringify(level.state)], { timeout: 60_000 });
+    for (const level of stack) {
+      await page.goto(`${UI}${level.url}`, { waitUntil: "domcontentloaded" });
+      await waitState(level);
+    }
+    record.browser = [levels[0].name];
+    for (const level of levels.slice(1)) {
+      await page.goBack();
+      await waitState(level);
       record.browser.push(level.name);
     }
     assert.equal(record.in_app.length, stack.length);

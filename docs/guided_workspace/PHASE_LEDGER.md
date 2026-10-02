@@ -1000,6 +1000,44 @@ that files exist. Evidence labels: every browser journey here is MODEL MOCK
 * **Status:** PASS. Candidate H is the UAT candidate (`UAT_CANDIDATE.json`). The Mac live-provider UAT remains the acceptance gate; no tag.
 
 
+## V — Exhaustive validation, integration and defect fixing
+
+**Branch.** `claude/guided-workspace-exhaustive-validation`, from evidence commit `55bfb9a4`. Candidate H (`8b1592f4`) and its evidence are not amended. No feature was added beyond what a proven defect required, and no protected file changed.
+
+**Baseline.** `validation/BASELINE.md`: the releases, seeds and emulator artifacts were verified at the start.
+
+**Inventories.** `scripts/guided_workspace/validation_inventory.py` builds:
+- routes;
+- interactive controls (static scan, joined to the runtime click record of the browser run);
+- API functions, with call sites matched against f-strings;
+- cross-module handoffs, with a dead-target check and whether each carries its origin;
+- the Back matrix and Plotly audit, copied from the run's records.
+
+**Validation.**
+- **Back navigation.** 22 browser journeys (`GW-BACK-01..22`) drive each path forward, then check browser Back, Forward and the in-product Back control against the origin's state read from the page. They also check that the return trip writes nothing and calls no model.
+- **GOLD.** `GW-GOLD-01..10` cross modules and end on business state: membership hashes, reconciliation, lineage, alert state and stored hashes.
+- **Plotly.** `GW-VAL-PLOTLY` audits every Plotly chart on ten guided pages at 1440 px and 390 px.
+- **Console gate.** Validation journeys fail on any console error or uncaught page error.
+- **Backend.**
+  - `test_gw_validation_defects.py`: one test per backend defect, plus restart persistence through a rebuilt app with no model call.
+  - `test_gw_ecl_reconciliation.py`: an independent ECL oracle over the source rows for single, multi, sub-portfolio, whole-book, Retail, reopened and comparison scopes, agreeing to 1e-6.
+  - `test_gw_validation_endpoints.py`: every workspace endpoint no suite called before.
+- **Mutation gates.** Four new gates (VAL-DEF-010, -012, -013, -016) break each fix on purpose; a named test must fail.
+
+**Defects.** `validation/DEFECT_REGISTER.md` (VAL-DEF-001 … 030):
+- One CRITICAL: an unrunnable scenario, with unresolved composition or retired, could be run.
+- Twelve CRITICAL/HIGH in total, all fixed.
+- Four LOW items remain open and are accepted or out of scope.
+
+The first browser runs that found VAL-DEF-022, -023, -028, -029 and -030 are preserved in `validation/dev_runs/`.
+
+**Harness corrections, each preserved as a failed run.**
+- The GOLD-02 ML refusal is asserted on the run's governance record, not on the result.
+- BACK-08 declares the Discard write of its Cancel.
+- BACK-10 picks a What-If-entry result.
+
+**Results.** `validation/VALIDATION_REPORT.md`, `VALIDATION_MATRIX.csv` and `VALIDATION_RESULTS.json` are generated from the final regression of record on candidate I. Its SHA is pinned in `UAT_CANDIDATE.json`.
+
 ---
 
 ## Baseline counts (H2 `feb80f58`, isolated worktree `/home/user/baseline_wt`, no round code)
