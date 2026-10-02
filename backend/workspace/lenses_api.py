@@ -41,7 +41,7 @@ class ReviseBody(BaseModel):
 @router.get("/lenses")
 async def library(q: str = Query("", max_length=200),
                   persona: str = Query("", max_length=80),
-                  domain: str = Query("", max_length=20),
+                  domain: str = Query("", pattern="^(|corporate|retail)$"),
                   who: dict[str, Any] = Depends(v4routes.principal)
                   ) -> dict[str, Any]:
     return lenses.listing(service.objects(), who, q=q, persona=persona,

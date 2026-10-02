@@ -75,7 +75,9 @@ export function themedLayout(layout: Record<string, unknown> = {}): Record<strin
     legend: { orientation: "h", y: -0.18, x: 0 },
     xaxis: { gridcolor: grid, zerolinecolor: grid, automargin: true },
     yaxis: { gridcolor: grid, zerolinecolor: grid, automargin: true },
-    transition: { duration: 250, easing: "cubic-in-out" },
+    // No animated transition: its timer-driven redraw outlived a purged
+    // graph when a click navigated away mid-transition and threw
+    // "reading 'selectAll' / '_plots'" (VAL-DEF-006).
     // A re-render with fresh figure objects must not undo what the reader
     // did: a series hidden from the legend, a zoom. Plotly keeps user-driven
     // UI state while `uirevision` is unchanged; a chart that WANTS a reset
@@ -113,6 +115,10 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
   const host = React.useRef<HTMLDivElement | null>(null);
   const [error, setError] = React.useState<string>("");
   const handlers = React.useRef({ onPointClick, onSelected, onDeselect });
+  // Draws and the final purge run one after another on this chain, and a
+  // disposed chart is never drawn or resized again (VAL-DEF-006).
+  const chain = React.useRef<Promise<unknown>>(Promise.resolve());
+  const disposed = React.useRef(false);
   handlers.current = { onPointClick, onSelected, onDeselect };
 
   React.useImperativeHandle(ref, () => ({
@@ -128,9 +134,10 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
     let cancelled = false;
     const el = host.current;
     if (!el) return;
-    loadPlotly()
+    chain.current = chain.current
+      .then(() => loadPlotly())
       .then(async (Plotly) => {
-        if (cancelled || !host.current) return;
+        if (cancelled || disposed.current || !host.current) return;
         const config = {
           responsive: true,
           displaylogo: false,
@@ -173,9 +180,12 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
   React.useEffect(() => {
     const el = host.current;
     if (!el || typeof ResizeObserver === "undefined") return;
+    disposed.current = false;
     const observer = new ResizeObserver(() => {
+      if (disposed.current) return;
       loadPlotly()
         .then((Plotly) => {
+          if (disposed.current || !(el as unknown as { _fullLayout?: unknown })._fullLayout) return;
           // A chart hidden or detached mid-resize (a collapsed card, a route
           // change) is not resized: Plotly rejects it, and that rejection
           // would otherwise surface as an unhandled page error.
@@ -186,8 +196,12 @@ export const PlotlyChart = React.forwardRef<PlotHandle, PlotlyChartProps>(functi
     });
     observer.observe(el);
     return () => {
+      disposed.current = true;
       observer.disconnect();
-      loadPlotly()
+      // Purge only after any draw already in flight has settled.
+      chain.current = chain.current
+        .catch(() => undefined)
+        .then(() => loadPlotly())
         .then((Plotly) => Plotly.purge(el))
         .catch(() => undefined);
     };

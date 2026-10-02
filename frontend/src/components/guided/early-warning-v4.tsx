@@ -78,8 +78,33 @@ export function EarlyWarningV4() {
 
   const toggleReason = (r: string) => setReason((current) => (current === r ? "" : r));
 
+  // The cohort frozen for one population (book, segment, bands, rule) is
+  // reused: Save, Export and What-If on the same population never mint a
+  // second governed cohort, and a double-click is a no-op (single flight).
+  const frozen = React.useRef(new Map<string, { object_id: string; body: { counts: { entities: number } } }>());
+  const inFlight = React.useRef(false);
+
+  async function guarded(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      await fn();
+    } catch (e) {
+      setNote(`Not done: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      inFlight.current = false;
+    }
+  }
+
   async function saveCohort(segment = "", bands: string[] = ["critical", "high"]) {
+    const key = JSON.stringify([domain, segment, [...bands].sort(), reason]);
+    const known = frozen.current.get(key);
+    if (known) {
+      setNote(`This population is already saved as cohort ${known.object_id} (${count(known.body.counts.entities)} exposures).`);
+      return known;
+    }
     const c = await wsSend<{ object_id: string; body: { counts: { entities: number } } }>("/early-warning/cohort", { domain, segment, bands, reason });
+    frozen.current.set(key, c);
     setNote(`Saved ${count(c.body.counts.entities)} exposures as cohort ${c.object_id}.`);
     return c;
   }
@@ -87,6 +112,7 @@ export function EarlyWarningV4() {
   async function exportCohort(segment = "") {
     const c = await saveCohort(segment);
     const response = await fetch(workspaceUrl(`/cohorts/${c.object_id}/export`), { credentials: "include" });
+    if (!response.ok) throw new Error(`export failed (${response.status})`);
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -160,13 +186,13 @@ export function EarlyWarningV4() {
             <button type="button" disabled={busy} onClick={() => void investigate()} className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast" data-testid="ew-investigate">
               <Search className="h-4 w-4" /> Investigate high/critical{reason ? " (this rule)" : ""} in Cockpit
             </button>
-            <button type="button" onClick={() => void saveCohort()} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-save-cohort">
+            <button type="button" onClick={() => void guarded(async () => void (await saveCohort()))} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-save-cohort">
               <Save className="h-4 w-4" /> Save high/critical cohort
             </button>
-            <button type="button" onClick={() => void exportCohort()} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-export">
+            <button type="button" onClick={() => void guarded(() => exportCohort())} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-export">
               <Download className="h-4 w-4" /> Export cohort
             </button>
-            <button type="button" onClick={() => void whatIf()} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-whatif">
+            <button type="button" onClick={() => void guarded(() => whatIf())} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="ew-whatif">
               Run What-If on this cohort
             </button>
             {note && <span className="self-center text-xs text-positive" data-testid="ew-note">{note}</span>}
@@ -237,16 +263,16 @@ export function EarlyWarningV4() {
                       })}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                      <button type="button" disabled={!n || busy} onClick={() => void investigate(s.segment)} className="rounded border border-border px-2 py-0.5 disabled:opacity-40">
+                      <button type="button" disabled={!n || busy} onClick={() => void investigate(s.segment)} className="rounded border border-border px-2 py-0.5 disabled:opacity-40" data-testid="ew-seg-investigate" data-segment={s.segment}>
                         Investigate
                       </button>
-                      <button type="button" disabled={!n} onClick={() => void saveCohort(s.segment)} className="rounded border border-border px-2 py-0.5 disabled:opacity-40">
+                      <button type="button" disabled={!n} onClick={() => void guarded(async () => void (await saveCohort(s.segment)))} className="rounded border border-border px-2 py-0.5 disabled:opacity-40" data-testid="ew-seg-save" data-segment={s.segment}>
                         Save cohort
                       </button>
-                      <button type="button" disabled={!n} onClick={() => void exportCohort(s.segment)} className="rounded border border-border px-2 py-0.5 disabled:opacity-40">
+                      <button type="button" disabled={!n} onClick={() => void guarded(() => exportCohort(s.segment))} className="rounded border border-border px-2 py-0.5 disabled:opacity-40" data-testid="ew-seg-export" data-segment={s.segment}>
                         Export
                       </button>
-                      <button type="button" disabled={!n} onClick={() => void whatIf(s.segment)} className="rounded border border-border px-2 py-0.5 disabled:opacity-40">
+                      <button type="button" disabled={!n} onClick={() => void guarded(() => whatIf(s.segment))} className="rounded border border-border px-2 py-0.5 disabled:opacity-40" data-testid="ew-seg-whatif" data-segment={s.segment}>
                         What-If
                       </button>
                     </div>

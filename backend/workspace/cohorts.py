@@ -63,9 +63,18 @@ def resolve(book: Book, *, filters: Any, selection: str = ch.BY_ROW,
                            selection=selection,
                            described_as=predicates.describe(checked))
     except Exception as exc:  # scenario errors carry a message and a code
-        message = str(getattr(exc, "message", "") or exc)
-        raise HTTPException(422, {"error_code": getattr(
-            exc, "code", "COHORT_UNRESOLVED"), "message": message}) from exc
+        # A scenario error's own message is written for the analyst; any
+        # other failure (an engine error) would echo SQL, so it is replaced.
+        code = getattr(exc, "code", None)
+        message = getattr(exc, "message", None)
+        if not (code and message):
+            code, message = ("COHORT_UNRESOLVED",
+                             "The filters could not be resolved to a "
+                             "population. Check that each value fits its "
+                             "column (for example a number for a numeric "
+                             "column).")
+        raise HTTPException(422, {"error_code": code,
+                                  "message": str(message)}) from exc
     return v, checked, frozen
 
 

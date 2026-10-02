@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Send } from "lucide-react";
 
 import { sendObject } from "@/lib/workspace/messages";
+import { useSingleFlight } from "@/lib/workspace/single-flight";
 
 export function ShareButton({ objectId, version, testId = "share" }: { objectId: string; version?: number; testId?: string }) {
   const [open, setOpen] = React.useState(false);
@@ -14,10 +15,12 @@ export function ShareButton({ objectId, version, testId = "share" }: { objectId:
   const [message, setMessage] = React.useState("");
   const [done, setDone] = React.useState("");
   const [error, setError] = React.useState("");
+  const { busy, run } = useSingleFlight();
   async function send() {
     setError("");
     try {
-      const r = await sendObject(objectId, to.split(/[,\s]+/).filter(Boolean), message, version);
+      const r = await run(() => sendObject(objectId, to.split(/[,\s]+/).filter(Boolean), message, version));
+      if (!r) return;
       setDone(`Shared with ${to} (${r.shared.length} message${r.shared.length === 1 ? "" : "s"}).`);
       setOpen(false);
     } catch (e) {
@@ -33,7 +36,7 @@ export function ShareButton({ objectId, version, testId = "share" }: { objectId:
         <>
           <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="recipient id(s)" className="rounded border border-border bg-surface px-2 py-1" data-testid={`${testId}-to`} />
           <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="message" className="rounded border border-border bg-surface px-2 py-1" data-testid={`${testId}-message`} />
-          <button type="button" disabled={!to.trim()} onClick={() => void send()} className="rounded-md bg-accent px-2 py-1 text-accent-contrast disabled:opacity-40" data-testid={`${testId}-send`}>
+          <button type="button" disabled={busy || !to.trim()} onClick={() => void send()} className="rounded-md bg-accent px-2 py-1 text-accent-contrast disabled:opacity-40" data-testid={`${testId}-send`}>
             Send
           </button>
         </>

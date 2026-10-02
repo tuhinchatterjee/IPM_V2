@@ -7,8 +7,8 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Save, Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FlaskConical, Loader2, Save, Search } from "lucide-react";
 
 import { SeverityPill } from "@/components/guided/requires-attention";
 import { ChartCard } from "@/components/viz/chart-card";
@@ -25,26 +25,25 @@ import {
 } from "@/lib/workspace/guided";
 import type { Filter } from "@/lib/workspace/objects";
 import { moneyCol } from "@/lib/viz/format";
+import { useSingleFlight } from "@/lib/workspace/single-flight";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 export function IssueDetail({ issueId }: { issueId: string }) {
   const router = useRouter();
   const [issue, setIssue] = React.useState<Issue | null>(null);
   const [error, setError] = React.useState("");
-  const [drill, setDrill] = React.useState<Filter[]>([]);
+  const params = useSearchParams();
+  const driverParam = params.get("driver");
+  const stageParam = params.get("stage");
   const [busy, setBusy] = React.useState(false);
   const [saved, setSaved] = React.useState("");
+  const [savedId, setSavedId] = React.useState("");
+  const flight = useSingleFlight();
 
   React.useEffect(() => {
     readIssue(issueId)
-      .then((found) => {
-        setIssue(found);
-        // A driver clicked on the Requires Attention card opens here already
-        // narrowed to that driver's population (?driver=<label>).
-        const driver = new URLSearchParams(window.location.search).get("driver");
-        if (driver && found.evidence.breakdown.some((d) => String(d.label) === driver)) {
-          setDrill([{ column: found.evidence.breakdown_dimension, op: "in", values: [driver] }]);
-        }
-      })
+      .then(setIssue)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [issueId]);
 
@@ -69,6 +68,28 @@ export function IssueDetail({ issueId }: { issueId: string }) {
       </p>
     );
   }
+  // The drill lives in the URL (?driver= / ?stage=): a chart click pushes a
+  // history entry, so browser Back returns to the unfiltered issue, and a
+  // driver link from the Cockpit card opens here already narrowed.
+  const drill: Filter[] =
+    driverParam && issue.evidence.breakdown.some((d) => String(d.label) === driverParam)
+      ? [{ column: issue.evidence.breakdown_dimension, op: "in", values: [driverParam] }]
+      : stageParam && ["1", "2", "3"].includes(stageParam)
+        ? [{ column: "stage", op: "in", values: [Number(stageParam)] }]
+        : [];
+  const setDrill = (next: Filter[]) => {
+    const f = next[0];
+    const href =
+      f && f.column === "stage"
+        ? urlWith({ stage: String(f.values?.[0] ?? ""), driver: null })
+        : urlWith({ driver: f ? String(f.values?.[0] ?? "") : null, stage: null });
+    router.push(href, { scroll: false });
+  };
+  async function whatIf() {
+    if (!issue) return;
+    const c = await flight.run(() => saveIssueCohort(issue.issue_id));
+    if (c) router.push(withBack(`/what-if?cohort=${encodeURIComponent(c.object_id)}&from=issue`));
+  }
   const m = issue.materiality;
   const trendFig = trend([{ name: issue.metric_name, points: issue.evidence.series, unit: issue.metric_unit, color: SEMANTIC.pd }]);
   const eclFig = trend([{ name: "Booked ECL", points: issue.evidence.ecl_series, unit: "SAR_mn", color: SEMANTIC.increase }]);
@@ -81,9 +102,7 @@ export function IssueDetail({ issueId }: { issueId: string }) {
   const locked = issue.cohort.filters;
   return (
     <div className="space-y-5" data-testid="issue-detail" data-issue-id={issue.issue_id}>
-      <button type="button" onClick={() => router.push("/")} className="inline-flex items-center gap-1 text-xs text-accent">
-        <ArrowLeft className="h-3 w-3" /> Cockpit
-      </button>
+      <OriginBackLink fallback="/" fallbackLabel="Cockpit" testId="issue-detail-back" />
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <SeverityPill severity={issue.severity} />
@@ -118,16 +137,37 @@ export function IssueDetail({ issueId }: { issueId: string }) {
           </button>
           <button
             type="button"
+            disabled={flight.busy || Boolean(savedId)}
             onClick={() =>
-              saveIssueCohort(issue.issue_id)
-                .then((c) => setSaved(`Saved ${count(c.body.counts.entities)} ${issue.entity_plural} as ${c.object_id}`))
-                .catch((e: unknown) => setSaved(String(e)))
+              flight
+                .run(() => saveIssueCohort(issue.issue_id))
+                .then((c) => {
+                  if (!c) return;
+                  setSavedId(c.object_id);
+                  setSaved(`Saved ${count(c.body.counts.entities)} ${issue.entity_plural} as ${c.object_id}`);
+                })
+                .catch((e: unknown) => setSaved(e instanceof Error ? e.message : String(e)))
             }
             className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm"
             data-testid="issue-detail-save-cohort"
           >
             <Save className="h-4 w-4" /> Save cohort
           </button>
+          <button
+            type="button"
+            disabled={flight.busy}
+            onClick={() => void whatIf().catch((e: unknown) => setSaved(e instanceof Error ? e.message : String(e)))}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm"
+            data-testid="issue-detail-whatif"
+            title="Freeze this exact population and open it in What-If"
+          >
+            <FlaskConical className="h-4 w-4" /> What-If on this population
+          </button>
+          {drill.length > 0 && (
+            <button type="button" onClick={() => setDrill([])} className="text-xs text-accent underline" data-testid="issue-detail-clear-drill">
+              Clear the chart filter
+            </button>
+          )}
           {saved && <span className="self-center text-xs text-positive">{saved}</span>}
         </div>
       </header>

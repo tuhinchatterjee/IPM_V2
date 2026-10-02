@@ -22,11 +22,17 @@ class FollowBody(BaseModel):
     on: bool = True
 
 
+#: An unknown view, severity or book is refused (422), never silently read
+#: as "everything".
+_VIEW_PATTERN = f"^({'|'.join(monitoring.VIEWS)})$"
+_SEVERITY_PATTERN = f"^(|{'|'.join(monitoring.SEVERITY_ORDER)})$"
+
+
 @router.get("/monitoring")
-async def centre(view: str = Query("active", max_length=20),
-                 severity: str = Query("", max_length=20),
+async def centre(view: str = Query("active", pattern=_VIEW_PATTERN),
+                 severity: str = Query("", pattern=_SEVERITY_PATTERN),
                  lens: str = Query("", max_length=80),
-                 domain: str = Query("", max_length=20),
+                 domain: str = Query("", pattern="^(|corporate|retail)$"),
                  assignee: str = Query("", max_length=120),
                  who: dict[str, Any] = Depends(v4routes.principal)
                  ) -> dict[str, Any]:

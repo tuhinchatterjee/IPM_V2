@@ -298,6 +298,11 @@ def package(who_raw: dict[str, Any], object_id: str, *,
             llm["runs"].append(run_id)
             llm["calls"] += len(view["calls"])
 
+    caveats = []
+    if obj["kind"] == "run" and obj["status"] != "EXECUTED":
+        caveats.append(f"This run was NOT executed (it is at {obj['status']})."
+                       " The package holds its definition and state log "
+                       "only; it carries no results.")
     readme = (
         "CreditProbe governed export package\n"
         "===================================\n\n"
@@ -315,6 +320,7 @@ def package(who_raw: dict[str, Any], object_id: str, *,
         "integrity\n"
         + ("llm_exchange/ the sanitized model exchange of each run\n"
            if include_llm_exchange else "")
+        + "".join(f"\nCAVEAT: {c}\n" for c in caveats)
         + "\nmanifest.json lists every file's SHA-256. Verify a package "
           "with POST /api/v1/cockpit-v4/workspace/exports/verify.\n"
           "Secrets are redacted before anything is written.\n")
@@ -330,6 +336,7 @@ def package(who_raw: dict[str, Any], object_id: str, *,
         "release_id": obj["release_id"], "fingerprint": obj["fingerprint"],
         "period": obj["period"], "domain_id": obj["domain_id"],
         "objects": objects, "snapshots": snaps, "membership": membership,
+        "caveats": caveats,
         "tables": sorted(f"tables/{n}.csv" for n in tables),
         "llm_exchange": llm,
         "integrity": tr["integrity"],

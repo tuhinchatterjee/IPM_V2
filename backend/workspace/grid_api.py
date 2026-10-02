@@ -35,7 +35,7 @@ class GridQuery(BaseModel):
     filters: list[dict[str, Any]] = Field(default_factory=list)
     sort: str = Field(default="ecl_sar_mn", max_length=60)
     desc: bool = True
-    offset: int = Field(default=0, ge=0)
+    offset: int = Field(default=0, ge=0, le=grid.OFFSET_MAX)
     limit: int = Field(default=50, ge=1, le=grid.PAGE_MAX)
     period: str = Field(default="", max_length=12)
 

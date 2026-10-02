@@ -159,13 +159,36 @@ def detail(svc: ObjectService, who_raw: dict[str, Any], share_id: str
                 "actions": [], "comments": []}
     comments = [c for c in svc.store.comments(row["object_id"],
                                               tenant_id=p.tenant)]
+    retired = _definition_retired(svc, p, obj, latest)
+    actions = _actions(obj, recipient=recipient)
+    if retired:
+        # A retired definition is read-only: nothing new is run from it.
+        actions = [a for a in actions if a["action"] not in
+                   ("run", "rerun_latest")]
     return {"share": row, "accessible": True,
             "object": obj, "card": sharing.card_for(obj),
             "latest_version": latest["version"],
+            "latest_status": latest["status"],
+            "retired": retired,
             "newer_content": latest["content_hash"] != obj["content_hash"],
-            "actions": _actions(obj, recipient=recipient),
+            "actions": actions,
             "comments": comments,
             "attachments": row["card"].get("attachments", [])}
+
+
+def _definition_retired(svc: ObjectService, p: Principal,
+                        obj: dict[str, Any], latest: dict[str, Any]) -> bool:
+    """True when the scenario definition behind a shared scenario or result
+    has been retired since it was shared."""
+    if obj["kind"] == "scenario":
+        return latest["status"] == "ARCHIVED"
+    if obj["kind"] == "scenario_result" and obj["body"].get("scenario_id"):
+        try:
+            scenario = svc.get(obj["body"]["scenario_id"], p)
+        except HTTPException:
+            return False
+        return scenario["status"] == "ARCHIVED"
+    return False
 
 
 # ---- recipient actions ---------------------------------------------------------

@@ -10,6 +10,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import { useSingleFlight } from "@/lib/workspace/single-flight";
 import { Copy, GitMerge, Loader2, Plus, Search } from "lucide-react";
 
 import { PreviewPanel } from "@/components/scenarios/preview-panel";
@@ -49,6 +51,8 @@ export function ScenarioLibrary() {
   const [query, setQuery] = React.useState("");
   const [loaded, setLoaded] = React.useState<{ key: string; listing: Listing | null; error: string }>({ key: "", listing: null, error: "" });
   const [selected, setSelected] = React.useState<ScenarioCard[]>([]);
+  const [actionError, setActionError] = React.useState("");
+  const flight = useSingleFlight();
   const [combining, setCombining] = React.useState<{ name: string; preview: Preview | null; error: string; busy: boolean } | null>(null);
 
   const key = JSON.stringify({ domain, owner, severity, tag, query });
@@ -84,12 +88,29 @@ export function ScenarioLibrary() {
 
   async function saveCombined(resolutions: Record<string, Resolution>) {
     if (!combining) return;
-    const out = await combineScenarios(
-      selected.map((s) => ({ object_id: s.object_id, version: s.version })),
-      combining.name,
-      resolutions,
-    );
-    router.push(`/scenarios/${out.scenario.object_id}`);
+    const name = combining.name;
+    try {
+      const out = await flight.run(() =>
+        combineScenarios(
+          selected.map((s) => ({ object_id: s.object_id, version: s.version })),
+          name,
+          resolutions,
+        ),
+      );
+      if (out) router.push(`/scenarios/${out.scenario.object_id}`);
+    } catch (e) {
+      setCombining((c) => (c ? { ...c, error: e instanceof Error ? e.message : String(e) } : c));
+    }
+  }
+
+  async function cloneCard(objectId: string) {
+    setActionError("");
+    try {
+      const copy = await flight.run(() => cloneScenario(objectId));
+      if (copy) router.push(`/scenarios/${copy.object_id}`);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   return (
@@ -201,7 +222,8 @@ export function ScenarioLibrary() {
                 <button
                   type="button"
                   onClick={() => void saveCombined({})}
-                  className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-contrast"
+                  disabled={flight.busy}
+                  className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-contrast disabled:opacity-50"
                   data-testid="scenario-combine-save"
                 >
                   Save combined scenario
@@ -213,6 +235,11 @@ export function ScenarioLibrary() {
       )}
 
       {loaded.error && loaded.key === key && <p className="text-sm text-negative">{loaded.error}</p>}
+      {actionError && (
+        <p role="alert" className="text-sm text-negative" data-testid="scenario-library-error">
+          {actionError}
+        </p>
+      )}
       {!listing && !loaded.error && (
         <p className="flex items-center gap-2 text-sm text-text-muted">
           <Loader2 className="h-4 w-4 animate-spin" /> Opening the library…
@@ -226,10 +253,7 @@ export function ScenarioLibrary() {
               card={c}
               selected={selected.some((s) => s.object_id === c.object_id)}
               onToggle={() => toggle(c)}
-              onClone={async () => {
-                const copy = await cloneScenario(c.object_id);
-                router.push(`/scenarios/${copy.object_id}`);
-              }}
+              onClone={() => void cloneCard(c.object_id)}
             />
           ))}
         </div>

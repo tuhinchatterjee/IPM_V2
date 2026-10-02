@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+import duckdb
 from fastapi import HTTPException
 
 from backend.workspace import ews, predicates
@@ -32,6 +33,8 @@ from backend.workspace.access import Book
 
 PAGE_MAX = 500
 EXPORT_MAX = 250_000
+#: No book has this many rows; a larger offset is a caller error, clamped.
+OFFSET_MAX = 10_000_000
 
 
 @dataclass(frozen=True)
@@ -304,6 +307,25 @@ def _where(v: View, filters: Any) -> tuple[str, list[Any], list[dict[str, Any]]]
     return (f"WHERE {sql}" if sql else ""), params, checked
 
 
+#: DuckDB refusals a filter value can provoke (a text value compared with a
+#: number column, a value that does not cast). They are the request's fault,
+#: so they answer 422 in plain words; the engine's SQL is never echoed.
+_FILTER_ERRORS = tuple(getattr(duckdb, n) for n in (
+    "BinderException", "ConversionException", "InvalidInputException",
+    "TypeMismatchException", "OutOfRangeException") if hasattr(duckdb, n))
+
+
+def _rows(book: Book, sql: str, params: list[Any]) -> list[dict[str, Any]]:
+    try:
+        return book.rows(sql, params)
+    except _FILTER_ERRORS as exc:
+        raise HTTPException(422, {
+            "error_code": "INVALID_FILTER",
+            "message": "A filter value does not fit its column's type (for "
+                       "example text compared with a number). Check the "
+                       "filter values."}) from exc
+
+
 def _num(value: Any) -> Any:
     if isinstance(value, Decimal):
         return float(value)
@@ -317,9 +339,9 @@ def query(book: Book, *, filters: Any = None, sort: str = "", desc: bool = True,
     where, params, checked = _where(v, filters)
     sort_key = sort if sort in v.keys else "ecl_sar_mn"
     limit = max(1, min(int(limit), PAGE_MAX))
-    offset = max(0, int(offset))
+    offset = max(0, min(int(offset), OFFSET_MAX))
     order = f"ORDER BY {sort_key} {'DESC' if desc else 'ASC'} NULLS LAST, {v.key}"
-    rows = book.rows(f"SELECT * FROM ({v.sql}) g {where} {order} LIMIT ? OFFSET ?",
+    rows = _rows(book, f"SELECT * FROM ({v.sql}) g {where} {order} LIMIT ? OFFSET ?",
                      params + [limit, offset])
     agg = summary(book, v=v, where=where, params=params)
     return {
@@ -335,18 +357,18 @@ def query(book: Book, *, filters: Any = None, sort: str = "", desc: bool = True,
 
 def summary(book: Book, *, v: View, where: str, params: list[Any]
             ) -> dict[str, Any]:
-    head = book.rows(
+    head = _rows(book,
         f"SELECT COUNT(*) AS entities, COUNT(DISTINCT {v.owner}) AS owners, "
         f"COALESCE(SUM(ead_sar_mn), 0) AS ead, COALESCE(SUM(ecl_sar_mn), 0) "
         f"AS ecl FROM ({v.sql}) g {where}", params)[0]
-    stages = book.rows(
+    stages = _rows(book,
         f"SELECT stage, COUNT(*) AS n, SUM(ead_sar_mn) AS ead, "
         f"SUM(ecl_sar_mn) AS ecl FROM ({v.sql}) g {where} GROUP BY 1 "
         f"ORDER BY 1", params)
     band_col = "rating_current" if book.domain_id == "corporate" else "score_band"
     bands = []
     if band_col in v.keys:
-        bands = book.rows(
+        bands = _rows(book,
             f"SELECT {band_col} AS band, COUNT(*) AS n, SUM(ead_sar_mn) AS ead"
             f" FROM ({v.sql}) g {where} GROUP BY 1 ORDER BY 1", params)
     return {"entities": int(head["entities"] or 0),
@@ -372,7 +394,7 @@ def distinct(book: Book, column: str, *, search: str = "", limit: int = 200,
             columns=v.keys)
         where, params = predicates.bound(checked)
         where = f"WHERE {where}"
-    rows = book.rows(
+    rows = _rows(book,
         f"SELECT {column} AS value, COUNT(*) AS n FROM ({v.sql}) g {where} "
         f"GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT ?",
         params + [max(1, min(int(limit), 1000))])
@@ -386,7 +408,7 @@ def rows_for(book: Book, *, filters: Any = None, period: str = "",
     v = view(book, period)
     where, params, checked = _where(v, filters)
     wanted = [c for c in (columns or list(v.keys)) if c in v.keys]
-    rows = book.rows(
+    rows = _rows(book,
         f"SELECT {', '.join(wanted)} FROM ({v.sql}) g {where} "
         f"ORDER BY {v.key} LIMIT ?", params + [int(limit)])
     return v, checked, [{k: _num(x) for k, x in r.items()} for r in rows]
@@ -404,7 +426,7 @@ def grouped(book: Book, *, dimension: str, filters: Any = None,
                                              f"column."})
     where, params, _ = _where(v, filters)
     sums = ", ".join(f"SUM({m}) AS {m}" for m in measures if m in v.keys)
-    rows = book.rows(
+    rows = _rows(book,
         f"SELECT {dimension} AS value, COUNT(*) AS n, {sums} FROM ({v.sql}) g "
         f"{where} GROUP BY 1 ORDER BY 1", params)
     return [{k: _num(x) for k, x in r.items()} for r in rows]
@@ -428,11 +450,11 @@ def grouped2(book: Book, *, x: str, y: str, filters: Any = None,
                                       "message": f"{dim!r} is not a grid "
                                                  f"column."})
     where, params, checked = _where(v, filters)
-    cells = book.rows(
+    cells = _rows(book,
         f"SELECT {x} AS x, {y} AS y, COUNT(*) AS n, SUM(ead_sar_mn) AS "
         f"ead_sar_mn, SUM(ecl_sar_mn) AS ecl_sar_mn FROM ({v.sql}) g "
         f"{where} GROUP BY 1, 2 ORDER BY 1, 2 LIMIT {CELLS_MAX + 1}", params)
-    total = book.rows(
+    total = _rows(book,
         f"SELECT COUNT(*) AS n, SUM(ead_sar_mn) AS ead_sar_mn, "
         f"SUM(ecl_sar_mn) AS ecl_sar_mn FROM ({v.sql}) g {where}", params)[0]
     return {"x": x, "y": y, "period": v.period,

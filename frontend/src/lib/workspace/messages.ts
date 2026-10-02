@@ -78,6 +78,8 @@ export interface MessageDetail {
   card?: ShareCard;
   latest_version?: number;
   newer_content?: boolean;
+  latest_status?: string;
+  retired?: boolean;
   actions: MessageAction[];
   comments: { comment_id: string; version: number; author_id: string; body: string; created_at: number }[];
   attachments?: ShareCard["attachments"];

@@ -160,13 +160,20 @@ export function WhatIfWorkspace() {
     setNote("Selection cleared; no cohort is active.");
   }
 
+  // One governed action at a time: a double-click on Save / Share /
+  // Investigate never freezes or shares the population twice.
+  const inFlight = React.useRef(false);
   async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
+    if (inFlight.current) return undefined;
+    inFlight.current = true;
     setError("");
     try {
       return await fn();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       return undefined;
+    } finally {
+      inFlight.current = false;
     }
   }
 

@@ -357,6 +357,33 @@ def _prepare(book: Book, svc: ObjectService, who: Principal,
     }
 
 
+def _refuse_unrunnable(book: Book, svc: ObjectService, who: Principal,
+                       scenario: dict[str, Any]) -> None:
+    """A run never starts on a definition that cannot honestly be executed.
+
+    * A RETIRED scenario -- this version or its latest -- can be read and
+      duplicated, not run (VAL-DEF-011): a share of an older version does
+      not resurrect it.
+    * Overlapping components whose composition policy is not chosen would
+      be silently compounded by the engine, double counting the overlap
+      (VAL-DEF-010, CRITICAL). The library already marks such a definition
+      BLOCKED; the run refuses it by name until the policy is recorded.
+    """
+    latest = svc.get(scenario["object_id"], who)
+    if "ARCHIVED" in (scenario["status"], latest["status"]):
+        _refuse(409, "SCENARIO_RETIRED",
+                f"{scenario['object_id']} was retired and cannot be run. "
+                f"Duplicate it to run a copy of the definition.")
+    pending = [b for b in lib.preview(book, scenario["body"])["blocking"]
+               if b["code"] == "NEEDS_COMPOSITION_POLICY"]
+    if pending:
+        _refuse(409, "COMPOSITION_POLICY_REQUIRED",
+                "Overlapping rules need an explicit composition policy before "
+                "this scenario can run, so the overlap is never counted "
+                "twice: " + "; ".join(b["message"] for b in pending[:5])
+                + " Choose a policy for each overlap on the scenario page.")
+
+
 def create(svc: ObjectService, who_raw: dict[str, Any], *, scenario_id: str,
            scenario_version: int | None = None, cohort_id: str = "",
            cohort_version: int | None = None, session_id: str = "",
@@ -368,6 +395,7 @@ def create(svc: ObjectService, who_raw: dict[str, Any], *, scenario_id: str,
     if scenario["kind"] != "scenario":
         _refuse(422, "NOT_A_SCENARIO", f"{scenario_id} is not a scenario.")
     book = access.book(who_raw, scenario["domain_id"])
+    _refuse_unrunnable(book, svc, who, scenario)
     frozen, origin = _population(book, svc, who, scenario, cohort_id,
                                  cohort_version)
     chosen = _parse_baseline(baseline)
@@ -490,7 +518,12 @@ def _normalise_assumption(raw: Any) -> dict[str, Any]:
     except ScenarioError as exc:
         raise _engine_error(exc) from exc
     except Exception as exc:  # Decimal conversion
-        _refuse(422, "INVALID_ASSUMPTION", f"user_assumption: {exc}")
+        # The conversion error names a Python class; the analyst is told
+        # what to correct instead.
+        raise HTTPException(422, {
+            "error_code": "INVALID_ASSUMPTION",
+            "message": "user_assumption: every value must be a number "
+                       "(for example 0.25 or -10)."}) from exc
     return {**parsed.canonical(), "stated_as": parsed.stated_as,
             "describe": parsed.describe()}
 
@@ -692,10 +725,16 @@ def execute(svc: ObjectService, who_raw: dict[str, Any], run_id: str
     run = _load(svc, who, run_id)
     b = run["body"]
     if run["status"] != READY_TO_EXECUTE:
+        why = {METHOD_INPUT_REQUIRED: "The chosen method still needs your "
+                                      "input (the user-defined assumption).",
+               METHOD_UNAVAILABLE: "The chosen method is unavailable for "
+                                   "this book; choose another method.",
+               EXECUTED: "It has already been executed."}.get(
+            run["status"], "A confirmed scenario runs only after a method "
+                           "is chosen.")
         _refuse(409, "METHOD_SELECTION_REQUIRED" if run["status"] in (
             METHOD_SELECTION, SCENARIO_CONFIRMED) else "INVALID_TRANSITION",
-            f"this run is at {run['status']}. A confirmed scenario runs only "
-            f"after a method is chosen; nothing was executed.")
+            f"this run is at {run['status']}. {why} Nothing was executed.")
     book, scenario, frozen = _scenario_and_population(svc, who, who_raw, run)
     engine_baseline = {} if b["baseline"].get("mode") == lay.SOURCE_BASELINE \
         else dict(b["baseline"])

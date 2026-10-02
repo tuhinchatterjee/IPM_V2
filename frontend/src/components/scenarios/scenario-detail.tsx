@@ -32,6 +32,7 @@ import {
   type ScenarioDetail as Detail,
 } from "@/lib/workspace/scenarios";
 import { ExportPackage } from "@/components/workspace/export-package";
+import { useSingleFlight } from "@/lib/workspace/single-flight";
 
 export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
   const router = useRouter();
@@ -41,6 +42,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
   const [note, setNote] = React.useState("");
   const [reload, setReload] = React.useState(0);
   const [panel, setPanel] = React.useState<"" | "rename" | "bind" | "share" | "comment">("");
+  const flight = useSingleFlight();
 
   React.useEffect(() => {
     let live = true;
@@ -74,7 +76,14 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
   async function act<T>(fn: () => Promise<T>, done: (out: T) => void) {
     setNote("");
     try {
-      done(await fn());
+      // One mutation at a time: a double-click never clones, branches,
+      // shares or comments twice.
+      let ran = false;
+      const out = await flight.run(async () => {
+        ran = true;
+        return fn();
+      });
+      if (ran) done(out as T);
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }
@@ -125,10 +134,10 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
         )}
         <div className="flex flex-wrap gap-2" data-testid="scenario-actions">
           <ExportPackage objectId={obj.object_id} testId="scenario-export" compact />
-          <Action icon={<Copy className="h-4 w-4" />} testId="scenario-action-clone" onClick={() => act(() => cloneScenario(obj.object_id), (c) => router.push(`/scenarios/${c.object_id}`))}>
+          <Action icon={<Copy className="h-4 w-4" />} testId="scenario-action-clone" disabled={flight.busy} onClick={() => act(() => cloneScenario(obj.object_id), (c) => router.push(`/scenarios/${c.object_id}`))}>
             Clone
           </Action>
-          <Action icon={<GitBranch className="h-4 w-4" />} testId="scenario-action-branch" onClick={() => act(() => cloneScenario(obj.object_id, "", true), (c) => router.push(`/scenarios/${c.object_id}`))}>
+          <Action icon={<GitBranch className="h-4 w-4" />} testId="scenario-action-branch" disabled={flight.busy} onClick={() => act(() => cloneScenario(obj.object_id, "", true), (c) => router.push(`/scenarios/${c.object_id}`))}>
             Branch
           </Action>
           {card.can_edit && (
@@ -272,9 +281,9 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
   );
 }
 
-function Action({ icon, children, onClick, testId }: { icon: React.ReactNode; children: React.ReactNode; onClick: () => void; testId: string }) {
+function Action({ icon, children, onClick, testId, disabled = false }: { icon: React.ReactNode; children: React.ReactNode; onClick: () => void; testId: string; disabled?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid={testId}>
+    <button type="button" onClick={onClick} disabled={disabled} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50" data-testid={testId}>
       {icon} {children}
     </button>
   );

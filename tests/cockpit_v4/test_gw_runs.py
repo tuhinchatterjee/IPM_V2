@@ -457,7 +457,18 @@ def test_pareto_and_distribution_reconcile_to_the_selected_change(client,
     """VIZ10 / VIZ11 data: the Pareto sums to the selected-scope Delta
     change and ends at 100%; the distribution counts every exposure once."""
     scenarios.ensure_seeded(svc, WHO)
-    _run, result = full_run(client, scenarios.template_object_id("CORP-18"))
+    # CORP-18 is a seeded conflict template: it runs only after a policy is
+    # chosen for each overlap (VAL-DEF-010), recorded on the analyst's copy.
+    tpl = scenarios.clone(svc, WHO, scenarios.template_object_id("CORP-18"),
+                          name="CORP-18 with policies")["object_id"]
+    body = svc.get(tpl, service.principal(WHO))["body"]
+    need = [m for m in scenarios.lib.preview(access.book(WHO, "corporate"),
+                                             body)["overlaps"]
+            if m["status"] == "NEEDS_POLICY"]
+    assert need
+    copy = scenarios.resolve(svc, WHO, tpl, {
+        m["overlap_id"]: {"policy": m["allowed"][0]} for m in need})
+    _run, result = full_run(client, copy["object_id"])
     b = result["body"]
     sel = D(b["decomposition"]["delta"]["scopes"]["selected"]["change"])
     assert abs(sum(D(p["change"]) for p in b["pareto"]) - sel) <= D("1e-6")

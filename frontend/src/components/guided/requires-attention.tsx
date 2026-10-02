@@ -30,6 +30,7 @@ import {
 } from "@/lib/workspace/guided";
 import type { DomainId } from "@/lib/workspace/objects";
 import { cn } from "@/lib/utils";
+import { useSingleFlight } from "@/lib/workspace/single-flight";
 
 const SEEN_KEY = "creditprobe.guided.seen";
 
@@ -76,6 +77,14 @@ function IssueCard({
 }) {
   const router = useRouter();
   const [saved, setSaved] = React.useState("");
+  // The issue population is frozen once per card: Save and What-If reuse it,
+  // and a double-click never freezes it twice.
+  const flight = useSingleFlight();
+  const frozen = React.useRef<Awaited<ReturnType<typeof saveIssueCohort>> | null>(null);
+  async function freeze() {
+    if (!frozen.current) frozen.current = await saveIssueCohort(issue.issue_id);
+    return frozen.current;
+  }
   const m = issue.materiality;
   const fig = React.useMemo(
     () => sparkline(issue.evidence.series, issue.metric_unit, SEVERITY_COLORS[issue.severity] ?? SEMANTIC.pd),
@@ -191,9 +200,11 @@ function IssueCard({
         </button>
         <button
           type="button"
+          disabled={flight.busy}
           onClick={() =>
-            saveIssueCohort(issue.issue_id)
-              .then((c) => setSaved(`Saved ${count(c.body.counts.entities)} as ${c.object_id}`))
+            flight
+              .run(freeze)
+              .then((c) => c && setSaved(`Saved ${count(c.body.counts.entities)} as ${c.object_id}`))
               .catch((e: unknown) => setSaved(e instanceof Error ? e.message : String(e)))
           }
           className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"
@@ -203,10 +214,11 @@ function IssueCard({
         </button>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || flight.busy}
           onClick={() =>
-            saveIssueCohort(issue.issue_id)
-              .then((c) => router.push(`/what-if?cohort=${encodeURIComponent(c.object_id)}&from=issue`))
+            flight
+              .run(freeze)
+              .then((c) => c && router.push(`/what-if?cohort=${encodeURIComponent(c.object_id)}&from=issue`))
               .catch((e: unknown) => setSaved(e instanceof Error ? e.message : String(e)))
           }
           className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"

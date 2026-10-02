@@ -476,6 +476,10 @@ def act(svc: ObjectService, who: dict[str, Any], alert_id: str, action: str,
         return svc.get(alert_id, principal)
     if action == "assign":
         target = assignee or principal.id
+        if alert["body"].get("assignee") == target:
+            # Already assigned to that owner: a repeated click writes no new
+            # version and no second "assigned to" event (VAL-DEF-008).
+            return alert
         _event(svc, alert, alert["status"], alert["status"], principal.id,
                f"assigned to {target}")
         return svc.revise(alert_id, _system(alert["tenant_id"]),

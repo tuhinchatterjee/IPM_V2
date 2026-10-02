@@ -1,0 +1,58 @@
+/**
+ * Navigation that remembers where it came from.
+ *
+ * A cross-module handoff (issue → What-If, What-If → Scenario Library, a Lens
+ * → What-If, ...) carries its origin as `back=<path>`, so the destination can
+ * offer an explicit "Back to ..." that lands on the exact origin state, and
+ * pages keep their own view state in the URL so browser Back restores it.
+ */
+
+/** A same-origin path, or "" — never an absolute or protocol-relative URL. */
+export function safeBack(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const v = raw.trim();
+  if (!v.startsWith("/") || v.startsWith("//") || v.includes("\\") || /^\/\s/.test(v)) return "";
+  if (v.length > 1500) return "";
+  return v;
+}
+
+/** `href` with `back=<origin>` appended (origin defaults to the current URL). */
+export function withBack(href: string, origin?: string): string {
+  const from = origin ?? (typeof window === "undefined" ? "" : `${window.location.pathname}${window.location.search}`);
+  const back = safeBack(from);
+  if (!back) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}back=${encodeURIComponent(back)}`;
+}
+
+/** What a back target is, in words. */
+export function backLabel(path: string): string {
+  const p = path.split("?")[0];
+  if (p === "/" || p === "") return "Cockpit";
+  if (p.startsWith("/issues/")) return "the issue";
+  if (p.startsWith("/cockpit/thread/")) return "the investigation";
+  if (p.startsWith("/cockpit/trace/")) return "the run's trace";
+  if (p.startsWith("/what-if/result/")) return "the result";
+  if (p.startsWith("/what-if/compare/")) return "the comparison";
+  if (p.startsWith("/what-if")) return "What-If";
+  if (p.startsWith("/scenarios/")) return "the scenario";
+  if (p.startsWith("/scenarios")) return "the Scenario Library";
+  if (p.startsWith("/lenses/")) return "the Lens";
+  if (p.startsWith("/lenses")) return "Lenses";
+  if (p.startsWith("/monitoring")) return "the Monitoring Centre";
+  if (p.startsWith("/messages")) return "Messages";
+  if (p.startsWith("/early-warning")) return "Early Warning";
+  if (p.startsWith("/trace")) return "Trace";
+  if (p.startsWith("/ai-model-lab")) return "the AI Model Lab";
+  return "the previous page";
+}
+
+/** Replace one query parameter in the current URL (null removes it). */
+export function urlWith(params: Record<string, string | null | undefined>): string {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined || v === "") url.searchParams.delete(k);
+    else url.searchParams.set(k, v);
+  }
+  return `${url.pathname}${url.search}`;
+}

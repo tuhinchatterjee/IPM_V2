@@ -338,7 +338,11 @@ export function DataGrid({
   }
   if (shownFor.domain !== domain || shownFor.filterKey !== filterKey) {
     if (shownFor.domain !== domain) {
+      // The other book's rows must not render against a missing schema:
+      // that keyed every row "undefined" (VAL-DEF-005) and let select-page
+      // act on wrong ids.
       setSchema(null);
+      setPage(null);
       setSelection({ mode: "none", ids: [], filters: [], count: 0 });
     }
     setShownFor({ domain, filterKey });
@@ -414,7 +418,9 @@ export function DataGrid({
   }
 
   const key = schema?.key ?? "";
-  const pageIds = (page?.rows ?? []).map((r) => String(r[key]));
+  // Rows are shown only with the schema that names their key.
+  const rows = schema && page ? page.rows : [];
+  const pageIds = rows.map((r) => String(r[key]));
   const allPageSelected = selection.mode === "rows" && pageIds.every((id) => selection.ids.includes(id)) && pageIds.length > 0;
 
   function toggleRow(id: string) {
@@ -501,7 +507,7 @@ export function DataGrid({
         </details>
         <button
           type="button"
-          onClick={() => void downloadGridCsv(domain, effective)}
+          onClick={() => void downloadGridCsv(domain, effective).catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))}
           className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5"
           data-testid={`${testId}-export`}
         >
@@ -589,8 +595,8 @@ export function DataGrid({
             </tr>
           </thead>
           <tbody className={cn(loading && "opacity-60")}>
-            {(page?.rows ?? []).map((row, i) => {
-              const id = String(row[key]);
+            {rows.map((row, i) => {
+              const id = row[key] != null ? String(row[key]) : `row-${offset + i}`;
               const checked = selection.mode === "filtered" || (selection.mode === "rows" && selection.ids.includes(id));
               return (
                 <tr key={id} className={cn("border-t border-border", checked && "bg-accent-muted")} data-testid="grid-row" data-row-id={id}>

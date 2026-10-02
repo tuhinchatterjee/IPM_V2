@@ -15,6 +15,7 @@ save creates the object. Editing a saved Lens writes a new version.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 from typing import Any
@@ -31,6 +32,7 @@ VISUALS = ("kpi", "trend", "breakdown", "stage_mix", "top_owners",
 CADENCES = ("manual", "on_publication", "on_result", "daily", "weekly",
             "monthly", "continuous")
 COMPARISONS = ("gt", "lt", "abs_gt", "move_pct_gt", "move_abs_gt")
+RULE_SEVERITIES = ("critical", "high", "moderate", "medium", "low", "info")
 LIBRARY_PERMISSIONS = {"visibility": "tenant", "readers": [], "editors": []}
 SPARK = 6
 
@@ -92,6 +94,7 @@ def validate(spec: dict[str, Any], who: dict[str, Any]) -> dict[str, Any]:
         if r.get("comparison") not in COMPARISONS:
             _refuse(422, "INVALID_RULE", f"comparison is one of "
                                          f"{COMPARISONS}.")
+        _check_rule(r, scope)
     out = dict(spec)
     # Pin every metric to the version the Lens was built on.
     out["metrics"] = [{"metric_id": m["metric_id"], "domain": m["domain"],
@@ -104,6 +107,29 @@ def validate(spec: dict[str, Any], who: dict[str, Any]) -> dict[str, Any]:
                                 "digest": False})
     out.setdefault("layout", {})
     return out
+
+
+def _check_rule(r: dict[str, Any], scope: Any) -> None:
+    """A rule the refresh can evaluate: every field `_record` reads is
+    present, its book is in the Lens's scope, its metric applies there and
+    its threshold is a finite number."""
+    label = f"rule {str(r.get('rule_id') or '')[:40]!r}"
+    for key in ("rule_id", "name"):
+        if not str(r.get(key) or "").strip():
+            _refuse(422, "INVALID_RULE", f"{label}: {key} is required.")
+    if r.get("domain") not in scope:
+        _refuse(422, "INVALID_RULE", f"{label}: its book is outside the "
+                                     f"Lens's scope.")
+    if not mc.applies(mc.BY_ID[r["metric_id"]], r["domain"]):
+        _refuse(422, "INVALID_RULE", f"{label}: {r['metric_id']} does not "
+                                     f"apply to the {r['domain']} book.")
+    th = r.get("threshold")
+    if isinstance(th, bool) or not isinstance(th, (int, float)) \
+            or not math.isfinite(float(th)):
+        _refuse(422, "INVALID_RULE", f"{label}: threshold must be a number.")
+    if r.get("severity") not in RULE_SEVERITIES:
+        _refuse(422, "INVALID_RULE", f"{label}: severity is one of "
+                                     f"{RULE_SEVERITIES}.")
 
 
 def _metric_refs(spec: dict[str, Any]) -> list[dict[str, Any]]:

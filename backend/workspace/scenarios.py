@@ -184,6 +184,11 @@ def revise(svc: ObjectService, who: dict[str, Any], object_id: str,
                                   "message": "Library templates are not "
                                              "edited; clone one to make your "
                                              "own version."})
+    if current["status"] == "ARCHIVED":
+        raise HTTPException(409, {"error_code": "SCENARIO_RETIRED",
+                                  "message": "A retired scenario is not "
+                                             "edited. Duplicate it to work "
+                                             "on a copy."})
     merged = {**current["body"], **{k: v for k, v in changes.items()
                                     if k not in ("domain_id", "parents",
                                                  "template_id")}}
@@ -249,6 +254,16 @@ def resolve(svc: ObjectService, who: dict[str, Any], object_id: str,
     """Record explicit composition policies as a new version."""
     principal = Principal.of(who)
     current = svc.get(object_id, principal)
+    known = {m.get("overlap_id") for m in lib.preview(
+        _book_for(who, current), current["body"])["overlaps"]}
+    unknown = sorted(set(resolutions) - known)
+    if unknown:
+        # A policy for an overlap the definition does not have is a typo,
+        # not a choice: it is refused instead of written (VAL-DEF-015).
+        raise HTTPException(422, {"error_code": "UNKNOWN_OVERLAP",
+                                  "message": f"{unknown} are not overlaps of "
+                                             f"this scenario; its overlaps "
+                                             f"are {sorted(known)}."})
     merged = dict(current["body"]["composition_policy"]["resolutions"])
     merged.update(resolutions)
     return revise(svc, who, object_id, {"composition_policy": {
@@ -324,6 +339,9 @@ def retire(svc: ObjectService, who: dict[str, Any], object_id: str
         raise HTTPException(403, {"error_code": "TEMPLATE_READ_ONLY",
                                   "message": "Library templates are retired "
                                              "only by a new seed version."})
+    if current["status"] == "ARCHIVED":
+        # Retiring twice writes nothing (VAL-DEF-011).
+        return current
     return svc.revise(object_id, principal, status="ARCHIVED",
                       reason="retired")
 

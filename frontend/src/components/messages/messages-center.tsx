@@ -307,6 +307,11 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
               This message shares v{s.version}; the object is now at v{d.latest_version}. You are looking at the version that was shared.
             </p>
           )}
+          {d.retired && (
+            <p className="text-xs text-warning" data-testid="message-retired">
+              The scenario behind this message has been retired. It can be read and copied, but not run.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2" data-testid="message-actions">
             {d.actions.map((a) => (
               <button

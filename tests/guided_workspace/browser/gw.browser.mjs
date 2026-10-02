@@ -49,6 +49,7 @@ async function journey(id, what, fn) {
     if (record.on_screen) console.log(`       on screen: ${record.on_screen}`);
     for (const line of record.client_errors ?? []) console.log(`       client: ${line}`);
   } finally {
+    collectInstrumentation(record);
     await closeAll();
   }
   record.ms = Date.now() - started;
@@ -66,10 +67,62 @@ async function open() {
   page.on("console", (m) => {
     if (m.type() === "error") crashes.push(`console: ${m.text().slice(0, 400)}`);
   });
+  // Validation instrumentation: which controls were actually clicked (by the
+  // nearest data-testid), and every console error/warning, page error,
+  // failed request and 4xx/5xx API response, per journey.
+  const clicked = new Set();
+  const consoleLog = [];
+  const http = [];
+  await page.exposeFunction("__gwClicked", (id) => clicked.add(String(id)));
+  await page.addInitScript(() => {
+    window.addEventListener(
+      "click",
+      (e) => {
+        const el = e.target instanceof Element ? e.target.closest("[data-testid]") : null;
+        if (el) window.__gwClicked?.(el.getAttribute("data-testid"));
+      },
+      true,
+    );
+  });
+  page.on("console", (m) => {
+    if (m.type() === "error" || m.type() === "warning") consoleLog.push(`${m.type()}: ${m.text().slice(0, 300)}`);
+  });
+  page.on("pageerror", (e) => consoleLog.push(`pageerror: ${String(e?.message ?? e).slice(0, 300)}`));
+  page.on("requestfailed", (r) => {
+    if (r.url().startsWith(API)) http.push(`FAILED ${r.method()} ${r.url().replace(API, "")} ${r.failure()?.errorText ?? ""}`);
+  });
+  page.on("response", (r) => {
+    if (r.url().startsWith(API) && r.status() >= 400) http.push(`${r.status()} ${r.request().method()} ${r.url().replace(API, "")}`);
+  });
+  const urls = new Set();
+  page.on("framenavigated", (f) => {
+    if (f === page.mainFrame() && f.url().startsWith(UI)) urls.add(new URL(f.url()).pathname);
+  });
   page.calls = calls;
   page.crashes = crashes;
+  page.urls = urls;
+  page.clicked = clicked;
+  page.consoleLog = consoleLog;
+  page.http = http;
   live.push(page);
   return page;
+}
+
+function collectInstrumentation(record) {
+  const clicked = new Set(record.controls_clicked ?? []);
+  const consoleLog = [...(record.console ?? [])];
+  const http = [...(record.http_errors ?? [])];
+  const urls = new Set(record.urls ?? []);
+  for (const page of live) {
+    for (const u of page.urls ?? []) urls.add(u);
+    for (const id of page.clicked ?? []) clicked.add(id);
+    consoleLog.push(...(page.consoleLog ?? []));
+    http.push(...(page.http ?? []));
+  }
+  record.controls_clicked = [...clicked].sort();
+  record.urls = [...urls].sort();
+  record.console = [...new Set(consoleLog)].slice(0, 80);
+  record.http_errors = [...new Set(http)].slice(0, 80);
 }
 
 async function onScreen() {
