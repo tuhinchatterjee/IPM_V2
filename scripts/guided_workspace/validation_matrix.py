@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[2]
 #: (id, area, pytest files, journey prefixes, regression steps, extra keys)
 AREAS: list[tuple] = [
     ("VAL-04", "Routes and navigation (direct, refresh, deep link, params)",
-     [], ["GW-BACK-", "GW-GOLD-10"], [], ["routes"]),
+     [], ["GW-BACK-", "GW-GOLD-10", "GW-VAL-ROUTES"], [], ["routes"]),
     ("VAL-05", "Back-button master matrix (in-app + browser Back/Forward)",
      [], ["GW-BACK-"], [], ["back"]),
     ("VAL-06", "Dead button / link / action audit",

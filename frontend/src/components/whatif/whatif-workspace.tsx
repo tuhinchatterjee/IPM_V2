@@ -74,7 +74,9 @@ function currentPath(params: URLSearchParams | ReturnType<typeof useSearchParams
 export function WhatIfWorkspace() {
   const router = useRouter();
   const params = useSearchParams();
-  const [domain, setDomain] = React.useState<DomainId>((params.get("domain") as DomainId) || "corporate");
+  // An unknown book in the URL is ignored (the Corporate book opens), never
+  // forwarded to the server.
+  const [domain, setDomain] = React.useState<DomainId>(params.get("domain") === "retail" ? "retail" : "corporate");
   const [ctx, setCtx] = React.useState<{ domain: DomainId; value: WhatIfContext | null }>({ domain, value: null });
   const [filters, setFilters] = React.useState<Filter[]>(() => filtersFromUrl(params.get("f")));
   const [gridSel, setGridSel] = React.useState<GridSelection>({ mode: "none", ids: [], filters: [], count: 0 });

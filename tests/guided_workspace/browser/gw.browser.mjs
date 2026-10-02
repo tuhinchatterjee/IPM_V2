@@ -3276,6 +3276,83 @@ async function plotlyAudit() {
   });
 }
 
+
+// =========================================================================
+// VALIDATION — route sweep (§4): every page route, direct load and refresh,
+// and invalid ids/parameters: nothing crashes, no 404 page, no error
+// boundary, the console stays clean (the browser's own "Failed to load
+// resource" line for a deliberately missing object is the expected 404).
+// =========================================================================
+
+async function routeSweep() {
+  await journey("GW-VAL-ROUTES", "Every route loads directly and on refresh; invalid ids and parameters are handled in words, never a crash or a 404 page", async (record) => {
+    const issue = await anIssue();
+    const result = (await api("/whatif/results")).body.results[0];
+    const cmp = result ? (await post("/whatif/compare", { result_ids: [result.object_id, result.object_id] })).body : null;
+    const thread = (await post(`/issues/${issue.issue_id}/investigate`, { domain: "corporate" })).body;
+    const saved = (await v4("/saved"))?.items?.[0]?.saved_id ?? (await v4("/saved"))?.[0]?.saved_id ?? "";
+    const legacy = (await fetch(`${API}/api/v1/trace/runs`).then((r) => (r.ok ? r.json() : null)).catch(() => null)) ?? null;
+    const legacyRun = Array.isArray(legacy) ? legacy[0]?.analysis_run_id : legacy?.items?.[0]?.analysis_run_id;
+    const routes = [
+      ["/", "cockpit-v4-home"], ["/ai-model-lab", ""], ["/cockpit/data", ""],
+      saved ? [`/cockpit/saved/${saved}`, ""] : null,
+      [`/cockpit/thread/${thread.thread_id}`, "cockpit-v4-thread"],
+      ["/early-warning", "early-warning-v4"], ["/early-warning/lab", ""], ["/early-warning/signals", ""],
+      [`/issues/${issue.issue_id}`, "issue-detail"], ["/lenses", "lens-library"], ["/lenses/lens-02", "lens-view"],
+      ["/lenses/cro", "lens-view"], ["/messages", "messages-center"], ["/metrics", "metric-catalogue"],
+      ["/monitoring", "monitoring-centre"], ["/scenarios", "scenario-library"], ["/scenarios/new", "scenario-builder"],
+      ["/scenarios/scn-tpl-corp-01", "scenario-detail"], ["/stress", "whatif-workspace"], ["/trace", ""],
+      legacyRun ? [`/trace/${legacyRun}`, ""] : null,
+      ["/trace/object/scn-tpl-corp-01", ""], ["/what-if", "whatif-workspace"],
+      result ? [`/what-if/result/${result.object_id}`, "whatif-result"] : null,
+      cmp?.object_id ? [`/what-if/compare/${cmp.object_id}`, ""] : null,
+    ].filter(Boolean);
+    const invalid = [
+      "/trace/llm-exchange/run-doesnotexist", "/issues/iss-doesnotexist", "/scenarios/scn-doesnotexist", "/lenses/lens-doesnotexist",
+      "/what-if/result/res-doesnotexist", "/what-if/compare/cmp-doesnotexist", "/trace/object/obj-doesnotexist",
+      "/what-if?domain=xyz&cohort=coh-doesnotexist&f=%5Bbad", "/monitoring?view=bogus&severity=nope&alert=alr-nope",
+      "/messages?m=shr-doesnotexist&box=weird", "/metrics?m=M999", "/scenarios?owner=bogus&severity=nope",
+      "/lenses/lens-02?x=%7Bnot-json&sel=%5B", "/what-if/result/res-doesnotexist?method=nope&back=https%3A%2F%2Fevil.example",
+    ];
+    const page = await open();
+    record.routes = [];
+    const broken = (p) => p.evaluate(() => {
+      const t = document.body?.innerText ?? "";
+      return /This page could not be found|Application error|Unhandled Runtime Error|could not be displayed/.test(t) || !t.trim();
+    });
+    for (const [url, testid] of routes) {
+      const mark = page.consoleLog.length;
+      await page.goto(`${UI}${url}`, { waitUntil: "domcontentloaded" });
+      if (testid) await page.waitForSelector(`[data-testid="${testid}"]`, { timeout: 120_000 });
+      else await page.waitForLoadState("load");
+      await page.waitForFunction(() => (document.body?.innerText ?? "").trim().length > 0, null, { timeout: 120_000 });
+      const direct = !(await broken(page));
+      await page.reload({ waitUntil: "domcontentloaded" });
+      if (testid) await page.waitForSelector(`[data-testid="${testid}"]`, { timeout: 120_000 });
+      await page.waitForFunction(() => (document.body?.innerText ?? "").trim().length > 0, null, { timeout: 120_000 });
+      await page.waitForLoadState("networkidle").catch(() => undefined);
+      const refreshed = !(await broken(page));
+      const errors = page.consoleLog.slice(mark).filter((l) => /^(error|pageerror):/.test(l));
+      record.routes.push({ url, kind: "valid", direct, refreshed, console_errors: errors.slice(0, 3), status: direct && refreshed && !errors.length ? "PASS" : "FAILED" });
+    }
+    for (const url of invalid) {
+      const mark = page.consoleLog.length;
+      await page.goto(`${UI}${url}`, { waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => (document.body?.innerText ?? "").trim().length > 40, null, { timeout: 120_000 });
+      await page.waitForLoadState("networkidle").catch(() => undefined);
+      const ok = !(await broken(page));
+      const lines = page.consoleLog.slice(mark);
+      const unexpected = lines.filter((l) => /^(error|pageerror):/.test(l) && !/Failed to load resource: the server responded with a status of (404|422)/.test(l));
+      // The browser's own line for the deliberately missing object is the expected 404/422.
+      page.consoleLog.splice(mark, lines.length, ...lines.filter((l) => !/Failed to load resource: the server responded with a status of (404|422)/.test(l)));
+      const offsite = new URL(page.url()).origin !== new URL(UI).origin;
+      record.routes.push({ url, kind: "invalid", direct: ok, refreshed: null, console_errors: unexpected.slice(0, 3), status: ok && !unexpected.length && !offsite ? "PASS" : "FAILED" });
+    }
+    const failed = record.routes.filter((r) => r.status !== "PASS");
+    assert.deepEqual(failed.map((f) => `${f.url}: ${JSON.stringify(f)}`.slice(0, 300)), [], "every route and every invalid input is handled");
+  });
+}
+
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
   try {
@@ -3296,6 +3373,7 @@ async function main() {
     await backJourneys();
     await goldJourneys();
     await plotlyAudit();
+    await routeSweep();
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

@@ -1,0 +1,228 @@
+{
+  "at": "2026-10-02T18:10:21Z",
+  "gates": [
+    {
+      "gate": "tenant isolation (access rule)",
+      "file": "backend/workspace/objects.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_objects.py::test_private_objects_are_invisible_to_colleagues_and_other_tenants",
+        "tests/cockpit_v4/test_gw_objects.py::test_tenant_wide_objects_stay_inside_their_tenant",
+        "tests/cockpit_v4/test_gw_whatif.py::test_another_tenants_cohort_cannot_be_named"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "3 passed in 2.58s",
+      "mutated_run": "1 failed, 1 passed in 0.85s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "tenant isolation (store scope)",
+      "file": "backend/workspace/store.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_objects.py::test_tenant_wide_objects_stay_inside_their_tenant"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 1.76s",
+      "mutated_run": "1 failed in 0.78s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "method selection (no silent Delta)",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_runs.py::test_uat01_workspace_confirmed_with_no_method_stops_at_method_selection",
+        "tests/cockpit_v4/test_gw_runs.py::test_an_empty_method_choice_stays_at_method_selection"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "2 passed in 2.94s",
+      "mutated_run": "1 failed, 1 passed in 2.93s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "scenario lineage",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 7.10s",
+      "mutated_run": "1 failed in 5.70s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "metric formula",
+      "file": "backend/workspace/metric_catalog.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "2 passed in 4.13s",
+      "mutated_run": "1 failed in 2.09s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "breach evaluation",
+      "file": "backend/workspace/lenses.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_monitoring.py::test_threshold_comparisons_are_exact"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "12 passed in 0.65s",
+      "mutated_run": "1 failed, 1 passed in 0.77s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "LLM Exchange sanitisation",
+      "file": "backend/llm/exchange.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_llm_exchange.py::test_no_credential_reaches_the_store",
+        "tests/cockpit_v4/test_gw_secret_leak.py::test_no_canary_reaches_any_store_file"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "2 passed in 7.33s",
+      "mutated_run": "1 failed in 0.97s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "cohort identity",
+      "file": "backend/workspace/cohorts.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_whatif.py::test_adoption_refuses_a_moved_membership"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 2.16s",
+      "mutated_run": "1 failed in 2.64s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "V4 persistence boundary (approved fix)",
+      "file": "backend/cockpit_v4/run_store.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_bytes_in_the_database_wal_or_shm"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 1.77s",
+      "mutated_run": "1 failed in 1.69s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "governance ledger",
+      "file": "backend/workspace/store.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_trace.py::test_every_governed_write_is_chained_and_verifies"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 0.86s",
+      "mutated_run": "1 failed in 0.77s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "tornado sign preservation",
+      "file": "backend/workspace/macro_sensitivity.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_macro_tornado.py::test_signs_are_preserved_as_fitted"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 2.11s",
+      "mutated_run": "1 failed in 2.21s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "ML input labels apart from drivers (DECOMP10)",
+      "file": "backend/cockpit_v4/scenario/bridge.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_whatif_bridge.py::test_p9b_a_feature_never_appears_as_an_attribution_driver"
+      ],
+      "interpreter": "candidate (.venv-whatif)",
+      "clean_run": "1 passed, 14 warnings in 3.98s",
+      "mutated_run": "1 failed, 14 warnings in 3.80s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "EWS reasons evaluate each rule's own condition",
+      "file": "backend/workspace/metrics.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_lens_content.py::test_m069_reasons_match_each_rule_recomputed"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "2 passed in 3.71s",
+      "mutated_run": "1 failed in 2.08s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "selected scope = total book",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_runs.py::test_decomp21_selected_scope_equal_to_the_book_is_one_population"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "2 passed in 3.95s",
+      "mutated_run": "1 failed, 1 passed in 3.50s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "unrunnable scenario refused (VAL-DEF-010)",
+      "file": "backend/workspace/runs.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_010_a_conflict_template_is_refused_before_a_run_exists",
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_010_a_retired_scenario_is_not_run"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "2 passed in 4.28s",
+      "mutated_run": "1 failed in 4.10s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "binding is idempotent (VAL-DEF-016)",
+      "file": "backend/workspace/scenarios.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_016_rebinding_reuses_the_binding"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 4.40s",
+      "mutated_run": "1 failed in 4.01s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "an unevaluable Lens rule is refused (VAL-DEF-013)",
+      "file": "backend/workspace/lenses.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_an_unevaluable_lens_rule_is_refused_on_save"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "5 passed in 10.21s",
+      "mutated_run": "1 failed in 5.07s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a wrong-type filter is a 422 (VAL-DEF-012)",
+      "file": "backend/workspace/grid.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_a_wrong_type_filter_value_is_422_in_plain_words"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 2.30s",
+      "mutated_run": "1 failed in 2.74s",
+      "restored": true,
+      "result": "KILLED"
+    }
+  ],
+  "all_killed": true,
+  "tree_clean_of_mutations": true
+}
