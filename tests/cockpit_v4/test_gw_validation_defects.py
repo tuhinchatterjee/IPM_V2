@@ -18,7 +18,7 @@ import zipfile
 
 import pytest
 
-from backend.workspace import access, monitoring, scenarios, service
+from backend.workspace import access, scenarios, service
 from backend.workspace.store import WorkspaceStore
 from tests.cockpit_v4.conftest import ScriptedProvider
 from tests.cockpit_v4.test_gw_runs import (  # noqa: F401 (fixtures)
