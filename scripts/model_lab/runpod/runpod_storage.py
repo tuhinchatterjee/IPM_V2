@@ -124,9 +124,16 @@ PIN_KEYS = ("registry_id", "artifact", "status", "status_reason", "licence",
 RUNPOD_PIN_KEYS = ("served_model_name", "fit", "resource_status", "runtime",
                    "chat_template_present", "chat_template_mentions_tools",
                    "chat_template_markers", "chat_template_sha256",
-                   "chat_template_source")
+                   "chat_template_source", "fit_by_hardware",
+                   "superseded_fits")
+SMOKE_MARKER = ".smoke_passed.json"
+OFFLINE_SMOKE_TEST_FAILED = "OFFLINE_SMOKE_TEST_FAILED"
+RESTORE_BEFORE_SMOKE = "RESTORE_BEFORE_SMOKE_REFUSED"
+#: A smoke run that mostly skipped proves nothing (e.g. data not seeded).
+MAX_SKIPPED_FRACTION = 0.10
 #: Kept across an app rebuild on the same Pod (rebuilt if absent).
-PRESERVE_IN_SOURCE = (".venv", "frontend/node_modules")
+PRESERVE_IN_SOURCE = (".venv", "frontend/node_modules",
+                      "data/cockpit_v4_lake")     # generated; re-verified
 NOT_EXECUTABLE = "APP_ROOT_NOT_EXECUTABLE"
 SQLITE_UNSUPPORTED = "PERSISTENT_SQLITE_UNSUPPORTED"
 MIN_APP_FREE_GB = 30
@@ -542,6 +549,9 @@ def unpack(zip_path: Path, paths: dict[str, str]) -> dict[str, Any]:
     os.replace(new, source)
     if old.exists():
         shutil.rmtree(old)
+    marker = app / SMOKE_MARKER
+    if marker.exists():             # a new source has not been tested yet
+        marker.unlink()
     chmodded = []
     for f in executables:
         target = source / f.relative_to(new)
@@ -550,6 +560,62 @@ def unpack(zip_path: Path, paths: dict[str, str]) -> dict[str, Any]:
         chmodded.append(str(target))
     return {"ok": True, "source": str(source), "kept": kept,
             "chmodded": chmodded}
+
+
+def verify_pristine(paths: dict[str, str]) -> list[str]:
+    """Files of the unpacked source that differ from DEPLOYMENT_MANIFEST.json
+    (the committed bundle). Empty means pristine."""
+    src = Path(paths["CREDITPROBE_SOURCE_ROOT"])
+    man = json.loads((src / "DEPLOYMENT_MANIFEST.json").read_text())
+    return sorted(p for p, f in man["files"].items()
+                  if not (src / p).exists() or _sha(src / p) != f["sha256"])
+
+
+def _deployment_id(paths: dict[str, str]) -> str:
+    return _sha(Path(paths["CREDITPROBE_DEPLOYMENT_DIR"]) / "checksums.sha256")
+
+
+def smoke_pass(paths: dict[str, str], junit: Path) -> dict[str, Any]:
+    """Accept an offline smoke run: zero failures/errors, not mostly
+    skipped, and the source still pristine afterwards. Only then is the
+    marker written that allows persistent state to be restored."""
+    import xml.etree.ElementTree as ET
+
+    out: dict[str, Any] = {"ok": False}
+    try:
+        root = ET.parse(junit).getroot()
+        suite = root if root.tag == "testsuite" else root[0]
+        n = {k: int(suite.get(k) or 0) for k in ("tests", "failures",
+                                                  "errors", "skipped")}
+    except Exception as exc:  # noqa: BLE001
+        return out | {"reason": f"no readable test report: {exc}"}
+    out["summary"] = n
+    if n["tests"] == 0:
+        return out | {"reason": "no test ran"}
+    if n["failures"] or n["errors"]:
+        return out | {"reason": f"{n['failures']} failed, {n['errors']} "
+                                f"errors"}
+    if n["skipped"] > MAX_SKIPPED_FRACTION * n["tests"]:
+        return out | {"reason": f"{n['skipped']}/{n['tests']} skipped"}
+    dirty = verify_pristine(paths)
+    if dirty:
+        return out | {"reason": f"source changed during tests: {dirty[:5]}"}
+    marker = Path(paths["CREDITPROBE_APP_ROOT"]) / SMOKE_MARKER
+    rec = {"deployment_id": _deployment_id(paths), "junit": n,
+           "pristine_verified": True,
+           "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    marker.write_text(json.dumps(rec, indent=1))
+    return {"ok": True, "summary": n, "marker": str(marker)}
+
+
+def restore_allowed(paths: dict[str, str]) -> tuple[bool, str]:
+    marker = Path(paths["CREDITPROBE_APP_ROOT"]) / SMOKE_MARKER
+    if not marker.exists():
+        return False, "offline smoke tests have not passed on this source"
+    rec = json.loads(marker.read_text())
+    if rec.get("deployment_id") != _deployment_id(paths):
+        return False, "smoke pass belongs to a different deployment"
+    return True, ""
 
 
 def restore_pins(paths: dict[str, str]) -> list[str]:
@@ -584,7 +650,9 @@ def restore_pins(paths: dict[str, str]) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     ap.add_argument("action", nargs="?", default="detect",
-                    choices=("detect", "deploy", "unpack", "restore-pins"))
+                    choices=("detect", "deploy", "unpack", "verify-pristine",
+                             "smoke-pass", "restore-pins"))
+    ap.add_argument("--junit", help="smoke-pass: the pytest junit report")
     ap.add_argument("--shell", action="store_true",
                     help="print export lines (report goes to stderr)")
     ap.add_argument("--no-prepare", action="store_true",
@@ -627,7 +695,28 @@ def main(argv: list[str] | None = None) -> int:
               f"executable bit set on {len(r['chmodded'])} files, all under "
               f"{paths['CREDITPROBE_APP_ROOT']}")
         return 0
-    if args.action == "restore-pins":       # after the manifest check
+    if args.action == "verify-pristine":
+        dirty = verify_pristine(paths)
+        if dirty:
+            print(f"{OFFLINE_SMOKE_TEST_FAILED}: the source is not the "
+                  f"committed bundle before tests: {dirty[:10]}")
+            return 11
+        print("source is pristine (every file matches DEPLOYMENT_MANIFEST)")
+        return 0
+    if args.action == "smoke-pass":
+        r = smoke_pass(paths, Path(args.junit or ""))
+        if not r["ok"]:
+            print(f"{OFFLINE_SMOKE_TEST_FAILED}: {r['reason']} "
+                  f"{r.get('summary') or ''}")
+            return 11
+        print(f"offline smoke tests passed {r['summary']}; source still "
+              f"pristine; persistent state may now be restored")
+        return 0
+    if args.action == "restore-pins":       # only after the smoke gate
+        ok, why = restore_allowed(paths)
+        if not ok:
+            print(f"{RESTORE_BEFORE_SMOKE}: {why}")
+            return 10
         pins = restore_pins(paths)
         print(f"pinned identities restored from the volume: "
               f"{', '.join(pins) or 'none'}")

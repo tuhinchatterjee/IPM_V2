@@ -137,6 +137,60 @@ source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE
 - The scripts check presence only.
 - The Model I/O Trace, the reference set, the store and the export packs never contain it; the secret-scrubbing tests cover this.
 
+## Offline smoke gate and resume isolation (live finding, fixed)
+
+**What happened on the live Pod.** On an existing volume, the bootstrap restored the persistent pinned identities into the freshly unpacked source *before* the offline tests ran. The tests then saw real run state instead of the committed fixtures:
+- the real Qwen revision `851bf6e8…` appeared where the fake `aaaa…` was expected;
+- a profile meant to be unpinned read as `READY_E2E`.
+
+**What the bootstrap does now:**
+1. Verify the persistent volume.
+2. Copy and verify the deployment bundle.
+3. Rebuild the source on the Pod.
+4. Verify every file against `DEPLOYMENT_MANIFEST.json`.
+5. Install, seed the deterministic synthetic data, and run the protected-manifest check.
+6. **Run the offline smoke gate:**
+   - The source is re-verified as pristine before the tests run.
+   - The tests run in a clean environment (`env -i`, with an isolated HOME and TMPDIR). No operator variable, persistent runtime, pin, approval, probe or reference set is visible to them.
+   - The run fails if any test fails or errors.
+   - It also fails if more than 10 % of tests skip, so a run without seeded data cannot pass.
+   - The source is verified as pristine again afterwards.
+   - Only then is a smoke-pass marker for this exact deployment written.
+7. **Restore the persistent pins.** `restore-pins` refuses (`RESTORE_BEFORE_SMOKE_REFUSED`) without that marker, and a new unpack deletes the marker.
+8. Continue with the oracles, the vLLM driver gate, pinning with the current-host fit, the runtime preflight and the probes.
+
+If the smoke gate fails, the bootstrap prints **`OFFLINE_SMOKE_TEST_FAILED`** and stops before any vLLM install or probe. No model call and no Opus call is made.
+
+To re-check an existing Pod without reinstalling, run `--smoke-only`. It rebuilds the source, seeds, runs the smoke gate and the gated restore, then stops.
+
+## Hardware-aware fit (A40 48 GB, RTX PRO 6000 96 GB, future hosts)
+
+**Detection.** The bootstrap detects the GPU with `hardware.py detect`. It records the following in `runtime/hardware/CURRENT_HOST.json`, plus an append-only history:
+- the GPU model and total memory;
+- the usable budget (90 %);
+- the driver and CUDA version;
+- the fit method.
+
+The pin step reads that record. It never reads `nvidia-smi` itself, so tests and other machines are never affected by the GPU they run on. With no record, the historical A40 is assumed, and that assumption is labelled.
+
+**Method.** The A40 method is unchanged: weights + KV cache at the configured context (2-byte KV) + 3 GB overhead must be ≤ 90 % of GPU memory. On the live RTX PRO 6000 Blackwell (97 887 MiB = 102.6 GB), the budget is 92.4 GB.
+
+**Where the evidence is kept:**
+- `runpod.fit` / `runpod.resource_status`: the A40 evidence, exactly as recorded. It is never rewritten.
+- `runpod.fit_by_hardware[<hardware id>]`: one entry per hardware (`A40_48GB`, `RTX_PRO_6000_BLACKWELL_96GB`, …). Each is written once and then kept. A re-pin to a new revision moves the old evidence to `superseded_fits`.
+- `runpod.current_host`: this host's result, labelled `FITS_<hw>` or `RESOURCE_BLOCKED_<hw>`.
+
+**Current host only.** Only the current host decides probe eligibility, both in `registry.readiness` and in the pin step. Measured A40 blocks therefore stay `RESOURCE_BLOCKED_A40` as evidence, for example gpt-oss-20b at full precision and Qwen ~27B in bf16. On 96 GB they are computed independently and are probed only if they fit. Precision and quantisation are never changed.
+
+**Report.** Every model row carries:
+- hardware id, GPU, VRAM, driver and CUDA;
+- vLLM, torch, torch CUDA and Transformers versions;
+- the current-host fit and its detail, plus the fit for every hardware;
+- the failure class;
+- the median latency per question and the peak VRAM.
+
+`deployment_evidence.csv` lists model × hardware fit rows, so Mac 16 GB, A40 48 GB, RTX PRO 6000 96 GB and later hosts can be compared. Each checkpoint run records the hardware it ran on, and each cell records its `hardware_id`.
+
 ## vLLM runtime on RunPod (live findings and how they are handled)
 
 **What the live A40 host showed.** The host had NVIDIA driver 570.211.01, which supports CUDA 12.8. The standard vLLM 0.30.0 wheel pins `torch==2.13.0`, and its PyPI build depends on `cuda-toolkit==13.0.3`, a CUDA 13.0 runtime. Every model therefore failed with "The NVIDIA driver on your system is too old (found version 12080)". CUDA 13.0 requires Linux driver **>= 580.65.06** (NVIDIA CUDA Toolkit release notes).
@@ -214,7 +268,7 @@ Only a machine-readable OSI-style id is `LICENSE_OK`. Anything else stays `LICEN
 | Exact identity | `PIN_BLOCKED` (no unique official match, unreachable, no immutable sha) | Operator names the repository with `--repo <id>=<Org/Repo>` and re-pins |
 | Immutable revision | not runnable (`NOT_INSTALLED`, "not pinned") | Pinning records the commit sha; "main" or "latest" is never used |
 | Licence | `LICENSE_REVIEW_REQUIRED`, which shows as `NEEDS_APPROVAL` | Review the terms, then `approve.py grant license:<profile-id>` |
-| A40 fit | `RESOURCE_BLOCKED_A40` (weights + KV cache at the served context + 3 GB overhead > 90 % of 48 GB) | Only a separately registered quantised variant, e.g. `qwen3.8-27b-runpod--awq-4bit`, with its own pin |
+| Current-host fit | `RESOURCE_BLOCKED_<hardware>` (weights + KV cache at the served context + 3 GB overhead > 90 % of the detected GPU memory; A40 evidence kept separately) | A larger host, or a separately registered quantised variant, e.g. `qwen3.8-27b-runpod--awq-4bit`, with its own pin |
 | Host driver | `HOST_DRIVER_INCOMPATIBLE` (driver below 580.65.06 for the CUDA 13.0 runtime) | Redeploy the Pod on a host with a compatible driver |
 | Runtime | `VLLM_RUNTIME_INCOMPATIBLE` / `TRANSFORMERS_INCOMPATIBLE` (environment differs from the lock; model module fails to import) | Rebuild the Pod-local vLLM venv from the bundle; never patch site-packages |
 | Tool calling | `TOOL_PARSER_MISSING` / `MODEL_TOOL_ROUNDTRIP_FAILED` (no registered parser; forced tool use, round trip, stop mapping) | Fix the parser assignment per the model card and the vLLM registry, then re-probe |

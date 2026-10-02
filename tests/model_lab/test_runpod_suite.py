@@ -299,8 +299,19 @@ def test_report_with_a_partial_and_blocked_suite(mini_run):
     assert models["minicpm5-2b-runpod"]["RUN_STATUS"] == "SKIPPED"
     assert models["qwen3.8-27b-runpod"]["RUN_STATUS"] == "SKIPPED"
     for k in ("PARAMETERS", "QUANTIZATION", "EXACT_REVISION",
-              "LICENSE_STATUS", "RUNTIME", "CONTEXT", "VRAM_PEAK_MIB"):
+              "LICENSE_STATUS", "RUNTIME", "CONTEXT", "VRAM_PEAK_MIB",
+              "HARDWARE_ID", "GPU", "VRAM_MIB", "DRIVER", "CUDA", "VLLM",
+              "TORCH", "TRANSFORMERS", "FIT_CURRENT_HOST", "FIT_BY_HARDWARE",
+              "FAILURE_CLASS", "LATENCY_MEDIAN_S_PER_QUESTION"):
         assert k in models["fixture-reference"]
+    assert models["fixture-reference"]["LATENCY_MEDIAN_S_PER_QUESTION"] > 0
+    assert models["minicpm5-2b-runpod"]["FAILURE_CLASS"] == "SKIPPED"
+    assert rep["current_host"]["hardware_id"] == "A40_48GB"   # assumed here
+    assert rep["current_host"]["assumed"] is True
+    assert isinstance(rep["deployment_evidence"], list)
+    assert (out / "deployment_evidence.csv").exists()
+    assert rep["hardware_runs"] and \
+        rep["hardware_runs"][0]["hardware_id"] == "A40_48GB"
     cells = {(c["profile_id"], c["lane"], c["question_id"]): c
              for c in rep["cells"]}
     assert len(cells) == 3 * 2 * 2

@@ -230,7 +230,8 @@ def _keep_pin(new: dict, path: Path) -> dict:
 RUNPOD_PIN_KEYS = ("served_model_name", "fit", "resource_status", "runtime",
                    "chat_template_present", "chat_template_mentions_tools",
                    "chat_template_markers", "chat_template_sha256",
-                   "chat_template_source")
+                   "chat_template_source", "fit_by_hardware",
+                   "superseded_fits")
 
 
 def main() -> int:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CreditProbe Model Lab — RunPod A40 bootstrap (full Model I/O Trace).
+# CreditProbe Model Lab — RunPod GPU bootstrap (full Model I/O Trace; A40 48 GB, RTX PRO 6000 96 GB, ...).
 #
 #   bash RUNPOD_BOOTSTRAP.sh [--storage-check] [--prepare-only] [--skip-browser]
 #                            [--skip-probe] [--skip-vllm] [--no-start]
@@ -34,12 +34,23 @@
 # it in every new shell. It never contains a credential.
 #   --storage-check  stop after the storage verdict
 #   --prepare-only   stop after deployment + app rebuild (before installs)
+#   --smoke-only     deployment + app rebuild + offline smoke gate + gated
+#                    pin restore, then stop (uses the existing .venv)
 #
-# Then: GPU check, Python/Node installs (app root only), seeding,
-# protected-manifest check, offline smoke test, oracle artifacts, the
+# OFFLINE SMOKE GATE. The offline tests run against the PRISTINE committed
+# bundle (verified file by file against DEPLOYMENT_MANIFEST.json before and
+# after), in a clean environment (env -i), with isolated HOME/TMPDIR.
+# Persistent pinned identities are restored into the source profiles ONLY
+# after the gate passes (restore-pins refuses otherwise). A failure prints
+# OFFLINE_SMOKE_TEST_FAILED and stops before any vLLM install or probe.
+#
+# Then: GPU + hardware identity (RTX PRO 6000 96 GB, A40 48 GB, ...),
+# Python/Node installs (app root only), seeding, protected-manifest check,
+# the offline smoke gate, the gated pin restore, oracle artifacts, the
 # GPU DRIVER / CUDA gate for vLLM 0.30.0 (VLLM_HOST_DRIVER_INCOMPATIBLE stops
 # before any vLLM install or probe; nothing is worked around), the vLLM
-# environment (verified wheel, CI-locked dependencies), pin + A40 fit, the
+# environment (verified wheel, CI-locked dependencies), pin + CURRENT-HOST
+# fit (historical A40 evidence kept separately), the
 # runtime preflight (versions, parser registry, model imports; manifest on
 # the volume), probes (downloads pinned checkpoints into the persistent
 # model cache), OPUS REFERENCE preflight, suite plan, lab start.
@@ -56,10 +67,12 @@
 set -euo pipefail
 
 SKIP_BROWSER=0; WITH_VLLM=1; START=1; PROBE=1; STORAGE_ONLY=0; PREPARE_ONLY=0
+SMOKE_ONLY=0
 for a in "$@"; do
   case "$a" in
     --storage-check) STORAGE_ONLY=1 ;;
     --prepare-only) PREPARE_ONLY=1 ;;
+    --smoke-only) SMOKE_ONLY=1 ;;
     --skip-browser) SKIP_BROWSER=1 ;;
     --with-vllm) WITH_VLLM=1 ;;
     --skip-vllm) WITH_VLLM=0 ;;
@@ -129,18 +142,65 @@ bad = [p for p, f in m["files"].items()
 assert not bad, bad[:5]
 print(f"  {len(m['files'])} files match the manifest (source {m['source_commit'][:12]})")
 EOF
-storage "$DEPLOY/runpod_storage.py" restore-pins || die "pin restore failed"
-ok "app source at $APP (executables marked there only)"
+ok "app source at $APP: the committed bundle, pristine (persistent pins NOT applied yet)"
 if [ "$PREPARE_ONLY" = 1 ]; then
   echo "prepare only (--prepare-only): stopping before installs"
   exit 0
 fi
 
-echo "== 3b. GPU"
+# ---- offline smoke gate: pristine source, isolated environment ----------------
+# The smoke tests must see exactly the committed bundle: no persistent pins,
+# approvals, probes, reference sets, runtime state or operator variables.
+# Persistent pinned identities are applied ONLY after this gate passes.
+smoke_gate() {
+  local py="${CREDITPROBE_SMOKE_PYTHON:-$APP/.venv/bin/python}"
+  local targets="${CREDITPROBE_SMOKE_TARGETS:-tests/model_lab --ignore=tests/model_lab/browser}"
+  local tmp="$CREDITPROBE_APP_ROOT/tmp/smoke-$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir -p "$tmp/home" "$tmp/tmp"
+  if ! storage "$DEPLOY/runpod_storage.py" verify-pristine; then
+    echo "OFFLINE_SMOKE_TEST_FAILED: source is not pristine before the smoke tests"
+    echo "  stopping before vLLM install and probe; no model call, no Opus call"
+    exit 11
+  fi
+  echo "  running in a clean environment (env -i), HOME/TMPDIR under $tmp"
+  local rc=0
+  # shellcheck disable=SC2086
+  (cd "$APP" && env -i PATH="$PATH" HOME="$tmp/home" TMPDIR="$tmp/tmp" \
+      LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+      COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 MODEL_LAB_FULL_IO_TRACE=true \
+      "$py" -m pytest -q -p no:cacheprovider --junitxml="$tmp/junit.xml" \
+      $targets) || rc=$?
+  if ! storage "$DEPLOY/runpod_storage.py" smoke-pass --junit "$tmp/junit.xml"; then
+    echo "OFFLINE_SMOKE_TEST_FAILED (pytest exit $rc; report $tmp/junit.xml)"
+    echo "  stopping before vLLM install and probe; no model call, no Opus call"
+    exit 11
+  fi
+  ok "offline smoke tests passed on the pristine bundle"
+  echo "== 7b. Restore persistent pinned identities (only now, after the smoke gate)"
+  storage "$DEPLOY/runpod_storage.py" restore-pins || die "pin restore refused"
+}
+
+if [ "$SMOKE_ONLY" = 1 ]; then
+  echo "== 7. Offline smoke gate (--smoke-only: no GPU or installs)"
+  SMOKE_PY="${CREDITPROBE_SMOKE_PYTHON:-$APP/.venv/bin/python}"
+  [ -x "$SMOKE_PY" ] || die "--smoke-only needs the Pod-local .venv (run the full bootstrap once)"
+  if [ -f scripts/cockpit_v4/seed_domains.py ]; then
+    # the tests need the deterministic synthetic data (never persistent state)
+    (export COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4
+     "$SMOKE_PY" scripts/cockpit_v4/seed_domains.py --verify >/dev/null 2>&1 \
+       || "$SMOKE_PY" scripts/cockpit_v4/seed_domains.py >/dev/null) \
+      || die "seeding the synthetic data failed"
+  fi
+  smoke_gate
+  echo "smoke only (--smoke-only): stopping after the gated restore"
+  exit 0
+fi
+
+echo "== 3b. GPU and hardware identity (persisted; drives the current-host fit)"
 command -v nvidia-smi >/dev/null || die "nvidia-smi not found: not a GPU pod"
-nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader \
-  | tee /dev/stderr | grep -qi "A40" || echo "  WARN GPU is not an A40; the suite's memory arithmetic assumes 48 GB"
-ok "NVIDIA GPU present"
+python3 scripts/model_lab/runpod/hardware.py detect --runtime-dir "$RUNTIME" \
+  || die "GPU memory could not be detected"
+ok "hardware recorded in $RUNTIME/hardware/CURRENT_HOST.json"
 
 echo "== 4. Python and Node dependencies (app root only)"
 if ! command -v uv >/dev/null; then python3 -m pip install -q uv || true; fi
@@ -170,19 +230,8 @@ ok "synthetic releases published and verified"
 echo "== 6. Protected manifest (frozen AdvancedCockpit unchanged)"
 .venv/bin/python scripts/model_lab/protected_manifest.py --check-bundle || die "protected manifest check failed"
 
-echo "== 7. Offline fixture smoke test (no model)"
-# The smoke tests use their own temporary stores: never the persistent
-# runtime, reference set, evidence directory or pinned identities.
-env -u MODEL_LAB_RUNTIME_DIR -u MODEL_LAB_REFERENCE_SET_DIR -u LAB_EVIDENCE_DIR \
-  -u MODEL_LAB_PINNED_PROFILES_DIR -u CREDITPROBE_APP_ROOT \
-  .venv/bin/python -m pytest -q -p no:cacheprovider \
-  tests/model_lab/test_model_io_trace.py tests/model_lab/test_observer_neutrality.py \
-  tests/model_lab/test_saved_reference.py tests/model_lab/test_assisted_lane.py \
-  tests/model_lab/test_benchmark_oracles.py tests/model_lab/test_runpod_suite.py \
-  tests/model_lab/test_opus_reference_set.py tests/model_lab/test_runpod_storage.py \
-  tests/model_lab/test_runpod_execution_storage.py tests/model_lab/test_vllm_runtime.py \
-  || die "fixture smoke test failed"
-ok "fixture smoke test passed (full Model I/O Trace, oracles, ASSISTED_V1, suite runner, Opus reference gate)"
+echo "== 7. Offline smoke gate: ALL offline lab tests on the pristine bundle (no model)"
+smoke_gate
 
 echo "== 8. Suite preparation: independent oracle artifacts"
 mkdir -p "$RUNTIME"
@@ -219,7 +268,7 @@ elif [ "$VLLM_STATE" = READY ]; then
   echo "  vLLM not installed (--skip-vllm); serve.sh expects $VENV_VLLM/bin/vllm"
 fi
 
-echo "== 10. Checkpoint pin + A40 fit preflight (metadata only, no weights)"
+echo "== 10. Checkpoint pin + CURRENT-HOST fit (metadata only, no weights; historical A40 evidence kept)"
 .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir "$RUNTIME" \
   || echo "  WARN pinning reported errors; see $RUNTIME/pins/ROSTER.json"
 

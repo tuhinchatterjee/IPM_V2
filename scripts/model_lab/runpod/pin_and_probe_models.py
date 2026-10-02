@@ -54,13 +54,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import hardware  # noqa: E402
 import vllm_runtime as vr  # noqa: E402
 
 PROFILES = ROOT / "profiles"
 SUITE = PROFILES / "_runpod_suite.json"
 DEFAULT_RUNTIME = ROOT / "artifacts" / "model_comparison" / "runtime"
 HF = "https://huggingface.co"
-A40_GB = 48.0
+A40_GB = 48.0                   # historical benchmark hardware
 USABLE_FRACTION = 0.90          # vLLM gpu_memory_utilization
 OVERHEAD_GB = 3.0               # CUDA context, graphs, activations
 OSI = {"apache-2.0", "mit", "bsd-3-clause", "bsd-2-clause", "bsd",
@@ -187,9 +188,13 @@ def _license(info: dict) -> str | None:
     return str(lic).lower() if lic else None
 
 
-def pin(repo: str, fetch: Fetch) -> dict[str, Any]:
-    info = fetch(f"{HF}/api/models/{repo}?blobs=true")
+def pin(repo: str, fetch: Fetch, revision: str | None = None
+        ) -> dict[str, Any]:
+    info = fetch(f"{HF}/api/models/{repo}/revision/{revision}?blobs=true"
+                 if revision else f"{HF}/api/models/{repo}?blobs=true")
     sha = info["sha"]
+    if revision and sha != revision:
+        raise ValueError(f"{repo}: asked for {revision}, got {sha}")
     files = info.get("siblings") or []
     weights = [{"file": f["rfilename"], "bytes": f.get("size"),
                 "sha256": (f.get("lfs") or {}).get("sha256")}
@@ -266,32 +271,105 @@ def pin(repo: str, fetch: Fetch) -> dict[str, Any]:
 # ---- 4. fit ----------------------------------------------------------------------
 
 def fit(p: dict[str, Any], *, context: int, max_output: int,
-        kv_bytes: int = 2) -> dict[str, Any]:
-    c = p["config"]
-    layers = c.get("num_hidden_layers") or 0
-    heads = c.get("num_attention_heads") or 0
-    kv_heads = c.get("num_key_value_heads") or heads
-    head_dim = c.get("head_dim") or ((c.get("hidden_size") or 0) //
-                                     max(1, heads))
-    native = p.get("native_context") or context
-    ctx = min(context, native)
-    per_token = 2 * layers * kv_heads * head_dim * kv_bytes
-    weights_gb = p["weights_bytes"] / 1e9
-    kv_gb = per_token * ctx / 1e9
-    total = weights_gb + kv_gb + OVERHEAD_GB
-    budget = A40_GB * USABLE_FRACTION
-    known = bool(layers and kv_heads and head_dim and p["weights_bytes"])
-    ok = known and total <= budget and max_output < ctx
-    return {"weights_gb": round(weights_gb, 2), "kv_cache_gb": round(kv_gb, 2),
-            "kv_bytes_per_token": per_token, "context": ctx,
-            "native_context": native, "output_reservation": max_output,
-            "runtime_overhead_gb": OVERHEAD_GB,
-            "total_gb": round(total, 2), "budget_gb": round(budget, 2),
-            "fits": ok, "computable": known,
-            "summary": (f"weights {weights_gb:.1f} GB + KV {kv_gb:.1f} GB "
-                        f"({ctx} tokens) + overhead {OVERHEAD_GB} GB = "
-                        f"{total:.1f} GB vs {budget:.1f} GB usable")
-            if known else "config.json/weights incomplete: fit not computed"}
+        kv_bytes: int = 2, hw: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+    """The A40 methodology (hardware.fit); `hw` defaults to the historical
+    A40, so the original A40 arithmetic is reproduced exactly."""
+    return hardware.fit(p, context=context, max_output=max_output, hw=hw,
+                        kv_bytes=kv_bytes)
+
+
+def _fit_inputs(raw: dict, runtime: Path | None, pid: str,
+                fetch: Fetch | None) -> dict[str, Any] | None:
+    """What the fit needs, for a pin that already exists: recorded on the
+    profile, else the full pin record on the volume, else re-read from the
+    Hub AT THE PINNED REVISION (metadata only)."""
+    art = raw.get("artifact") or {}
+    if art.get("fit_inputs"):
+        return art["fit_inputs"]
+    prev = _previous_pin(runtime, pid)
+    if prev and prev.get("config") and prev.get("weights_bytes"):
+        return {k: prev.get(k) for k in ("config", "weights_bytes",
+                                         "native_context")}
+    if fetch is not None and art.get("repository") and art.get("revision"):
+        try:
+            got = pin(art["repository"], fetch, revision=art["revision"])
+            return {k: got.get(k) for k in ("config", "weights_bytes",
+                                            "native_context")}
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
+def _previous_pin(runtime: Path | None, pid: str) -> dict | None:
+    if runtime is None:
+        return None
+    try:
+        return json.loads((runtime / "pins" / f"{pid}.json").read_text()
+                          ).get("pin")
+    except (OSError, ValueError):
+        return None
+
+
+def apply_fits(raw: dict, inputs: dict | None, hw: dict[str, Any]
+               ) -> dict[str, Any]:
+    """Hardware-specific fit evidence on the profile:
+
+    runpod.fit / runpod.resource_status   the A40 evidence, exactly as it
+                                          was recorded (never rewritten)
+    runpod.fit_by_hardware[<hw id>]       one entry per hardware, written
+                                          once and then kept as evidence
+    runpod.current_host                   this host's fit; it alone decides
+                                          probe eligibility
+    """
+    rp = raw.setdefault("runpod", {})
+    ctx = int(rp.get("max_model_len") or 32768)
+    mo = int(raw.get("max_output_tokens") or 8192)
+    fbh = rp.setdefault("fit_by_hardware", {})
+    a40 = hardware.A40_ID
+    if rp.get("fit") and a40 not in fbh:
+        fbh[a40] = dict(rp["fit"]) | {
+            "resource_status": rp.get("resource_status"),
+            "hardware_id": a40,
+            "source": "historical A40 evidence (preserved as recorded)"}
+    if inputs is None:
+        cur = {"computable": False, "fits": False,
+               "resource_status": "FIT_NOT_COMPUTED",
+               "hardware_id": hw["hardware_id"],
+               "summary": "fit inputs unavailable for this pin"}
+    else:
+        cur = fit(inputs, context=ctx, max_output=mo, hw=hw)
+    cur["source"] = ("computed for the current host" +
+                     (" (hardware assumed: no detection recorded)"
+                      if hw.get("assumed") else ""))
+    cur["host"] = {k: hw.get(k) for k in (
+        "gpu", "memory_total_mib", "vram_gb_for_fit", "usable_budget_gb",
+        "driver_version", "host_cuda", "fit_method", "detected_at",
+        "source")}
+    if hw["hardware_id"] not in fbh:
+        fbh[hw["hardware_id"]] = cur
+    if a40 not in fbh and inputs is not None:
+        fbh[a40] = fit(inputs, context=ctx, max_output=mo) | {
+            "source": "computed (nominal A40 48 GB) for cross-hardware "
+                      "comparison"}
+    if not rp.get("fit") and a40 in fbh:        # first A40 evidence
+        rp["fit"] = {k: v for k, v in fbh[a40].items() if k != "source"}
+        rp["resource_status"] = fbh[a40]["resource_status"]
+    rp["current_host"] = cur
+    hist = (fbh.get(a40) or {}).get("resource_status")
+    if cur["resource_status"].startswith("RESOURCE_BLOCKED"):
+        raw["status"] = "BLOCKED_RESOURCE"
+        raw["status_reason"] = f"{cur['resource_status']}: {cur['summary']}"
+    else:
+        raw["status"] = "NOT_INSTALLED"
+        raw["status_reason"] = (
+            f"pinned; {cur['resource_status']}"
+            + ("" if cur.get("computable") else f" ({cur['summary']})")
+            + (f"; historical {hist}" if hist and hw["hardware_id"] != a40
+               else "") + "; probe pending")
+    if cur.get("context"):
+        raw["context_tokens"] = cur["context"]
+    return cur
 
 
 # ---- apply -------------------------------------------------------------------------
@@ -311,7 +389,9 @@ def _write(pid: str, raw: dict) -> None:
 
 
 def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
-            repin: bool = False) -> dict[str, Any]:
+            repin: bool = False, hw: dict[str, Any] | None = None,
+            runtime: Path | None = None) -> dict[str, Any]:
+    hw = hw or hardware.current(runtime)
     path = PROFILES / f"{pid}.json"
     raw = json.loads(path.read_text())
     art, rp = raw["artifact"], raw["runpod"]
@@ -322,8 +402,20 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
             not override and not repin:
         # An existing pin is never re-resolved silently: a resumed suite
         # keeps the exact revision it started with (--repin to change).
+        # Its fit IS recomputed for the current host (evidence per hardware
+        # is kept; the current host decides eligibility).
+        inputs = _fit_inputs(raw, runtime, pid, fetch)
+        if inputs and not art.get("fit_inputs"):
+            art["fit_inputs"] = inputs
+        cur = apply_fits(raw, inputs, hw)
         _write(pid, raw)
+        prev = _previous_pin(runtime, pid)
         return rec | {"pin_status": "PINNED", "kept_existing_pin": True,
+                      "pin": prev, "current_fit": cur,
+                      "fit_by_hardware": rp.get("fit_by_hardware"),
+                      "historical_a40_status": (rp.get("fit_by_hardware") or
+                                                {}).get(hardware.A40_ID, {})
+                      .get("resource_status"),
                       "repository": art.get("repository"),
                       "revision": art["revision"],
                       "license": art.get("license"),
@@ -331,8 +423,8 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
                       "parameters": art.get("parameters"),
                       "architecture": art.get("architecture"),
                       "native_context": art.get("native_context"),
-                      "fit": rp.get("fit"),
-                      "resource_status": rp.get("resource_status"),
+                      "fit": cur,
+                      "resource_status": cur["resource_status"],
                       "license_evidence": art.get("license_evidence")}
     repo, why = resolve(raw, fetch, override)
     if repo is None:
@@ -346,8 +438,16 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
     if override or not src.get("repository") or src.get("identity_required"):
         p["identity"] = verify_identity(repo, fetch(
             f"{HF}/api/models/{repo}?blobs=true"), fetch, src)[2]
-    f = fit(p, context=int(rp.get("max_model_len") or 32768),
-            max_output=int(raw.get("max_output_tokens") or 8192))
+    inputs = {"config": p["config"], "weights_bytes": p["weights_bytes"],
+              "native_context": p["native_context"]}
+    if art.get("revision") and art["revision"] != p["revision"] and \
+            (rp.get("fit") or rp.get("fit_by_hardware")):
+        # evidence belongs to the revision it was computed for: kept, never
+        # carried over to a different revision
+        rp.setdefault("superseded_fits", []).append({
+            "revision": art["revision"], "fit": rp.pop("fit", None),
+            "resource_status": rp.pop("resource_status", None),
+            "fit_by_hardware": rp.pop("fit_by_hardware", None)})
     art.update({"repository": repo, "revision": p["revision"],
                 "tokenizer_revision": p["tokenizer_revision"],
                 "pin_status": "PINNED", "pin_reason": "",
@@ -358,7 +458,8 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
                 "native_context": p["native_context"],
                 "weights_bytes": p["weights_bytes"],
                 "weights_sha256": {w["file"]: w["sha256"]
-                                   for w in p["weights"]}})
+                                   for w in p["weights"]},
+                "fit_inputs": inputs})
     if p.get("identity"):
         art["identity_verification"] = p["identity"]
     raw["registry_id"] = repo
@@ -368,7 +469,6 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
     raw["identity_source"] = (f"pinned {p['pinned_at']} by "
                               f"pin_and_probe_models.py")
     rp["served_model_name"] = repo
-    rp["fit"] = f
     rp["runtime"] = "vllm"
     rp["chat_template_present"] = p["chat_template_present"]
     rp["chat_template_mentions_tools"] = p["chat_template_mentions_tools"]
@@ -376,18 +476,9 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
               "chat_template_source"):
         rp[k] = p[k]
     art["license_evidence"] = p["license_evidence"]
-    if f["computable"] and not f["fits"]:
-        rp["resource_status"] = "RESOURCE_BLOCKED_A40"
-        raw["status"] = "BLOCKED_RESOURCE"
-        raw["status_reason"] = f"RESOURCE_BLOCKED_A40: {f['summary']}"
-    else:
-        rp["resource_status"] = ("FITS_A40" if f["fits"] else
-                                 "FIT_NOT_COMPUTED")
-        raw["status"] = "NOT_INSTALLED"
-        raw["status_reason"] = ("pinned; " + ("fits the A40" if f["fits"]
-                                              else f["summary"])
-                                + "; probe pending")
-    raw["context_tokens"] = f["context"]
+    if rp.get("resource_status") and not rp.get("fit"):
+        rp.pop("resource_status")     # a pre-pin estimate, not evidence
+    f = apply_fits(raw, inputs, hw)
     _write(pid, raw)
     return rec | {"pin_status": "PINNED", "repository": repo,
                   "revision": p["revision"],
@@ -396,7 +487,11 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
                   "parameters": p["parameters"],
                   "architecture": p["architecture"],
                   "native_context": p["native_context"],
-                  "fit": f, "resource_status": rp["resource_status"],
+                  "fit": f, "resource_status": f["resource_status"],
+                  "current_fit": f,
+                  "fit_by_hardware": rp.get("fit_by_hardware"),
+                  "historical_a40_status": rp["fit_by_hardware"].get(
+                      hardware.A40_ID, {}).get("resource_status"),
                   "chat_template_present": p["chat_template_present"],
                   "pin": p}
 
@@ -569,11 +664,15 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
 
     out_dir = runtime / "pins"
     out_dir.mkdir(parents=True, exist_ok=True)
+    hw = hardware.current(runtime)
+    print(f"current host: {hw['hardware_id']} ({hw.get('gpu')}; "
+          f"{hw.get('vram_gb_for_fit')} GB for fit; "
+          f"{'ASSUMED' if hw.get('assumed') else hw.get('source')})")
     roster = []
     for pid in ids:
         try:
             rec = qualify(pid, fetch, override=overrides.get(pid),
-                          repin=repin)
+                          repin=repin, hw=hw, runtime=runtime)
         except Exception as exc:  # noqa: BLE001 - record and continue
             rec = {"profile_id": pid, "pin_status": "PIN_BLOCKED",
                    "reason": f"{type(exc).__name__}: {exc}"[:400]}
@@ -585,19 +684,20 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
         approvals = registry.load_approvals(runtime)
         licence_ok = rec.get("license_status") == "LICENSE_OK" or \
             f"license:{pid}" in approvals
+        blocked = str(rec.get("resource_status") or "").startswith(
+            "RESOURCE_BLOCKED")
+        rec["hardware_id"] = hw["hardware_id"]
         if do_probe and rec.get("pin_status") == "PINNED" and \
-                rec.get("resource_status") != "RESOURCE_BLOCKED_A40" and \
-                licence_ok:
+                not blocked and licence_ok:
             rec |= serve_and_probe(pid, runtime)
         elif do_probe:
             rec["probe_status"] = (
                 vr.PIN_BLOCKED if rec.get("pin_status") != "PINNED" else
-                vr.RESOURCE_BLOCKED if rec.get("resource_status") ==
-                "RESOURCE_BLOCKED_A40" else vr.LICENSE_REVIEW_REQUIRED)
+                vr.RESOURCE_BLOCKED if blocked
+                else vr.LICENSE_REVIEW_REQUIRED)
             rec["probe_skipped_because"] = (
                 rec.get("reason") or rec.get("resource_status")
-                if rec.get("pin_status") != "PINNED" or rec.get(
-                    "resource_status") == "RESOURCE_BLOCKED_A40"
+                if rec.get("pin_status") != "PINNED" or blocked
                 else "LICENSE_REVIEW_REQUIRED")
         if rec.get("license_status") == "LICENSE_REVIEW_REQUIRED" and \
                 f"license:{pid}" not in approvals:

@@ -70,7 +70,28 @@ exec /bin/chmod "$@"
 '''
 
 
-def _bundle(d: Path, *, flavour: str = "v1") -> Path:
+SMOKE_TEST = r'''
+import json, os, pathlib
+SRC = pathlib.Path(__file__).resolve().parents[1]
+
+
+def test_fixture_profile_is_the_pristine_committed_one():
+    p = json.loads((SRC / "profiles/m-runpod.json").read_text())
+    assert p["artifact"]["revision"] is None          # fake stays unpinned
+    assert p["status"] == "NOT_INSTALLED"
+
+
+def test_no_operator_or_persistent_state_reaches_the_tests():
+    for k in ("MODEL_LAB_PINNED_PROFILES_DIR", "MODEL_LAB_RUNTIME_DIR",
+              "MODEL_LAB_REFERENCE_SET_DIR", "CREDITPROBE_APP_ROOT",
+              "CREDITPROBE_PERSIST_ROOT", "HF_HOME", "HF_TOKEN",
+              "COCKPIT_ANTHROPIC_API_KEY"):
+        assert k not in os.environ, k
+'''
+
+
+def _bundle(d: Path, *, flavour: str = "v1",
+            extra: dict[str, bytes] | None = None) -> Path:
     """A small but real-shaped deployment: zip + bootstrap + storage
     script + manifest + checksums."""
     d.mkdir(parents=True, exist_ok=True)
@@ -84,7 +105,7 @@ def _bundle(d: Path, *, flavour: str = "v1") -> Path:
             "artifact": {"repository": None, "revision": None},
             "runpod": {}}).encode(), 0o644),
         "README.txt": (f"bundle {flavour}\n".encode(), 0o644),
-    }
+    } | {k: (v, 0o644) for k, v in (extra or {}).items()}
     manifest = {"source_commit": hashlib.sha1(flavour.encode()).hexdigest(),
                 "files": {p: {"sha256": hashlib.sha256(b).hexdigest()}
                           for p, (b, _) in files.items()}}
@@ -304,7 +325,8 @@ def test_new_pod_rebuilds_the_app_and_keeps_every_result(pod):
     src = pod.app / "source"
     assert os.access(src / "launchers/START_MODEL_LAB.command", os.X_OK)
     prof = json.loads((src / "profiles/m-runpod.json").read_text())
-    assert prof["artifact"]["revision"] == "a" * 40   # same exact pin
+    assert prof["artifact"]["revision"] is None       # pristine until the
+    #                                                   smoke gate passes
     assert all(c.startswith(str(pod.app) + "/") for c in pod.chmodded())
 
 
@@ -445,4 +467,125 @@ def test_tests_never_write_into_the_operators_volume():
               "CREDITPROBE_APP_ROOT"):
         assert k not in os.environ, k
     boot = (RUNPOD / "RUNPOD_BOOTSTRAP.sh").read_text()
-    assert "-u MODEL_LAB_PINNED_PROFILES_DIR" in boot
+    assert "env -i PATH=" in boot                     # clean test environment
+    assert boot.index("smoke-pass") < boot.index("restore-pins ||")
+
+
+
+# ---- the live RunPod failure: persistent pins leaked into the smoke tests --------
+
+REAL_PIN = "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
+
+
+def _populated_volume(pod: Pod) -> dict[str, str]:
+    """A volume from an earlier Pod: real-looking pins, probes, approvals,
+    a reference set and a checkpoint."""
+    h = pod.home
+    files = {
+        "state/pinned_profiles/m-runpod.json": json.dumps({
+            "profile_id": "m-runpod", "status": "NOT_INSTALLED",
+            "artifact": {"repository": "Qwen/Qwen3.5-4B",
+                         "revision": REAL_PIN, "pin_status": "PINNED"},
+            "runpod": {"fit": {"fits": True},
+                       "resource_status": "FITS_A40"}}),
+        "runtime/probes.json": json.dumps({"m-runpod": {"ok": True}}),
+        "runtime/approvals.json": json.dumps({"license:m-runpod": {}}),
+        "reference_sets/OPUS_REFERENCE_SET_V1.json": '{"questions": {}}',
+        "runtime/benchmark/s/checkpoint.json": '{"cells": {"x": 1}}',
+    }
+    for rel, body in files.items():
+        (h / rel).parent.mkdir(parents=True, exist_ok=True)
+        (h / rel).write_text(body)
+    return {rel: hashlib.sha256((h / rel).read_bytes()).hexdigest()
+            for rel in files}
+
+
+def test_live_failure_smoke_tests_see_pristine_state_before_restore(pod):
+    dep = _bundle(pod.tmp / "upload",
+                  extra={"tests/test_pristine.py": SMOKE_TEST.encode()})
+    # Pod 1 created the volume layout; then the volume holds real state
+    assert pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--prepare-only"
+                    ).returncode == 0
+    before = _populated_volume(pod)
+    shutil.rmtree(pod.app)                              # a new, clean Pod
+    p = pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--smoke-only",
+                 CREDITPROBE_SMOKE_PYTHON=sys.executable,
+                 CREDITPROBE_SMOKE_TARGETS="tests",
+                 HF_TOKEN="hf_" + "x" * 34)
+    out = p.stdout + p.stderr
+    assert p.returncode == 0, out
+    assert "source is pristine" in out
+    assert "offline smoke tests passed" in out          # saw pristine state
+    assert out.index("offline smoke tests passed") < \
+        out.index("pinned identities restored")
+    # persistent state survived byte-identically
+    assert {rel: hashlib.sha256((pod.home / rel).read_bytes()).hexdigest()
+            for rel in before} == before
+    # and only now are the real pins visible for pin/probe work
+    prof = json.loads((pod.app / "source/profiles/m-runpod.json").read_text())
+    assert prof["artifact"]["revision"] == REAL_PIN
+
+
+def test_failed_smoke_tests_stop_before_restore_and_any_model_work(pod):
+    bad = SMOKE_TEST + "\n\ndef test_broken():\n    assert False\n"
+    dep = _bundle(pod.tmp / "upload",
+                  extra={"tests/test_pristine.py": bad.encode()})
+    assert pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--prepare-only"
+                    ).returncode == 0
+    before = _populated_volume(pod)
+    p = pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--smoke-only",
+                 CREDITPROBE_SMOKE_PYTHON=sys.executable,
+                 CREDITPROBE_SMOKE_TARGETS="tests")
+    out = p.stdout + p.stderr
+    assert p.returncode == 11, out
+    assert "OFFLINE_SMOKE_TEST_FAILED" in out
+    assert "pinned identities restored" not in out
+    assert "vllm" not in out.lower().replace("before vllm install", "")
+    prof = json.loads((pod.app / "source/profiles/m-runpod.json").read_text())
+    assert prof["artifact"]["revision"] is None
+    assert {rel: hashlib.sha256((pod.home / rel).read_bytes()).hexdigest()
+            for rel in before} == before
+
+
+def test_restore_refuses_before_the_smoke_gate(pod):
+    dep = _bundle(pod.tmp / "upload")
+    assert pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--prepare-only"
+                    ).returncode == 0
+    _populated_volume(pod)
+    r = subprocess.run([sys.executable, str(pod.home / "deployment" /
+                                            "runpod_storage.py"),
+                        "restore-pins", *pod.env()[
+                            "CREDITPROBE_STORAGE_TEST_ARGS"].split()],
+                       env=pod.env(), capture_output=True, text=True)
+    assert r.returncode == 10 and "RESTORE_BEFORE_SMOKE_REFUSED" in r.stdout
+    prof = json.loads((pod.app / "source/profiles/m-runpod.json").read_text())
+    assert prof["artifact"]["revision"] is None
+
+
+def test_contaminated_source_is_caught_before_the_tests(pod):
+    dep = _bundle(pod.tmp / "upload",
+                  extra={"tests/test_pristine.py": SMOKE_TEST.encode()})
+    assert pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--prepare-only"
+                    ).returncode == 0
+    paths = rs.paths_for(str(pod.g), str(pod.app))
+    _populated_volume(pod)
+    rs.restore_pins(paths)                  # the old, wrong order
+    assert rs.verify_pristine(paths) == ["profiles/m-runpod.json"]
+    import xml.etree.ElementTree as ET
+    junit = pod.tmp / "j.xml"
+    ET.ElementTree(ET.Element("testsuite", tests="2", failures="0",
+                              errors="0", skipped="0")).write(junit)
+    r = rs.smoke_pass(paths, junit)
+    assert r["ok"] is False and "source changed" in r["reason"]
+
+
+def test_mostly_skipped_smoke_run_is_not_a_pass(pod, tmp_path):
+    import xml.etree.ElementTree as ET
+    dep = _bundle(pod.tmp / "upload")
+    assert pod.boot(dep / "RUNPOD_BOOTSTRAP.sh", "--prepare-only"
+                    ).returncode == 0
+    paths = rs.paths_for(str(pod.g), str(pod.app))
+    junit = tmp_path / "j.xml"
+    ET.ElementTree(ET.Element("testsuite", tests="300", failures="0",
+                              errors="0", skipped="290")).write(junit)
+    assert "skipped" in rs.smoke_pass(paths, junit)["reason"]

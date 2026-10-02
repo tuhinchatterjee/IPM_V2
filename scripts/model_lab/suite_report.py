@@ -38,13 +38,48 @@ RANK = {"FAIL": 0, "PARTIAL": 1, "PASS": 2}
 STAGES = ("S1", "S2", "S3", "S4")
 
 
-def _model_row(m: dict, profiles: dict, roster: dict, cp: dict) -> dict:
+def _median(xs: list[float]) -> float | None:
+    xs = sorted(xs)
+    if not xs:
+        return None
+    mid = len(xs) // 2
+    return round(xs[mid] if len(xs) % 2 else (xs[mid - 1] + xs[mid]) / 2, 2)
+
+
+def _model_row(m: dict, profiles: dict, roster: dict, cp: dict,
+               man: dict | None = None, hw: dict | None = None) -> dict:
     pid = m["profile_id"]
     p = (profiles.get(pid).raw if pid in profiles else {})
     art, rp = p.get("artifact") or {}, p.get("runpod") or {}
     pin = roster.get(pid) or {}
     run = (cp.get("models") or {}).get(pid) or {}
+    man, hw = man or {}, hw or {}
+    host = man.get("host") or {}
+    inst = (man.get("installed") or {}).get("versions") or {}
+    cur = rp.get("current_host") or {}
+    lat = [c["finished_at"] - c["started_at"] for k, c in
+           (cp.get("cells") or {}).items() if k.startswith(f"{pid}|")
+           and c.get("state") == "DONE" and c.get("started_at")]
+    failure = (run.get("status") if run.get("status") not in
+               (None, "COMPLETED") else pin.get("probe_status")
+               if pin.get("probe_status") not in (None, "READY_E2E")
+               else None)
     return {
+        "HARDWARE_ID": run.get("hardware_id") or hw.get("hardware_id"),
+        "GPU": run.get("gpu") or hw.get("gpu") or host.get("gpu"),
+        "VRAM_MIB": run.get("memory_total_mib") or hw.get("memory_total_mib"),
+        "DRIVER": hw.get("driver_version") or host.get("driver_version"),
+        "CUDA": hw.get("host_cuda") or host.get("host_cuda"),
+        "VLLM": inst.get("vllm"), "TORCH": inst.get("torch"),
+        "TORCH_CUDA": (man.get("installed") or {}).get("torch_cuda"),
+        "TRANSFORMERS": inst.get("transformers"),
+        "FIT_CURRENT_HOST": cur.get("resource_status"),
+        "FIT_CURRENT_HOST_DETAIL": cur.get("summary"),
+        "FIT_BY_HARDWARE": {h: f.get("resource_status") for h, f in
+                            (rp.get("fit_by_hardware") or {}).items()},
+        "FAILURE_CLASS": failure,
+        "LATENCY_MEDIAN_S_PER_QUESTION": _median(lat),
+        "QUESTIONS_DONE": len(lat),
         "MODEL": m["model"], "MODEL_VARIANT": pid,
         "PARENT": p.get("parent_profile_id"),
         "PARAMETERS": art.get("parameters") or p.get("parameters_total"),
@@ -149,7 +184,26 @@ def build(runtime: Path, suite: dict) -> dict[str, Any]:
                json.loads(roster_path.read_text())["roster"]}
               if roster_path.exists() else {})
     store = LabStore(runtime)
-    models = [_model_row(m, profiles, roster, cp) for m in suite["models"]]
+    sys.path.insert(0, str(ROOT / "scripts" / "model_lab" / "runpod"))
+    import hardware as hwmod
+    hw = hwmod.current(runtime)
+    mp0 = runtime / "vllm_runtime" / "RUNTIME_MANIFEST.json"
+    man0 = json.loads(mp0.read_text()) if mp0.exists() else None
+    models = [_model_row(m, profiles, roster, cp, man0, hw)
+              for m in suite["models"]]
+    # hardware-specific deployment evidence, one row per model x hardware
+    # (Mac 16 GB, A40 48 GB, RTX PRO 6000 96 GB, future hosts)
+    deployment = []
+    for m in suite["models"]:
+        prof = profiles.get(m["profile_id"])
+        rp = (prof.raw if prof else {}).get("runpod") or {}
+        for hid, f in sorted((rp.get("fit_by_hardware") or {}).items()):
+            deployment.append({
+                "profile_id": m["profile_id"], "hardware_id": hid,
+                "resource_status": f.get("resource_status"),
+                "total_gb": f.get("total_gb"), "budget_gb": f.get("budget_gb"),
+                "context": f.get("context"), "source": f.get("source"),
+                "current_host": hid == hw.get("hardware_id")})
     cells = []
     for m in suite["models"]:
         pid = m["profile_id"]
@@ -217,6 +271,8 @@ def build(runtime: Path, suite: dict) -> dict[str, Any]:
                              (man.get("profiles") or {}).items()},
         "manifest": str(mp)}
     return {"suite_id": suite["suite_id"], "hardware": hardware,
+            "current_host": hw, "deployment_evidence": deployment,
+            "hardware_runs": cp.get("hardware_runs") or [],
             "models": models,
             "cells": cells,
             "reference_set": cp.get("reference_set"),
@@ -281,6 +337,14 @@ def write(runtime: Path, suite: dict) -> Path:
             "vs_baseline": json.dumps(c.get("vs_baseline"))
             if c.get("vs_baseline") else ""})
     (out / "cells.csv").write_text(buf.getvalue())
+    dbuf = io.StringIO()
+    dcols = ["profile_id", "hardware_id", "resource_status", "total_gb",
+             "budget_gb", "context", "source", "current_host"]
+    dw = csv.DictWriter(dbuf, fieldnames=dcols, extrasaction="ignore")
+    dw.writeheader()
+    for r in rep["deployment_evidence"]:
+        dw.writerow(r)
+    (out / "deployment_evidence.csv").write_text(dbuf.getvalue())
     (out / "report.html").write_text(_html(rep))
     return out
 

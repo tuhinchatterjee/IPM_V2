@@ -225,10 +225,21 @@ def readiness(profile: Profile, *, approvals: dict[str, Any],
                          [art.get("pin_reason") or "exact identity could "
                           "not be verified"], raw.get("recovery") or "",
                          checks)
-    if rp.get("resource_status") == "RESOURCE_BLOCKED_A40":
+    # Hardware fit: the CURRENT host decides (runpod.current_host); the
+    # historical A40 result (runpod.resource_status) applies only when no
+    # current host has been assessed. Per-hardware evidence stays in
+    # runpod.fit_by_hardware.
+    cur = rp.get("current_host") or {}
+    fit_status = cur.get("resource_status") if cur else \
+        rp.get("resource_status")
+    if str(fit_status or "").startswith("RESOURCE_BLOCKED"):
+        summary = (cur or rp.get("fit") or {}).get("summary") or \
+            raw.get("status_reason")
+        checks["fit"] = {"status": fit_status,
+                         "hardware_id": cur.get("hardware_id") if cur
+                         else "A40_48GB"}
         return Readiness(profile.profile_id, BLOCKED_RESOURCE,
-                         [f"RESOURCE_BLOCKED_A40: "
-                          f"{(rp.get('fit') or {}).get('summary') or raw.get('status_reason')}"],
+                         [f"{fit_status}: {summary}"],
                          raw.get("recovery") or "", checks)
     if art.get("license_status") == "LICENSE_REVIEW_REQUIRED" and \
             f"license:{profile.profile_id}" not in (approvals or {}):

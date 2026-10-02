@@ -250,6 +250,8 @@ def run_model(svc, suite: dict, pid: str, lanes: list[str], qs: list[dict],
             cell = {"state": "FAILED",
                     "error": f"{type(exc).__name__}: {exc}"[:400]}
         cell |= {"started_at": started, "finished_at": time.time(),
+                 "hardware_id": ((cp.get("hardware_runs") or [{}])[-1]
+                                 .get("hardware_id")),
                  "reference_comparison_id": (ref or {}).get(
                      "reference_comparison_id"),
                  "reference_evaluation_revision": (ref or {}).get(
@@ -356,6 +358,9 @@ def main(argv: list[str] | None = None) -> int:
     from backend.model_lab.service import LabService, default_config
 
     svc = LabService(default_config(runtime))
+    sys.path.insert(0, str(ROOT / "scripts" / "model_lab" / "runpod"))
+    import hardware
+    hw = hardware.current(runtime)       # the host this run executes on
     gate = reference_gate(svc, suite, reference_set_path(
         suite, args.reference_set), allow_fixture=args.allow_fixture_reference)
     if gate["missing"]:
@@ -373,6 +378,10 @@ def main(argv: list[str] | None = None) -> int:
         print("DIAGNOSTIC RUN (--allow-missing-opus): cells without a saved "
               "reference carry no Opus agreement; not a production result")
     cp = load_checkpoint(runtime, suite)
+    cp.setdefault("hardware_runs", []).append(
+        {k: hw.get(k) for k in ("hardware_id", "gpu", "memory_total_mib",
+                                "driver_version", "host_cuda", "assumed")}
+        | {"at": time.time()})
     cp["reference_set"] = {k: gate[k] for k in ("set_id", "path", "sha256")} \
         | {"questions": {q: e["reference_comparison_id"]
                          for q, e in gate["refs"].items()},
@@ -406,6 +415,10 @@ def main(argv: list[str] | None = None) -> int:
                 run_model(svc, suite, pid, lanes, p["questions"], cp,
                           runtime, gate["refs"])
             cp["models"][pid] = {"status": "COMPLETED",
+                                 "hardware_id": hw["hardware_id"],
+                                 "gpu": hw.get("gpu"),
+                                 "memory_total_mib": hw.get(
+                                     "memory_total_mib"),
                                  "vram_peak_mib": vram.peak}
             save_checkpoint(runtime, suite, cp)
         finally:
