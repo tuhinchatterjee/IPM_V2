@@ -121,6 +121,29 @@ GATES: list[tuple] = [
      '            or False))',
      ["tests/cockpit_v4/test_gw_runs.py::"
       "test_decomp21_selected_scope_equal_to_the_book_is_one_population"]),
+    # Exhaustive validation round: each fixed defect's guard, broken on purpose.
+    ("unrunnable scenario refused (VAL-DEF-010)", "backend/workspace/runs.py",
+     "    _refuse_unrunnable(book, svc, who, scenario)\n",
+     "    pass\n",
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_010_a_conflict_template_is_refused_before_a_run_exists",
+      "tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_010_a_retired_scenario_is_not_run"]),
+    ("binding is idempotent (VAL-DEF-016)", "backend/workspace/scenarios.py",
+     "        if _bound_to(scenario, cohort):\n",
+     "        if False:\n",
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_016_rebinding_reuses_the_binding"]),
+    ("an unevaluable Lens rule is refused (VAL-DEF-013)",
+     "backend/workspace/lenses.py",
+     "        _check_rule(r, scope)\n", "",
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_an_unevaluable_lens_rule_is_refused_on_save"]),
+    ("a wrong-type filter is a 422 (VAL-DEF-012)", "backend/workspace/grid.py",
+     "    except _FILTER_ERRORS as exc:\n",
+     "    except ZeroDivisionError as exc:\n",
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_a_wrong_type_filter_value_is_422_in_plain_words"]),
 ]
 
 

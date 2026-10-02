@@ -352,7 +352,7 @@ export function WhatIfWorkspace() {
         <section className="rounded-xl border border-accent p-3" data-testid="whatif-conversation" data-thread-id={threadId}>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
             <span className="font-semibold">Conversation</span>
-            <Link href={`/cockpit/thread/${threadId}`} className="text-accent underline" data-testid="whatif-open-thread">
+            <Link href={withBack(`/cockpit/thread/${threadId}`)} className="text-accent underline" data-testid="whatif-open-thread">
               Open full conversation
             </Link>
             <button

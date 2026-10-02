@@ -13,6 +13,7 @@ import { Archive, Loader2, ShieldCheck } from "lucide-react";
 
 import { loadPlotly } from "@/components/viz/plotly-chart";
 import { downloadPackage, snapshotName, type Snapshot } from "@/lib/workspace/trace";
+import { withBack } from "@/lib/workspace/nav";
 
 /** At most this many charts are attached (the server caps the total). */
 const MAX_CHARTS = 10;
@@ -66,7 +67,7 @@ export function ExportPackage({ objectId, scopeSelector, testId = "export-packag
           <input type="checkbox" checked={llm} onChange={(e) => setLlm(e.target.checked)} data-testid={`${testId}-llm`} /> incl. LLM exchange
         </label>
       )}
-      <Link href={`/trace/object/${encodeURIComponent(objectId)}`} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1" data-testid={`${testId}-trace`}>
+      <Link href={withBack(`/trace/object/${encodeURIComponent(objectId)}`)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1" data-testid={`${testId}-trace`}>
         <ShieldCheck className="h-3.5 w-3.5" /> Trace
       </Link>
       {note && <span className="text-positive" data-testid={`${testId}-note`}>{note}</span>}

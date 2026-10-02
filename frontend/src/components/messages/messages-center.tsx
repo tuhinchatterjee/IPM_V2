@@ -263,7 +263,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
     void go(async () => {
       if (a.action === "rerun_latest") {
         const run = await runFromMessage(shareId, { latest: true });
-        router.push(`/what-if?run=${run.object_id}&from=messages`);
+        router.push(withBack(`/what-if?run=${run.object_id}&from=messages`));
       } else if (a.action === "duplicate") {
         const obj = await duplicateFromMessage(shareId);
         setNote({ text: `Your own copy ${obj.object_id} was created (the original is unchanged).`, href: hrefFor(obj) });
@@ -340,11 +340,11 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
           )}
           {panel === "run" && d.object && <RunChooser domain={d.object.domain_id} onRun={(cohortId) => go(async () => {
             const run = await runFromMessage(shareId, cohortId ? { cohort_id: cohortId } : {});
-            router.push(`/what-if?run=${run.object_id}&from=messages`);
+            router.push(withBack(`/what-if?run=${run.object_id}&from=messages`));
           })} />}
           {panel === "compare" && d.object && <ComparePicker domain={d.object.domain_id} period={d.object.period} exclude={d.object.object_id} onCompare={(ids) => go(async () => {
             const c = await compareFromMessage(shareId, ids);
-            router.push(`/what-if/compare/${c.object_id}`);
+            router.push(withBack(`/what-if/compare/${c.object_id}`));
           })} />}
         </>
       )}

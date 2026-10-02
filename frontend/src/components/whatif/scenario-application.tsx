@@ -24,6 +24,7 @@ import {
   type Preview,
   type ScenarioObject,
 } from "@/lib/workspace/scenarios";
+import { withBack } from "@/lib/workspace/nav";
 
 export function ScenarioApplication({
   cohort,
@@ -75,7 +76,7 @@ export function ScenarioApplication({
             : `${scenario.body.name} · ${scenario.body.scope.label ?? scenario.body.scope.type}`}
         </span>
         {bound && (
-          <Link href={`/scenarios/${bound.object_id}`} className="ml-auto text-xs text-accent underline" data-testid="whatif-bound-scenario">
+          <Link href={withBack(`/scenarios/${bound.object_id}`)} className="ml-auto text-xs text-accent underline" data-testid="whatif-bound-scenario">
             {bound.object_id} v{bound.version}
           </Link>
         )}

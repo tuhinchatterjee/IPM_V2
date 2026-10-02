@@ -190,7 +190,24 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             onSubmit={(v) => act(() => reviseScenario(obj.object_id, { name: v }, "renamed"), () => { setPanel(""); setReload((n) => n + 1); })}
           />
         )}
-        {panel === "bind" && <BindPanel domain={obj.domain_id} onBind={(id) => act(() => bindScenario(obj.object_id, id), (out) => router.push(withBack(`/scenarios/${out.scenario.object_id}`)))} />}
+        {panel === "bind" && (
+          <BindPanel
+            domain={obj.domain_id}
+            onBind={(id) =>
+              act(
+                () => bindScenario(obj.object_id, id),
+                (out) => {
+                  setPanel("");
+                  // Your own scenario is bound as a new VERSION of this page's
+                  // object: re-read it here. A template or someone else's is
+                  // bound as a new scenario: open that, with Back to this one.
+                  if (out.scenario.object_id === obj.object_id) setReload((n) => n + 1);
+                  else router.push(withBack(`/scenarios/${out.scenario.object_id}`));
+                },
+              )
+            }
+          />
+        )}
         {panel === "share" && (
           <InlineForm
             label="Share with (user ids, comma-separated)"

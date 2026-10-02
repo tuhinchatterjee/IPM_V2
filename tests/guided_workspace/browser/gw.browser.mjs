@@ -36,6 +36,13 @@ async function journey(id, what, fn) {
   const record = { journey: id, what, prompts: [], screenshots: [], model: "MODEL MOCK (scripted analyst)" };
   try {
     await fn(record);
+    // Validation journeys fail on any console error or uncaught page error
+    // (§32: console errors are never ignored).
+    if (/^GW-(BACK|GOLD|VAL)/.test(id)) {
+      const errors = live.flatMap((p) => p.consoleLog ?? []).filter((l) => /^(error|pageerror):/.test(l));
+      record.console_errors = errors;
+      assert.deepEqual(errors, [], "no console error and no uncaught page error");
+    }
     record.status = "PASS";
     console.log(`  ok   ${id}  ${what}`);
   } catch (error) {
@@ -2577,7 +2584,8 @@ async function backJourneys() {
   });
 
   await journey("GW-BACK-13", "Messages (a shared Lens open) → the Lens → Back → Messages", async (record) => {
-    const lens = (await api("/lenses")).body.lenses.find((l) => l.lens_id === "lens-05") ?? (await api("/lenses")).body.lenses[0];
+    const lens = (await api("/lenses")).body.lenses.find((l) => l.object_id === "lens-05");
+    assert.ok(lens, "the seeded Lens lens-05");
     const shared = await post("/messages", { object_id: lens.object_id, to: ["colleague"], message: "BACK-13" });
     assert.ok(shared.status < 300, `the Lens is shared (${shared.status})`);
     const page = await open();
@@ -2861,7 +2869,9 @@ async function goldJourneys() {
     const run = (await api(`/whatif/runs/${runId}`)).body;
     const result = (await api(`/objects/${run.body.result_id}`)).body;
     assert.deepEqual(result.body.methods.ran, ["delta"]);
-    assert.ok(Object.keys(result.body.methods.unavailable ?? {}).includes("ml"), "the result records ML as unavailable");
+    const refusal = run.body.state_log.find((e) => e.state === "METHOD_UNAVAILABLE");
+    assert.ok(refusal && /ML emulator: UNAVAILABLE/.test(refusal.reason) && /nothing is substituted/.test(refusal.reason), "the run's governance record keeps the ML refusal");
+    assert.ok(run.body.state_log.findIndex((e) => e.state === "METHOD_UNAVAILABLE") < run.body.state_log.findIndex((e) => e.state === "EXECUTED"), "refused before Delta executed");
     assert.ok(reconciles(result));
     // Reopen: the URL carries the run; a fresh load shows the same executed run, no re-execution.
     await page.waitForFunction((id) => new URLSearchParams(location.search).get("run") === id, runId, { timeout: 60_000 });
@@ -2946,9 +2956,18 @@ async function goldJourneys() {
     const rows = await gridApi(cohort.body.filters, { domain: cohort.domain_id });
     assert.equal(rows.total, cohort.body.counts.entities, "the frozen cohort is exactly the rows the selection names");
     await page.click('[data-testid="lens-selection-investigate"]');
-    await page.waitForSelector('[data-testid="investigation-bar"]', { timeout: 120_000 });
+    await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 120_000 });
     record.thread_id = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
-    const whatifCohort = await chipToWhatIf(page);
+    // Root cause: an ordinary turn in that thread, about that population.
+    const question = "Which sectors carry the most reported ECL?";
+    record.prompts.push(question);
+    await page.fill('[data-testid="v4-composer-input"]', question);
+    await page.click('[data-testid="v4-composer-send"]');
+    await settle(page, 0);
+    await page.waitForSelector('[data-testid="thread-whatif-on-cohort"]', { timeout: 120_000 });
+    await page.click('[data-testid="thread-whatif-on-cohort"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id"), null, { timeout: 120_000 });
+    const whatifCohort = await page.getAttribute('[data-testid="whatif-strip-cohort"]', "data-cohort-id");
     const frozen = (await api(`/objects/${whatifCohort}`)).body;
     assert.equal(frozen.body.membership_hash, cohort.body.membership_hash, "the investigation's What-If is on the Lens population");
     const scenario = (await api("/scenarios?domain=corporate&q=CORP-01")).body.scenarios[0];
@@ -3017,8 +3036,9 @@ async function goldJourneys() {
     await page.click('[data-testid="ew-investigate"]');
     await page.waitForSelector('[data-testid="cockpit-v4-thread"]', { timeout: 120_000 });
     const thread = await page.getAttribute('[data-testid="cockpit-v4-thread"]', "data-thread-id");
-    const inv = (await api(`/investigations/by-thread/${thread}`)).body;
-    const invCohort = (await api(`/objects/${inv.cohort_id}`)).body;
+    const seeded = (await api(`/whatif/threads/${thread}/cohort`)).body.seed_cohort_id;
+    assert.ok(seeded, "the conversation is seeded with a governed cohort");
+    const invCohort = (await api(`/objects/${seeded}`)).body;
     assert.equal(invCohort.body.membership_hash, cohort.body.membership_hash, "the investigation reads the same population");
   });
 
@@ -3059,7 +3079,8 @@ async function goldJourneys() {
     const cohort = (await post("/cohorts", { domain: "corporate", name: "GOLD-08", filters: [{ column: "sector", op: "in", values: ["Hotels"] }] })).body;
     const tpl = (await api("/scenarios?domain=corporate&q=CORP-02")).body.scenarios[0];
     const result = (await apiRun(tpl.object_id, `gold08-${Date.now()}`)).result;
-    const lens = (await api("/lenses")).body.lenses.find((l) => l.lens_id === "lens-02");
+    const lens = (await api("/lenses")).body.lenses.find((l) => l.object_id === "lens-02");
+    assert.ok(lens, "the seeded Lens lens-02");
     const ids = { cohort: cohort.object_id, scenario: tpl.object_id, result: result.object_id, lens: lens.object_id };
     const snap = {};
     for (const [k, id] of Object.entries(ids)) {

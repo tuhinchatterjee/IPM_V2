@@ -127,6 +127,25 @@ def tail_has(text: str):
     return judge
 
 
+def inventory_has_no_failure(folder: Path):
+    """The runtime inventory of the browser run: every control a journey
+    clicked, every route it visited, every Back path and every Plotly chart
+    it audited must have passed; untouched controls are PARTIAL, not FAIL."""
+    def judge(log: Path, rc: int) -> tuple[str, str]:
+        if rc != 0 or not (folder / "inventory_summary.json").exists():
+            return "FAIL", "the inventory did not run"
+        s = json.loads((folder / "inventory_summary.json").read_text())
+        failed = {k: v.get("FAILED", 0) for k, v in s.items()
+                  if k.endswith("_by_status") and isinstance(v, dict)}
+        bad = {k: v for k, v in failed.items() if v}
+        return ("PASS" if not bad and s.get("back_paths", 0) >= 22 else
+                "FAIL", json.dumps({k: s[k] for k in (
+                    "controls", "controls_exercised", "routes", "back_paths",
+                    "handoffs", "plotly_rows", "journeys") if k in s}
+                    | {"failed": bad}))
+    return judge
+
+
 COMMIT = ""
 
 
@@ -289,6 +308,11 @@ def main() -> int:
          "cmd": ["bash", "-c", "rm -rf /tmp/cockpit_v4_gw_8444 && "
                  f"{ACCEPTED} scripts/guided_workspace/browser_evidence.py"],
          "judge": tail_has("journeys passed this run")},
+        {"name": "validation_inventory_runtime", "req": "VAL03/VAL05",
+         "cmd": [ACCEPTED, "scripts/guided_workspace/validation_inventory.py",
+                 "--journeys", "docs/guided_workspace/evidence/journeys.json",
+                 "--out", f"{o}/validation"],
+         "judge": inventory_has_no_failure(out / "validation")},
         {"name": "whatif_candidate_browser", "req": "REG05/REG06",
          "cmd": [ACCEPTED, "scripts/whatif/browser_evidence.py",
                  "--domain", "all"]},

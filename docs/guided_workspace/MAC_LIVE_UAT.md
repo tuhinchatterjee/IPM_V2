@@ -20,9 +20,9 @@ regression actually ran on: the commit **before** the evidence commit.
 cd ~/Projects                                  # anywhere outside an existing checkout
 git clone https://github.com/tuhinchatterjee/ipm_v2.git CreditProbe_GW_UAT
 cd CreditProbe_GW_UAT
-git fetch origin claude/guided-workspace-final-gap-closure
-git branch -f claude/guided-workspace-final-gap-closure origin/claude/guided-workspace-final-gap-closure
-EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/guided-workspace-final-gap-closure:docs/guided_workspace/UAT_CANDIDATE.json \
+git fetch origin claude/guided-workspace-exhaustive-validation
+git branch -f claude/guided-workspace-exhaustive-validation origin/claude/guided-workspace-exhaustive-validation
+EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/guided-workspace-exhaustive-validation:docs/guided_workspace/UAT_CANDIDATE.json \
   | python3 -c 'import json,sys;print(json.load(sys.stdin)["expected_guided_uat_sha"])')
 git checkout --detach "$EXPECTED_GUIDED_UAT_SHA"
 git rev-parse HEAD                             # must print the same SHA; note it in your UAT notes

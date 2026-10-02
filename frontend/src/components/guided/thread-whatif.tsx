@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { guidedEnabled } from "@/lib/workspace/guided";
 import { adoptThreadResult, readThreadCohort, type ThreadCohort } from "@/lib/workspace/whatif";
 import { METHOD_LABEL } from "@/lib/workspace/method-labels";
+import { withBack } from "@/lib/workspace/nav";
 
 const METHOD_TURNS: { id: string; label: string; ask: string }[] = [
   { id: "delta", label: METHOD_LABEL.delta, ask: "Run the confirmed scenario with the Delta method." },
@@ -38,6 +39,16 @@ export function ThreadWhatIf({ threadId, busy, turnCount, onAsk }: { threadId: s
       .catch(() => setState(null));
   }, [threadId, turnCount, busy, enabled]);
 
+  if (enabled && state && !state.has_cohort && state.seed_cohort_id) {
+    // Opened on a governed cohort: What-If runs on that exact object.
+    return (
+      <p className="text-right text-xs" data-testid="thread-whatif-seed">
+        <button type="button" onClick={() => router.push(withBack(`/what-if?cohort=${encodeURIComponent(state.seed_cohort_id ?? "")}`))} className="rounded-md border border-accent px-2 py-1 text-accent" data-testid="thread-whatif-on-cohort" data-cohort-id={state.seed_cohort_id}>
+          What-If on this population
+        </button>
+      </p>
+    );
+  }
   if (!enabled || !state?.has_cohort) return null;
   const awaitingMethod = state.method_state === "METHOD_SELECTION_REQUIRED" || state.method_state === "METHOD_INPUT_REQUIRED" || state.method_state === "METHOD_UNAVAILABLE";
 
@@ -46,7 +57,7 @@ export function ThreadWhatIf({ threadId, busy, turnCount, onAsk }: { threadId: s
     setError("");
     try {
       const r = await adoptThreadResult(threadId);
-      router.push(`/what-if/result/${r.object_id}`);
+      router.push(withBack(`/what-if/result/${r.object_id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

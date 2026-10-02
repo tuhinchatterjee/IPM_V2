@@ -259,7 +259,7 @@ export function MonitoringCentre() {
               {data.lens_health.map((l) => (
                 <tr key={l.lens_id} className="border-t border-border" data-testid="monitoring-health-row" data-lens-id={l.lens_id} data-stale={String(l.stale)}>
                   <td className="px-2 py-1">
-                    <Link href={`/lenses/${l.lens_id}`} className="text-accent underline">
+                    <Link href={withBack(`/lenses/${l.lens_id}`)} className="text-accent underline">
                       {l.name}
                     </Link>
                   </td>
@@ -335,7 +335,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
         <dt className="text-text-muted">Metric</dt>
         <dd>
           {b.metric_id ? (
-            <Link href={`/metrics?m=${String(b.metric_id)}`} className="text-accent underline">
+            <Link href={withBack(`/metrics?m=${String(b.metric_id)}`)} className="text-accent underline">
               {String(b.metric_id)} v{String(b.metric_version)} {d.metric}
             </Link>
           ) : (

@@ -53,6 +53,7 @@ export interface SelectionSummary {
 export interface ThreadCohort {
   thread_id: string;
   has_cohort: boolean;
+  seed_cohort_id?: string;
   message?: string;
   entities?: number;
   owners?: number;

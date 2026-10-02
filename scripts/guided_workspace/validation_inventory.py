@@ -5,8 +5,10 @@
         --journeys <journeys.json of the run> \\
         --out docs/guided_workspace/validation
 
-Writes ROUTE_INVENTORY.csv, UI_CONTROL_INVENTORY.csv and
-FUNCTIONALITY_INVENTORY.csv, plus inventory_summary.json.
+Writes ROUTE_INVENTORY.csv, UI_CONTROL_INVENTORY.csv,
+FUNCTIONALITY_INVENTORY.csv, INTEGRATION_HANDOFF_INVENTORY.csv,
+BACK_NAVIGATION_MATRIX.csv and PLOTLY_AUDIT.csv, plus
+inventory_summary.json.
 
 * Routes: every `frontend/src/app/**/page.tsx` of the Guided Workspace
   surfaces, with the query parameters the page and the components it renders
@@ -19,7 +21,14 @@ FUNCTIONALITY_INVENTORY.csv, plus inventory_summary.json.
   carrying its test id (recorded by the harness, never inferred); its status
   is the status of the journeys that clicked it.
 * Functionality: every workspace API endpoint (`backend/workspace/*_api.py`)
-  with the pytest files and browser journeys that call it.
+  with the pytest files and browser journeys that call it (path templates
+  are matched against f-string call sites, so `/scenarios/{id}/clone` is
+  found in `f"{P}/scenarios/{oid}/clone"`).
+* Handoffs: every cross-module navigation in the guided source (a link or a
+  `router.push` from one module to another's route), whether it carries its
+  origin (`withBack`), and the browser journeys that travelled it.
+* Back navigation and Plotly: the rows the browser run recorded
+  (`record.back`, `record.plotly`), copied, never inferred.
 
 Decorative content is not a control: only elements with a handler, an href
 or a form role are listed.
@@ -246,6 +255,54 @@ def scan_routes(journey_src: str) -> list[dict[str, str]]:
     return rows
 
 
+def _path_regex(path: str) -> re.Pattern:
+    """`/scenarios/{object_id}/clone` -> a pattern matching a literal id or
+    any f-string placeholder in that segment, followed by a path end."""
+    parts = [r"(\{[^}]+\}|\$\{[^}]+\}|[A-Za-z0-9_.:-]+)"
+             if re.fullmatch(r"\{[^}]+\}", seg) else re.escape(seg)
+             for seg in path.strip("/").split("/")]
+    return re.compile("/" + "/".join(parts) + r"(?=[\"'`?/]|$)", re.M)
+
+
+HANDOFF = re.compile(
+    r"(?:href=\{?|router\.push\(|leave\(|withBack\()\s*(?:withBack\()?[`\"]"
+    r"(/(?:what-if|scenarios|lenses|monitoring|messages|cockpit/thread|"
+    r"cockpit/trace|metrics|issues|trace|early-warning)[^`\"]*)")
+
+
+def scan_handoffs(visits: dict[str, set[str]]) -> list[dict[str, str]]:
+    rows = []
+    for d in GUIDED_DIRS:
+        for f in sorted((SRC / d).rglob("*.tsx")):
+            rel = str(f.relative_to(SRC))
+            source = _module_of(rel)
+            for n, line in enumerate(f.read_text(encoding="utf-8")
+                                     .splitlines(), 1):
+                for m in HANDOFF.finditer(line):
+                    target = m.group(1)
+                    route = re.sub(r"\$\{[^}]+\}", "[id]",
+                                   target.split("?")[0])
+                    first = route.strip("/").split("/")[0]
+                    dest = ("Trace / LLM Exchange" if route.startswith(
+                        ("/cockpit/trace", "/trace")) else
+                        "Cockpit thread" if route.startswith(
+                            "/cockpit/thread") else MODULE.get(first, first))
+                    if dest == source:
+                        continue
+                    stat = re.sub(r"\[id\]", "[^/]+", route)
+                    hits = sorted(visits.get(stat, set()))
+                    rows.append({
+                        "source_module": source, "file": rel, "line": n,
+                        "target": target[:160], "destination_module": dest,
+                        "carries_origin": "yes" if "withBack(" in line
+                        or "leave(" in line else "no",
+                        "journeys": ";".join(hits)[:300],
+                        "status": ("FAILED" if any(h.endswith(":FAILED")
+                                                   for h in hits) else
+                                   "PASS" if hits else "PARTIAL")})
+    return rows
+
+
 def scan_functionality() -> list[dict[str, str]]:
     rows = []
     tests = {p: p.read_text(encoding="utf-8") for p in
@@ -258,10 +315,9 @@ def scan_functionality() -> list[dict[str, str]]:
                              text):
             method, path = m.group(1).upper(), m.group(2)
             fn = re.search(r"async def (\w+)", text[m.end():m.end() + 400])
-            probe = re.sub(r"\{[^}]+\}", "", path).rstrip("/")
-            covering = sorted(p.name for p, t in tests.items()
-                              if probe and probe in t)
-            in_browser = probe in browser
+            rx = _path_regex(path)
+            covering = sorted(p.name for p, t in tests.items() if rx.search(t))
+            in_browser = bool(rx.search(browser))
             rows.append({
                 "method": method, "path": f"/api/v1/cockpit-v4/workspace"
                                           f"{path}",
@@ -341,6 +397,48 @@ def main() -> int:
         w.writeheader()
         w.writerows(routes)
 
+    visits: dict[str, set[str]] = defaultdict(set)
+    for j in runs:
+        for url in j.get("urls", []):
+            for r in routes:
+                if re.match("^" + r["_static"] + "$", url):
+                    visits[r["_static"]].add(f"{j['journey']}:{j['status']}")
+    handoffs = scan_handoffs(
+        {re.sub(r"\[[^\]]+\]", "[^/]+", r["route"]): v
+         for r in routes for k, v in visits.items() if k == r["_static"]})
+    with (out / "INTEGRATION_HANDOFF_INVENTORY.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["source_module", "file", "line",
+                                          "target", "destination_module",
+                                          "carries_origin", "journeys",
+                                          "status"])
+        w.writeheader()
+        w.writerows(handoffs)
+
+    back = [{"journey": j["journey"], "journey_status": j["status"], **r}
+            for j in runs for r in j.get("back", [])]
+    for r in back:
+        for k in ("origin_state", "writes_on_return",
+                  "declared_in_app_writes"):
+            r[k] = json.dumps(r.get(k, ""), ensure_ascii=False)
+    bcols = ["journey", "path", "origin", "destination", "origin_state",
+             "browser_back", "browser_forward", "in_app_back",
+             "in_app_target", "writes_on_return", "declared_in_app_writes",
+             "objects_written_on_return", "status", "journey_status"]
+    with (out / "BACK_NAVIGATION_MATRIX.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=bcols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(back)
+
+    plotly = [{"journey": j["journey"], **r} for j in runs
+              for r in j.get("plotly", [])]
+    pcols = ["journey", "page", "url", "viewport", "testid", "rendered",
+             "plotly", "label", "width", "fits", "page_horizontal_scroll_px",
+             "console_errors", "status"]
+    with (out / "PLOTLY_AUDIT.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=pcols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(plotly)
+
     funcs = scan_functionality()
     with (out / "FUNCTIONALITY_INVENTORY.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(funcs[0]))
@@ -358,7 +456,14 @@ def main() -> int:
         "controls_exercised": sum(1 for c in controls
                                   if c["journeys_clicked"]),
         "routes": len(routes), "routes_by_status": count(routes),
-        "functions": len(funcs), "functions_by_status": count(funcs)}
+        "functions": len(funcs), "functions_by_status": count(funcs),
+        "handoffs": len(handoffs), "handoffs_by_status": count(handoffs),
+        "handoffs_carrying_origin": sum(1 for h in handoffs
+                                        if h["carries_origin"] == "yes"),
+        "back_paths": len(back), "back_by_status": count(back),
+        "plotly_rows": len(plotly), "plotly_by_status": count(plotly),
+        "journeys": len(runs),
+        "journeys_by_status": count(runs) if runs else {}}
     (out / "inventory_summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary))
     return 0

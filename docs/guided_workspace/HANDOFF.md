@@ -3,7 +3,7 @@
 | Item | Value |
 |---|---|
 | Specification | Master specification v3.1, Guided Risk Workspace, What-If & Live Lenses |
-| Branch | `claude/guided-workspace-final-gap-closure` (P16; continues `claude/eager-keller-7ue2yk` from `57e4cf4f`) |
+| Branch | `claude/guided-workspace-exhaustive-validation` (exhaustive validation round; continues `claude/guided-workspace-final-gap-closure` from evidence commit `55bfb9a4`) |
 | Parent | H2 `feb80f58982addf6e9474200b22451d1e303d276` |
 | Candidate | The SHA in `docs/guided_workspace/UAT_CANDIDATE.json` (`expected_guided_uat_sha`): the commit the final regression of record ran on. No tag, by instruction. |
 | Record | `PHASE_LEDGER.md` (per phase, measured), `REQUIREMENT_MATRIX.md` (generated, 325 ids), `PROTECTED_EXTENSION_MAP.md`, `BASELINE_PROVENANCE.md` |
@@ -101,9 +101,9 @@ The full runbook with pass criteria is `MAC_LIVE_UAT.md`. The short form:
 
 ```bash
 git clone https://github.com/tuhinchatterjee/ipm_v2.git CreditProbe_GW_UAT && cd CreditProbe_GW_UAT
-git fetch origin claude/guided-workspace-final-gap-closure
-git branch -f claude/guided-workspace-final-gap-closure origin/claude/guided-workspace-final-gap-closure
-EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/guided-workspace-final-gap-closure:docs/guided_workspace/UAT_CANDIDATE.json \
+git fetch origin claude/guided-workspace-exhaustive-validation
+git branch -f claude/guided-workspace-exhaustive-validation origin/claude/guided-workspace-exhaustive-validation
+EXPECTED_GUIDED_UAT_SHA=$(git show origin/claude/guided-workspace-exhaustive-validation:docs/guided_workspace/UAT_CANDIDATE.json \
   | python3 -c 'import json,sys;print(json.load(sys.stdin)["expected_guided_uat_sha"])')
 git checkout --detach "$EXPECTED_GUIDED_UAT_SHA"
 # build once: MAC_LIVE_UAT.md §2 (venv, npm ci, seed releases, train emulators, restore committed gate record)

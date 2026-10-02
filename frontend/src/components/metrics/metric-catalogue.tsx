@@ -18,7 +18,7 @@ import { breakdownBars, formatValue, gridDimension, metricTrend } from "@/lib/wo
 import { evaluateMetric, listMetrics, metricRows, readMetric, readMetricLineage, type MetricDefinition, type MetricLineage, type MetricValue } from "@/lib/workspace/metrics";
 import type { Filter } from "@/lib/workspace/objects";
 import { OriginBackLink } from "@/components/workspace/origin-back";
-import { urlWith } from "@/lib/workspace/nav";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 const BOOKS = ["corporate", "retail"] as const;
 const DIRECTION: Record<string, string> = { lower_is_better: "Lower is better", higher_is_better: "Higher is better", context: "Context (no preferred direction)" };
@@ -392,7 +392,7 @@ function MetricDetail({ metricId }: { metricId: string }) {
               Lenses:{" "}
               {lineage.used_by.lenses.length
                 ? lineage.used_by.lenses.map((l) => (
-                    <Link key={l.object_id} href={`/lenses/${l.object_id}`} className="mr-2 text-accent underline">
+                    <Link key={l.object_id} href={withBack(`/lenses/${l.object_id}`)} className="mr-2 text-accent underline">
                       {l.title} v{l.version}
                     </Link>
                   ))

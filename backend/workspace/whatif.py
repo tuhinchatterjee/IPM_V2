@@ -211,7 +211,15 @@ def thread_cohort(who: dict[str, Any], thread_id: str) -> dict[str, Any]:
     context = store.thread_context(thread_id, tenant_id=principal.tenant)
     stored = th.read(context) if context else None
     if not stored or "cohort_predicate" not in stored:
+        # A conversation opened on a governed cohort (from a Lens, an alert,
+        # Early Warning or What-If) names it in its seed: the page can offer
+        # What-If on exactly that object.
+        seed = (context or {}).get("body") or {}
+        seeded = (seed.get("evidence") or {}).get("cohort_id", "") if (
+            context or {}).get("kind") == "attention_item" else ""
         return {"thread_id": thread_id, "has_cohort": False,
+                "seed_cohort_id": seeded if str(seeded).startswith("coh-")
+                else "",
                 "message": "This conversation has not frozen a cohort yet. "
                            "Ask for a scenario preview first."}
     return {"thread_id": thread_id, "has_cohort": True,

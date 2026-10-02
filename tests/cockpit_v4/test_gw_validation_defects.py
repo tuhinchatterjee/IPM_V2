@@ -371,3 +371,62 @@ def test_val_def_016_rebinding_reuses_the_binding(client, svc, model):
     c = client.post(f"{P}/scenarios/{tpl}/bind",
                     json={"cohort_id": other["object_id"]}).json()
     assert c["scenario"]["object_id"] != first["scenario"]["object_id"]
+
+
+def test_a_restart_reopens_lens_rule_share_alert_and_investigation(
+        client, svc, who, model, store_db, runtime):
+    """A new app over the same files (books and metric caches dropped, the
+    store reopened): the Lens and its new breach rule, a share, an alert and
+    an investigation reopen unchanged, and nothing calls the model."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.cockpit_v4 import routes
+    from backend.workspace import api as workspace_api
+    from backend.workspace import metrics
+
+    rule = {"rule_id": "VAL-R1", "name": "ECL above 1", "metric_id": "M001",
+            "domain": "corporate", "comparison": "gt", "threshold": 1.0,
+            "severity": "high"}
+    lens = client.post(f"{P}/lenses/lens-02/revise", json={
+        "changes": {"breach_rules": [rule]}, "reason": "validation"})
+    assert lens.status_code == 200, lens.text
+    lens_id = lens.json()["object_id"]
+    oid = _own(client, "Restart share")["object_id"]
+    assert client.post(f"{P}/scenarios/{oid}/share",
+                       json={"to": ["colleague"]}).status_code in (200, 201)
+    client.get(f"{P}/monitoring")
+    alert = next(a for a in svc.store.latest_of_kind(
+        "alert", tenant_id="demo-tenant")
+        if not a["body"].get("demo_historical"))
+    issue = client.get(f"{P}/issues?domain=corporate").json()["issues"][0]
+    inv = client.post(f"{P}/issues/{issue['issue_id']}/investigate",
+                      json={"domain": "corporate"})
+    assert inv.status_code in (200, 201), inv.text
+    thread = inv.json()["thread_id"]
+    p = service.principal(WHO)
+    ids = [lens_id, oid, alert["object_id"]]
+    before = {i: svc.get(i, p)["content_hash"] for i in ids}
+    sent = client.get(f"{P}/messages?box=sent").json()["items"]
+    state = client.get(f"{P}/investigations/by-thread/{thread}").json()
+
+    path = svc.store.path
+    service.use_store(None)
+    access.reset_books()
+    metrics.clear_cache()
+    service.use_store(WorkspaceStore(path))
+    app = FastAPI()
+    routes.install(store=store_db, runtime=runtime, cfg=runtime.cfg,
+                   principal_resolver=lambda r: who, startup_sha="restart")
+    app.include_router(routes.router)
+    app.include_router(workspace_api.router)
+    fresh = TestClient(app)
+    again = service.objects()
+    assert {i: again.get(i, p)["content_hash"] for i in ids} == before
+    reopened = fresh.get(f"{P}/objects/{lens_id}").json()
+    assert reopened["body"]["breach_rules"][0]["rule_id"] == "VAL-R1"
+    assert fresh.get(f"{P}/messages?box=sent").json()["items"] == sent
+    assert fresh.get(f"{P}/investigations/by-thread/{thread}").json()[
+        "investigation_id"] == state["investigation_id"]
+    assert fresh.get(f"{P}/monitoring/alerts/{alert['object_id']}"
+                     ).status_code == 200

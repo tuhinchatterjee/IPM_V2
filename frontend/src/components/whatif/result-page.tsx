@@ -40,7 +40,7 @@ export function ResultPage({ resultId }: { resultId: string }) {
       <OriginBackLink testId="whatif-result-back" />
       <nav className="flex flex-wrap gap-3 text-xs">
         {result.body.entry === "cockpit" ? (
-          <Link href={`/cockpit/thread/${result.body.thread_id}`} className="text-accent underline" data-testid="whatif-result-open-thread">
+          <Link href={withBack(`/cockpit/thread/${result.body.thread_id}`)} className="text-accent underline" data-testid="whatif-result-open-thread">
             Open the conversation that executed it
           </Link>
         ) : (
