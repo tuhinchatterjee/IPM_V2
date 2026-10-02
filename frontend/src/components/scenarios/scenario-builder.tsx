@@ -8,11 +8,14 @@
  */
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, Loader2, Plus, Save, Trash2 } from "lucide-react";
 
 import { DomainSwitchPlain } from "@/components/guided/domain-toggle";
 import { PreviewPanel } from "@/components/scenarios/preview-panel";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { safeBack, withBack } from "@/lib/workspace/nav";
 import { readGridSchema, type GridColumn } from "@/lib/workspace/guided";
 import { readObject, type CohortBody, type DomainId } from "@/lib/workspace/objects";
 import { blankComponent, kindsFor } from "@/lib/workspace/scenario-figures";
@@ -122,6 +125,7 @@ export function ScenarioBuilder() {
 
   return (
     <div className="space-y-4" data-testid="scenario-builder">
+      <OriginBackLink fallback="/scenarios" fallbackLabel="the Scenario Library" testId="builder-back" />
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-text-primary">New scenario</h1>
         <DomainSwitchPlain value={domain} onChange={changeDomain} />
@@ -252,7 +256,7 @@ export function ScenarioBuilder() {
             onClick={() =>
               run(async () => {
                 const obj = await createScenario(definition(), status);
-                router.push(`/scenarios/${obj.object_id}`);
+                router.push(withBack(`/scenarios/${obj.object_id}`, safeBack(params.get("back")) || "/scenarios"));
               })
             }
             className={status === "SAVED" ? "inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast disabled:opacity-40" : "inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-40"}
@@ -261,6 +265,9 @@ export function ScenarioBuilder() {
             <Save className="h-4 w-4" /> {status === "SAVED" ? "Save" : "Save draft"}
           </button>
         ))}
+        <Link href={safeBack(params.get("back")) || "/scenarios"} className="inline-flex items-center rounded-md px-3 py-1.5 text-sm text-text-secondary underline" data-testid="builder-cancel">
+          Cancel
+        </Link>
       </div>
       {error && <p role="alert" className="text-sm text-negative" data-testid="builder-error">{error}</p>}
       {preview && <PreviewPanel preview={preview} testId="builder-preview-panel" />}

@@ -25,6 +25,7 @@ import {
 } from "@/lib/workspace/guided";
 import { ThreadWhatIf } from "@/components/guided/thread-whatif";
 import { cn } from "@/lib/utils";
+import { withBack } from "@/lib/workspace/nav";
 
 export function InvestigationBar(props: { threadId: string; busy: boolean; turnCount: number; onAsk: (question: string) => void }) {
   // The What-If strip rides the same thread hook: a conversation that froze
@@ -91,12 +92,12 @@ function InvestigationPath({
       question: s.exact_request,
     }).catch(() => undefined);
     if (s.type === "run_whatif") {
-      router.push(`/what-if?cohort=${encodeURIComponent(state.cohort_id ?? "")}&from=${encodeURIComponent(threadId)}&suggest=${encodeURIComponent(s.exact_request)}`);
+      router.push(withBack(`/what-if?cohort=${encodeURIComponent(state.cohort_id ?? "")}&from=${encodeURIComponent(threadId)}&suggest=${encodeURIComponent(s.exact_request)}`));
       return;
     }
     if (s.type === "freeze_cohort") {
       // Already frozen when the investigation opened; show where it lives.
-      router.push(`/what-if?cohort=${encodeURIComponent(state.cohort_id ?? "")}`);
+      router.push(withBack(`/what-if?cohort=${encodeURIComponent(state.cohort_id ?? "")}`));
       return;
     }
     if (s.type === "save_share_monitor") {

@@ -31,6 +31,7 @@ import {
 import type { DomainId } from "@/lib/workspace/objects";
 import { cn } from "@/lib/utils";
 import { useSingleFlight } from "@/lib/workspace/single-flight";
+import { withBack } from "@/lib/workspace/nav";
 
 const SEEN_KEY = "creditprobe.guided.seen";
 
@@ -218,7 +219,7 @@ function IssueCard({
           onClick={() =>
             flight
               .run(freeze)
-              .then((c) => c && router.push(`/what-if?cohort=${encodeURIComponent(c.object_id)}&from=issue`))
+              .then((c) => c && router.push(withBack(`/what-if?cohort=${encodeURIComponent(c.object_id)}&from=issue`)))
               .catch((e: unknown) => setSaved(e instanceof Error ? e.message : String(e)))
           }
           className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"

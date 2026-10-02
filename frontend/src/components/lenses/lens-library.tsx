@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 
 import { listLenses, proposeLens, saveLens, type LensCard, type Proposal } from "@/lib/workspace/lenses";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 const CADENCE: Record<string, string> = {
   daily: "Daily",
@@ -30,7 +31,7 @@ export function LensLibrary() {
   const params = useSearchParams();
   const router = useRouter();
   const [lib, setLib] = React.useState<{ lenses: LensCard[]; total: number } | null>(null);
-  const [q, setQ] = React.useState("");
+  const [q, setQ] = React.useState(params.get("q") ?? "");
   const [prompt, setPrompt] = React.useState("");
   const [proposal, setProposal] = React.useState<Proposal | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -52,9 +53,23 @@ export function LensLibrary() {
     if (!inv && !thread) return;
     origin.current = true;
     proposeLens(inv ? { from_investigation: inv } : { from_thread: thread ?? "" })
-      .then(setProposal)
+      .then((p) => {
+        setProposal(p);
+        // The origin has been consumed: Back to this page shows the library,
+        // it does not propose (and invite saving) the same Lens again.
+        router.replace(urlWith({ from_investigation: null, from_thread: null }), { scroll: false });
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [params]);
+  }, [params, router]);
+
+  // The filter text is part of the address, so Back from a Lens restores it.
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const next = urlWith({ q: q.trim() || null });
+      if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, router]);
 
   async function propose(base?: Proposal) {
     setBusy(true);
@@ -73,7 +88,7 @@ export function LensLibrary() {
     setBusy(true);
     try {
       const obj = await saveLens(proposal.spec, proposal.source);
-      router.push(`/lenses/${obj.object_id}`);
+      router.push(withBack(`/lenses/${obj.object_id}`, "/lenses"));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -156,7 +171,7 @@ export function LensLibrary() {
       )}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="lens-grid">
         {shown.map((c) => (
-          <Link key={c.object_id} href={`/lenses/${c.object_id}`} className="block rounded-xl border border-border bg-surface p-3 hover:border-accent" data-testid="lens-card" data-lens-id={c.lens_id} data-object-id={c.object_id}>
+          <Link key={c.object_id} href={withBack(`/lenses/${c.object_id}`, `/lenses${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`)} className="block rounded-xl border border-border bg-surface p-3 hover:border-accent" data-testid="lens-card" data-lens-id={c.lens_id} data-object-id={c.object_id}>
             <div className="flex items-start gap-2">
               <div className="min-w-0">
                 <div className="text-xs text-text-muted">

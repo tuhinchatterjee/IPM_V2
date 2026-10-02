@@ -11,6 +11,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Download, GitCompare, Loader2, ShieldCheck } from "lucide-react";
 
 import { JsonTree } from "@/components/llm-exchange/json-tree";
@@ -30,6 +31,7 @@ import {
 import { count } from "@/lib/viz/format";
 import { counts, segments, type SegmentKind } from "@/lib/workspace/exchange-segments";
 import { cn } from "@/lib/utils";
+import { urlWith } from "@/lib/workspace/nav";
 
 const STAGES = [
   { id: "readable", label: "Readable" },
@@ -97,13 +99,21 @@ function CallCard({
   call,
   selected,
   onSelect,
+  open,
+  onOpen,
+  stage,
+  onStage,
 }: {
   call: ExchangeCall;
   selected: boolean;
   onSelect: (checked: boolean) => void;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  stage: string;
+  onStage: (stage: string) => void;
 }) {
-  const [open, setOpen] = React.useState(call.seq === 1);
-  const [stage, setStage] = React.useState("readable");
+  const setOpen = (f: (v: boolean) => boolean) => onOpen(f(open));
+  const setStage = onStage;
   const usage = call.usage ?? {};
   const payload: Record<string, unknown> = {
     canonical: call.canonical_request,
@@ -212,9 +222,17 @@ function CompareView({ result }: { result: Comparison }) {
 }
 
 export function LlmExchangeView({ runId }: { runId: string }) {
+  // The tab, the open call and its request/response stage are part of the
+  // address: opening a call is a navigation (browser Back closes it) and a
+  // return visit reopens the same view.
+  const router = useRouter();
+  const params = useSearchParams();
+  const tab = params.get("tab") || "calls";
+  const setTab = (t: string) => router.replace(urlWith({ tab: t === "calls" ? null : t }), { scroll: false });
+  const openCall = params.get("call");
+  const stage = params.get("stage") || "readable";
   const [data, setData] = React.useState<RunExchange | null>(null);
   const [error, setError] = React.useState("");
-  const [tab, setTab] = React.useState("calls");
   const [picked, setPicked] = React.useState<string[]>([]);
   const [comparison, setComparison] = React.useState<Comparison | null>(null);
 
@@ -225,7 +243,13 @@ export function LlmExchangeView({ runId }: { runId: string }) {
   }, [runId]);
 
   async function exportPackage() {
-    const response = await fetch(exchangeExportUrl(runId), { credentials: "include" });
+    let response: Response;
+    try {
+      response = await fetch(exchangeExportUrl(runId), { credentials: "include" });
+    } catch (e) {
+      setError(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
     if (!response.ok) {
       setError(`Export failed (${response.status}).`);
       return;
@@ -320,6 +344,10 @@ export function LlmExchangeView({ runId }: { runId: string }) {
               key={call.exchange_id}
               call={call}
               selected={picked.includes(call.exchange_id)}
+              open={openCall ? openCall === call.exchange_id : call.seq === 1}
+              onOpen={(o) => router.push(urlWith({ call: o ? call.exchange_id : "none", stage: null }), { scroll: false })}
+              stage={openCall === call.exchange_id ? stage : "readable"}
+              onStage={(st) => router.replace(urlWith({ call: call.exchange_id, stage: st === "readable" ? null : st }), { scroll: false })}
               onSelect={(checked) =>
                 setPicked((prev) =>
                   checked ? [...prev.filter((p) => p !== call.exchange_id), call.exchange_id].slice(-2) : prev.filter((p) => p !== call.exchange_id),

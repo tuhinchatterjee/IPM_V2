@@ -26,11 +26,24 @@ import { followLens, refreshLens, renderLens, reviseLens, type RenderedLens, typ
 import { readAlert } from "@/lib/workspace/monitoring";
 import type { Filter } from "@/lib/workspace/objects";
 import { investigateCohort, saveSelection } from "@/lib/workspace/whatif";
+import { safeBack, urlWith, withBack } from "@/lib/workspace/nav";
 import { moneyCol } from "@/lib/viz/format";
 
 type Cross = Filter & { domain?: string };
 
 const OWNER: Record<string, string> = { corporate: "borrower_id", retail: "customer_id" };
+
+/** A JSON value carried in the URL, or `fallback` when absent or malformed. */
+function fromUrl<T>(raw: string | null, fallback: T, ok: (v: unknown) => boolean): T {
+  if (!raw) return fallback;
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return ok(v) ? (v as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+const isObject = (v: unknown) => !!v && typeof v === "object" && !Array.isArray(v);
 
 function errorText(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -46,11 +59,17 @@ const ALERT_GROUPS = new Set(["M070", "M071", "M072"]);
 
 export function LensView({ lensId }: { lensId: string }) {
   const router = useRouter();
+  const params = useSearchParams();
+  // Periods, cross-filters, the chart selection and the cohort frozen from it
+  // live in the URL: Back from a destination reopens the Lens as it was, and
+  // a selection already saved is not saved again.
   const [data, setData] = React.useState<RenderedLens | null>(null);
-  const [periods, setPeriods] = React.useState<Record<string, string>>({});
-  const [cross, setCross] = React.useState<Cross[]>([]);
-  const [selection, setSelection] = React.useState<{ domain: "corporate" | "retail"; filters: Filter[]; label: string } | null>(null);
-  const [savedCohort, setSavedCohort] = React.useState("");
+  const [periods, setPeriods] = React.useState<Record<string, string>>(() => fromUrl(params.get("p"), {}, isObject));
+  const [cross, setCross] = React.useState<Cross[]>(() => fromUrl(params.get("x"), [], Array.isArray));
+  const [selection, setSelection] = React.useState<{ domain: "corporate" | "retail"; filters: Filter[]; label: string } | null>(() =>
+    fromUrl(params.get("sel"), null, (v) => isObject(v) && Array.isArray((v as { filters?: unknown }).filters)),
+  );
+  const [savedCohort, setSavedCohort] = React.useState(params.get("cohort") ?? "");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [note, setNote] = React.useState("");
@@ -58,8 +77,20 @@ export function LensView({ lensId }: { lensId: string }) {
   const [name, setName] = React.useState("");
   const [cadence, setCadence] = React.useState("");
   const [trigger, setTrigger] = React.useState("");
-  const params = useSearchParams();
   const alertId = params.get("alert") ?? "";
+  const back = safeBack(params.get("back"));
+  const restored = React.useRef(params.has("x") || params.has("p"));
+
+  React.useEffect(() => {
+    const enc = (v: unknown, empty: boolean) => (empty ? null : JSON.stringify(v));
+    const next = urlWith({
+      p: enc(periods, !Object.keys(periods).length),
+      x: enc(cross, !cross.length),
+      sel: enc(selection, !selection),
+      cohort: savedCohort || null,
+    });
+    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
+  }, [periods, cross, selection, savedCohort, router]);
 
   // Opened from an alert: restore the Lens at the triggering period and
   // population, and say so.
@@ -69,8 +100,11 @@ export function LensView({ lensId }: { lensId: string }) {
     readAlert(alertId)
       .then((d) => {
         if (!live) return;
-        setPeriods(d.open_lens.periods ?? {});
-        setCross((d.open_lens.filters ?? []) as Cross[]);
+        // On a return visit the URL already holds the reader's own state.
+        if (!restored.current) {
+          setPeriods(d.open_lens.periods ?? {});
+          setCross((d.open_lens.filters ?? []) as Cross[]);
+        }
         const b = d.alert.body as Record<string, unknown>;
         setTrigger(`Opened at alert ${d.alert.object_id} (${d.alert.status}): ${String(b.rule_name || b.alert_type)} · ${String(b.domain_id || "")} ${String(b.period || "")}`);
       })
@@ -225,8 +259,8 @@ export function LensView({ lensId }: { lensId: string }) {
         layout={fig.layout}
         onPointClick={(p) => {
           const oid = Array.isArray(p.customdata) ? String(p.customdata[0]) : "";
-          if ((v.type === "scenario_results" || v.type === "groups") && oid) router.push(`/what-if/result/${oid}`);
-          if (v.type === "alerts" || (v.type === "groups" && ALERT_GROUPS.has(v.metric_id ?? ""))) router.push("/monitoring");
+          if ((v.type === "scenario_results" || v.type === "groups") && oid) router.push(withBack(`/what-if/result/${oid}`));
+          if (v.type === "alerts" || (v.type === "groups" && ALERT_GROUPS.has(v.metric_id ?? ""))) router.push(withBack("/monitoring"));
         }}
         footer={!(v.groups ?? []).some((g) => g.value != null) ? <p className="mt-2 text-xs text-text-muted">{v.type === "scenario_results" ? "No executed scenario you can open on this book yet." : v.type === "alerts" ? "No active breach on this book." : (v.note ?? "Nothing to show yet.")}</p> : null}
         table={{ columns: [{ key: "dimension", label: "Item" }, { key: "value", label: "Value (raw)", align: "right" }], rows: (v.groups ?? []) as unknown as Record<string, unknown>[] }}
@@ -239,8 +273,8 @@ export function LensView({ lensId }: { lensId: string }) {
       <header className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="text-xs text-text-muted">
-            <Link href="/lenses" className="text-accent underline">
-              Lenses
+            <Link href={back || "/lenses"} className="text-accent underline" data-testid="lens-back" data-back-target={back || "/lenses"}>
+              {back ? "← Back" : "Lenses"}
             </Link>{" "}
             · {lens.lens_id || "My Lens"} · {lens.persona} · v{lens.version} · owner {lens.owner_id} · refresh {spec.refresh.cadence} ({spec.refresh.timezone})
           </div>
@@ -277,7 +311,7 @@ export function LensView({ lensId }: { lensId: string }) {
       {trigger && (
         <p className="rounded-lg border border-warning bg-surface p-2 text-xs" data-testid="lens-alert-banner">
           {trigger}{" "}
-          <Link href={`/monitoring?alert=${alertId}`} className="text-accent underline">
+          <Link href={back.startsWith("/monitoring") ? back : `/monitoring?alert=${alertId}`} className="text-accent underline" data-testid="lens-alert-back">
             back to the alert
           </Link>
         </p>
@@ -376,7 +410,7 @@ export function LensView({ lensId }: { lensId: string }) {
           </button>
           <button type="button" disabled={busy} onClick={() => void go(async () => {
             const id = await freezeSelection();
-            router.push(`/what-if?cohort=${id}`);
+            router.push(withBack(`/what-if?cohort=${id}&domain=${selection?.domain ?? ""}`));
           })} className="rounded-md border border-border px-2 py-1" data-testid="lens-selection-whatif">
             What-If
           </button>
@@ -392,7 +426,7 @@ export function LensView({ lensId }: { lensId: string }) {
           const k = kpiTile(v);
           const spark = sparkFigure(v);
           return (
-            <Link key={v.visual_id} href={`/metrics?m=${v.metric_id}`} className="block rounded-lg border border-border bg-surface p-2" title={`${k.metric} — open the definition`} data-testid="lens-kpi" data-metric-id={v.metric_id} data-raw={k.raw} data-tone={k.tone}>
+            <Link key={v.visual_id} href={withBack(`/metrics?m=${v.metric_id}`, `/lenses/${lensId}`)} className="block rounded-lg border border-border bg-surface p-2" title={`${k.metric} — open the definition`} data-testid="lens-kpi" data-metric-id={v.metric_id} data-raw={k.raw} data-tone={k.tone}>
               <div className="truncate text-[11px] text-text-muted">
                 {k.title} · {v.domain}
               </div>
@@ -496,7 +530,7 @@ export function LensView({ lensId }: { lensId: string }) {
           <p className="mt-2 text-text-muted">
             Metrics:{" "}
             {spec.metrics.map((m) => (
-              <Link key={`${m.metric_id}${m.domain}`} href={`/metrics?m=${m.metric_id}`} className="mr-1 text-accent underline">
+              <Link key={`${m.metric_id}${m.domain}`} href={withBack(`/metrics?m=${m.metric_id}`, `/lenses/${lensId}`)} className="mr-1 text-accent underline">
                 {m.metric_id}v{m.version}
               </Link>
             ))}

@@ -21,6 +21,7 @@ import { rememberRun, startRun } from "@/components/cockpit-v4/client";
 import { DomainSwitchPlain } from "@/components/guided/domain-toggle";
 import { Badge } from "@/components/ui/badge";
 import { DataGrid, type GridSelection } from "@/components/workspace/data-grid";
+import { OriginBackLink } from "@/components/workspace/origin-back";
 import { MacroTornado } from "@/components/whatif/macro-tornado";
 import { PortfolioExplorer } from "@/components/whatif/portfolio-explorer";
 import { ScenarioApplication } from "@/components/whatif/scenario-application";
@@ -44,6 +45,7 @@ import {
   type WorkspaceSelection,
 } from "@/lib/workspace/whatif";
 import { methodLabel } from "@/lib/workspace/method-labels";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 function toSelection(sel: GridSelection): WorkspaceSelection | null {
   if (sel.mode === "rows" && sel.ids.length) return { mode: "rows", ids: sel.ids };
@@ -51,12 +53,30 @@ function toSelection(sel: GridSelection): WorkspaceSelection | null {
   return null;
 }
 
+/** Grid filters carried in the URL (`f=`), or none when absent or malformed. */
+function filtersFromUrl(raw: string | null): Filter[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) ? (v.filter((x) => x && typeof x === "object" && typeof (x as Filter).column === "string") as Filter[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** This page's own address, for a destination's "Back to What-If". */
+function currentPath(params: URLSearchParams | ReturnType<typeof useSearchParams>, domain: string): string {
+  const q = new URLSearchParams(params.toString());
+  q.set("domain", domain);
+  return `/what-if?${q.toString()}`;
+}
+
 export function WhatIfWorkspace() {
   const router = useRouter();
   const params = useSearchParams();
   const [domain, setDomain] = React.useState<DomainId>((params.get("domain") as DomainId) || "corporate");
   const [ctx, setCtx] = React.useState<{ domain: DomainId; value: WhatIfContext | null }>({ domain, value: null });
-  const [filters, setFilters] = React.useState<Filter[]>([]);
+  const [filters, setFilters] = React.useState<Filter[]>(() => filtersFromUrl(params.get("f")));
   const [gridSel, setGridSel] = React.useState<GridSelection>({ mode: "none", ids: [], filters: [], count: 0 });
   const [summary, setSummary] = React.useState<{ key: string; value: SelectionSummary | null }>({ key: "", value: null });
   const [resetKey, setResetKey] = React.useState(0);
@@ -77,6 +97,9 @@ export function WhatIfWorkspace() {
   });
   const [initialRunId, setInitialRunId] = React.useState(params.get("run") ?? "");
   const handledParams = React.useRef(false);
+  // Deep-link objects still loading: the URL is not rewritten until they land.
+  const [pending, setPending] = React.useState(() => ["run", "cohort", "scenario"].filter((k) => params.get(k)).length);
+  const settle = React.useCallback(() => setPending((n) => Math.max(0, n - 1)), []);
 
   const context = ctx.domain === domain ? ctx.value : null;
   React.useEffect(() => {
@@ -108,7 +131,8 @@ export function WhatIfWorkspace() {
         .catch((e: unknown) => {
           setInitialRunId("");
           setError(e instanceof Error ? e.message : String(e));
-        });
+        })
+        .finally(settle);
     }
     if (cohortId) {
       readObject<Cohort["body"]>(cohortId)
@@ -116,7 +140,8 @@ export function WhatIfWorkspace() {
           setDomain(c.domain_id as DomainId);
           setCohort(c as Cohort);
         })
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+        .finally(settle);
     }
     if (scenarioId) {
       readScenario(scenarioId)
@@ -124,9 +149,28 @@ export function WhatIfWorkspace() {
           setDomain(d.scenario.domain_id);
           setScenario(d.scenario);
         })
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+        .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+        .finally(settle);
     }
-  }, [params]);
+  }, [params, settle]);
+
+  // The URL carries the governed objects on screen (book, filters, cohort,
+  // scenario, run). Replaced, not pushed: browser Back from any destination
+  // returns here with the same state, and a remount reopens the same run
+  // instead of starting another (binding is idempotent server-side).
+  const runId = activeRun?.object_id ?? (pending ? initialRunId : "");
+  React.useEffect(() => {
+    if (pending) return;
+    const f = filters.length ? JSON.stringify(filters) : "";
+    const next = urlWith({
+      domain,
+      f: f.length <= 1200 ? f : null,
+      cohort: cohort?.object_id ?? null,
+      scenario: scenario?.object_id ?? null,
+      run: runId || null,
+    });
+    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
+  }, [pending, domain, filters, cohort, scenario, runId, router]);
 
   const selection = toSelection(gridSel);
   const selKey = JSON.stringify({ domain, selection });
@@ -207,6 +251,7 @@ export function WhatIfWorkspace() {
 
   return (
     <div className="space-y-4" data-testid="whatif-workspace" data-domain={domain}>
+      <OriginBackLink testId="whatif-back" />
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-text-primary">What-If Analysis</h1>
         <DomainSwitchPlain value={domain} onChange={changeDomain} />
@@ -421,7 +466,7 @@ export function WhatIfWorkspace() {
               <Download className="h-4 w-4" /> Export cohort
             </a>
           )}
-          <Link href={`/scenarios?domain=${domain}`} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="whatif-library">
+          <Link href={withBack(`/scenarios?domain=${domain}`, currentPath(params, domain))} className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="whatif-library">
             <Library className="h-4 w-4" /> Scenario Library
           </Link>
         </div>
@@ -590,7 +635,11 @@ function LoadCohort({ domain, onPick }: { domain: DomainId; onPick: (c: Cohort) 
           <span className="flex-1">
             {c.title} · {count(c.counts.entities)} · {c.object_id} v{c.version}
           </span>
-          <button type="button" className="rounded border border-border px-2 py-0.5" data-testid="whatif-cohort-pick" onClick={() => readObject<Cohort["body"]>(c.object_id).then((o) => onPick(o as Cohort))}>
+          <button type="button" className="rounded border border-border px-2 py-0.5" data-testid="whatif-cohort-pick" onClick={() =>
+              readObject<Cohort["body"]>(c.object_id)
+                .then((o) => onPick(o as Cohort))
+                .catch(() => setRows((r) => r && r.filter((x) => x.object_id !== c.object_id)))
+            }>
             Load
           </button>
         </li>

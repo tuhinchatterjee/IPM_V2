@@ -4,12 +4,17 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { ResultView } from "@/components/whatif/result-view";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 import { readObject } from "@/lib/workspace/objects";
 import type { ResultBody, ScenarioResult } from "@/lib/workspace/runs";
 
 export function ResultPage({ resultId }: { resultId: string }) {
+  const router = useRouter();
+  const params = useSearchParams();
   const [result, setResult] = React.useState<ScenarioResult | null>(null);
   const [error, setError] = React.useState("");
   React.useEffect(() => {
@@ -32,6 +37,7 @@ export function ResultPage({ resultId }: { resultId: string }) {
     );
   return (
     <div className="space-y-3">
+      <OriginBackLink testId="whatif-result-back" />
       <nav className="flex flex-wrap gap-3 text-xs">
         {result.body.entry === "cockpit" ? (
           <Link href={`/cockpit/thread/${result.body.thread_id}`} className="text-accent underline" data-testid="whatif-result-open-thread">
@@ -39,16 +45,18 @@ export function ResultPage({ resultId }: { resultId: string }) {
           </Link>
         ) : (
           <>
-            <Link href={`/what-if?run=${result.body.run_id}`} className="text-accent underline" data-testid="whatif-result-open-run">
+            <Link href={withBack(`/what-if?run=${result.body.run_id}`)} className="text-accent underline" data-testid="whatif-result-open-run">
               Open the run in What-If
             </Link>
-            <Link href={`/scenarios/${result.body.scenario_id}`} className="text-accent underline" data-testid="whatif-result-open-scenario">
+            <Link href={withBack(`/scenarios/${result.body.scenario_id}`)} className="text-accent underline" data-testid="whatif-result-open-scenario">
               Scenario {result.body.scenario_id} v{result.body.scenario_version}
             </Link>
           </>
         )}
       </nav>
-      <ResultView result={result} />
+      {/* The method tab is part of the address: Back from a destination
+          reopens the result on the method that was being read. */}
+      <ResultView result={result} initialMethod={params.get("method") ?? undefined} onMethod={(m) => router.replace(urlWith({ method: m }), { scroll: false })} />
     </div>
   );
 }

@@ -32,6 +32,7 @@ import {
   type MessageItem,
   type ShareCard,
 } from "@/lib/workspace/messages";
+import { withBack } from "@/lib/workspace/nav";
 
 const KIND_LABEL: Record<string, string> = {
   scenario: "Scenario definition · not executed",
@@ -251,7 +252,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
 
   function perform(a: MessageAction) {
     if (a.href) {
-      router.push(a.href);
+      router.push(withBack(a.href));
       return;
     }
     if (a.action === "run") return setPanel(panel === "run" ? "" : "run");
@@ -269,7 +270,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
         setNote({ text: `Saved to your workspace as ${obj.object_id}.`, href: hrefFor(obj) });
       } else if (a.action === "whatif") {
         const c = await whatifFromMessage(shareId);
-        router.push(`/what-if?cohort=${c.object_id}`);
+        router.push(withBack(`/what-if?cohort=${c.object_id}`));
       } else if (a.action === "investigate") {
         const t = await investigateFromMessage(shareId);
         router.push(`/cockpit/thread/${t.thread_id}`);

@@ -338,3 +338,36 @@ def test_every_object_survives_a_store_restart_unchanged(client, svc, model,
     after = again.store.verify_ledger(tenant_id="demo-tenant")
     assert after["ok"] and after["entries"] == ledger["entries"]
     assert after["chain_head"] == ledger["chain_head"]
+
+
+# ---- VAL-DEF-016: binding the same scenario to the same cohort is idempotent ------
+
+def test_val_def_016_rebinding_reuses_the_binding(client, svc, model):
+    scenarios.ensure_seeded(svc, WHO)
+    cohort = client.post(f"{P}/cohorts", json={
+        "domain": "corporate", "name": "Construction",
+        "filters": CONSTRUCTION}).json()
+    tpl = scenarios.template_object_id("CORP-01")
+    before = len(svc.store.latest_of_kind("scenario", tenant_id="demo-tenant"))
+    first = client.post(f"{P}/scenarios/{tpl}/bind",
+                        json={"cohort_id": cohort["object_id"]}).json()
+    second = client.post(f"{P}/scenarios/{tpl}/bind",
+                         json={"cohort_id": cohort["object_id"]}).json()
+    assert first["scenario"]["object_id"] == second["scenario"]["object_id"]
+    assert second.get("reused") is True
+    assert len(svc.store.latest_of_kind(
+        "scenario", tenant_id="demo-tenant")) == before + 1
+    own = _own(client, "Own to bind")["object_id"]
+    a = client.post(f"{P}/scenarios/{own}/bind",
+                    json={"cohort_id": cohort["object_id"]}).json()
+    b = client.post(f"{P}/scenarios/{own}/bind",
+                    json={"cohort_id": cohort["object_id"]}).json()
+    assert a["scenario"]["version"] == b["scenario"]["version"] == 2
+    # A different cohort is a new binding.
+    other = client.post(f"{P}/cohorts", json={
+        "domain": "corporate", "name": "Real Estate", "filters": [
+            {"column": "sector", "op": "in", "values": ["Real Estate"]}]}
+        ).json()
+    c = client.post(f"{P}/scenarios/{tpl}/bind",
+                    json={"cohort_id": other["object_id"]}).json()
+    assert c["scenario"]["object_id"] != first["scenario"]["object_id"]

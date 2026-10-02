@@ -24,10 +24,14 @@ import { METHOD_LABEL } from "@/lib/workspace/method-labels";
 import type { ScenarioResult } from "@/lib/workspace/runs";
 
 
-export function ResultView({ result, actions }: { result: ScenarioResult; actions?: React.ReactNode }) {
+export function ResultView({ result, actions, initialMethod, onMethod }: { result: ScenarioResult; actions?: React.ReactNode; initialMethod?: string; onMethod?: (method: string) => void }) {
   const b = result.body;
   const methods = Object.keys(b.decomposition);
-  const [method, setMethod] = React.useState(methods[0] ?? "");
+  const [method, setMethodState] = React.useState(initialMethod && methods.includes(initialMethod) ? initialMethod : (methods[0] ?? ""));
+  const setMethod = (m: string) => {
+    setMethodState(m);
+    onMethod?.(m);
+  };
   const [compact, setCompact] = React.useState(false);
   const [highlight, setHighlight] = React.useState("");
   const d = b.decomposition[method];

@@ -8,8 +8,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Archive, Copy, GitBranch, Link2, Loader2, MessageSquare, Pencil, Send } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Archive, Copy, GitBranch, Link2, Loader2, MessageSquare, Pencil, Send, Trash2 } from "lucide-react";
 
 import { PreviewPanel } from "@/components/scenarios/preview-panel";
 import { Badge } from "@/components/ui/badge";
@@ -32,10 +32,13 @@ import {
   type ScenarioDetail as Detail,
 } from "@/lib/workspace/scenarios";
 import { ExportPackage } from "@/components/workspace/export-package";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { safeBack, withBack } from "@/lib/workspace/nav";
 import { useSingleFlight } from "@/lib/workspace/single-flight";
 
 export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
   const router = useRouter();
+  const back = safeBack(useSearchParams().get("back"));
   const [detail, setDetail] = React.useState<Detail | null>(null);
   const [preview, setPreview] = React.useState<Preview | null>(null);
   const [error, setError] = React.useState("");
@@ -102,15 +105,13 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
         await resolveOverlaps(copy.object_id, resolutions);
         return copy;
       },
-      (copy) => router.push(`/scenarios/${copy.object_id}`),
+      (copy) => router.push(withBack(`/scenarios/${copy.object_id}`)),
     );
   }
 
   return (
     <div className="space-y-5" data-testid="scenario-detail" data-object-id={obj.object_id} data-version={obj.version}>
-      <Link href="/scenarios" className="inline-flex items-center gap-1 text-xs text-accent">
-        <ArrowLeft className="h-3 w-3" /> Scenario Library
-      </Link>
+      <OriginBackLink fallback="/scenarios" fallbackLabel="the Scenario Library" testId="scenario-back" />
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {b.template_id && <span className="font-mono text-text-muted">{b.template_id}</span>}
@@ -134,10 +135,10 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
         )}
         <div className="flex flex-wrap gap-2" data-testid="scenario-actions">
           <ExportPackage objectId={obj.object_id} testId="scenario-export" compact />
-          <Action icon={<Copy className="h-4 w-4" />} testId="scenario-action-clone" disabled={flight.busy} onClick={() => act(() => cloneScenario(obj.object_id), (c) => router.push(`/scenarios/${c.object_id}`))}>
+          <Action icon={<Copy className="h-4 w-4" />} testId="scenario-action-clone" disabled={flight.busy} onClick={() => act(() => cloneScenario(obj.object_id), (c) => router.push(withBack(`/scenarios/${c.object_id}`)))}>
             Clone
           </Action>
-          <Action icon={<GitBranch className="h-4 w-4" />} testId="scenario-action-branch" disabled={flight.busy} onClick={() => act(() => cloneScenario(obj.object_id, "", true), (c) => router.push(`/scenarios/${c.object_id}`))}>
+          <Action icon={<GitBranch className="h-4 w-4" />} testId="scenario-action-branch" disabled={flight.busy} onClick={() => act(() => cloneScenario(obj.object_id, "", true), (c) => router.push(withBack(`/scenarios/${c.object_id}`)))}>
             Branch
           </Action>
           {card.can_edit && (
@@ -154,13 +155,26 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
           <Action icon={<MessageSquare className="h-4 w-4" />} testId="scenario-action-comment" onClick={() => setPanel(panel === "comment" ? "" : "comment")}>
             Comment
           </Action>
+          {card.can_edit && obj.status === "DRAFT" && obj.version === 1 && (b.parents?.length ?? 0) > 0 && (
+            // A copy just made by Clone / Branch is a draft; discarding it is
+            // the Cancel of that verb: it is retired and you return to where
+            // you came from.
+            <Action
+              icon={<Trash2 className="h-4 w-4" />}
+              testId="scenario-action-discard"
+              disabled={flight.busy}
+              onClick={() => act(() => retireScenario(obj.object_id), () => router.push(back || "/scenarios"))}
+            >
+              Discard this copy
+            </Action>
+          )}
           {card.can_edit && obj.status !== "ARCHIVED" && (
             <Action icon={<Archive className="h-4 w-4" />} testId="scenario-action-retire" onClick={() => act(() => retireScenario(obj.object_id), () => setReload((n) => n + 1))}>
               Retire
             </Action>
           )}
           <Link
-            href={`/what-if?scenario=${encodeURIComponent(obj.object_id)}&from=library`}
+            href={withBack(`/what-if?scenario=${encodeURIComponent(obj.object_id)}&from=library`, `/scenarios/${obj.object_id}${back ? `?back=${encodeURIComponent(back)}` : ""}`)}
             className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast"
             data-testid="scenario-open-whatif"
           >
@@ -176,7 +190,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             onSubmit={(v) => act(() => reviseScenario(obj.object_id, { name: v }, "renamed"), () => { setPanel(""); setReload((n) => n + 1); })}
           />
         )}
-        {panel === "bind" && <BindPanel domain={obj.domain_id} onBind={(id) => act(() => bindScenario(obj.object_id, id), (out) => router.push(`/scenarios/${out.scenario.object_id}`))} />}
+        {panel === "bind" && <BindPanel domain={obj.domain_id} onBind={(id) => act(() => bindScenario(obj.object_id, id), (out) => router.push(withBack(`/scenarios/${out.scenario.object_id}`)))} />}
         {panel === "share" && (
           <InlineForm
             label="Share with (user ids, comma-separated)"
@@ -324,7 +338,7 @@ function ScenarioResults({ scenarioId }: { scenarioId: string }) {
       <ul className="space-y-1">
         {rows.map((r) => (
           <li key={r.object_id} className="flex flex-wrap gap-2">
-            <Link href={`/what-if/result/${r.object_id}`} className="text-accent underline" data-testid="scenario-result-link">
+            <Link href={withBack(`/what-if/result/${r.object_id}`, `/scenarios/${scenarioId}`)} className="text-accent underline" data-testid="scenario-result-link">
               {r.object_id}
             </Link>
             <span>v{r.scenario_version}</span>

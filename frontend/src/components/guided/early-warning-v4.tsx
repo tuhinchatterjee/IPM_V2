@@ -26,6 +26,7 @@ import { SEVERITY_COLORS, SEMANTIC } from "@/lib/viz/palette";
 import { workspaceUrl, wsGet, wsSend } from "@/lib/workspace/client";
 import type { DomainId, Filter } from "@/lib/workspace/objects";
 import { moneyCol } from "@/lib/viz/format";
+import { withBack } from "@/lib/workspace/nav";
 
 interface EwFeed {
   domain_id: DomainId;
@@ -135,7 +136,7 @@ export function EarlyWarningV4() {
 
   async function whatIf(segment = "") {
     const c = await saveCohort(segment);
-    router.push(`/what-if?cohort=${encodeURIComponent(c.object_id)}`);
+    router.push(withBack(`/what-if?cohort=${encodeURIComponent(c.object_id)}`));
   }
 
   if (error) return <p role="alert" className="text-sm text-negative">{error}</p>;

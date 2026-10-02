@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 
 import { useWideContent } from "@/components/layout/content-width";
 import { GuidedOff } from "@/components/scenarios/guided-off";
@@ -12,7 +12,11 @@ export default function WhatIfResultPage({ params }: { params: Promise<{ resultI
   useWideContent();
   return (
     <main className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-10">
-      {guidedEnabled() ? <ResultPage resultId={resultId} /> : <GuidedOff what="Scenario results" />}
+      {guidedEnabled() ? (
+        <Suspense fallback={null}>
+          <ResultPage resultId={resultId} />
+        </Suspense>
+      ) : <GuidedOff what="Scenario results" />}
     </main>
   );
 }

@@ -28,6 +28,7 @@ import {
   type ScenarioCard,
 } from "@/lib/workspace/scenarios";
 import { cn } from "@/lib/utils";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 const OWNERS = [
   ["", "All"],
@@ -35,22 +36,56 @@ const OWNERS = [
   ["mine", "Mine"],
   ["shared", "Shared with me"],
 ] as const;
+const SEVERITIES = ["upside", "mild", "moderate", "severe"];
+const SELECTION_KEY = "gw.scenario-library.selection";
+
+/** `raw` when it is one of `allowed`, else "" (an unknown URL value is ignored). */
+function pick(raw: string | null, allowed: readonly string[]): string {
+  return raw && allowed.includes(raw) ? raw : "";
+}
+
+function readSelection(): ScenarioCard[] {
+  try {
+    const raw = typeof window === "undefined" ? null : window.sessionStorage.getItem(SELECTION_KEY);
+    const v = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(v) ? (v as ScenarioCard[]).filter((c) => c && typeof c.object_id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSelection(cards: ScenarioCard[]) {
+  try {
+    if (cards.length) window.sessionStorage.setItem(SELECTION_KEY, JSON.stringify(cards));
+    else window.sessionStorage.removeItem(SELECTION_KEY);
+  } catch {
+    /* storage unavailable: the selection simply does not survive navigation */
+  }
+}
 
 export function ScenarioLibrary() {
   const router = useRouter();
-  // `/scenarios?domain=retail` (the What-If "Scenario Library" link) opens
-  // on that book; read once on mount, the user can widen it after.
-  // `/scenarios?domain=retail` (the What-If "Scenario Library" link) opens
-  // on that book; the user can widen it after.
-  const asked = useSearchParams().get("domain");
+  // The filters live in the URL (`/scenarios?domain=retail&owner=mine&q=..`):
+  // a link can open the library on a book, and browser Back from a scenario
+  // returns to the same filtered list. The combine selection survives the
+  // round trip in this tab's session storage.
+  const params = useSearchParams();
+  const asked = params.get("domain");
   const [domain, setDomain] = React.useState(asked === "corporate" || asked === "retail" ? asked : "");
-  const [owner, setOwner] = React.useState("");
-  const [severity, setSeverity] = React.useState("");
-  const [tag, setTag] = React.useState("");
-  const [q, setQ] = React.useState("");
-  const [query, setQuery] = React.useState("");
+  const [owner, setOwner] = React.useState(() => pick(params.get("owner"), OWNERS.map(([v]) => v)));
+  const [severity, setSeverity] = React.useState(() => pick(params.get("severity"), SEVERITIES));
+  const [tag, setTag] = React.useState(params.get("tag") ?? "");
+  const [q, setQ] = React.useState(params.get("q") ?? "");
+  const [query, setQuery] = React.useState(params.get("q") ?? "");
   const [loaded, setLoaded] = React.useState<{ key: string; listing: Listing | null; error: string }>({ key: "", listing: null, error: "" });
-  const [selected, setSelected] = React.useState<ScenarioCard[]>([]);
+  const [selected, setSelectedState] = React.useState<ScenarioCard[]>(readSelection);
+  const setSelected = React.useCallback((next: ScenarioCard[] | ((prev: ScenarioCard[]) => ScenarioCard[])) => {
+    setSelectedState((prev) => {
+      const value = typeof next === "function" ? next(prev) : next;
+      writeSelection(value);
+      return value;
+    });
+  }, []);
   const [actionError, setActionError] = React.useState("");
   const flight = useSingleFlight();
   const [combining, setCombining] = React.useState<{ name: string; preview: Preview | null; error: string; busy: boolean } | null>(null);
@@ -62,6 +97,11 @@ export function ScenarioLibrary() {
       .catch((e: unknown) => setLoaded({ key, listing: null, error: e instanceof Error ? e.message : String(e) }));
   }, [domain, owner, severity, tag, query, key]);
   const listing = loaded.key === key ? loaded.listing : null;
+  React.useEffect(() => {
+    const next = urlWith({ domain, owner, severity, tag, q: query });
+    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
+  }, [domain, owner, severity, tag, query, router]);
+  const here = `/scenarios?${new URLSearchParams(Object.entries({ domain, owner, severity, tag, q: query }).filter(([, v]) => v)).toString()}`;
 
   function toggle(card: ScenarioCard) {
     setCombining(null);
@@ -97,7 +137,10 @@ export function ScenarioLibrary() {
           resolutions,
         ),
       );
-      if (out) router.push(`/scenarios/${out.scenario.object_id}`);
+      if (out) {
+        setSelected([]);
+        router.push(withBack(`/scenarios/${out.scenario.object_id}`, here));
+      }
     } catch (e) {
       setCombining((c) => (c ? { ...c, error: e instanceof Error ? e.message : String(e) } : c));
     }
@@ -107,7 +150,7 @@ export function ScenarioLibrary() {
     setActionError("");
     try {
       const copy = await flight.run(() => cloneScenario(objectId));
-      if (copy) router.push(`/scenarios/${copy.object_id}`);
+      if (copy) router.push(withBack(`/scenarios/${copy.object_id}`, here));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
     }
@@ -120,7 +163,7 @@ export function ScenarioLibrary() {
         <span className="text-xs text-text-muted">
           Governed definitions. Opening, previewing, cloning or combining never calculates ECL.
         </span>
-        <Link href="/scenarios/new" className="ml-auto inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast" data-testid="scenario-new">
+        <Link href={withBack("/scenarios/new", here)} className="ml-auto inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast" data-testid="scenario-new">
           <Plus className="h-4 w-4" /> New scenario
         </Link>
       </header>
@@ -146,7 +189,7 @@ export function ScenarioLibrary() {
         <Segmented value={owner} onChange={setOwner} options={OWNERS as unknown as [string, string][]} testId="scenario-owner" />
         <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm" data-testid="scenario-severity" aria-label="Severity">
           <option value="">Any severity</option>
-          {["upside", "mild", "moderate", "severe"].map((s) => (
+          {SEVERITIES.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -254,6 +297,7 @@ export function ScenarioLibrary() {
               selected={selected.some((s) => s.object_id === c.object_id)}
               onToggle={() => toggle(c)}
               onClone={() => void cloneCard(c.object_id)}
+              back={here}
             />
           ))}
         </div>
@@ -262,7 +306,7 @@ export function ScenarioLibrary() {
   );
 }
 
-function ScenarioCardView({ card, selected, onToggle, onClone }: { card: ScenarioCard; selected: boolean; onToggle: () => void; onClone: () => void }) {
+function ScenarioCardView({ card, selected, onToggle, onClone, back }: { card: ScenarioCard; selected: boolean; onToggle: () => void; onClone: () => void; back: string }) {
   return (
     <article
       className={cn("flex flex-col rounded-xl border bg-surface p-3", selected ? "border-accent" : "border-border")}
@@ -281,7 +325,7 @@ function ScenarioCardView({ card, selected, onToggle, onClone }: { card: Scenari
             <Badge variant={card.is_template ? "info" : "accent"}>{card.is_template ? "template" : card.status.toLowerCase()}</Badge>
             <span className="text-text-muted">v{card.version}</span>
           </div>
-          <Link href={`/scenarios/${card.object_id}`} className="mt-1 block font-semibold text-text-primary hover:underline" data-testid="scenario-open">
+          <Link href={withBack(`/scenarios/${card.object_id}`, back)} className="mt-1 block font-semibold text-text-primary hover:underline" data-testid="scenario-open">
             {card.name}
           </Link>
         </div>
@@ -306,7 +350,7 @@ function ScenarioCardView({ card, selected, onToggle, onClone }: { card: Scenari
         </div>
       </dl>
       <div className="mt-auto flex gap-2 pt-2 text-xs">
-        <Link href={`/scenarios/${card.object_id}`} className="rounded border border-border px-2 py-0.5">
+        <Link href={withBack(`/scenarios/${card.object_id}`, back)} className="rounded border border-border px-2 py-0.5">
           Open preview
         </Link>
         <button type="button" onClick={onClone} className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5" data-testid="scenario-clone">

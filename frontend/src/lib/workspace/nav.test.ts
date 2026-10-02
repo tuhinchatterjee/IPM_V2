@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { backLabel, safeBack, withBack } from "./nav";
+import { backLabel, safeBack, withBack } from "./nav.ts";
 
 test("NAV01 safeBack keeps same-origin paths only", () => {
   assert.equal(safeBack("/issues/iss-1?driver=Hotels"), "/issues/iss-1?driver=Hotels");

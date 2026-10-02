@@ -20,6 +20,7 @@ import { ChartCard } from "@/components/viz/chart-card";
 import { ExportPackage } from "@/components/workspace/export-package";
 import { SEMANTIC, SEVERITY_COLORS, categorical } from "@/lib/viz/palette";
 import { formatValue } from "@/lib/workspace/metric-figures";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 import { actOnAlert, alertCohort, investigateAlert, readAlert, readMonitoring, runDueRefreshes, type AlertDetail, type AlertSummary, type MonitoringView } from "@/lib/workspace/monitoring";
 
 const VIEWS: { id: string; label: string; count?: keyof MonitoringView["counts"] }[] = [
@@ -63,13 +64,22 @@ function fmt(v: number | null | undefined, unit = "") {
   return formatValue(v, unit);
 }
 
+const VIEW_IDS = ["new_today", "active", "worsening", "acknowledged", "resolved", "all", "changes", "history", "mine"];
+const SEVERITIES = ["critical", "high", "moderate", "medium", "low", "info"];
+
+function oneOf(raw: string | null, allowed: string[], fallback: string): string {
+  return raw && allowed.includes(raw) ? raw : fallback;
+}
+
 export function MonitoringCentre() {
   const params = useSearchParams();
   const router = useRouter();
-  const [view, setView] = React.useState(params.get("view") ?? "active");
-  const [severity, setSeverity] = React.useState("");
-  const [lens, setLens] = React.useState("");
-  const [domain, setDomain] = React.useState("");
+  // The view and every filter live in the URL, so Back from a Lens, the
+  // Cockpit or What-If returns to the same list; an unknown value is ignored.
+  const [view, setView] = React.useState(() => oneOf(params.get("view"), VIEW_IDS, "active"));
+  const [severity, setSeverity] = React.useState(() => oneOf(params.get("severity"), SEVERITIES, ""));
+  const [lens, setLens] = React.useState(params.get("lens") ?? "");
+  const [domain, setDomain] = React.useState(() => oneOf(params.get("domain"), ["corporate", "retail"], ""));
   const [data, setData] = React.useState<MonitoringView | null>(null);
   const [error, setError] = React.useState("");
   const [reload, setReload] = React.useState(0);
@@ -87,8 +97,14 @@ export function MonitoringCentre() {
     };
   }, [view, severity, lens, domain, reload]);
 
+  React.useEffect(() => {
+    const next = urlWith({ view, severity, lens, domain });
+    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
+  }, [view, severity, lens, domain, router]);
+
   function open(id: string) {
-    router.replace(`/monitoring?view=${view}&alert=${id}`);
+    // Pushed: browser Back closes the alert and keeps the list as it was.
+    router.push(urlWith({ alert: id }), { scroll: false });
   }
 
   const alerts = data?.alerts ?? [];
@@ -294,7 +310,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
   if (!d) return <p className="text-sm text-text-muted">{error || "Loading alert…"}</p>;
   const a = d.alert;
   const b = a.body as Record<string, unknown>;
-  const lensHref = `/lenses/${d.open_lens.lens_id}?alert=${a.object_id}`;
+  const lensHref = withBack(`/lenses/${d.open_lens.lens_id}?alert=${a.object_id}`);
   const breachType = b.alert_type === "breach";
   return (
     <article className="space-y-3 rounded-xl border border-border bg-surface p-3 text-xs" data-testid="alert-panel" data-state={a.status}>
@@ -369,7 +385,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
             </button>
             <button type="button" disabled={busy} onClick={() => void go(async () => {
               const c = await alertCohort(a.object_id);
-              router.push(`/what-if?cohort=${c.object_id}`);
+              router.push(withBack(`/what-if?cohort=${c.object_id}`));
             })} className="rounded-md border border-border px-2 py-1" data-testid="alert-whatif">
               What-If
             </button>

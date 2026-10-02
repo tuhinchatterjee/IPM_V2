@@ -302,13 +302,36 @@ def bind(svc: ObjectService, who: dict[str, Any], object_id: str,
                                "entities": cb["counts"]["entities"],
                                "verified": check["status"],
                                "bound_at": time.time()}}
+    # Binding is idempotent: re-opening the same scenario on the same cohort
+    # version (browser Back, a refresh, a double click) reuses the binding
+    # instead of writing another version or another copy (VAL-DEF-016).
     if can_edit(scenario, principal):
+        if _bound_to(scenario, cohort):
+            return {"scenario": scenario, "cohort_check": check,
+                    "reused": True}
         obj = revise(svc, who, object_id, change,
                      reason=f"bound to cohort {cohort_id}")
     else:
+        earlier = [s for s in svc.list("scenario", principal)
+                   if s["owner_id"] == principal.id
+                   and s["status"] != "ARCHIVED" and _bound_to(s, cohort)
+                   and [(x.get("object_id"), x.get("version")) for x in
+                        s["body"].get("parents") or []]
+                   == [(object_id, scenario["version"])]]
+        if earlier:
+            latest = max(earlier, key=lambda s: s["created_at"])
+            return {"scenario": latest, "cohort_check": check,
+                    "reused": True}
         obj = clone(svc, who, object_id, operation="bind", changes=change,
                     name=f"{scenario['body']['name']} on {cb['name']}")
     return {"scenario": obj, "cohort_check": check}
+
+
+def _bound_to(scenario: dict[str, Any], cohort: dict[str, Any]) -> bool:
+    scope = scenario["body"].get("scope") or {}
+    return (scope.get("type") == "cohort"
+            and scope.get("cohort_id") == cohort["object_id"]
+            and scope.get("cohort_version") == cohort["version"])
 
 
 def results(svc: ObjectService, who: dict[str, Any], object_id: str
