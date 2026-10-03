@@ -1,0 +1,4 @@
+tests/cockpit_v4/test_gw_whatif.py:351: AssertionError
+=========================== short test summary info ============================
+FAILED tests/cockpit_v4/test_gw_whatif.py::test_val_def_049_adopting_a_conversation_cohort_again_is_the_same_cohort
+1 failed, 20 deselected in 2.53s

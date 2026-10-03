@@ -445,3 +445,46 @@ def test_every_shareable_kind_offers_its_recipient_actions_and_each_works(
         assert com.status_code == 201, (kind, com.text)
         again = client.get(f"{P}/messages/{msg['share_id']}").json()
         assert f"recipient note on {kind}" in str(again), kind
+
+
+def test_val_def_050_an_administrator_recipient_never_changes_the_senders_object(
+        client, who):
+    """An administrator may edit others' objects, and the recipient-side
+    "use" actions took that path: opening a shared definition on the
+    recipient's cohort (What-If binds it) wrote a new version of the SENDER's
+    scenario, and Save on a shared Lens renamed the sender's Lens "(my
+    copy)". Both now leave the sender's object unchanged and give the
+    recipient their own copy."""
+    admin = {"id": "chief", "tenant": "demo-tenant",
+             "roles": ("administrator",)}
+    scenario = own_scenario(client)
+    spec = client.post(f"{P}/lenses/propose",
+                       json={"prompt": "construction risk weekly"}).json()
+    lens = client.post(f"{P}/lenses", json={"spec": spec["spec"],
+                                            "source": spec.get("source")}
+                       ).json()
+    send(client, scenario["object_id"], to=("chief",))
+    send(client, lens["object_id"], to=("chief",))
+    before = {o: client.get(f"{P}/objects/{o}").json()["version"]
+              for o in (scenario["object_id"], lens["object_id"])}
+
+    as_(who, admin)
+    mine = client.post(f"{P}/whatif/selection/cohort", json={
+        "domain": "corporate", "name": "chief's construction",
+        "selection": {"mode": "filtered", "filters": CONSTRUCTION}}).json()
+    bound = client.post(f"{P}/scenarios/{scenario['object_id']}/bind",
+                        json={"cohort_id": mine["object_id"]}).json()
+    assert bound["scenario"]["object_id"] != scenario["object_id"]
+    assert bound["scenario"]["owner_id"] == "chief"
+    msg = received(client, lens["object_id"])
+    saved = client.post(f"{P}/messages/{msg['share_id']}/save")
+    assert saved.status_code == 201, saved.text
+    assert saved.json()["object_id"] != lens["object_id"]
+    assert saved.json()["owner_id"] == "chief"
+
+    as_(who, SENDER)
+    after = {o: client.get(f"{P}/objects/{o}").json()
+             for o in (scenario["object_id"], lens["object_id"])}
+    for o, obj in after.items():
+        assert obj["version"] == before[o], f"{o} was changed by the recipient"
+    assert "(my copy)" not in after[lens["object_id"]]["title"]

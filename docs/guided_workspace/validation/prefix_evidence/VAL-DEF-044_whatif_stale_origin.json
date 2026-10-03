@@ -1,0 +1,1750 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 0,
+  "total": 1,
+  "journeys": [
+    {
+      "journey": "GW-CTL-WHATIF",
+      "what": "What-If workspace: book switch, explorer and heatmap measures, heatmap and Sankey drills, tornado controls, selection Save/Share/Export/Investigate/Library, strip clear and loaders, scenario filter, ask, adopt, open and close the conversation",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "controls": [
+        {
+          "id": "ws-domain-retail",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the Retail book loads (grain and period change)",
+          "observed": "Latest quarter 2026Q2 · v4-whatif-corporate-20q-s1 · 3b101bd41465 · 2,996 facilities → Latest month 2026-08 · v4-whatif-retail-20m-s1 · 98b494ae2721 · 6,702 accounts → back to corporate",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=retail"
+        },
+        {
+          "id": "whatif-explorer-dimension",
+          "url": "/what-if?domain=retail",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the explorer breaks the book down by another dimension",
+          "observed": "sector → rating_current → sector",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-explorer-measure",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the explorer bars switch between Booked ECL and EAD",
+          "observed": "Booked ECL → EAD → Booked ECL (chart title follows)",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-heatmap-measure",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the heatmap switches between EAD and Booked ECL",
+          "observed": "EAD → Booked ECL → EAD",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-dimension",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click the first bar",
+          "expected": "the grid is filtered to it (f= in the address); clearing restores the book",
+          "observed": "2996 → 249; cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-stage",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click the first bar",
+          "expected": "the grid is filtered to it (f= in the address); clearing restores the book",
+          "observed": "2996 → 2984; cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-dimension",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "box-select two bars",
+          "expected": "the grid is filtered to both categories",
+          "observed": "selected Utilities + Education; cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-dimension-view-data",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the chart's data table opens, then closes",
+          "observed": "table with 12 rows shown and hidden",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-dimension-csv",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "a CSV file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-by-sector.csv",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "booked-ecl-by-sector.csv",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-dimension-png",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "a PNG file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-by-sector.png",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "booked-ecl-by-sector.png",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-dimension-svg",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "a SVG file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-by-sector.svg",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "booked-ecl-by-sector.svg",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-heatmap",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click the first cell / flow",
+          "expected": "the grid narrows to that cell (a filter in the address); clearing restores the book",
+          "observed": "2996 → 15 rows (f=[{\"column\":\"sector\",\"op\":\"in\",\"values\":[\"Construction\"]},{\"column\":\"rating_curre); cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/health 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-chart-sankey",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click the first cell / flow",
+          "expected": "the grid narrows to that cell (a filter in the address); clearing restores the book",
+          "observed": "2996 → 2976 rows (f=[{\"column\":\"prior_stage\",\"op\":\"in\",\"values\":[1]},{\"column\":\"stage\",\"op\":\"in\",\"va); cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "tornado-parameter",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the macro sensitivity is recomputed for the new setting",
+          "observed": "tornado-parameter=pd: 12 rows",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "tornado-top",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the macro sensitivity is recomputed for the new setting",
+          "observed": "tornado-top=8: 8 rows",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "tornado-scale",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "the macro sensitivity is recomputed for the new setting",
+          "observed": "tornado-scale=2: 8 rows",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "grid-row-select",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate book, no selection",
+          "action": "click",
+          "expected": "two rows ticked: the active selection is those two exposures",
+          "observed": "2 rows selected (selection summary 2)",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/summary 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-save-cohort",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate, two rows selected",
+          "action": "click",
+          "expected": "the name form opens",
+          "observed": "form open",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-save-form-input",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate, two rows selected",
+          "action": "type a cohort name",
+          "expected": "the name is held in the form",
+          "observed": "name typed",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-save-form",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate, two rows selected, name typed",
+          "action": "submit the form",
+          "expected": "the two rows are frozen as a named governed cohort",
+          "observed": "cohort coh-90479369ae59: 2 entities, name stored",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-share",
+          "url": "/what-if?domain=corporate",
+          "prereq": "What-If, Corporate, two rows selected",
+          "action": "click",
+          "expected": "the share form opens",
+          "observed": "form open",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-share-form-input",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "What-If, Corporate, two rows selected",
+          "action": "type a recipient",
+          "expected": "the recipient is held in the form",
+          "observed": "recipient typed",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-share-form",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "What-If, Corporate, two rows selected, recipient typed",
+          "action": "submit the form",
+          "expected": "the cohort reference (not rows) is shared; it appears in Sent",
+          "observed": "shared coh-90479369ae59; in Sent",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/share 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/share 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-export",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "What-If, Corporate, two rows selected",
+          "action": "click",
+          "expected": "a CSV of the filtered book (every grid row) downloads",
+          "observed": "creditprobe_corporate_grid.csv: 2996 rows = grid total",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/export 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "creditprobe_corporate_grid.csv",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-export-cohort",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "What-If, Corporate, two rows selected, cohort coh-90479369ae59 active",
+          "action": "click",
+          "expected": "the active cohort's CSV downloads (exactly its members)",
+          "observed": "coh-90479369ae59.csv: 2 rows",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/cohorts/coh-90479369ae59/export 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "coh-90479369ae59.csv",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-strip-clear-cohort",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "cohort coh-90479369ae59 active",
+          "action": "click",
+          "expected": "the cohort leaves the strip (nothing deleted)",
+          "observed": "strip cohort cleared; object kept",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-load-cohort",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "no active cohort",
+          "action": "click",
+          "expected": "the saved-cohort list opens",
+          "observed": "2 saved cohorts listed",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/cohorts?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-cohort-pick",
+          "url": "/what-if?domain=corporate",
+          "prereq": "saved-cohort list open",
+          "action": "click",
+          "expected": "the chosen cohort becomes active",
+          "observed": "coh-90479369ae59 active again",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-90479369ae59 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-load-scenario",
+          "url": "/what-if?domain=corporate",
+          "prereq": "cohort coh-90479369ae59 active",
+          "action": "click",
+          "expected": "the scenario list opens",
+          "observed": "19 scenarios listed",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-scenario-filter",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "scenario list open",
+          "action": "type CORP-02",
+          "expected": "the list narrows to matching scenarios",
+          "observed": "19 → 1",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-scenario-pick",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "scenario list filtered to CORP-02",
+          "action": "click",
+          "expected": "CORP-02 becomes the active scenario",
+          "observed": "scenario scn-tpl-corp-02",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/bind 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/bind 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-strip-clear-scenario",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "CORP-02 active",
+          "action": "click",
+          "expected": "the scenario leaves the strip and its run panel closes",
+          "observed": "scenario cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-1e7f7c8e6f18/preview?version=1 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-investigate",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "cohort coh-90479369ae59 active",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens a Cockpit investigation on the active cohort",
+          "observed": "/what-if?domain=corporate&cohort=coh-90479369ae59 → /cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59 · FAILED: whatif-investigate: opens a Cockpit investigation on the active cohort: no object written on the return trip · handoff: cohort coh-90479369ae59 (431437f91fa0) → thread th-27ea5024256745ee8ad017270bb464e6 seeded with coh-90479369ae59 (431437f91fa0)",
+          "result": "FAILED",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/investigate 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-27ea5024256745ee8ad017270bb464e6/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-27ea5024256745ee8ad017270bb464e6 200",
+            "GET /api/v1/cockpit-v4/threads/th-27ea5024256745ee8ad017270bb464e6 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/investigate 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "back": {
+            "ok": false,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-library",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "cohort coh-90479369ae59 active",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the Scenario Library on this book",
+          "observed": "/what-if?domain=corporate&cohort=coh-90479369ae59 → /scenarios?domain=corporate&back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/scenarios?domain=corporate&back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-clear",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "prereq": "cohort coh-90479369ae59 active",
+          "action": "click",
+          "expected": "selection and cohort are cleared",
+          "observed": "selection none, strip empty",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59"
+        },
+        {
+          "id": "whatif-ask-input",
+          "url": "/what-if?domain=corporate",
+          "prereq": "one row selected",
+          "action": "type a question",
+          "expected": "the question is held in the box; Ask enables",
+          "observed": "Ask enabled",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate"
+        },
+        {
+          "id": "whatif-ask",
+          "url": "/what-if?domain=corporate",
+          "prereq": "question typed, one row selected",
+          "action": "click",
+          "expected": "a governed conversation opens on the selection (one model call)",
+          "observed": "thread th-ad6ae03aff034772b5d373f919066e0b",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201",
+            "POST /api/v1/cockpit-v4/workspace/whatif/ask-context 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/cohort 200",
+            "GET /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8 200",
+            "GET /api/v1/cockpit-v4/threads/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8/events?cursor=0 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397"
+        },
+        {
+          "id": "whatif-adopt-cohort",
+          "url": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "prereq": "conversation th-ad6ae03aff034772b5d373f919066e0b open",
+          "action": "click",
+          "expected": "the conversation's cohort becomes the active cohort (same membership)",
+          "observed": "Selection cleared; no cohort is active.",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8/delivered 200",
+            "GET /api/v1/cockpit-v4/threads/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/adopt-cohort 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8/delivered 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/adopt-cohort 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397"
+        },
+        {
+          "id": "whatif-open-thread",
+          "url": "/what-if?domain=corporate&cohort=coh-f82d117e5304",
+          "prereq": "conversation th-ad6ae03aff034772b5d373f919066e0b open",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the same conversation in the Cockpit",
+          "observed": "/what-if?domain=corporate&cohort=coh-f82d117e5304 → /cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397 · FAILED: whatif-open-thread: opens the same conversation in the Cockpit: in-app Back — FAILED at /what-if?domain=corporate&cohort=coh-27778a563397: state {\"domain\":\"corporate\",\"cohort\":\"coh-27778a563397\",\"scen · handoff: thread th-ad6ae03aff034772b5d373f919066e0b → th-ad6ae03aff034772b5d373f919066e0b",
+          "result": "FAILED",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/threads/th-ad6ae03aff034772b5d373f919066e0b 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397",
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /what-if?domain=corporate&cohort=coh-27778a563397: state {\"domain\":\"corporate\",\"cohort\":\"coh-27778a563397\",\"scenario\":\"\",\"filters\":\"\"} != {\"domain\":\"corporate\",\"cohort\":\"coh-f82d117e5304\",\"scenario\":\"\",\"filters\":\"\"}",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-close-thread",
+          "url": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "prereq": "conversation open in What-If",
+          "action": "click",
+          "expected": "the conversation panel closes; nothing is deleted",
+          "observed": "panel closed; thread kept",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/ask-context 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-3297afff56804a54856602812787e555/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-3297afff56804a54856602812787e555 200",
+            "GET /api/v1/cockpit-v4/threads/th-3297afff56804a54856602812787e555 200",
+            "GET /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc 200",
+            "GET /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc/events?cursor=0 200",
+            "POST /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc/delivered 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/runs 202",
+            "POST /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc/delivered 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397"
+        }
+      ],
+      "back": [
+        {
+          "path": "whatif-investigate: opens a Cockpit investigation on the active cohort",
+          "origin": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "destination": "/cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "origin_state": {
+            "domain": "corporate",
+            "cohort": "coh-90479369ae59",
+            "scenario": "",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "{\"scenarios\":1,\"cohorts\":2,\"results\":1,\"lenses\":20,\"sent\":1} -> {\"scenarios\":1,\"cohorts\":2,\"results\":2,\"lenses\":20,\"sent\":1}",
+          "status": "FAILED"
+        },
+        {
+          "path": "whatif-library: opens the Scenario Library on this book",
+          "origin": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "destination": "/scenarios?domain=corporate&back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "origin_state": {
+            "domain": "corporate",
+            "cohort": "coh-90479369ae59",
+            "scenario": "",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "whatif-open-thread: opens the same conversation in the Cockpit",
+          "origin": "/what-if?domain=corporate&cohort=coh-f82d117e5304",
+          "destination": "/cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397",
+          "origin_state": {
+            "domain": "corporate",
+            "cohort": "coh-f82d117e5304",
+            "scenario": "",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "in_app_back": "FAILED at /what-if?domain=corporate&cohort=coh-27778a563397: state {\"domain\":\"corporate\",\"cohort\":\"coh-27778a563397\",\"scenario\":\"\",\"filters\":\"\"} != {\"domain\":\"corporate\",\"cohort\":\"coh-f82d117e5304\",\"scenario\":\"\",\"filters\":\"\"}",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "FAILED"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "whatif-investigate",
+          "from_url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "to_url": "/cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "source": "{\"cohort\":\"coh-90479369ae59\",\"hash\":\"431437f91fa08573778bc571537d3b108a49c60e184379fcb22f082ce1c28868\"}",
+          "destination": "{\"thread\":\"th-27ea5024256745ee8ad017270bb464e6\",\"cohort\":\"coh-90479369ae59\",\"hash\":\"431437f91fa08573778bc571537d3b108a49c60e184379fcb22f082ce1c28868\"}",
+          "identity": "cohort coh-90479369ae59 (431437f91fa0) → thread th-27ea5024256745ee8ad017270bb464e6 seeded with coh-90479369ae59 (431437f91fa0)",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/investigate 201"
+          ],
+          "unintended_writes": [],
+          "back": {
+            "ok": false,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        },
+        {
+          "control": "whatif-library",
+          "from_url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "to_url": "/scenarios?domain=corporate&back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "source": "{\"domain\":\"corporate\"}",
+          "destination": "{\"domain\":\"corporate\"}",
+          "identity": "book corporate → library filtered to corporate",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "whatif-open-thread",
+          "from_url": "/what-if?domain=corporate&cohort=coh-f82d117e5304",
+          "to_url": "/cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397",
+          "source": "{\"thread\":\"th-ad6ae03aff034772b5d373f919066e0b\"}",
+          "destination": "{\"thread\":\"th-ad6ae03aff034772b5d373f919066e0b\"}",
+          "identity": "thread th-ad6ae03aff034772b5d373f919066e0b → th-ad6ae03aff034772b5d373f919066e0b",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /what-if?domain=corporate&cohort=coh-27778a563397: state {\"domain\":\"corporate\",\"cohort\":\"coh-27778a563397\",\"scenario\":\"\",\"filters\":\"\"} != {\"domain\":\"corporate\",\"cohort\":\"coh-f82d117e5304\",\"scenario\":\"\",\"filters\":\"\"}",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        }
+      ],
+      "status": "FAILED",
+      "error": "every exercised control passed | + actual - expected |  | + [ | +   'whatif-investigate: /what-if?domain=corporate&cohort=coh-90479369ae59 → /cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59 · FAILED: whatif-investigate: opens a Cockpit investigation on the active cohort: no object written on the retu', | +   'whatif-open-thread: /what-if?domain=corporate&cohort=coh-f82d117e5304 → /cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397 · FAILED: whatif-open-thread: opens the same conversation in the Cockpit: in-app Back — FAILED at /what-if?doma'",
+      "on_screen": "http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-27778a563397 :: app-content-column whatif-workspace ws-domain-switch ws-domain-corporate ws-domain-retail whatif-book whatif-method-badges whatif-method-delta whatif-method-ml whatif-method-user_defined whatif-ask-box whatif-ask-input whatif-ask whatif-strip whatif-strip-cohort whatif-strip-clear-cohort whatif-load-cohort whatif-strip-scenario whatif-load-scenario whatif-strip-baseline whatif-strip-method whatif-explorer whatif-explorer-dimension whatif-explorer-measure whatif-chart-dimension-card whatif-chart-dimension-view-data whatif-chart-dimension-csv whatif-chart-dimension-png whatif-chart-dimension-svg whatif-chart-dimension whatif-chart-stage-card whatif-chart-stage-view-data whatif-chart-stage-csv whatif-chart-stage-png whatif-chart-stage-svg whatif-chart-stage whatif-matrices whatif-chart-heatmap-card whatif-heatmap-measure whatif-chart-heatmap-view-data whatif-chart-heatmap-csv whatif-chart-heatmap-png whatif-chart-heatmap-svg whatif-chart-heatmap whatif-heatmap-reconcile whatif-chart-sankey-card whatif-chart-sankey-view-data whatif-chart-sankey-csv whatif-chart-sankey-png whatif-chart-sankey-svg",
+      "hovers": [
+        {
+          "chart": "whatif-chart-dimension",
+          "control": "",
+          "text": "Sector UtilitiesSAR 196m · 249 exposuresraw 195.515767 SAR million"
+        },
+        {
+          "chart": "whatif-chart-stage",
+          "control": "",
+          "text": "Stage 1: SAR 281bn EAD · 2,984 exposures · ECL SAR 1.85bn"
+        }
+      ],
+      "exec": [
+        {
+          "id": "ws-domain-retail",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=retail",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "ws-domain-corporate",
+          "control": "",
+          "url": "/what-if?domain=retail",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-dimension",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Utilities%22%5D%7D%5D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-clear-filters",
+          "control": "",
+          "url": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Utilities%22%5D%7D%5D",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-stage",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B1%5D%7D%5D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-clear-filters",
+          "control": "",
+          "url": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B1%5D%7D%5D",
+          "url_after": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Utilities%22%2C%22Education%22%5D%7D%5D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-clear-filters",
+          "control": "",
+          "url": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Utilities%22%2C%22Education%22%5D%7D%5D",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-dimension-view-data",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-dimension-view-data",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-dimension-csv",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-by-sector.csv",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-dimension-png",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-by-sector.png",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-dimension-svg",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "GET /api/v1/health 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-by-sector.svg",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-heatmap-view-data",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-heatmap-table-row",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%5D%7D%2C%7B%22column%22%3A%22rating_current%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22B%22%5D%7D%5D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-clear-filters",
+          "control": "",
+          "url": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Construction%22%5D%7D%2C%7B%22column%22%3A%22rating_current%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22B%22%5D%7D%5D",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-sankey-view-data",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-chart-sankey-table-row",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22prior_stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B1%5D%7D%2C%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B1%5D%7D%5D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-clear-filters",
+          "control": "",
+          "url": "/what-if?domain=corporate&f=%5B%7B%22column%22%3A%22prior_stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B1%5D%7D%2C%7B%22column%22%3A%22stage%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B1%5D%7D%5D",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-row-select",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-row-select",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/summary 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-save-cohort",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-save-form-submit",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-share",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-share-form-submit",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/share 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/share 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-export",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/export 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "creditprobe_corporate_grid.csv",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-export-cohort",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/cohorts/coh-90479369ae59/export 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "coh-90479369ae59.csv",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-strip-clear-cohort",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-load-cohort",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/cohorts?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-cohort-pick",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-90479369ae59 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-load-scenario",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-scenario-pick",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/bind 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-1e7f7c8e6f18/preview?version=1 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/bind 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-strip-clear-scenario",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-investigate",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/investigate 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-27ea5024256745ee8ad017270bb464e6/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-27ea5024256745ee8ad017270bb464e6 200",
+            "GET /api/v1/cockpit-v4/threads/th-27ea5024256745ee8ad017270bb464e6 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/investigate 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-27ea5024256745ee8ad017270bb464e6?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59&domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-90479369ae59 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-library",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/scenarios?domain=corporate&back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "scenario-library-back",
+          "control": "",
+          "url": "/scenarios?domain=corporate&back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-90479369ae59&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-90479369ae59 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-clear",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-90479369ae59",
+          "url_after": "/what-if?domain=corporate",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "grid-row-select",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/summary 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-ask",
+          "control": "",
+          "url": "/what-if?domain=corporate",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201",
+            "POST /api/v1/cockpit-v4/workspace/whatif/ask-context 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/cohort 200",
+            "GET /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8 200",
+            "GET /api/v1/cockpit-v4/threads/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8/events?cursor=0 200",
+            "GET /api/v1/health 200",
+            "POST /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8/delivered 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "POST /api/v1/cockpit-v4/runs/run-c0ef181c4c8f40e9b106510778f81ec8/delivered 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-adopt-cohort",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "url_after": "/what-if?domain=corporate&cohort=coh-f82d117e5304",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/adopt-cohort 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/adopt-cohort 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-open-thread",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-f82d117e5304",
+          "url_after": "/cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ad6ae03aff034772b5d373f919066e0b/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ad6ae03aff034772b5d373f919066e0b 200",
+            "GET /api/v1/cockpit-v4/threads/th-ad6ae03aff034772b5d373f919066e0b 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b?back=%2Fwhat-if%3Fdomain%3Dcorporate%26cohort%3Dcoh-27778a563397",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-1fd315ca-649&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-27778a563397 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-ask",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/ask-context 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-3297afff56804a54856602812787e555/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-3297afff56804a54856602812787e555 200",
+            "GET /api/v1/cockpit-v4/threads/th-3297afff56804a54856602812787e555 200",
+            "GET /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc 200",
+            "GET /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc/events?cursor=0 200",
+            "POST /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc/delivered 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/runs 202",
+            "POST /api/v1/cockpit-v4/runs/run-5ad73a8ad0da40a69ff8fa677ed5a6cc/delivered 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        },
+        {
+          "id": "whatif-close-thread",
+          "control": "",
+          "url": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "url_after": "/what-if?domain=corporate&cohort=coh-27778a563397",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-WHATIF"
+        }
+      ],
+      "controls_clicked": [
+        "grid-clear-filters",
+        "grid-row-select",
+        "scenario-library-back",
+        "thread-origin-back",
+        "whatif-adopt-cohort",
+        "whatif-ask",
+        "whatif-chart-dimension",
+        "whatif-chart-dimension-csv",
+        "whatif-chart-dimension-png",
+        "whatif-chart-dimension-svg",
+        "whatif-chart-dimension-view-data",
+        "whatif-chart-heatmap-table-row",
+        "whatif-chart-heatmap-view-data",
+        "whatif-chart-sankey-table-row",
+        "whatif-chart-sankey-view-data",
+        "whatif-chart-stage",
+        "whatif-clear",
+        "whatif-close-thread",
+        "whatif-cohort-pick",
+        "whatif-export",
+        "whatif-export-cohort",
+        "whatif-investigate",
+        "whatif-library",
+        "whatif-load-cohort",
+        "whatif-load-scenario",
+        "whatif-open-thread",
+        "whatif-save-cohort",
+        "whatif-save-form-submit",
+        "whatif-scenario-pick",
+        "whatif-share",
+        "whatif-share-form-submit",
+        "whatif-strip-clear-cohort",
+        "whatif-strip-clear-scenario",
+        "ws-domain-corporate",
+        "ws-domain-retail"
+      ],
+      "urls": [
+        "/cockpit/thread/th-27ea5024256745ee8ad017270bb464e6",
+        "/cockpit/thread/th-ad6ae03aff034772b5d373f919066e0b",
+        "/scenarios",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/cohorts/coh-90479369ae59/export net::ERR_ABORTED"
+      ],
+      "ms": 125469
+    }
+  ]
+}

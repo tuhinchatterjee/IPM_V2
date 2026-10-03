@@ -1,0 +1,728 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 0,
+  "total": 1,
+  "journeys": [
+    {
+      "journey": "GW-CTL-LENS",
+      "what": "Lenses: library search / propose / discard / save / open; Lens view across personas — period and cross-filter chart clicks, reset, chip remove, box-select cohort Save / Share / Investigate / What-If / clear, top-owner click, alert and scenario-result group clicks, table row, KPI and governance metric links, refresh, follow, edit name and refresh cadence, share, export package with the LLM option, Trace, underlying data",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "controls": [
+        {
+          "id": "lens-search",
+          "url": "/lenses",
+          "prereq": "Lens Library",
+          "action": "type Retail",
+          "expected": "only Lenses whose name, persona or description mention it (q= in the address)",
+          "observed": "2 Lenses",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses?q=Retail"
+        },
+        {
+          "id": "lens-card",
+          "url": "/lenses?q=Retail",
+          "prereq": "library filtered to Retail",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens that Lens; Back restores the filter",
+          "observed": "/lenses?q=Retail → /lenses/lens-03?back=%2Flenses%3Fq%3DRetail",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-03/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-03?back=%2Flenses%3Fq%3DRetail",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "lens-prompt",
+          "url": "/lenses?q=Retail",
+          "prereq": "Lens Library",
+          "action": "describe a dashboard",
+          "expected": "held; Preview enables",
+          "observed": "typed",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses?q=Retail"
+        },
+        {
+          "id": "lens-propose",
+          "url": "/lenses?q=Retail",
+          "prereq": "prompt typed",
+          "action": "click",
+          "expected": "a preview (not saved) built from governed metrics",
+          "observed": "6 KPIs, 4 charts; nothing saved",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/propose 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/propose 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses?q=Retail"
+        },
+        {
+          "id": "lens-discard",
+          "url": "/lenses?q=Retail",
+          "prereq": "a preview",
+          "action": "click",
+          "expected": "the preview is dropped; nothing saved",
+          "observed": "discarded",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses?q=Retail"
+        },
+        {
+          "id": "lens-save",
+          "url": "/lenses",
+          "prereq": "a preview",
+          "action": "click",
+          "expected": "the Lens is saved and opens (one new Lens)",
+          "observed": "saved lens-cded8b33c9bf",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses 201",
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-cded8b33c9bf/render 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/lenses 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-cded8b33c9bf?back=%2Flenses"
+        },
+        {
+          "id": "lens-chart-trend",
+          "url": "/lenses/lens-01",
+          "prereq": "Lens LENS-01 (CRO), latest, unfiltered",
+          "action": "click an earlier period on the trend",
+          "expected": "the Lens is re-evaluated at that period (p= in the address)",
+          "observed": "periods {\"corporate\":\"2024Q3\"}",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?p=%7B%22corporate%22%3A%222024Q3%22%7D"
+        },
+        {
+          "id": "lens-reset",
+          "url": "/lenses/lens-01?p=%7B%22corporate%22%3A%222024Q3%22%7D",
+          "prereq": "a period chosen",
+          "action": "click",
+          "expected": "back to latest, unfiltered",
+          "observed": "latest",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01"
+        },
+        {
+          "id": "lens-chart-breakdown",
+          "url": "/lenses/lens-01",
+          "prereq": "Lens LENS-01 (CRO), latest, unfiltered",
+          "action": "click a breakdown bar",
+          "expected": "a cross-filter chip; every visual re-evaluated on it (x= in the address)",
+          "observed": "retail: product ∈ Auto Finance",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01"
+        },
+        {
+          "id": "lens-cross-remove",
+          "url": "/lenses/lens-01",
+          "prereq": "one cross-filter",
+          "action": "click",
+          "expected": "the chip and its filter are removed",
+          "observed": "removed",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01"
+        },
+        {
+          "id": "lens-chart-breakdown",
+          "url": "/lenses/lens-01",
+          "prereq": "Lens LENS-01 (CRO), latest, unfiltered",
+          "action": "box-select two bars",
+          "expected": "a temporary cohort of those categories (sel= in the address)",
+          "observed": "[{\"column\":\"product\",\"op\":\"in\",\"values\":[\"Auto Finance\",\"Credit Card\"]}]",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D"
+        },
+        {
+          "id": "lens-selection-save",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "prereq": "a box-selected cohort",
+          "action": "click",
+          "expected": "frozen as a governed cohort with exactly the selection's filters",
+          "observed": "coh-8dea2ecf441b: 2909 entities",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D"
+        },
+        {
+          "id": "lens-selection-share-open",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "prereq": "cohort coh-8dea2ecf441b saved from the Lens",
+          "action": "click",
+          "expected": "the share inputs open",
+          "observed": "open",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D"
+        },
+        {
+          "id": "lens-selection-share-to",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "prereq": "cohort coh-8dea2ecf441b saved from the Lens",
+          "action": "recipient colleague",
+          "expected": "held",
+          "observed": "colleague",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b"
+        },
+        {
+          "id": "lens-selection-share-message",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "prereq": "cohort coh-8dea2ecf441b saved from the Lens",
+          "action": "a message",
+          "expected": "held",
+          "observed": "typed",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b"
+        },
+        {
+          "id": "lens-selection-share-send",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "prereq": "cohort coh-8dea2ecf441b saved from the Lens",
+          "action": "click",
+          "expected": "one message carrying the reference is sent (in Sent)",
+          "observed": "0 → 1 sent messages for coh-8dea2ecf441b",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/messages 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/messages 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b"
+        },
+        {
+          "id": "lens-selection-share-sent",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "prereq": "just shared",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens Sent messages, which lists the share",
+          "observed": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b → /messages?box=sent&back=%2Flenses%2Flens-01%3Fsel%3D%257B%2522domain%2522%253A%2522retail%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522product%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Auto%2BFinance%2522%252C%2522Credit%2BCard%2522%255D%257D%255D%252C%2522label%2522%253A%2522product%2B%25E2%2588%2588%2BAuto%2BFinance%252C%2BCredit%2BCard%2522%257D%26cohort%3Dcoh-8dea2ecf441b",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/messages?box=sent 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/messages?box=sent&back=%2Flenses%2Flens-01%3Fsel%3D%257B%2522domain%2522%253A%2522retail%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522product%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Auto%2BFinance%2522%252C%2522Credit%2BCard%2522%255D%257D%255D%252C%2522label%2522%253A%2522product%2B%25E2%2588%2588%2BAuto%2BFinance%252C%2BCredit%2BCard%2522%257D%26cohort%3Dcoh-8dea2ecf441b",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "lens-selection-clear",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "prereq": "a box-selected cohort",
+          "action": "click",
+          "expected": "the temporary cohort is dropped",
+          "observed": "cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D"
+        }
+      ],
+      "back": [
+        {
+          "path": "lens-card: opens that Lens; Back restores the filter",
+          "origin": "/lenses?q=Retail",
+          "destination": "/lenses/lens-03?back=%2Flenses%3Fq%3DRetail",
+          "origin_state": {
+            "q": "Retail",
+            "cards": 2
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/lenses?q=Retail",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "lens-selection-share-sent: opens Sent messages, which lists the share",
+          "origin": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "destination": "/messages?box=sent&back=%2Flenses%2Flens-01%3Fsel%3D%257B%2522domain%2522%253A%2522retail%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522product%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Auto%2BFinance%2522%252C%2522Credit%2BCard%2522%255D%257D%255D%252C%2522label%2522%253A%2522product%2B%25E2%2588%2588%2BAuto%2BFinance%252C%2BCredit%2BCard%2522%257D%26cohort%3Dcoh-8dea2ecf441b",
+          "origin_state": {
+            "lens": "lens-01",
+            "cross": "0",
+            "selection": "Temporary cohort: retail · product ∈ Auto Finance, Credit Card"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "lens-card",
+          "from_url": "/lenses?q=Retail",
+          "to_url": "/lenses/lens-03?back=%2Flenses%3Fq%3DRetail",
+          "source": "{\"lens\":\"lens-03\"}",
+          "destination": "{\"lens\":\"lens-03\"}",
+          "identity": "lens-03 → lens-03",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "lens-selection-share-sent",
+          "from_url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "to_url": "/messages?box=sent&back=%2Flenses%2Flens-01%3Fsel%3D%257B%2522domain%2522%253A%2522retail%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522product%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Auto%2BFinance%2522%252C%2522Credit%2BCard%2522%255D%257D%255D%252C%2522label%2522%253A%2522product%2B%25E2%2588%2588%2BAuto%2BFinance%252C%2BCredit%2BCard%2522%257D%26cohort%3Dcoh-8dea2ecf441b",
+          "source": "{\"object\":\"coh-8dea2ecf441b\"}",
+          "destination": "{\"box\":\"sent\",\"listed\":true}",
+          "identity": "share of coh-8dea2ecf441b → Sent",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        }
+      ],
+      "status": "FAILED",
+      "error": "page.waitForSelector: Timeout 60000ms exceeded. | Call log: | \u001b[2m  - waiting for locator('[data-testid=\"lens-selection\"]') to be visible\u001b[22m | ",
+      "on_screen": "http://127.0.0.1:5444/lenses/lens-01 :: app-content-column lens-view lens-back lens-refresh lens-edit lens-follow lens-share lens-share-open lens-export lens-export-go lens-export-llm lens-export-trace lens-state lens-period-corporate lens-period-retail lens-kpis lens-kpi lens-charts lens-visual-v08-card lens-visual-v08-view-data lens-visual-v08-csv lens-visual-v08-png lens-visual-v08-svg lens-visual-v08 lens-visual-v09-card lens-visual-v09-view-data lens-visual-v09-csv lens-visual-v09-png lens-visual-v09-svg lens-visual-v09 lens-visual-v10-card lens-visual-v10-view-data lens-visual-v10-csv lens-visual-v10-png lens-visual-v10-svg lens-visual-v10 lens-visual-v11-card lens-visual-v11-view-data lens-visual-v11-csv lens-visual-v11-png lens-visual-v11-svg lens-visual-v11 lens-visual-v12-card lens-visual-v12-view-data lens-visual-v12-csv lens-visual-v12-png lens-visual-v12-svg lens-visual-v12 lens-visual-v13-card lens-visual-v13-view-data",
+      "hovers": [
+        {
+          "chart": "lens-visual-v08",
+          "control": "lens-chart-trend",
+          "text": "Booked ECL 2024Q3: SAR 2.06bnraw 2055.8266420000023 · click to move the Lens here"
+        },
+        {
+          "chart": "lens-visual-v11",
+          "control": "lens-chart-breakdown",
+          "text": "product Auto Finance14.86% · 323 rowsraw 0.14860681114551083"
+        }
+      ],
+      "exec": [
+        {
+          "id": "lens-card",
+          "control": "",
+          "url": "/lenses?q=Retail",
+          "url_after": "/lenses/lens-03?back=%2Flenses%3Fq%3DRetail",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-03/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-back",
+          "control": "",
+          "url": "/lenses/lens-03?back=%2Flenses%3Fq%3DRetail",
+          "url_after": "/lenses?q=Retail",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/lenses 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-propose",
+          "control": "",
+          "url": "/lenses?q=Retail",
+          "url_after": "/lenses?q=Retail",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/propose 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/propose 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-discard",
+          "control": "",
+          "url": "/lenses?q=Retail",
+          "url_after": "/lenses?q=Retail",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-propose",
+          "control": "",
+          "url": "/lenses?q=Retail",
+          "url_after": "/lenses",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/propose 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/propose 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-save",
+          "control": "",
+          "url": "/lenses",
+          "url_after": "/lenses/lens-cded8b33c9bf?back=%2Flenses",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses 201",
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-cded8b33c9bf/render 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/lenses 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-visual-v08",
+          "control": "lens-chart-trend",
+          "url": "/lenses/lens-01",
+          "url_after": "/lenses/lens-01?p=%7B%22corporate%22%3A%222024Q3%22%7D",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-reset",
+          "control": "",
+          "url": "/lenses/lens-01?p=%7B%22corporate%22%3A%222024Q3%22%7D",
+          "url_after": "/lenses/lens-01",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-visual-v11",
+          "control": "lens-chart-breakdown",
+          "url": "/lenses/lens-01",
+          "url_after": "/lenses/lens-01",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-cross-remove",
+          "control": "",
+          "url": "/lenses/lens-01",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-selection-save",
+          "control": "",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/selection/cohort 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-selection-share-open",
+          "control": "",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-selection-share-send",
+          "control": "",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/messages 201"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/messages 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-selection-share-sent",
+          "control": "",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "url_after": "/messages?box=sent&back=%2Flenses%2Flens-01%3Fsel%3D%257B%2522domain%2522%253A%2522retail%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522product%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Auto%2BFinance%2522%252C%2522Credit%2BCard%2522%255D%257D%255D%252C%2522label%2522%253A%2522product%2B%25E2%2588%2588%2BAuto%2BFinance%252C%2BCredit%2BCard%2522%257D%26cohort%3Dcoh-8dea2ecf441b",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/messages?box=sent 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "messages-back",
+          "control": "",
+          "url": "/messages?box=sent&back=%2Flenses%2Flens-01%3Fsel%3D%257B%2522domain%2522%253A%2522retail%2522%252C%2522filters%2522%253A%255B%257B%2522column%2522%253A%2522product%2522%252C%2522op%2522%253A%2522in%2522%252C%2522values%2522%253A%255B%2522Auto%2BFinance%2522%252C%2522Credit%2BCard%2522%255D%257D%255D%252C%2522label%2522%253A%2522product%2B%25E2%2588%2588%2BAuto%2BFinance%252C%2BCredit%2BCard%2522%257D%26cohort%3Dcoh-8dea2ecf441b",
+          "url_after": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D&cohort=coh-8dea2ecf441b",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        },
+        {
+          "id": "lens-selection-clear",
+          "control": "",
+          "url": "/lenses/lens-01?sel=%7B%22domain%22%3A%22retail%22%2C%22filters%22%3A%5B%7B%22column%22%3A%22product%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Auto+Finance%22%2C%22Credit+Card%22%5D%7D%5D%2C%22label%22%3A%22product+%E2%88%88+Auto+Finance%2C+Credit+Card%22%7D",
+          "url_after": "/lenses/lens-01",
+          "api": [
+            "GET /api/v1/health 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-LENS"
+        }
+      ],
+      "controls_clicked": [
+        "lens-back",
+        "lens-card",
+        "lens-chart-breakdown",
+        "lens-chart-trend",
+        "lens-cross-remove",
+        "lens-discard",
+        "lens-propose",
+        "lens-reset",
+        "lens-save",
+        "lens-selection-clear",
+        "lens-selection-save",
+        "lens-selection-share-open",
+        "lens-selection-share-send",
+        "lens-selection-share-sent",
+        "lens-visual-v08",
+        "lens-visual-v11",
+        "messages-back"
+      ],
+      "urls": [
+        "/lenses",
+        "/lenses/lens-01",
+        "/lenses/lens-03",
+        "/lenses/lens-cded8b33c9bf",
+        "/messages"
+      ],
+      "console": [],
+      "http_errors": [],
+      "ms": 75716
+    }
+  ]
+}

@@ -305,7 +305,13 @@ def bind(svc: ObjectService, who: dict[str, Any], object_id: str,
     # Binding is idempotent: re-opening the same scenario on the same cohort
     # version (browser Back, a refresh, a double click) reuses the binding
     # instead of writing another version or another copy (VAL-DEF-016).
-    if can_edit(scenario, principal):
+    # Binding USES a scenario: only its owner or a named editor binds it in
+    # place. Anyone else -- an administrator included, whose edit right is
+    # for deliberate edits -- gets their own bound copy, so opening someone
+    # else's shared definition on your cohort never changes theirs
+    # (VAL-DEF-050).
+    editors = (scenario.get("permissions") or {}).get("editors") or []
+    if scenario["owner_id"] == principal.id or principal.id in editors:
         if _bound_to(scenario, cohort):
             return {"scenario": scenario, "cohort_check": check,
                     "reused": True}

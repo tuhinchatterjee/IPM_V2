@@ -1,0 +1,4 @@
+Pre-fix probe (probe_lens2.mjs) on lens-01, breakdown chart v11:
+{"sel":1,"selections":1,"selectedpoints":"[0,1]"} after the first box-select
+after clear {"selections":1,"selectedpoints":[0,1]}  <- chart still shows the cleared selection
+{"sel":0,"selections":1,"selectedpoints":"[]"} second box-select over the same bars deselects; no selection

@@ -11,7 +11,6 @@
  */
 
 import * as React from "react";
-import Link from "next/link";
 
 import { ChartCard, type ChartData } from "@/components/viz/chart-card";
 import { ExportPackage } from "@/components/workspace/export-package";
@@ -22,7 +21,6 @@ import { componentTable, identities, kpis, methodComparison, plotted, scopeEquiv
 import { count, moneyCol, sarDelta } from "@/lib/viz/format";
 import { METHOD_LABEL } from "@/lib/workspace/method-labels";
 import type { ScenarioResult } from "@/lib/workspace/runs";
-import { withBack } from "@/lib/workspace/nav";
 
 
 export function ResultView({ result, actions, initialMethod, onMethod }: { result: ScenarioResult; actions?: React.ReactNode; initialMethod?: string; onMethod?: (method: string) => void }) {
@@ -403,13 +401,5 @@ export function DecompositionPanel({
         </table>
       </div>
     </div>
-  );
-}
-
-export function ResultLink({ resultId }: { resultId: string }) {
-  return (
-    <Link href={withBack(`/what-if/result/${resultId}`)} className="text-accent underline" data-testid="whatif-result-link">
-      Open result {resultId}
-    </Link>
   );
 }

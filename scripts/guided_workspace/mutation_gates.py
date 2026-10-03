@@ -191,6 +191,28 @@ GATES: list[tuple] = [
      'filter."})\n',
      ["tests/cockpit_v4/test_gw_validation_defects.py::"
       "test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal"]),
+    ("adopting a conversation's cohort again is the same cohort "
+     "(VAL-DEF-049)",
+     "backend/workspace/whatif.py",
+     "            return c\n    return cohorts.adopt(",
+     "            pass\n    return cohorts.adopt(",
+     ["tests/cockpit_v4/test_gw_whatif.py::"
+      "test_val_def_049_adopting_a_conversation_cohort_again_is_the_same_cohort"]),
+    ("a recipient never changes the sender's scenario (VAL-DEF-050)",
+     "backend/workspace/scenarios.py",
+     '    if scenario["owner_id"] == principal.id or principal.id in editors:',
+     # The pre-fix rule: anyone who may edit, administrators included.
+     "    if can_edit(scenario, principal):",
+     ["tests/cockpit_v4/test_gw_messages.py::"
+      "test_val_def_050_an_administrator_recipient_never_changes_the_"
+      "senders_object"]),
+    ("a recipient's Lens save is a copy (VAL-DEF-050)",
+     "backend/workspace/messages.py",
+     'reason="saved from a message", copy=True)',
+     'reason="saved from a message")',
+     ["tests/cockpit_v4/test_gw_messages.py::"
+      "test_val_def_050_an_administrator_recipient_never_changes_the_"
+      "senders_object"]),
 ]
 
 

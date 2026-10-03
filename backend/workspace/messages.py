@@ -255,7 +255,7 @@ def save(svc: ObjectService, who_raw: dict[str, Any], share_id: str
 
         return lenses.revise(svc, who_raw, obj["object_id"],
                              {"name": f"{obj['body']['name']} (my copy)"},
-                             reason="saved from a message")
+                             reason="saved from a message", copy=True)
     if obj["kind"] not in ("scenario_result", "cohort", "comparison"):
         _refuse(422, "NOT_SAVEABLE", f"a {obj['kind']} is not copied.")
     return svc.duplicate(obj["object_id"], p, version=obj["version"],

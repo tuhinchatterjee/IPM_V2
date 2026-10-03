@@ -1,0 +1,527 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 0,
+  "total": 1,
+  "journeys": [
+    {
+      "journey": "GW-CTL-METRICS",
+      "what": "Metric Catalogue: search, book and family filters (= the catalogue), pick a metric, breakdown book and dimension, breakdown bar drill to rows, used-by Lens and Requires Attention links — Back restores the filtered catalogue",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "controls": [
+        {
+          "id": "metric-search",
+          "url": "/metrics",
+          "prereq": "catalogue",
+          "action": "search ECL",
+          "expected": "only metrics whose id, name, definition or formula mention it",
+          "observed": "17 metrics",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics"
+        },
+        {
+          "id": "metric-domain",
+          "url": "/metrics",
+          "prereq": "search ECL",
+          "action": "book = retail",
+          "expected": "retail (and both-book) metrics only",
+          "observed": "17 metrics",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics"
+        },
+        {
+          "id": "metric-family",
+          "url": "/metrics",
+          "prereq": "search ECL, retail",
+          "action": "the first family",
+          "expected": "that family only",
+          "observed": "Data quality: 2",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics"
+        },
+        {
+          "id": "metric-item",
+          "url": "/metrics",
+          "prereq": "filtered catalogue",
+          "action": "pick the first listed metric",
+          "expected": "its definition opens (m= in the address)",
+          "observed": "M045",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/metrics/M045 200",
+            "GET /api/v1/cockpit-v4/workspace/metrics/M045/lineage 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics?m=M045"
+        },
+        {
+          "id": "metric-breakdown-dim",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 open",
+          "action": "another dimension",
+          "expected": "the breakdown re-groups by it",
+          "observed": "sub_sector",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-breakdown-book",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 (both books)",
+          "action": "the other book",
+          "expected": "the breakdown is evaluated on that book",
+          "observed": "corporate → retail → corporate · unexpected: POST /api/v1/cockpit-v4/workspace/metrics/evaluate 422 | error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+          "result": "FAILED",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 422"
+          ],
+          "writes": [],
+          "failed": [
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 422"
+          ],
+          "refused": [],
+          "console": [
+            "error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+          ],
+          "download": "",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-breakdown",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 breakdown",
+          "action": "click the first bar",
+          "expected": "the rows behind that bar are listed (= the metric rows endpoint)",
+          "observed": "drilled to rows",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-breakdown-view-data",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 breakdown",
+          "action": "click",
+          "expected": "the chart's data table opens, then closes",
+          "observed": "table with 26 rows shown and hidden",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/metrics/M001/rows?domain=corporate&limit=100&filters=%5B%7B%22column%22%3A%22sub_sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Water%22%5D%7D%5D 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-breakdown-csv",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 breakdown",
+          "action": "click",
+          "expected": "a CSV file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-by-sub-sector.csv",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "booked-ecl-by-sub-sector.csv",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-breakdown-png",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 breakdown",
+          "action": "click",
+          "expected": "a PNG file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-by-sub-sector.png",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "booked-ecl-by-sub-sector.png",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-breakdown-svg",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 breakdown",
+          "action": "click",
+          "expected": "a SVG file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-by-sub-sector.svg",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "booked-ecl-by-sub-sector.svg",
+          "url_after": "/metrics?m=M001"
+        },
+        {
+          "id": "metric-used-by-lens",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 open, catalogue filtered (search ECL, retail); search M001",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens a Lens that uses this metric; Back restores the search",
+          "observed": "/metrics?m=M001 → /lenses/lens-01?back=%2Fmetrics%3Fm%3DM001 · FAILED: metric-used-by-lens: opens a Lens that uses this metric; Back restores the search: browser Back · handoff: M001 → Lens lens-01 (in its used-by list)",
+          "result": "FAILED",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/lenses/lens-01?back=%2Fmetrics%3Fm%3DM001",
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /metrics?m=M001: state {\"m\":\"M001\",\"q\":\"\",\"domain\":\"\",\"family\":\"\",\"shown\":75} != {\"m\":\"M001\",\"q\":\"M001\",\"domain\":\"\",\"family\":\"\",\"shown\":1}",
+            "browser_back": "FAILED at /metrics?m=M001: state {\"m\":\"M001\",\"q\":\"\",\"domain\":\"\",\"family\":\"\",\"shown\":75} != {\"m\":\"M001\",\"q\":\"M001\",\"domain\":\"\",\"family\":\"\",\"shown\":1}",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "metric-cockpit-link",
+          "url": "/metrics?m=M001",
+          "prereq": "M001 open, catalogue filtered (search ECL, retail); search M001",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the Cockpit, whose Requires Attention detectors use this metric",
+          "observed": "/metrics?m=M001 → /",
+          "result": "PASS",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/",
+          "back": {
+            "ok": true,
+            "in_app": "N/A",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        }
+      ],
+      "back": [
+        {
+          "path": "metric-used-by-lens: opens a Lens that uses this metric; Back restores the search",
+          "origin": "/metrics?m=M001",
+          "destination": "/lenses/lens-01?back=%2Fmetrics%3Fm%3DM001",
+          "origin_state": {
+            "m": "M001",
+            "q": "M001",
+            "domain": "",
+            "family": "",
+            "shown": 1
+          },
+          "browser_back": "FAILED at /metrics?m=M001: state {\"m\":\"M001\",\"q\":\"\",\"domain\":\"\",\"family\":\"\",\"shown\":75} != {\"m\":\"M001\",\"q\":\"M001\",\"domain\":\"\",\"family\":\"\",\"shown\":1}",
+          "browser_forward": "PASS",
+          "in_app_target": "/metrics?m=M001",
+          "in_app_back": "FAILED at /metrics?m=M001: state {\"m\":\"M001\",\"q\":\"\",\"domain\":\"\",\"family\":\"\",\"shown\":75} != {\"m\":\"M001\",\"q\":\"M001\",\"domain\":\"\",\"family\":\"\",\"shown\":1}",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "FAILED"
+        },
+        {
+          "path": "metric-cockpit-link: opens the Cockpit, whose Requires Attention detectors use this metric",
+          "origin": "/metrics?m=M001",
+          "destination": "/",
+          "origin_state": {
+            "m": "M001",
+            "q": "",
+            "domain": "",
+            "family": "",
+            "shown": 75
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_back": "N/A",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "metric-used-by-lens",
+          "from_url": "/metrics?m=M001",
+          "to_url": "/lenses/lens-01?back=%2Fmetrics%3Fm%3DM001",
+          "source": "{\"metric\":\"M001\"}",
+          "destination": "{\"lens\":\"lens-01\"}",
+          "identity": "M001 → Lens lens-01 (in its used-by list)",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /metrics?m=M001: state {\"m\":\"M001\",\"q\":\"\",\"domain\":\"\",\"family\":\"\",\"shown\":75} != {\"m\":\"M001\",\"q\":\"M001\",\"domain\":\"\",\"family\":\"\",\"shown\":1}",
+            "browser_back": "FAILED at /metrics?m=M001: state {\"m\":\"M001\",\"q\":\"\",\"domain\":\"\",\"family\":\"\",\"shown\":75} != {\"m\":\"M001\",\"q\":\"M001\",\"domain\":\"\",\"family\":\"\",\"shown\":1}",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        }
+      ],
+      "status": "FAILED",
+      "error": "every exercised control passed | + actual - expected |  | + [ | +   'metric-breakdown-book: corporate → retail → corporate · unexpected: POST /api/v1/cockpit-v4/workspace/metrics/evaluate 422 | error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)', | +   'metric-used-by-lens: /metrics?m=M001 → /lenses/lens-01?back=%2Fmetrics%3Fm%3DM001 · FAILED: metric-used-by-lens: opens a Lens that uses this metric; Back restores the search: browser Back · handoff: M001 → Lens lens-01 (in its used-by list)'",
+      "on_screen": "http://127.0.0.1:5444/ :: app-content-column cockpit-v4-home cockpit-v4-greeting cockpit-v4-prompt-line domain-switch domain-corporate domain-retail cockpit-v4-domain-meta cockpit-v4-ask-box cockpit-v4-question cockpit-v4-ask cockpit-v4-prompts cockpit-v4-prompt cockpit-v4-prompts-dismiss cockpit-v4-mode-standard cockpit-v4-mode-deep cockpit-v4-trace-note cockpit-v4-trace-explain requires-attention requires-attention-summary issue-card issue-title issue-title-open issue-current issue-affected issue-sparkline issue-driver issue-interpretation issue-investigate issue-open issue-save-cohort issue-whatif issue-nbq requires-attention-more attention-panel segments-requiring-attention attention-heading attention-reporting-period attention-summary attention-card ecl-highlights ecl-heading attention-footnote v4-ecl-panel v4-ecl-headline v4-ecl-ead v4-ecl-ecl v4-ecl-coverage v4-ecl-stages v4-ecl-stage-1",
+      "client_errors": [
+        "console: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+      ],
+      "exec": [
+        {
+          "id": "metric-item",
+          "control": "",
+          "url": "/metrics",
+          "url_after": "/metrics?m=M045",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/metrics/M045 200",
+            "GET /api/v1/cockpit-v4/workspace/metrics/M045/lineage 200",
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-item",
+          "control": "",
+          "url": "/metrics?m=M045",
+          "url_after": "/metrics?m=M001",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/metrics/M001 200",
+            "GET /api/v1/cockpit-v4/workspace/metrics/M001/lineage 200",
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 200",
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 422"
+          ],
+          "writes": [],
+          "failed": [
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 422"
+          ],
+          "console": [
+            "error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+          ],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-breakdown",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/metrics?m=M001",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-breakdown-view-data",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/metrics?m=M001",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/metrics/M001/rows?domain=corporate&limit=100&filters=%5B%7B%22column%22%3A%22sub_sector%22%2C%22op%22%3A%22in%22%2C%22values%22%3A%5B%22Water%22%5D%7D%5D 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-breakdown-view-data",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/metrics?m=M001",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-breakdown-csv",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/metrics?m=M001",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-by-sub-sector.csv",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-breakdown-png",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/metrics?m=M001",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-by-sub-sector.png",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-breakdown-svg",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/metrics?m=M001",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-by-sub-sector.svg",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-used-by-lens",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/lenses/lens-01?back=%2Fmetrics%3Fm%3DM001",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/lenses/lens-01/render 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "lens-back",
+          "control": "",
+          "url": "/lenses/lens-01?back=%2Fmetrics%3Fm%3DM001",
+          "url_after": "/metrics?m=M001",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/metrics 200",
+            "GET /api/v1/cockpit-v4/workspace/metrics/M001/lineage 200",
+            "GET /api/v1/cockpit-v4/workspace/metrics/M001 200",
+            "POST /api/v1/cockpit-v4/workspace/metrics/evaluate 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        },
+        {
+          "id": "metric-cockpit-link",
+          "control": "",
+          "url": "/metrics?m=M001",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/health 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/session 200",
+            "GET /api/v1/cockpit-v4/domains 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METRICS"
+        }
+      ],
+      "controls_clicked": [
+        "lens-back",
+        "metric-breakdown",
+        "metric-breakdown-csv",
+        "metric-breakdown-png",
+        "metric-breakdown-svg",
+        "metric-breakdown-view-data",
+        "metric-cockpit-link",
+        "metric-item",
+        "metric-used-by-lens"
+      ],
+      "urls": [
+        "/",
+        "/lenses/lens-01",
+        "/metrics"
+      ],
+      "console": [
+        "error: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+      ],
+      "http_errors": [
+        "422 POST /api/v1/cockpit-v4/workspace/metrics/evaluate"
+      ],
+      "ms": 163858
+    }
+  ]
+}

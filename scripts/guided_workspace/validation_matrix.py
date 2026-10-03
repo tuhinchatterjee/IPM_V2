@@ -33,28 +33,32 @@ ROOT = Path(__file__).resolve().parents[2]
 #: (id, area, pytest files, journey prefixes, regression steps, extra keys)
 AREAS: list[tuple] = [
     ("VAL-04", "Routes and navigation (direct, refresh, deep link, params)",
-     [], ["GW-BACK-", "GW-GOLD-10", "GW-VAL-ROUTES"], [], ["routes"]),
+     [], ["GW-BACK-", "GW-GOLD-10", "GW-VAL-ROUTES", "GW-CTL-ROUTES", "GW-CTL-NA"],
+     [], ["routes"]),
     ("VAL-05", "Back-button master matrix (in-app + browser Back/Forward)",
-     [], ["GW-BACK-"], [], ["back"]),
+     [], ["GW-BACK-", "GW-CTL-"], [], ["back"]),
     ("VAL-06", "Dead button / link / action audit",
      ["test_gw_validation_endpoints.py", "test_gw_p16_wiring.py"],
-     ["GW-P16-02"], [], ["controls", "handoffs"]),
+     ["GW-P16-02", "GW-CTL-"], [], ["controls", "handoffs"]),
     ("VAL-07", "Guided Cockpit (Corporate and Retail journeys)",
-     ["test_gw_guided.py"], ["GW-P3-", "GW-P16-", "GW-GOLD-01", "GW-GOLD-02"],
+     ["test_gw_guided.py"], ["GW-P3-", "GW-P16-", "GW-GOLD-01", "GW-GOLD-02",
+                            "GW-CTL-HOME", "GW-CTL-ISSUE", "GW-CTL-THREAD"],
      [], []),
     ("VAL-08", "Early Warning integration",
-     ["test_gw_guided.py"], ["GW-P3-04", "GW-P11-04", "GW-GOLD-06"], [], []),
+     ["test_gw_guided.py"], ["GW-P3-04", "GW-P11-04", "GW-GOLD-06", "GW-CTL-EW"],
+     [], []),
     ("VAL-09", "What-If workspace (scopes, grid, selection, cohort)",
      ["test_gw_whatif.py", "test_gw_grid.py"],
-     ["GW-P5-", "GW-P13-01", "GW-P13-02", "GW-BACK-06"], [], []),
+     ["GW-P5-", "GW-P13-01", "GW-P13-02", "GW-BACK-06", "GW-CTL-WHATIF",
+      "GW-CTL-GRID"], [], []),
     ("VAL-10", "Scenario Library — every verb",
      ["test_gw_scenarios.py", "test_gw_p16_libraries.py",
       "test_gw_validation_defects.py"],
-     ["GW-P4-", "GW-BACK-07", "GW-BACK-08", "GW-BACK-09", "GW-GOLD-03"], [],
-     []),
+     ["GW-P4-", "GW-BACK-07", "GW-BACK-08", "GW-BACK-09", "GW-GOLD-03",
+      "GW-CTL-SCN", "GW-CTL-BUILDER"], [], []),
     ("VAL-11", "Method-selection governance (incl. Retail ML unavailable, "
      "no fallback)", ["test_gw_method_gate.py", "test_gw_runs.py"],
-     ["GW-P6-01", "GW-P6-02", "GW-P6-04", "GW-GOLD-02"], [],
+     ["GW-P6-01", "GW-P6-02", "GW-P6-04", "GW-GOLD-02", "GW-CTL-METHODS"], [],
      ["gate:method selection"]),
     ("VAL-12", "Scenario stacking / baseline lineage (A, B, A+B, A+B+C, A+D)",
      ["test_gw_decomposition.py", "test_gw_runs.py"],
@@ -63,23 +67,25 @@ AREAS: list[tuple] = [
      ["test_gw_ecl_reconciliation.py", "test_gw_decomposition.py",
       "test_gw_ml_decomposition.py"], ["GW-P6-01", "GW-P13-04"], [], []),
     ("VAL-14", "Plotly interactivity / reactivity audit",
-     ["test_gw_charts.py"], ["GW-P11-", "GW-VAL-PLOTLY"], [], ["plotly"]),
+     ["test_gw_charts.py"], ["GW-P11-", "GW-VAL-PLOTLY"], [],
+     ["plotly", "plotly_contracts"]),
     ("VAL-15", "Macro-sensitivity tornado", ["test_gw_macro_tornado.py"],
      ["GW-P13-03"], [], []),
     ("VAL-16", "Lenses (every seeded Lens)",
      ["test_gw_lenses.py", "test_gw_lens_content.py"],
-     ["GW-P9-", "GW-BACK-13", "GW-BACK-14", "GW-BACK-15", "GW-GOLD-04"], [],
-     []),
+     ["GW-P9-", "GW-BACK-13", "GW-BACK-14", "GW-BACK-15", "GW-GOLD-04",
+      "GW-CTL-LENS"], [], []),
     ("VAL-17", "Metric Catalogue (formula and metadata)",
-     ["test_gw_metrics.py", "test_gw_metric_oracles.py"], ["GW-P8-"], [], []),
+     ["test_gw_metrics.py", "test_gw_metric_oracles.py"],
+     ["GW-P8-", "GW-CTL-METRICS"], [], []),
     ("VAL-18", "Monitoring Centre / breach lifecycle",
      ["test_gw_monitoring.py"],
-     ["GW-P10-", "GW-BACK-18", "GW-BACK-19", "GW-BACK-20", "GW-GOLD-05"], [],
-     []),
+     ["GW-P10-", "GW-BACK-18", "GW-BACK-19", "GW-BACK-20", "GW-GOLD-05",
+      "GW-CTL-MON"], [], []),
     ("VAL-19", "Messages / sharing (sender and recipient)",
      ["test_gw_messages.py"],
-     ["GW-P7-", "GW-BACK-11", "GW-BACK-12", "GW-BACK-13", "GW-GOLD-07"], [],
-     []),
+     ["GW-P7-", "GW-BACK-11", "GW-BACK-12", "GW-BACK-13", "GW-GOLD-07",
+      "GW-CTL-MSG"], [], []),
     ("VAL-20", "Persistence / reopen / restart (no model call)",
      ["test_gw_validation_defects.py", "test_gw_objects.py"],
      ["GW-GOLD-08", "GW-P1-02"], [], []),
@@ -87,8 +93,8 @@ AREAS: list[tuple] = [
      ["test_gw_trace.py", "test_gw_grid.py"], ["GW-P12-", "GW-GOLD-06"], [],
      []),
     ("VAL-22", "Full LLM Exchange Trace", ["test_gw_llm_exchange.py"],
-     ["GW-P1-", "GW-P12-03", "GW-BACK-21", "GW-BACK-22", "GW-GOLD-09"], [],
-     []),
+     ["GW-P1-", "GW-P12-03", "GW-BACK-21", "GW-BACK-22", "GW-GOLD-09",
+      "GW-CTL-TRACE", "GW-CTL-LAB"], [], []),
     ("VAL-23", "Security / secrets / tenant isolation",
      ["test_gw_secret_leak.py", "test_gw_v4_secret_persistence.py",
       "test_gw_objects.py"], ["GW-GOLD-09"], [],
@@ -97,14 +103,16 @@ AREAS: list[tuple] = [
      [], ["release_fingerprints", "release_report_digests",
           "sensitivity_libraries_reproduce", "protected_baseline_round"], []),
     ("VAL-25", "Responsive / accessibility (1440, 390)", [],
-     ["GW-P13-05", "GW-VAL-PLOTLY"], [], []),
+     ["GW-P13-05", "GW-VAL-PLOTLY", "GW-CTL-RESPONSIVE", "GW-CTL-KEYBOARD"],
+     [], []),
     ("VAL-26", "Frontend console / network cleanliness", [],
-     ["GW-BACK-", "GW-GOLD-", "GW-VAL-"], [], ["console"]),
+     ["GW-BACK-", "GW-GOLD-", "GW-VAL-", "GW-CTL-"], [], ["console"]),
     ("VAL-27", "Negative / error states",
      ["test_gw_validation_defects.py", "test_gw_validation_endpoints.py"], [],
      [], []),
     ("VAL-28", "Concurrency / idempotency / duplication",
-     ["test_gw_validation_defects.py"], ["GW-BACK-", "GW-GOLD-06"], [],
+     ["test_gw_validation_defects.py"],
+     ["GW-BACK-", "GW-GOLD-06", "GW-CTL-IDEMPOTENCY"], [],
      ["gate:binding is idempotent"]),
     ("VAL-29", "Performance smoke (p50/p95)", [], [], [], ["perf"]),
     ("VAL-33", "GOLD cross-module journeys (10)", [], ["GW-GOLD-"], [],
@@ -123,6 +131,9 @@ AREAS: list[tuple] = [
     ("REG-EM", "Emulator artifact reproducibility", [], [],
      ["emulator_artifacts_reproduce"], []),
 ]
+
+#: The closed states of an executed inventory row.
+CLOSED = {"PASS", "BLOCKED_WITH_GOVERNED_REASON", "NOT_APPLICABLE_WITH_PROOF"}
 
 LIVE = ("VAL-30", "Live model validation",
         "BLOCKED", "Live-provider use is not authorised in this environment; "
@@ -206,16 +217,22 @@ def main() -> int:
             elif st["status"] == "BLOCKED_ENV":
                 missing.append(f"{s} BLOCKED_ENV: {st.get('detail', '')}")
         for x in extra:
-            if x in ("routes", "controls", "handoffs", "back", "plotly"):
+            if x in ("routes", "controls", "handoffs", "back", "plotly",
+                     "plotly_contracts"):
                 key = {"back": "back_paths", "plotly": "plotly_rows"}.get(x, x)
-                by = inv.get(f"{'back' if x == 'back' else x}_by_status", {})
+                by = inv.get(f"{x}_by_status", {})
                 ev.append(f"{x}: {inv.get(key)} rows {json.dumps(by)}")
-                if by.get("FAILED"):
-                    bad.append(f"{x} FAILED {by['FAILED']}")
+                # Every row closed with runtime evidence: PASS, governed
+                # BLOCKED, or N/A with proof. Anything else is open.
+                open_ = {k: v for k, v in by.items() if k not in CLOSED}
+                if not by:
+                    missing.append(f"{x}: no rows")
+                elif open_:
+                    bad.append(f"{x} not closed {json.dumps(open_)}")
             elif x == "console":
                 errs = sum(len(j.get("console_errors", [])) for j in journeys
                            if j["journey"].startswith(("GW-BACK", "GW-GOLD",
-                                                       "GW-VAL")))
+                                                       "GW-VAL", "GW-CTL")))
                 ev.append(f"validation journeys' console errors: {errs}")
                 if errs:
                     bad.append("console errors")

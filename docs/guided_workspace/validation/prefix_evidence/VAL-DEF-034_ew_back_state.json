@@ -1,0 +1,3041 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 2,
+  "total": 5,
+  "journeys": [
+    {
+      "journey": "GW-CTL-EW",
+      "what": "Early Warning: book switch, rule filter, segment Save/Export/What-If/Investigate and the page-level verbs — identity of the exact population across each handoff; Back restores book and rule",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "controls": [
+        {
+          "id": "ws-domain-corporate",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Retail book (default)",
+          "action": "click",
+          "expected": "the Corporate book's rule set, bands and sector segments load",
+          "observed": "Retail → Corporate; segments by sector · unexpected: FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED",
+          "result": "FAILED",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [
+            "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+          ],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-reasons",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate",
+          "action": "click the first rule's bar",
+          "expected": "the page is filtered to exposures tripping that rule",
+          "observed": "filtered to \"Covenant breach\"",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=corporate&reason=Covenant%20breach 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-seg-save",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\", segment Construction",
+          "action": "click",
+          "expected": "the segment's high/critical exposures tripping the rule (35) are frozen as one cohort",
+          "observed": "Saved 35 exposures as cohort coh-a7c1250efbdd.; saving again reuses it",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-seg-export",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\", segment Construction",
+          "action": "click",
+          "expected": "a CSV of exactly that population is downloaded",
+          "observed": "FAILED: one row per exposure",
+          "result": "FAILED",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/cohorts/coh-a7c1250efbdd/export 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "coh-a7c1250efbdd.csv",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-seg-whatif",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\", segment Construction",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens What-If on the segment's exact population",
+          "observed": "/early-warning → /what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate · handoff: 35 exposures (Covenant breach) → cohort coh-a7c1250efbdd 35 entities, hash 2393dffc2286 · unintended writes POST /api/v1/cockpit-v4/workspace/grid/group2 200, POST /api/v1/cockpit-v4/workspace/grid/group 200, POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+          "result": "FAILED",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-76391099-370&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-a7c1250efbdd 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_back": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "ew-seg-investigate",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\", segment Construction",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens a Cockpit investigation on the segment's exact population",
+          "observed": "/early-warning → /what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate · handoff: FAILED: Cannot read properties of null (reading 'entities')",
+          "result": "FAILED",
+          "api": [
+            "GET /api/v1/health 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_back": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "ew-whatif",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\"",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens What-If on the page's high/critical population",
+          "observed": "/early-warning → /what-if?cohort=coh-beb330471fce&back=%2Fearly-warning&domain=retail · handoff: FAILED: the exact early-warning population · unintended writes POST /api/v1/cockpit-v4/workspace/grid/group2 200, POST /api/v1/cockpit-v4/workspace/grid/group 200, POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+          "result": "FAILED",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-76391099-370&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-beb330471fce 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/what-if?cohort=coh-beb330471fce&back=%2Fearly-warning&domain=retail",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "ew-investigate",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\"",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens a Cockpit investigation on the page's high/critical population",
+          "observed": "/early-warning → /cockpit/thread/th-24fb3012e9064015b39100601cea29dc?back=%2Fearly-warning · handoff: FAILED: the investigation is seeded with the exact population · unintended writes POST /api/v1/cockpit-v4/workspace/grid/query 200",
+          "result": "FAILED",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/early-warning/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-24fb3012e9064015b39100601cea29dc/cohort 200",
+            "GET /api/v1/cockpit-v4/threads/th-24fb3012e9064015b39100601cea29dc 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-24fb3012e9064015b39100601cea29dc 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-24fb3012e9064015b39100601cea29dc?back=%2Fearly-warning",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "ew-reason-clear",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate, rule \"Covenant breach\"",
+          "action": "click",
+          "expected": "the rule filter is removed; the whole book's warnings return",
+          "observed": "FAILED: page.click: Timeout 30000ms exceeded.",
+          "result": "FAILED",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-trend-view-data",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate",
+          "action": "click",
+          "expected": "the chart's data table opens, then closes",
+          "observed": "table with 8 rows shown and hidden",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-trend-csv",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate",
+          "action": "click",
+          "expected": "a CSV file of the chart is downloaded",
+          "observed": "downloaded high-critical-ews-ead-over-time.csv",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "high-critical-ews-ead-over-time.csv",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-trend-png",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate",
+          "action": "click",
+          "expected": "a PNG file of the chart is downloaded",
+          "observed": "downloaded high-critical-ews-ead-over-time.png",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "high-critical-ews-ead-over-time.png",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ew-trend-svg",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate",
+          "action": "click",
+          "expected": "a SVG file of the chart is downloaded",
+          "observed": "downloaded high-critical-ews-ead-over-time.svg",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "high-critical-ews-ead-over-time.svg",
+          "url_after": "/early-warning"
+        },
+        {
+          "id": "ws-domain-retail",
+          "url": "/early-warning",
+          "prereq": "Early Warning, Corporate",
+          "action": "click",
+          "expected": "back to the Retail book (product segments)",
+          "observed": "Corporate → Retail; segments by product",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/early-warning"
+        }
+      ],
+      "back": [
+        {
+          "path": "ew-seg-whatif: opens What-If on the segment's exact population",
+          "origin": "/early-warning",
+          "destination": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "origin_state": {
+            "book": "corporate",
+            "reason": "Covenant breach",
+            "segments": 12
+          },
+          "browser_back": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+          "browser_forward": "PASS",
+          "in_app_target": "/early-warning",
+          "in_app_back": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "FAILED"
+        },
+        {
+          "path": "ew-whatif: opens What-If on the page's high/critical population",
+          "origin": "/early-warning",
+          "destination": "/what-if?cohort=coh-beb330471fce&back=%2Fearly-warning&domain=retail",
+          "origin_state": {
+            "book": "retail",
+            "reason": "",
+            "segments": 5
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/early-warning",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "ew-investigate: opens a Cockpit investigation on the page's high/critical population",
+          "origin": "/early-warning",
+          "destination": "/cockpit/thread/th-24fb3012e9064015b39100601cea29dc?back=%2Fearly-warning",
+          "origin_state": {
+            "book": "retail",
+            "reason": "",
+            "segments": 5
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/early-warning",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "ew-seg-whatif",
+          "from_url": "/early-warning",
+          "to_url": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "source": "{\"entities\":35,\"domain\":\"corporate\",\"reason\":\"Covenant breach\"}",
+          "destination": "{\"cohort\":\"coh-a7c1250efbdd\",\"entities\":35,\"hash\":\"2393dffc2286e37fae0042afe556e702b1a8649bcc87d478d57cca668609508f\",\"source\":\"gw-ews-1.0.0\",\"domain\":\"corporate\"}",
+          "identity": "35 exposures (Covenant breach) → cohort coh-a7c1250efbdd 35 entities, hash 2393dffc2286",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "unintended_writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_back": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        },
+        {
+          "control": "ew-seg-investigate",
+          "from_url": "/early-warning",
+          "to_url": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "source": "{\"entities\":35,\"domain\":\"corporate\",\"reason\":\"Covenant breach\"}",
+          "destination": "",
+          "identity": "FAILED: Cannot read properties of null (reading 'entities')",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": false,
+            "in_app": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_back": "FAILED at /early-warning: state {\"book\":\"retail\",\"reason\":\"\",\"segments\":5} != {\"book\":\"corporate\",\"reason\":\"Covenant breach\",\"segments\":12}",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        },
+        {
+          "control": "ew-whatif",
+          "from_url": "/early-warning",
+          "to_url": "/what-if?cohort=coh-beb330471fce&back=%2Fearly-warning&domain=retail",
+          "source": "{\"entities\":392,\"domain\":\"corporate\",\"reason\":\"Covenant breach\"}",
+          "destination": "{\"cohort\":\"coh-beb330471fce\",\"entities\":286,\"hash\":\"be8f7f9cd161814384e40cbcb9e6b78820e73a5aa249eb0ada62655b96a643a9\",\"source\":\"gw-ews-1.0.0\",\"domain\":\"retail\"}",
+          "identity": "FAILED: the exact early-warning population",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "unintended_writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        },
+        {
+          "control": "ew-investigate",
+          "from_url": "/early-warning",
+          "to_url": "/cockpit/thread/th-24fb3012e9064015b39100601cea29dc?back=%2Fearly-warning",
+          "source": "{\"entities\":392,\"domain\":\"corporate\",\"reason\":\"Covenant breach\"}",
+          "destination": "{\"thread\":\"th-24fb3012e9064015b39100601cea29dc\",\"cohort\":\"coh-854502fdda8b\",\"entities\":286,\"kind\":\"early_warning\"}",
+          "identity": "FAILED: the investigation is seeded with the exact population",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "unintended_writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        }
+      ],
+      "status": "FAILED",
+      "error": "every exercised control passed | + actual - expected |  | + [ | +   'ws-domain-corporate: Retail → Corporate; segments by sector · unexpected: FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED', | +   'ew-seg-export: FAILED: one row per exposure',",
+      "on_screen": "http://127.0.0.1:5444/early-warning :: app-content-column early-warning-v4 ws-domain-switch ws-domain-corporate ws-domain-retail ew-band-critical ew-band-high ew-band-moderate ew-band-low ew-investigate ew-save-cohort ew-export ew-whatif ew-trend-card ew-trend-view-data ew-trend-csv ew-trend-png ew-trend-svg ew-trend ew-reasons-card ew-reasons-view-data ew-reasons-csv ew-reasons-png ew-reasons-svg ew-reasons ew-segment-card ew-seg-investigate ew-seg-save ew-seg-export ew-seg-whatif ew-grid grid-column-toggle ew-grid-export grid-sort-account_id grid-filter-account_id grid-sort-customer_id grid-filter-customer_id grid-sort-product grid-filter-product grid-sort-sub_product grid-filter-sub_product grid-sort-region grid-filter-region grid-sort-customer_segment grid-filter-customer_segment grid-sort-employment_type grid-filter-employment_type grid-sort-employer_sector_group grid-filter-employer_sector_group grid-sort-vintage_year",
+      "exec": [
+        {
+          "id": "ws-domain-corporate",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [
+            "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+          ],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-reasons",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=corporate&reason=Covenant%20breach 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-seg-save",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-seg-save",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-seg-export",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/cohorts/coh-a7c1250efbdd/export 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "coh-a7c1250efbdd.csv",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-seg-whatif",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-76391099-370&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-a7c1250efbdd 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?cohort=coh-a7c1250efbdd&back=%2Fearly-warning&domain=corporate",
+          "url_after": "/early-warning",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-whatif",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/what-if?cohort=coh-beb330471fce&back=%2Fearly-warning&domain=retail",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-76391099-370&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-beb330471fce 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-76391099-370&domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=retail 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?cohort=coh-beb330471fce&back=%2Fearly-warning&domain=retail",
+          "url_after": "/early-warning",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-investigate",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/cockpit/thread/th-24fb3012e9064015b39100601cea29dc?back=%2Fearly-warning",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-24fb3012e9064015b39100601cea29dc/cohort 200",
+            "GET /api/v1/cockpit-v4/threads/th-24fb3012e9064015b39100601cea29dc 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-24fb3012e9064015b39100601cea29dc 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/early-warning/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-24fb3012e9064015b39100601cea29dc?back=%2Fearly-warning",
+          "url_after": "/early-warning",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/early-warning?domain=retail 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/health 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-trend-view-data",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-trend-view-data",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-trend-csv",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "high-critical-ews-ead-over-time.csv",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-trend-png",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "high-critical-ews-ead-over-time.png",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ew-trend-svg",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "high-critical-ews-ead-over-time.svg",
+          "journey": "GW-CTL-EW"
+        },
+        {
+          "id": "ws-domain-retail",
+          "control": "",
+          "url": "/early-warning",
+          "url_after": "/early-warning",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-EW"
+        }
+      ],
+      "controls_clicked": [
+        "ew-investigate",
+        "ew-reasons",
+        "ew-seg-export",
+        "ew-seg-save",
+        "ew-seg-whatif",
+        "ew-trend-csv",
+        "ew-trend-png",
+        "ew-trend-svg",
+        "ew-trend-view-data",
+        "ew-whatif",
+        "thread-origin-back",
+        "whatif-back",
+        "ws-domain-corporate",
+        "ws-domain-retail"
+      ],
+      "urls": [
+        "/cockpit/thread/th-24fb3012e9064015b39100601cea29dc",
+        "/early-warning",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 196806
+    },
+    {
+      "journey": "GW-CTL-HOME",
+      "what": "Requires Attention: every card control — title, Evidence, driver, Save cohort, What-If, Investigate, Ask next, Show all — executed with Back/Forward and the issue's identity",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "issue-title-open: opens the issue's evidence page; Back returns to the same book and feed",
+          "origin": "/",
+          "destination": "/issues/iss-db4929b9bd19",
+          "origin_state": {
+            "book": "corporate",
+            "issues": "10"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-open: opens the issue's evidence page; Back returns to the same book and feed",
+          "origin": "/",
+          "destination": "/issues/iss-db4929b9bd19",
+          "origin_state": {
+            "book": "corporate",
+            "issues": "10"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-driver: opens the issue page narrowed to the largest contributor",
+          "origin": "/",
+          "destination": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "origin_state": {
+            "book": "corporate",
+            "issues": "10"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-whatif: freezes the issue population and opens What-If on it",
+          "origin": "/",
+          "destination": "/what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate",
+          "origin_state": {
+            "book": "corporate",
+            "issues": "10"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-investigate: opens a Cockpit investigation bound to the issue and its population",
+          "origin": "/",
+          "destination": "/cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398?back=%2F",
+          "origin_state": {
+            "book": "corporate",
+            "issues": "10"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-nbq: opens the investigation and asks the suggested question in it (one model call)",
+          "origin": "/",
+          "destination": "/cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6?back=%2F",
+          "origin_state": {
+            "book": "corporate",
+            "issues": "10"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "issue-title-open",
+          "from_url": "/",
+          "to_url": "/issues/iss-db4929b9bd19",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"issue\":\"iss-db4929b9bd19\",\"driver\":\"\"}",
+          "identity": "issue iss-db4929b9bd19 → issue page iss-db4929b9bd19",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "issue-open",
+          "from_url": "/",
+          "to_url": "/issues/iss-db4929b9bd19",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"issue\":\"iss-db4929b9bd19\",\"driver\":\"\"}",
+          "identity": "issue iss-db4929b9bd19 → issue page iss-db4929b9bd19",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "issue-driver",
+          "from_url": "/",
+          "to_url": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"issue\":\"iss-db4929b9bd19\",\"driver\":\"Hotels\"}",
+          "identity": "issue iss-db4929b9bd19 → iss-db4929b9bd19 driver=Hotels",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "issue-whatif",
+          "from_url": "/",
+          "to_url": "/what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"cohort\":\"coh-f82475740265\",\"entities\":251,\"hash\":\"6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262\",\"source\":\"iss-db4929b9bd19\",\"domain\":\"corporate\"}",
+          "identity": "issue iss-db4929b9bd19 (251 entities) → cohort coh-f82475740265 source=iss-db4929b9bd19, 251 entities, hash 6a619de44eca",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "unintended_writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        },
+        {
+          "control": "issue-investigate",
+          "from_url": "/",
+          "to_url": "/cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398?back=%2F",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"thread\":\"th-3aa7d3114c9642f087b2f5d0f0583398\",\"issue\":\"iss-db4929b9bd19\",\"investigation\":\"inv-9bb5e78badf2\",\"cohort\":\"coh-4ac22d07af8f\",\"entities\":251,\"hash\":\"6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262\"}",
+          "identity": "issue iss-db4929b9bd19 → thread th-3aa7d3114c9642f087b2f5d0f0583398 investigation inv-9bb5e78badf2 issue=iss-db4929b9bd19, cohort coh-4ac22d07af8f 251 entities",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201"
+          ],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "issue-nbq",
+          "from_url": "/",
+          "to_url": "/cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6?back=%2F",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"thread\":\"th-ab2693816afc45429aa05fa7682f91e6\",\"issue\":\"iss-db4929b9bd19\",\"investigation\":\"inv-25e63587cc22\",\"cohort\":\"coh-528f53b13942\",\"entities\":251,\"hash\":\"6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262\"}",
+          "identity": "issue iss-db4929b9bd19 → thread th-ab2693816afc45429aa05fa7682f91e6 investigation inv-25e63587cc22 issue=iss-db4929b9bd19, cohort coh-528f53b13942 251 entities; asked \"Which sub sector contributed most to the change in Booked EC\"",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-25e63587cc22/steps 200",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        }
+      ],
+      "controls": [
+        {
+          "id": "issue-title-open",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the issue's evidence page; Back returns to the same book and feed",
+          "observed": "/ → /issues/iss-db4929b9bd19",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-open",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the issue's evidence page; Back returns to the same book and feed",
+          "observed": "/ → /issues/iss-db4929b9bd19",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-driver",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the issue page narrowed to the largest contributor",
+          "observed": "/ → /issues/iss-db4929b9bd19?driver=Hotels",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-save-cohort",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click",
+          "expected": "the issue population is frozen as a governed cohort; the card says so",
+          "observed": "Saved 251 as coh-f82475740265 · stored source=iss-db4929b9bd19 entities=251",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/"
+        },
+        {
+          "id": "issue-whatif",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "freezes the issue population and opens What-If on it",
+          "observed": "/ → /what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate · handoff: issue iss-db4929b9bd19 (251 entities) → cohort coh-f82475740265 source=iss-db4929b9bd19, 251 entities, hash 6a619de44eca · unintended writes POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+          "result": "FAILED",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-291182c4-256&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-f82475740265 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-investigate",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens a Cockpit investigation bound to the issue and its population",
+          "observed": "/ → /cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398?back=%2F",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-3aa7d3114c9642f087b2f5d0f0583398/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-3aa7d3114c9642f087b2f5d0f0583398 200",
+            "GET /api/v1/cockpit-v4/threads/th-3aa7d3114c9642f087b2f5d0f0583398 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398?back=%2F",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-nbq",
+          "url": "/",
+          "prereq": "Cockpit home, Corporate book, Requires Attention loaded",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the investigation and asks the suggested question in it (one model call)",
+          "observed": "/ → /cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6?back=%2F",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-25e63587cc22/steps 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ab2693816afc45429aa05fa7682f91e6/cohort 200",
+            "GET /api/v1/cockpit-v4/threads/th-ab2693816afc45429aa05fa7682f91e6 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ab2693816afc45429aa05fa7682f91e6 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/runs/run-33905834d9c7454f98691c2135c1c9d8/events?cursor=0 200",
+            "GET /api/v1/cockpit-v4/runs/run-33905834d9c7454f98691c2135c1c9d8 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-25e63587cc22/steps 200",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6?back=%2F",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "requires-attention-more",
+          "url": "/",
+          "prereq": "Cockpit home, a book with more than six items",
+          "action": "click",
+          "expected": "all items are listed, then six again",
+          "observed": "6 → 10 → 6 cards",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/"
+        }
+      ],
+      "status": "FAILED",
+      "error": "every exercised control passed | + actual - expected |  | + [ | +   'issue-whatif: / → /what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate · handoff: issue iss-db4929b9bd19 (251 entities) → cohort coh-f82475740265 source=iss-db4929b9bd19, 251 entities, hash 6a619de44eca · unintended writes POST /api/v1/cockpit-v4/workspace/grid/group2 200' | + ]",
+      "on_screen": "http://127.0.0.1:5444/ :: app-content-column cockpit-v4-home cockpit-v4-greeting cockpit-v4-prompt-line domain-switch domain-corporate domain-retail cockpit-v4-domain-meta cockpit-v4-ask-box cockpit-v4-question cockpit-v4-ask cockpit-v4-prompts cockpit-v4-prompt cockpit-v4-prompts-dismiss cockpit-v4-mode-standard cockpit-v4-mode-deep cockpit-v4-trace-note cockpit-v4-trace-explain requires-attention requires-attention-summary issue-card issue-title issue-title-open issue-current issue-affected issue-sparkline issue-driver issue-interpretation issue-investigate issue-open issue-save-cohort issue-whatif issue-nbq requires-attention-more attention-panel segments-requiring-attention attention-heading attention-reporting-period attention-summary attention-card ecl-highlights ecl-heading attention-footnote v4-ecl-panel v4-ecl-headline v4-ecl-ead v4-ecl-ecl v4-ecl-coverage v4-ecl-stages v4-ecl-stage-1",
+      "exec": [
+        {
+          "id": "domain-corporate",
+          "control": "",
+          "url": "/",
+          "url_after": "/",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-title-open",
+          "control": "",
+          "url": "/",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-detail-back",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/domains 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/session 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-open",
+          "control": "",
+          "url": "/",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-detail-back",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/session 200",
+            "GET /api/v1/cockpit-v4/domains 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-driver",
+          "control": "",
+          "url": "/",
+          "url_after": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-detail-back",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/session 200",
+            "GET /api/v1/cockpit-v4/domains 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-save-cohort",
+          "control": "",
+          "url": "/",
+          "url_after": "/",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-whatif",
+          "control": "",
+          "url": "/",
+          "url_after": "/what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-291182c4-256&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-f82475740265 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?cohort=coh-f82475740265&from=issue&back=%2F&domain=corporate",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/domains 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/session 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-investigate",
+          "control": "",
+          "url": "/",
+          "url_after": "/cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398?back=%2F",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-3aa7d3114c9642f087b2f5d0f0583398/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-3aa7d3114c9642f087b2f5d0f0583398 200",
+            "GET /api/v1/cockpit-v4/threads/th-3aa7d3114c9642f087b2f5d0f0583398 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398?back=%2F",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/session 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/domains 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "issue-nbq",
+          "control": "",
+          "url": "/",
+          "url_after": "/cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6?back=%2F",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-25e63587cc22/steps 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-ab2693816afc45429aa05fa7682f91e6/cohort 200",
+            "GET /api/v1/cockpit-v4/threads/th-ab2693816afc45429aa05fa7682f91e6 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-ab2693816afc45429aa05fa7682f91e6 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/runs/run-33905834d9c7454f98691c2135c1c9d8/events?cursor=0 200",
+            "GET /api/v1/cockpit-v4/runs/run-33905834d9c7454f98691c2135c1c9d8 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-25e63587cc22/steps 200",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6?back=%2F",
+          "url_after": "/",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/ecl?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/attention?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/inbox 200",
+            "GET /api/v1/cockpit-v4/session 200",
+            "GET /api/v1/cockpit-v4/domains 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "requires-attention-more",
+          "control": "",
+          "url": "/",
+          "url_after": "/",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        },
+        {
+          "id": "requires-attention-more",
+          "control": "",
+          "url": "/",
+          "url_after": "/",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-HOME"
+        }
+      ],
+      "controls_clicked": [
+        "domain-corporate",
+        "issue-detail-back",
+        "issue-driver",
+        "issue-investigate",
+        "issue-nbq",
+        "issue-open",
+        "issue-save-cohort",
+        "issue-title-open",
+        "issue-whatif",
+        "requires-attention-more",
+        "thread-origin-back",
+        "whatif-back"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-3aa7d3114c9642f087b2f5d0f0583398",
+        "/cockpit/thread/th-ab2693816afc45429aa05fa7682f91e6",
+        "/issues/iss-db4929b9bd19",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 13534
+    },
+    {
+      "journey": "GW-CTL-ISSUE",
+      "what": "Issue page: Save cohort, stage-mix and driver chart drills, chart data/CSV/PNG/SVG, table-row drill, Ask next, Investigate, What-If — each executed and asserted",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "controls": [
+        {
+          "id": "issue-detail-save-cohort",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click",
+          "expected": "the issue population is frozen; the button disables (one cohort)",
+          "observed": "Saved 251 facilities as coh-8031dca14597; button disabled",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-stage-mix",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click a stage segment",
+          "expected": "the grid narrows to that stage (?stage=), Back-able",
+          "observed": "stage 1: 251 → 250 rows; cleared back to 251",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-drivers-table-row",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "View data, then activate a contributor row",
+          "expected": "the grid narrows to that contributor (?driver=)",
+          "observed": "row \"Hotels\" → ?driver=Hotels; cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-trend-view-data",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click",
+          "expected": "the chart's data table opens, then closes",
+          "observed": "table with 8 rows shown and hidden",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-trend-csv",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click",
+          "expected": "a CSV file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-over-time.csv",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "booked-ecl-over-time.csv",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-trend-png",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click",
+          "expected": "a PNG file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-over-time.png",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "booked-ecl-over-time.png",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-trend-svg",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click",
+          "expected": "a SVG file of the chart is downloaded",
+          "observed": "downloaded booked-ecl-over-time.svg",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "booked-ecl-over-time.svg",
+          "url_after": "/issues/iss-db4929b9bd19"
+        },
+        {
+          "id": "issue-detail-whatif",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "freezes the issue population and opens What-If on it",
+          "observed": "/issues/iss-db4929b9bd19 → /what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate · handoff: issue iss-db4929b9bd19 (251 entities) → cohort coh-c509fd23add4 source=iss-db4929b9bd19, 251 entities, hash 6a619de44eca · unintended writes POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+          "result": "FAILED",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-84d3a543-2bf&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-c509fd23add4 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-detail-investigate",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens an investigation bound to the issue and its population",
+          "observed": "/issues/iss-db4929b9bd19 → /cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6?back=%2Fissues%2Fiss-db4929b9bd19",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-af78d37b45a348299e1a95d047daf7e6/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-af78d37b45a348299e1a95d047daf7e6 200",
+            "GET /api/v1/cockpit-v4/threads/th-af78d37b45a348299e1a95d047daf7e6 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6?back=%2Fissues%2Fiss-db4929b9bd19",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "issue-detail-nbq",
+          "url": "/issues/iss-db4929b9bd19",
+          "prereq": "issue iss-db4929b9bd19 open, unfiltered",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the investigation and asks the suggested question there",
+          "observed": "/issues/iss-db4929b9bd19 → /cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7?back=%2Fissues%2Fiss-db4929b9bd19",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-36644a9a4563/steps 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-1d438c45e742483286ddf0dc53174ad7/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-1d438c45e742483286ddf0dc53174ad7 200",
+            "GET /api/v1/cockpit-v4/threads/th-1d438c45e742483286ddf0dc53174ad7 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/runs/run-788bc24105ac4f6e816ae8a60139a01c/events?cursor=0 200",
+            "GET /api/v1/cockpit-v4/runs/run-788bc24105ac4f6e816ae8a60139a01c 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-36644a9a4563/steps 200",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "download": "",
+          "url_after": "/cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7?back=%2Fissues%2Fiss-db4929b9bd19",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        }
+      ],
+      "back": [
+        {
+          "path": "issue-detail-whatif: freezes the issue population and opens What-If on it",
+          "origin": "/issues/iss-db4929b9bd19",
+          "destination": "/what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate",
+          "origin_state": {
+            "issue": "/issues/iss-db4929b9bd19",
+            "drill": "",
+            "rows": "251"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/issues/iss-db4929b9bd19",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-detail-investigate: opens an investigation bound to the issue and its population",
+          "origin": "/issues/iss-db4929b9bd19",
+          "destination": "/cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6?back=%2Fissues%2Fiss-db4929b9bd19",
+          "origin_state": {
+            "issue": "/issues/iss-db4929b9bd19",
+            "drill": "",
+            "rows": "251"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/issues/iss-db4929b9bd19",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "issue-detail-nbq: opens the investigation and asks the suggested question there",
+          "origin": "/issues/iss-db4929b9bd19",
+          "destination": "/cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7?back=%2Fissues%2Fiss-db4929b9bd19",
+          "origin_state": {
+            "issue": "/issues/iss-db4929b9bd19",
+            "drill": "",
+            "rows": "251"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/issues/iss-db4929b9bd19",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "issue-detail-whatif",
+          "from_url": "/issues/iss-db4929b9bd19",
+          "to_url": "/what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"cohort\":\"coh-c509fd23add4\",\"entities\":251,\"hash\":\"6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262\",\"source\":\"iss-db4929b9bd19\",\"domain\":\"corporate\"}",
+          "identity": "issue iss-db4929b9bd19 (251 entities) → cohort coh-c509fd23add4 source=iss-db4929b9bd19, 251 entities, hash 6a619de44eca",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "unintended_writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200"
+          ],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "FAILED"
+        },
+        {
+          "control": "issue-detail-investigate",
+          "from_url": "/issues/iss-db4929b9bd19",
+          "to_url": "/cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6?back=%2Fissues%2Fiss-db4929b9bd19",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"thread\":\"th-af78d37b45a348299e1a95d047daf7e6\",\"issue\":\"iss-db4929b9bd19\",\"investigation\":\"inv-84ea80425340\",\"cohort\":\"coh-a7d92f55e499\",\"entities\":251,\"hash\":\"6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262\"}",
+          "identity": "issue iss-db4929b9bd19 → thread th-af78d37b45a348299e1a95d047daf7e6 investigation inv-84ea80425340 issue=iss-db4929b9bd19, cohort coh-a7d92f55e499 251 entities",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201"
+          ],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "issue-detail-nbq",
+          "from_url": "/issues/iss-db4929b9bd19",
+          "to_url": "/cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7?back=%2Fissues%2Fiss-db4929b9bd19",
+          "source": "{\"issue\":\"iss-db4929b9bd19\",\"entities\":251,\"domain\":\"corporate\",\"top\":\"Hotels\"}",
+          "destination": "{\"thread\":\"th-1d438c45e742483286ddf0dc53174ad7\",\"issue\":\"iss-db4929b9bd19\",\"investigation\":\"inv-36644a9a4563\",\"cohort\":\"coh-35187a07efa4\",\"entities\":251,\"hash\":\"6a619de44eca21fd2b03bd5635955d14d210666610cd38c1b1c58691c812f262\"}",
+          "identity": "issue iss-db4929b9bd19 → thread th-1d438c45e742483286ddf0dc53174ad7 investigation inv-36644a9a4563 issue=iss-db4929b9bd19, cohort coh-35187a07efa4 251 entities",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-36644a9a4563/steps 200",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        }
+      ],
+      "status": "FAILED",
+      "error": "every exercised control passed | + actual - expected |  | + [ | +   'issue-detail-whatif: /issues/iss-db4929b9bd19 → /what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate · handoff: issue iss-db4929b9bd19 (251 entities) → cohort coh-c509fd23add4 source=iss-db4929b9bd19, 251 entities, hash 6a619de44eca · unintended writes POST ' | + ]",
+      "on_screen": "http://127.0.0.1:5444/issues/iss-db4929b9bd19 :: app-content-column issue-detail issue-detail-back issue-kpis issue-detail-investigate issue-detail-save-cohort issue-detail-whatif issue-trend-card issue-trend-view-data issue-trend-csv issue-trend-png issue-trend-svg issue-trend issue-ecl-trend-card issue-ecl-trend-view-data issue-ecl-trend-csv issue-ecl-trend-png issue-ecl-trend-svg issue-ecl-trend issue-drivers-card issue-drivers-view-data issue-drivers-csv issue-drivers-png issue-drivers-svg issue-drivers issue-stage-mix-card issue-stage-mix-view-data issue-stage-mix-csv issue-stage-mix-png issue-stage-mix-svg issue-stage-mix issue-detail-nbq issue-grid grid-column-toggle issue-grid-export grid-sort-facility_id grid-filter-facility_id grid-sort-borrower_id grid-filter-borrower_id grid-sort-borrower_name grid-filter-borrower_name grid-sort-group_name grid-filter-group_name grid-sort-sector grid-filter-sector grid-sort-sub_sector grid-filter-sub_sector grid-sort-region grid-filter-region grid-sort-product_type",
+      "exec": [
+        {
+          "id": "issue-detail-save-cohort",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-stage-mix",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19?stage=1",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-detail-clear-drill",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19?stage=1",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-drivers-view-data",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-drivers-table-row",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-detail-clear-drill",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19?driver=Hotels",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-drivers-view-data",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [
+            "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+          ],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-trend-view-data",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-trend-view-data",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-trend-csv",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-over-time.csv",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-trend-png",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-over-time.png",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-trend-svg",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "booked-ecl-over-time.svg",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-detail-whatif",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-84d3a543-2bf&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/coh-c509fd23add4 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/cohort 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?cohort=coh-c509fd23add4&from=issue&back=%2Fissues%2Fiss-db4929b9bd19&domain=corporate",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-detail-investigate",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6?back=%2Fissues%2Fiss-db4929b9bd19",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-af78d37b45a348299e1a95d047daf7e6/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-af78d37b45a348299e1a95d047daf7e6 200",
+            "GET /api/v1/cockpit-v4/threads/th-af78d37b45a348299e1a95d047daf7e6 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6?back=%2Fissues%2Fiss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "issue-detail-nbq",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19",
+          "url_after": "/cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7?back=%2Fissues%2Fiss-db4929b9bd19",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-36644a9a4563/steps 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-1d438c45e742483286ddf0dc53174ad7/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-1d438c45e742483286ddf0dc53174ad7 200",
+            "GET /api/v1/cockpit-v4/threads/th-1d438c45e742483286ddf0dc53174ad7 200",
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/runs/run-788bc24105ac4f6e816ae8a60139a01c/events?cursor=0 200",
+            "GET /api/v1/cockpit-v4/runs/run-788bc24105ac4f6e816ae8a60139a01c 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19/investigate 201",
+            "POST /api/v1/cockpit-v4/workspace/investigations/inv-36644a9a4563/steps 200",
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        },
+        {
+          "id": "thread-origin-back",
+          "control": "",
+          "url": "/cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7?back=%2Fissues%2Fiss-db4929b9bd19",
+          "url_after": "/issues/iss-db4929b9bd19",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/issues/iss-db4929b9bd19 200",
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ISSUE"
+        }
+      ],
+      "controls_clicked": [
+        "issue-detail-clear-drill",
+        "issue-detail-investigate",
+        "issue-detail-nbq",
+        "issue-detail-save-cohort",
+        "issue-detail-whatif",
+        "issue-drivers-table-row",
+        "issue-drivers-view-data",
+        "issue-stage-mix",
+        "issue-trend-csv",
+        "issue-trend-png",
+        "issue-trend-svg",
+        "issue-trend-view-data",
+        "thread-origin-back",
+        "whatif-back"
+      ],
+      "urls": [
+        "/cockpit/thread/th-1d438c45e742483286ddf0dc53174ad7",
+        "/cockpit/thread/th-af78d37b45a348299e1a95d047daf7e6",
+        "/issues/iss-db4929b9bd19",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+      ],
+      "ms": 17470
+    },
+    {
+      "journey": "GW-CTL-NA",
+      "what": "Legacy surfaces are not rendered under the enabled configuration: each legacy route renders or hands over to its governed equivalent, the legacy surface is absent, and Back does not loop",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-48d929c9b37f4a8899ff1234783eb7bf",
+      "na_proofs": [
+        {
+          "route": "/",
+          "visited": "/",
+          "governed_marker": "cockpit-v4-home",
+          "landed": "/",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/early-warning",
+          "visited": "/early-warning",
+          "governed_marker": "early-warning-v4",
+          "landed": "/early-warning",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/lenses",
+          "visited": "/lenses",
+          "governed_marker": "lens-library",
+          "landed": "/lenses",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/lenses/[lensId]",
+          "visited": "/lenses/lens-02",
+          "governed_marker": "lens-view",
+          "landed": "/lenses/lens-02",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/lenses/cro",
+          "visited": "/lenses/cro",
+          "governed_marker": "lens-view",
+          "landed": "/lenses/lens-01",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/stress",
+          "visited": "/stress",
+          "governed_marker": "whatif-workspace",
+          "landed": "/what-if",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/trace",
+          "visited": "/trace",
+          "governed_marker": "cockpit-v4-home",
+          "landed": "/",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/trace/[runId]",
+          "visited": "/trace/run-c9b7a9927d1d45248e13d0c8856cd5fc",
+          "governed_marker": "trace-llm-exchange-link",
+          "landed": "/cockpit/trace/run-c9b7a9927d1d45248e13d0c8856cd5fc",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/early-warning/lab",
+          "visited": "/early-warning/lab",
+          "governed_marker": "early-warning-v4",
+          "landed": "/early-warning",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        },
+        {
+          "route": "/early-warning/signals",
+          "visited": "/early-warning/signals",
+          "governed_marker": "early-warning-v4",
+          "landed": "/early-warning",
+          "legacy_absent": true,
+          "back_returns_to": "/metrics",
+          "status": "PASS"
+        }
+      ],
+      "console_errors": [],
+      "status": "PASS",
+      "exec": [
+        {
+          "id": "domain-corporate",
+          "control": "",
+          "url": "/",
+          "url_after": "/",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-NA"
+        },
+        {
+          "id": "cockpit-v4-ask",
+          "control": "",
+          "url": "/",
+          "url_after": "/cockpit/thread/th-48d929c9b37f4a8899ff1234783eb7bf",
+          "api": [
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-48d929c9b37f4a8899ff1234783eb7bf/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-48d929c9b37f4a8899ff1234783eb7bf 200",
+            "GET /api/v1/cockpit-v4/threads/th-48d929c9b37f4a8899ff1234783eb7bf 200",
+            "GET /api/v1/cockpit-v4/runs/run-c9b7a9927d1d45248e13d0c8856cd5fc 200",
+            "GET /api/v1/cockpit-v4/runs/run-c9b7a9927d1d45248e13d0c8856cd5fc/events?cursor=0 200",
+            "POST /api/v1/cockpit-v4/runs/run-c9b7a9927d1d45248e13d0c8856cd5fc/delivered 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/runs 202",
+            "POST /api/v1/cockpit-v4/runs/run-c9b7a9927d1d45248e13d0c8856cd5fc/delivered 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-NA"
+        }
+      ],
+      "controls_clicked": [
+        "cockpit-v4-ask",
+        "domain-corporate"
+      ],
+      "urls": [
+        "/",
+        "/cockpit/thread/th-48d929c9b37f4a8899ff1234783eb7bf",
+        "/cockpit/trace/run-c9b7a9927d1d45248e13d0c8856cd5fc",
+        "/early-warning",
+        "/early-warning/lab",
+        "/early-warning/signals",
+        "/lenses",
+        "/lenses/cro",
+        "/lenses/lens-01",
+        "/lenses/lens-02",
+        "/metrics",
+        "/stress",
+        "/trace",
+        "/trace/run-c9b7a9927d1d45248e13d0c8856cd5fc",
+        "/what-if"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED GET /api/v1/cockpit-v4/runs/run-c9b7a9927d1d45248e13d0c8856cd5fc/events?cursor=0 net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics/M001 net::ERR_ABORTED",
+        "FAILED GET /api/v1/health net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics/M001/lineage net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/metrics/evaluate net::ERR_ABORTED"
+      ],
+      "ms": 23565
+    },
+    {
+      "journey": "GW-CTL-ROUTES",
+      "what": "27 routes: direct entry, refresh, browser Back/Forward, in-product Back, invalid and stale ids — handled in words, nothing crashes",
+      "prompts": [
+        "Show me construction exposure by sector"
+      ],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "thread_id": "th-dad2e38a47fa47d080c9648e7f52a7a9",
+      "route_checks": [
+        {
+          "route": "/",
+          "url": "/",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/ai-model-lab",
+          "url": "/ai-model-lab",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/cockpit/data",
+          "url": "/cockpit/data",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/cockpit/saved/[savedId]",
+          "url": "/cockpit/saved/save-dbb96fa9386d477b",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/cockpit/thread/[threadId]",
+          "url": "/cockpit/thread/th-dad2e38a47fa47d080c9648e7f52a7a9",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/cockpit/trace/[runId]",
+          "url": "/cockpit/trace/run-6308f0d301984efd8bd11467ae45ecd6",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/early-warning",
+          "url": "/early-warning",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/early-warning/lab",
+          "url": "/early-warning/lab",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/early-warning/signals",
+          "url": "/early-warning/signals",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/issues/[issueId]",
+          "url": "/issues/iss-db4929b9bd19",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/lenses/[lensId]",
+          "url": "/lenses/lens-02",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/lenses/cro",
+          "url": "/lenses/cro",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/lenses",
+          "url": "/lenses",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/messages",
+          "url": "/messages",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/metrics",
+          "url": "/metrics?m=M001",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/monitoring",
+          "url": "/monitoring",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/scenarios/[scenarioId]",
+          "url": "/scenarios/scn-tpl-corp-01",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "stale": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/scenarios/new",
+          "url": "/scenarios/new",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/scenarios",
+          "url": "/scenarios",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/stress",
+          "url": "/stress",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/trace/[runId]",
+          "url": "/trace/run-6308f0d301984efd8bd11467ae45ecd6",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/trace/llm-exchange/[runId]",
+          "url": "/trace/llm-exchange/run-6308f0d301984efd8bd11467ae45ecd6",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/trace/object/[objectId]",
+          "url": "/trace/object/scn-tpl-corp-01",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/trace",
+          "url": "/trace",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "N/A (the page has no origin control)",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/what-if/compare/[comparisonId]",
+          "url": "/what-if/compare/cmp-14780460bd9c",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/what-if",
+          "url": "/what-if",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        },
+        {
+          "route": "/what-if/result/[resultId]",
+          "url": "/what-if/result/res-2be49d2974dd",
+          "direct": "PASS",
+          "refresh": "PASS",
+          "browser_back_forward": "PASS",
+          "in_app_back": "PASS",
+          "invalid": "PASS",
+          "permission": "API-tested (tests/cockpit_v4: exchange role 403, other tenant 404/403); the browser runtime has one server-resolved principal",
+          "deleted": "N/A (append-only store: objects are retired, never deleted; see stale)",
+          "status": "PASS"
+        }
+      ],
+      "routes_checked": 27,
+      "console_errors": [],
+      "status": "PASS",
+      "exec": [
+        {
+          "id": "domain-corporate",
+          "control": "",
+          "url": "/",
+          "url_after": "/",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "cockpit-v4-ask",
+          "control": "",
+          "url": "/",
+          "url_after": "/cockpit/thread/th-dad2e38a47fa47d080c9648e7f52a7a9",
+          "api": [
+            "POST /api/v1/cockpit-v4/runs 202",
+            "GET /api/v1/cockpit-v4/workspace/whatif/threads/th-dad2e38a47fa47d080c9648e7f52a7a9/cohort 200",
+            "GET /api/v1/cockpit-v4/workspace/investigations/by-thread/th-dad2e38a47fa47d080c9648e7f52a7a9 200",
+            "GET /api/v1/cockpit-v4/threads/th-dad2e38a47fa47d080c9648e7f52a7a9 200",
+            "GET /api/v1/cockpit-v4/runs/run-6308f0d301984efd8bd11467ae45ecd6 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/runs 202"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "lab-back",
+          "control": "",
+          "url": "/ai-model-lab?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "issue-detail-back",
+          "control": "",
+          "url": "/issues/iss-db4929b9bd19?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "lens-back",
+          "control": "",
+          "url": "/lenses/lens-02?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "lens-library-back",
+          "control": "",
+          "url": "/lenses?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "messages-back",
+          "control": "",
+          "url": "/messages?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "metrics-back",
+          "control": "",
+          "url": "/metrics?m=M001&back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "monitoring-back",
+          "control": "",
+          "url": "/monitoring?back=%2Fmetrics&view=active",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "scenario-back",
+          "control": "",
+          "url": "/scenarios/scn-tpl-corp-01?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "builder-back",
+          "control": "",
+          "url": "/scenarios/new?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "scenario-library-back",
+          "control": "",
+          "url": "/scenarios?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "llm-exchange-back",
+          "control": "",
+          "url": "/trace/llm-exchange/run-6308f0d301984efd8bd11467ae45ecd6?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "trace-object-back",
+          "control": "",
+          "url": "/trace/object/scn-tpl-corp-01?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "comparison-back",
+          "control": "",
+          "url": "/what-if/compare/cmp-14780460bd9c?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?back=%2Fmetrics&domain=corporate",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        },
+        {
+          "id": "whatif-result-back",
+          "control": "",
+          "url": "/what-if/result/res-2be49d2974dd?back=%2Fmetrics",
+          "url_after": "/metrics",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-ROUTES"
+        }
+      ],
+      "controls_clicked": [
+        "builder-back",
+        "cockpit-v4-ask",
+        "comparison-back",
+        "domain-corporate",
+        "issue-detail-back",
+        "lab-back",
+        "lens-back",
+        "lens-library-back",
+        "llm-exchange-back",
+        "messages-back",
+        "metrics-back",
+        "monitoring-back",
+        "scenario-back",
+        "scenario-library-back",
+        "trace-object-back",
+        "whatif-back",
+        "whatif-result-back"
+      ],
+      "urls": [
+        "/",
+        "/ai-model-lab",
+        "/cockpit/data",
+        "/cockpit/saved/sav-doesnotexist",
+        "/cockpit/saved/save-dbb96fa9386d477b",
+        "/cockpit/thread/th-dad2e38a47fa47d080c9648e7f52a7a9",
+        "/cockpit/thread/th-doesnotexist",
+        "/cockpit/trace/12345",
+        "/cockpit/trace/run-6308f0d301984efd8bd11467ae45ecd6",
+        "/cockpit/trace/run-doesnotexist",
+        "/early-warning",
+        "/early-warning/lab",
+        "/early-warning/signals",
+        "/issues/iss-db4929b9bd19",
+        "/issues/iss-doesnotexist",
+        "/lenses",
+        "/lenses/cro",
+        "/lenses/lens-01",
+        "/lenses/lens-02",
+        "/lenses/lens-doesnotexist",
+        "/messages",
+        "/metrics",
+        "/monitoring",
+        "/scenarios",
+        "/scenarios/new",
+        "/scenarios/scn-6a00ab8ec906",
+        "/scenarios/scn-doesnotexist",
+        "/scenarios/scn-tpl-corp-01",
+        "/stress",
+        "/trace",
+        "/trace/12345",
+        "/trace/llm-exchange/run-6308f0d301984efd8bd11467ae45ecd6",
+        "/trace/llm-exchange/run-doesnotexist",
+        "/trace/object/obj-doesnotexist",
+        "/trace/object/scn-tpl-corp-01",
+        "/trace/run-6308f0d301984efd8bd11467ae45ecd6",
+        "/what-if",
+        "/what-if/compare/cmp-14780460bd9c",
+        "/what-if/compare/cmp-doesnotexist",
+        "/what-if/result/res-2be49d2974dd",
+        "/what-if/result/res-doesnotexist"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics/M001 net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics/M001/lineage net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/metrics net::ERR_ABORTED",
+        "FAILED GET /api/v1/health net::ERR_ABORTED",
+        "FAILED POST /api/v1/cockpit-v4/workspace/metrics/evaluate net::ERR_ABORTED",
+        "404 GET /api/v1/cockpit-v4/saved-analyses/sav-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/whatif/threads/th-doesnotexist/cohort",
+        "404 GET /api/v1/cockpit-v4/threads/th-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/runs/run-doesnotexist/governance",
+        "404 GET /api/v1/cockpit-v4/workspace/issues/iss-doesnotexist",
+        "404 POST /api/v1/cockpit-v4/workspace/lenses/lens-doesnotexist/render",
+        "FAILED GET /api/v1/cockpit-v4/workspace/monitoring?view=active net::ERR_ABORTED",
+        "404 GET /api/v1/cockpit-v4/workspace/scenarios/scn-doesnotexist",
+        "404 POST /api/v1/cockpit-v4/workspace/scenarios/scn-doesnotexist/preview",
+        "404 GET /api/v1/cockpit-v4/runs/12345/governance",
+        "404 GET /api/v1/cockpit-v4/workspace/llm-exchange/runs/run-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/trace/objects/obj-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/objects/cmp-doesnotexist",
+        "404 GET /api/v1/cockpit-v4/workspace/objects/res-doesnotexist"
+      ],
+      "ms": 163700
+    }
+  ]
+}

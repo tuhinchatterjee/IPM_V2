@@ -1,0 +1,152 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query ______
+
+client = <starlette.testclient.TestClient object at 0x7fcb33cd4980>
+svc = <backend.workspace.objects.ObjectService object at 0x7fcb33f938f0>
+model = <tests.cockpit_v4.conftest.ScriptedProvider object at 0x7fcb33da7590>
+
+    def test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query(
+            client, svc, model):
+        """The V4 runtime queries the book's DuckDB connection directly from its
+        run worker threads; the workspace reads the same book. One DuckDB
+        connection is not safe to use from two threads at once: a workspace
+        read made while a Cockpit question was running returned another
+        query's columns (HTTP 500, KeyError 'entities'). Workspace reads now
+        use their own duplicate connection to the same database."""
+        import threading
+    
+        from backend.workspace import access
+    
+        book = access.book(WHO, "corporate")
+        want = client.post(f"{P}/grid/query", json={"domain": "corporate",
+                                                   "limit": 1}).json()["total"]
+        stop = threading.Event()
+        errors: list[str] = []
+    
+        def cockpit_like():
+            # What execute_tool / sql do from a run's worker thread.
+            while not stop.is_set():
+                try:
+                    book.session.connection.execute(
+                        "SELECT x AS a, x * 2 AS b, x * 3 AS c FROM "
+                        "range(20000) t(x)").fetchall()
+                except Exception as exc:  # noqa: BLE001 - recorded
+                    errors.append(f"cockpit: {exc}")
+    
+        worker = threading.Thread(target=cockpit_like, daemon=True)
+        worker.start()
+        try:
+            bad = []
+            for _ in range(60):
+>               r = client.post(f"{P}/grid/query", json={"domain": "corporate",
+                                                        "limit": 1})
+
+tests/cockpit_v4/test_gw_validation_defects.py:578: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../.venv312/lib/python3.12/site-packages/httpx2/_client.py:1204: in post
+    return self.request(
+../.venv312/lib/python3.12/site-packages/starlette/testclient.py:463: in request
+    return super().request(
+../.venv312/lib/python3.12/site-packages/httpx2/_client.py:797: in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../.venv312/lib/python3.12/site-packages/httpx2/_client.py:980: in send
+    response = self._send_handling_auth(
+../.venv312/lib/python3.12/site-packages/httpx2/_client.py:1008: in _send_handling_auth
+    response = self._send_handling_redirects(
+../.venv312/lib/python3.12/site-packages/httpx2/_client.py:1043: in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../.venv312/lib/python3.12/site-packages/httpx2/_client.py:1076: in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../.venv312/lib/python3.12/site-packages/starlette/testclient.py:360: in handle_request
+    raise exc
+../.venv312/lib/python3.12/site-packages/starlette/testclient.py:357: in handle_request
+    portal.call(self.app, scope, receive, send)
+../.venv312/lib/python3.12/site-packages/anyio/from_thread.py:340: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+../.venv312/lib/python3.12/site-packages/anyio/from_thread.py:265: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+../.venv312/lib/python3.12/site-packages/fastapi/applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/starlette/applications.py:96: in __call__
+    await self.middleware_stack(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/starlette/middleware/errors.py:186: in __call__
+    raise exc
+../.venv312/lib/python3.12/site-packages/starlette/middleware/errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+../.venv312/lib/python3.12/site-packages/starlette/middleware/exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+../.venv312/lib/python3.12/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+../.venv312/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/starlette/routing.py:676: in __call__
+    await self.middleware_stack(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:2734: in app
+    await route.handle(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:1780: in handle
+    await self.original_router.handle(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:2789: in handle
+    await included_router._handle_selected(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:1791: in _handle_selected
+    await route.handle(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:1780: in handle
+    await self.original_router.handle(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:2789: in handle
+    await included_router._handle_selected(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:1800: in _handle_selected
+    await original_route.handle(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:1279: in handle
+    await app(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:158: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+../.venv312/lib/python3.12/site-packages/starlette/_exception_handler.py:53: in wrapped_app
+    raise exc
+../.venv312/lib/python3.12/site-packages/starlette/_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:144: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+backend/workspace/errors.py:54: in governed
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:706: in app
+    raw_response = await run_endpoint_function(
+../.venv312/lib/python3.12/site-packages/fastapi/routing.py:352: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/workspace/grid_api.py:48: in grid_query
+    return grid.query(access.book(who, body.domain), filters=body.filters,
+backend/workspace/grid.py:346: in query
+    agg = summary(book, v=v, where=where, params=params)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+book = Book(domain_id='corporate', scope=DomainScope(domain_id='corporate', release_id='v4-whatif-corporate-20q-s1', release_..._corp_term_structure', 'whatif_corp_ifrs9', 'whatif_corp_model_metric'), built_seconds=1.038), tenant_id='demo-tenant')
+v = View(domain_id='corporate', period='2026Q2', prior_period='2026Q1', sql="SELECT g1.*, CASE WHEN (g1.ews_score) >= 6 TH... warning', description='Rules this exposure trips.', needs='', visible=False)), key='facility_id', owner='borrower_id')
+where = '', params = []
+
+    def summary(book: Book, *, v: View, where: str, params: list[Any]
+                ) -> dict[str, Any]:
+>       head = _rows(book,
+            f"SELECT COUNT(*) AS entities, COUNT(DISTINCT {v.owner}) AS owners, "
+            f"COALESCE(SUM(ead_sar_mn), 0) AS ead, COALESCE(SUM(ecl_sar_mn), 0) "
+            f"AS ecl FROM ({v.sql}) g {where}", params)[0]
+E       IndexError: list index out of range
+
+backend/workspace/grid.py:360: IndexError
+=========================== short test summary info ============================
+FAILED tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query
+1 failed, 25 deselected in 2.71s

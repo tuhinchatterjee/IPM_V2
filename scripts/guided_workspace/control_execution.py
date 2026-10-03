@@ -296,9 +296,12 @@ def join(controls: list[dict[str, Any]], runs: list[dict[str, Any]]
          ) -> list[dict[str, Any]]:
     """Set `status` and the execution-matrix fields on every control row."""
     scope = rendering_routes()
-    exec_recs, explicit, handoffs, na = [], [], [], {}
+    exec_recs, explicit, handoffs, na, backs = [], [], [], {}, []
     for j in runs:
         ok = j.get("status") == "PASS"
+        for b in j.get("back", []):
+            if b.get("in_app_control"):
+                backs.append({**b, "journey": j["journey"], "journey_ok": ok})
         for e in j.get("exec", []):
             exec_recs.append({**e, "journey": j["journey"], "journey_ok": ok})
         for c in j.get("controls", []):
@@ -354,6 +357,12 @@ def join(controls: list[dict[str, Any]], runs: list[dict[str, Any]]
         au = [e for e in exec_recs if mine(e)]
         hs = [h for h in handoffs if mine(h, "control")]
         row["_handoff_records"] = hs
+        # The in-product Backs this control performed: a Back-matrix row
+        # whose in-app control it was, on a page where it renders.
+        bk = [b for b in backs if rx and rx.match(b["in_app_control"]) and
+              any(r.match(_path(b.get("destination", ""))) for r in rregs)]
+        good_bk = [b for b in bk if b["journey_ok"] and
+                   b.get("in_app_back") == "PASS"]
         navigates = any(_path(e.get("url_after", "")) != _path(e.get("url", ""))
                         and e.get("url_after") for e in au + ex)
         status, pick = "NOT_EXERCISED", None
@@ -376,8 +385,31 @@ def join(controls: list[dict[str, Any]], runs: list[dict[str, Any]]
             status, pick = "PASS", good_au[0]
         elif au:
             status, pick = "FAILED", au[0]
+        if bk and not good_bk:
+            status = "FAILED"
         back = ""
-        if navigates:
+        if good_bk and status in ("PASS", "NOT_EXERCISED"):
+            # A return control (in-product Back, Cancel): its evidence is
+            # the Back it performed -- it landed on the origin with the
+            # origin's exact state. A Back of a Back is not asked for.
+            b = good_bk[0]
+            status = "PASS"
+            back = (f"is the in-product Back of '{b['path']}': landed on "
+                    f"{b.get('in_app_target') or b.get('origin')} with the "
+                    f"origin's state ({len(good_bk)} Back row(s), "
+                    f"{len({x['journey'] for x in good_bk})} journey(s))")
+            if not pick:
+                pick = {"journey": b["journey"], "url": b["destination"],
+                        "url_after": b.get("in_app_target") or b["origin"],
+                        "prereq": f"at {_path(b['destination'])}, reached "
+                                  f"from {_path(b['origin'])}",
+                        "action": "click the in-product Back",
+                        "expected": "lands on the origin with its state",
+                        "observed": f"{_path(b['destination'])} → "
+                                    f"{b.get('in_app_target') or b['origin']}"
+                                    f"; origin state restored",
+                        "writes": b.get("writes_on_return", []), "api": []}
+        elif navigates:
             trips = [c.get("back") for c in ex if c.get("back")] + \
                 [h.get("back") for h in hs if h.get("back")]
             okt = [t for t in trips if t.get("ok")]
@@ -405,9 +437,10 @@ def join(controls: list[dict[str, Any]], runs: list[dict[str, Any]]
                                            pick.get("api", [])) else "no",
                 "console": "; ".join(_clean(pick)[:3]) or "clean",
                 "route_after": pick.get("url_after", "") or pick.get("url", ""),
-                "back": back if navigates else "does not navigate",
-                "evidence": ";".join(sorted({c["journey"] for c in ex + au}))
-                [:300]})
+                "back": back if (navigates or good_bk) else
+                "does not navigate",
+                "evidence": ";".join(sorted({c["journey"] for c in
+                                             ex + au + good_bk}))[:300]})
             if pick.get("reason"):
                 row["observed"] = f"{row['observed']} · reason shown: " \
                                   f"{pick['reason']}"

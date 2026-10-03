@@ -1,0 +1,12 @@
+after pick (no wait) http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c
+after clear http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c  coh-30ed61d63c6c
+after pick (no wait) http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c
+after clear http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c&scenario=scn-tpl-corp-02  coh-30ed61d63c6c
+after pick (no wait) http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c
+after clear http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c&scenario=scn-tpl-corp-02  coh-30ed61d63c6c
+after pick (no wait) http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c
+after clear http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c  coh-30ed61d63c6c
+after pick (no wait) http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c
+after clear http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c  coh-30ed61d63c6c
+after pick (no wait) http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c
+after clear http://127.0.0.1:5444/what-if?domain=corporate&cohort=coh-30ed61d63c6c&scenario=scn-tpl-corp-02  coh-30ed61d63c6c

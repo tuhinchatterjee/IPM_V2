@@ -1,0 +1,76 @@
+V4 preflight incomplete: CAPABILITY_UNVERIFIED: COCKPIT_V4_PRICE_CARD is not set, so no paid request can be reserved against a verified price.
+guided-workspace stub V4 API on http://127.0.0.1:8444
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 422, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/applications.py", line 1163, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/middleware/cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/middleware/cors.py", line 149, in simple_response
+    await self.app(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/routing.py", line 676, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 1780, in handle
+    await self.original_router.handle(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 2789, in handle
+    await included_router._handle_selected(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 1791, in _handle_selected
+    await route.handle(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 1780, in handle
+    await self.original_router.handle(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 2789, in handle
+    await included_router._handle_selected(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 1800, in _handle_selected
+    await original_route.handle(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 1279, in handle
+    await app(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 144, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/backend/workspace/errors.py", line 54, in governed
+    return await handler(request)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/.venv-whatif/lib/python3.12/site-packages/fastapi/routing.py", line 352, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/backend/workspace/scenarios_api.py", line 121, in preview_saved
+    out = lib.preview(book, obj["body"])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/backend/workspace/scenario_library.py", line 1014, in preview
+    book_total = grid.summary(book, v=v, where="", params=[])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/IPM_V2/backend/workspace/grid.py", line 374, in summary
+    return {"entities": int(head["entities"] or 0),
+                            ~~~~^^^^^^^^^^^^
+KeyError: 'entities'

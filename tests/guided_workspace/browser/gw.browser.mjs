@@ -191,8 +191,19 @@ const isWrite = (e) => e.method !== "GET" && e.status < 400 && !READ_ONLY_POST.t
  * browser reports the navigation request itself as aborted. Matched only
  * for an `/export` GET in a window that produced a download. */
 const ABORTED_INTO_DOWNLOAD = /^FAILED GET \/api\/v1\/cockpit-v4\/workspace\/\S+\/export(\?\S*)? net::ERR_ABORTED$/;
-const benignFailure = (e, navigated, downloaded = false) =>
-  (navigated && ABORTED_BY_NAVIGATION.test(e.line)) || SUPERSEDED_GRID_QUERY.test(e.line) || (downloaded && ABORTED_INTO_DOWNLOAD.test(e.line));
+/** The Cockpit follows a run over an EventSource and closes it itself on
+ * `run.settled` (components/cockpit-v4/client.ts `watch`); the browser
+ * reports the closed stream as aborted. Matched exactly, and only when the
+ * same window shows that same run settling (its status read or its
+ * delivery recorded). */
+const SSE_CLOSED_ON_SETTLE = /^FAILED GET \/api\/v1\/cockpit-v4\/runs\/([^/?\s]+)\/events\?cursor=\d+ net::ERR_ABORTED$/;
+const settledIn = (id, win) =>
+  win.some((x) => x.kind === "api" && (x.line.startsWith(`GET /api/v1/cockpit-v4/runs/${id} 2`) || x.line.startsWith(`POST /api/v1/cockpit-v4/runs/${id}/delivered 2`)));
+const benignFailure = (e, navigated, downloaded = false, win = []) =>
+  (navigated && ABORTED_BY_NAVIGATION.test(e.line)) ||
+  SUPERSEDED_GRID_QUERY.test(e.line) ||
+  (downloaded && ABORTED_INTO_DOWNLOAD.test(e.line)) ||
+  (SSE_CLOSED_ON_SETTLE.test(e.line) && settledIn(SSE_CLOSED_ON_SETTLE.exec(e.line)[1], win));
 
 /** One execution record per click: what the click was followed by until the
  * next click on the same page (at most 30 s). */
@@ -212,7 +223,7 @@ function clickWindows(page, journeyId) {
         .filter((e) => e.status >= 400 && !expected4xx.some((rx) => rx.test(e.line)))
         .map((e) => e.line),
       ...win
-        .filter((e) => e.kind === "failed" && !benignFailure(e, navs.length > 0, win.some((x) => x.kind === "download")))
+        .filter((e) => e.kind === "failed" && !benignFailure(e, navs.length > 0, win.some((x) => x.kind === "download"), win))
         .map((e) => e.line),
     ];
     out.push({
@@ -1549,14 +1560,24 @@ async function p9Journeys() {
     await page.click('[data-testid="thread-save-as-lens"]');
     await page.waitForURL(/\/lenses(\?|$)/, { timeout: 60_000 });
     await page.waitForSelector('[data-testid="lens-preview"]', { timeout: 60_000 });
-    // The origin is consumed once proposed: Back to /lenses never re-proposes.
-    await page.waitForFunction(() => !location.search.includes("from_thread"), null, { timeout: 30_000 });
+    // Unsaved, the proposal keeps its origin in the address (browser Forward
+    // shows it again, VAL-DEF-047); saving drops it from that history entry.
+    assert.ok(new URL(page.url()).searchParams.get("from_thread"), "the unsaved proposal keeps its origin");
     await page.click('[data-testid="lens-save"]');
     await page.waitForURL(/\/lenses\/lens-[0-9a-f]{12}/, { timeout: 60_000 });
     await page.waitForSelector('[data-testid="lens-kpi"]', { timeout: 120_000 });
     const saved = (await api(`/objects/${/\/lenses\/(lens-[0-9a-f]{12})/.exec(page.url())[1]}`)).body;
     record.source = saved.body.source;
     assert.equal(saved.body.source.kind, "cockpit");
+    // Back from the saved Lens: the library, never the same proposal again
+    // (VAL-DEF-019).
+    const lensCount = (await api("/lenses")).body.lenses.length;
+    await page.goBack();
+    await page.waitForSelector('[data-testid="lens-library"]', { timeout: 60_000 });
+    await page.waitForLoadState("networkidle").catch(() => undefined);
+    assert.equal(new URL(page.url()).searchParams.get("from_thread"), null, "the saved proposal's origin is gone");
+    assert.equal(await page.locator('[data-testid="lens-preview"]').count(), 0, "no proposal is offered again");
+    assert.equal((await api("/lenses")).body.lenses.length, lensCount, "nothing saved on Back");
   });
 }
 
@@ -2274,8 +2295,12 @@ const here = (page) => {
   return `${u.pathname}${u.search}`;
 };
 
-/** Writes and model calls a return trip must never make. */
-const WRITE_ON_BACK = /^POST \/api\/v1\/cockpit-v4\/(workspace\/(whatif\/runs($|\?|\/[^/]+\/(confirm|method|execute))|cohorts($|\?)|whatif\/selection\/cohort|scenarios\/[^/]+\/(clone|resolve|retire)|scenarios\/combine|messages($|\?)|lenses\/propose|lenses($|\?)|investigations|issues\/[^/]+\/investigate|cohorts\/[^/]+\/investigate)|threads|runs|ask)/;
+/** Writes and model calls a return trip must never make. A Lens proposal
+ * (`lenses/propose`) is not one: it is a rule-based preview with no model
+ * call, re-made when Forward returns to an unsaved proposal; the cohort it
+ * may adopt is idempotent (VAL-DEF-049) and the object counts below still
+ * catch any write it made. */
+const WRITE_ON_BACK = /^POST \/api\/v1\/cockpit-v4\/(workspace\/(whatif\/runs($|\?|\/[^/]+\/(confirm|method|execute))|cohorts($|\?)|whatif\/selection\/cohort|scenarios\/[^/]+\/(clone|resolve|retire)|scenarios\/combine|messages($|\?)|lenses($|\?)|investigations|issues\/[^/]+\/investigate|cohorts\/[^/]+\/investigate)|threads|runs|ask)/;
 
 async function storeCounts() {
   const n = async (p, key) => ((await api(p)).body?.[key] ?? []).length;
@@ -2283,6 +2308,9 @@ async function storeCounts() {
   // Library and its demo results (by design, once per tenant). Counted
   // after the results, that seeding showed up as a write on the next trip.
   const lenses = await n("/lenses", "lenses");
+  // Likewise the first inbox read seeds the first-launch messages (a shared
+  // definition, result and cohort), by design once per tenant.
+  await api("/messages?box=inbox");
   return {
     scenarios: await n("/scenarios?owner=mine", "scenarios"),
     cohorts: await n("/cohorts", "cohorts"),
@@ -2354,6 +2382,8 @@ async function backTrip(page, record, { path, state, go, arrived, inApp, inAppTa
     try {
       const target = await page.getAttribute(inApp, "data-back-target", { timeout: 60_000 }).catch(() => null);
       row.in_app_target = target;
+      // Which control performed the in-product Back (its own evidence).
+      row.in_app_control = (/data-testid="([^"]+)"/.exec(inApp) ?? [])[1] ?? "";
       await page.click(inApp, { timeout: 60_000 });
       row.in_app_back = await backAt(page, inAppTarget ?? originPath, stateSrc, want);
     } catch (e) {
@@ -2392,7 +2422,7 @@ function windowSince(page, mark, expect4xx = null) {
     writes: [...new Set(api.filter(isWrite).map((e) => e.line))].slice(0, 10),
     failed: [
       ...api.filter((e) => e.status >= 400 && !(expect4xx && expect4xx.test(e.line))).map((e) => e.line),
-      ...win.filter((e) => e.kind === "failed" && !benignFailure(e, navigated, win.some((x) => x.kind === "download"))).map((e) => e.line),
+      ...win.filter((e) => e.kind === "failed" && !benignFailure(e, navigated, win.some((x) => x.kind === "download"), win)).map((e) => e.line),
     ],
     refused: api.filter((e) => e.status >= 400 && expect4xx && expect4xx.test(e.line)).map((e) => e.line),
     // The browser logs its own "Failed to load resource" line for every 4xx;

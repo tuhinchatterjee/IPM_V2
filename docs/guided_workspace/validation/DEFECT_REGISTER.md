@@ -1,6 +1,6 @@
 # Defect register: exhaustive validation round
 
-Branch `claude/guided-workspace-exhaustive-validation`. The base is evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`).
+Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 050 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
 
 **Severity:**
 - CRITICAL: wrong data, security, tenant leakage, wrong ECL or cohort, silent method execution, corruption.
@@ -11,8 +11,9 @@ Branch `claude/guided-workspace-exhaustive-validation`. The base is evidence com
 **Protected-file status:** no defect in this register required a change to a protected file. `scripts/guided_workspace/protected_baseline.py --check` reports the same six files the PROTECTED_EXTENSION_MAP already records. A lint finding was fixed in no protected file; those findings are counted, not fixed.
 
 **How each result was measured:**
-- **Targeted retest:** the named test on the working tree after the fix. For the backend defects it is also the same test run against the pre-fix backend, where it fails: 19 of the 20 tests in `test_gw_validation_defects.py` fail on the pre-fix backend. The one that passes is the restart validation, which is not a defect test.
-- **Regression:** the final regression of record on candidate K (`62ba4dda`): 17 of 18 steps PASS and 1 BLOCKED_ENV (emulator pickle bytes). Every fix above is covered by a step that passed (see `VALIDATION_REPORT.md`). Candidates I and J were rejected, and their runs are kept in `evidence/regression_candidate_I_*` and `_J_*`.
+- **Pre-fix proof:** for every defect from VAL-DEF-032 on, the failing browser record or pytest output from BEFORE the fix is kept in `prefix_evidence/` next to this file (named by defect). A backend fix also has a regression test that fails on the pre-fix code (shown in its `*_prefix_pytest.txt`) and a mutation gate that restores the pre-fix code and must be KILLED (`mutation_gates.json`).
+- **Targeted retest:** the named test or journey on the working tree after the fix.
+- **Regression:** the regression of record on the final candidate, run from a fresh detached clone (see `VALIDATION_REPORT.md`); every fix is covered by a step that ran there.
 
 ## Summary
 
@@ -45,12 +46,29 @@ Branch `claude/guided-workspace-exhaustive-validation`. The base is evidence com
 | VAL-DEF-029 | HIGH | Cockpit thread → What-If | A conversation opened on a governed cohort (Lens, alert, Early Warning, What-If) had no click path to What-If on that population | FIXED |
 | VAL-DEF-030 | MEDIUM | Navigation chain | A chain of in-product Backs lost a level: the Scenario Library, its result links and the Lens Library rebuilt their address without their own origin; long origin chains were dropped above 1,500 characters | FIXED |
 | VAL-DEF-031 | LOW | What-If | An unknown `?domain=` was forwarded to the API (HTTP 400 shown as an error) instead of being ignored | FIXED |
-| VAL-DEF-024 | LOW | Workspace API | Pydantic validation errors are returned as raw lists, not the product's error envelope | OPEN (accepted, LOW) |
-| VAL-DEF-025 | LOW | Workspace API | No `GET /lenses/{id}`: the UI reads Lenses through `/objects/{id}`; a direct call is a bare 404 | OPEN (accepted, LOW) |
-| VAL-DEF-026 | LOW | Legacy Trace | `/trace/[runId]` parses the id as a number; reached only from legacy V3 surfaces, never from a guided flow | OPEN (out of guided scope) |
-| VAL-DEF-027 | LOW | Run records | The run body's contract carries the engine predicate (SQL) to its authorised reader | OPEN (by design: auditability) |
-
-Found: 31 (1 CRITICAL, 9 HIGH, 12 MEDIUM, 9 LOW). Fixed: 27. All 10 CRITICAL and HIGH are fixed, as are 12 MEDIUM and 5 LOW. Open: 4, all LOW, none a regression.
+| VAL-DEF-024 | LOW | Workspace API | Pydantic validation errors are returned as raw lists, not the product's error envelope | FIXED |
+| VAL-DEF-025 | LOW | Workspace API | No `GET /lenses/{id}`: a direct read was a bare 404 | FIXED |
+| VAL-DEF-026 | LOW | Legacy Trace | `/trace/[runId]` parses the id as a number | FIXED (by VAL-DEF-032) |
+| VAL-DEF-027 | LOW | Run records | The run body's contract carries the engine predicate (SQL) to its authorised reader | ACCEPTED_BY_DESIGN |
+| VAL-DEF-032 | HIGH | Navigation (legacy surfaces) | Under V4 + guided, the sidebar and four legacy routes opened V3 pages whose API the V4 runtime does not serve | FIXED |
+| VAL-DEF-033 | MEDIUM | Navigation (Back) | Four destinations reached with an origin had no in-product Back; the Model Lab link dropped the origin | FIXED |
+| VAL-DEF-034 | MEDIUM | Early Warning | Book and rule filter were component state only: Back from any Early Warning handoff restored the wrong population | FIXED |
+| VAL-DEF-036 | MEDIUM | What-If runs | Execute and re-run blocked the server's event loop: every other request stalled during an execution | FIXED |
+| VAL-DEF-037 | HIGH | Workspace data access | A workspace read during a Cockpit question shared one database connection with the run's thread and returned another query's rows (HTTP 500) | FIXED |
+| VAL-DEF-038 | MEDIUM | What-If session tree | "Open run" changed the address but did not open the run | FIXED |
+| VAL-DEF-039 | MEDIUM | Address state (What-If, Scenario Library, Monitoring, Lenses) | Two quick state changes lost one in the address; Back or refresh restored a cleared state | FIXED |
+| VAL-DEF-040 | LOW | Metric Catalogue | Search, book and family filters were lost on Back | FIXED |
+| VAL-DEF-041 | MEDIUM | Metric Catalogue | Switching the breakdown book kept the other book's dimension (HTTP 422; the breakdown vanished) | FIXED |
+| VAL-DEF-042 | LOW | What-If | Reopening a run briefly dropped `run=` from the address; Forward or refresh then lost the run | FIXED |
+| VAL-DEF-043 | LOW | What-If macro sensitivity | A filter matching nothing was refused (HTTP 422, a red error and a console error) where the grid and explorer show an empty state | FIXED |
+| VAL-DEF-044 | MEDIUM | Navigation (Back origin) | A link rendered while the page's own address write was in flight carried the previous address as its origin; its Back restored a state already left | FIXED |
+| VAL-DEF-045 | MEDIUM | Lenses (and seven guided action helpers) | Double-clicking "Save as a new version" wrote two Lens versions; the same state-only guard sat in seven other helpers | FIXED |
+| VAL-DEF-046 | MEDIUM | Messages | "Opens my copy" after Duplicate/Save carried no origin: the copy's Back went to the Scenario Library | FIXED |
+| VAL-DEF-047 | MEDIUM | Lens Library | Browser Forward to an unsaved Lens proposal (from a conversation or an investigation) showed the library without the proposal | FIXED |
+| VAL-DEF-048 | MEDIUM | Lens charts | Clear removed the selection but the chart kept the box and highlighted bars; selecting the same bars again deselected them | FIXED |
+| VAL-DEF-049 | MEDIUM | What-If / Lenses | Adopting a conversation's cohort again (a second click, a re-made Lens proposal) minted another cohort object for the same population | FIXED |
+| VAL-DEF-050 | HIGH | Sharing (recipient actions) | An administrator recipient changed the sender's object: opening a shared definition on their cohort revised the sender's scenario; Save on a shared Lens renamed the sender's Lens | FIXED |
+Found: 49 (1 CRITICAL, 12 HIGH, 24 MEDIUM, 12 LOW). Fixed: 48. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
 
 ## Details
 
@@ -418,9 +436,271 @@ Found: 31 (1 CRITICAL, 9 HIGH, 12 MEDIUM, 9 LOW). Fixed: 27. All 10 CRITICAL and
 | Retest | PASS |
 | Disposition | FIXED |
 
-### Open items (all LOW)
+### VAL-DEF-024: Validation errors outside the error envelope (LOW)
 
-- **VAL-DEF-024.** FastAPI/Pydantic 422 bodies are lists of field errors, not `{"error_code","message"}`. The UI shows a generic message for them. Accepted for this round: a shape change across every endpoint is not a defect fix.
-- **VAL-DEF-025.** Lenses are read through `GET /objects/{id}` and rendered through `POST /lenses/{id}/render`. There is no `GET /lenses/{id}`. Accepted: no product surface calls it.
-- **VAL-DEF-026.** The legacy V3 Trace page `/trace/[runId]` expects a numeric analysis-run id. Guided flows use `/cockpit/trace/<id>` and `/trace/llm-exchange/<id>`. Out of the guided scope; recorded.
-- **VAL-DEF-027.** A run's stored contract holds the engine predicate for audit, and it is visible to the run's authorised reader only. Tenant isolation was re-tested and holds. By design.
+| Field | Detail |
+|---|---|
+| Reproduction | `POST /grid/query` with `limit: "x"` |
+| Expected | HTTP 422 with `{"detail": {"error_code", "message"}}`, as every other refusal |
+| Actual | FastAPI's raw list of field errors; the UI showed a generic message |
+| Root cause | Request validation ran before the product's error handling |
+| Files | `backend/workspace/errors.py` (new: `GovernedRoute`), every `backend/workspace/*_api.py` router uses it |
+| Protected | No (the protected V4 app is unchanged; only the workspace routers opt in) |
+| Test | `test_gw_validation_defects.py::test_val_def_024_a_malformed_request_is_the_governed_envelope`; mutation gate |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-025: No direct Lens read (LOW)
+
+| Field | Detail |
+|---|---|
+| Reproduction | `GET /lenses/lens-02` |
+| Expected | The Lens and its card; another tenant refused without leaking it |
+| Actual | Bare 404; the UI read Lenses through `/objects/{id}` |
+| Files | `backend/workspace/lenses.py` (`read`), `lenses_api.py` (`GET /lenses/{object_id}`, optional `version`) |
+| Test | `test_val_def_025_a_lens_reads_directly_by_id` (owner reads it; another tenant gets 403/404 and nothing of the Lens); mutation gate |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-026: Legacy Trace route (LOW)
+
+Fixed by VAL-DEF-032: under the enabled configuration `/trace/<id>` hands over to `/cockpit/trace/<id>` (keeping the query), and `/trace` to the Cockpit. The route is no longer misleading. Proven in `GW-CTL-NA` and `GW-CTL-ROUTES`.
+
+### VAL-DEF-027: The run contract carries the engine predicate (LOW, ACCEPTED_BY_DESIGN)
+
+A run's stored contract holds the engine predicate that defines its population, so the run can be audited and reproduced. It is returned only to the run's authorised reader (owner, or a recipient of a share). Tenant isolation was re-tested and holds (`test_gw_objects.py`, `test_gw_secret_leak.py`). No secret, credential or other tenant's data is involved, and removing it would break the audit trail. Accepted by design.
+
+### VAL-DEF-032: Legacy surfaces reachable under V4 + guided (HIGH)
+
+| Field | Detail |
+|---|---|
+| Reproduction | V4 + guided; sidebar "Trace" or "Signals"; or open `/trace`, `/trace/<id>`, `/early-warning/lab`, `/early-warning/signals` |
+| Expected | Only governed surfaces; legacy routes hand over to their governed equivalent |
+| Actual | V3 pages rendered, calling APIs the V4 runtime does not serve: empty or erroring panels |
+| Files | `components/workspace/legacy-redirect.tsx` (new), the four legacy pages, `lib/navigation.ts` (entries hidden when handed over) |
+| Test | `GW-CTL-NA` (each legacy route lands on its governed equivalent, the legacy surface is absent, Back does not loop); `GW-CTL-ROUTES` |
+| Retest | PASS |
+| Disposition | FIXED (supersedes VAL-DEF-026) |
+
+### VAL-DEF-033: Destinations without an in-product Back (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Lens alert chart → Monitoring; Messages → comparison; export package → object Trace; LLM Exchange → Model Lab |
+| Expected | "← Back to <origin>" on each destination |
+| Actual | None; the Model Lab link also dropped the origin |
+| Files | `monitoring-centre.tsx`, `comparison-view.tsx`, `object-trace.tsx`, `app/ai-model-lab/page.tsx` (OriginBackLink); `llm-exchange-view.tsx`, `requires-attention.tsx`, `result-view.tsx`, `session-tree.tsx`, `scenario-lineage`, `lab-trace-link` (`withBack`) |
+| Test | `GW-CTL-MON`, `-MSG`, `-TRACE`, `-LAB` (in-product Back to the exact origin state) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-034: Early Warning state lost on Back (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Early Warning → Corporate → rule "Covenant breach" → segment What-If → Back |
+| Expected | Corporate with the rule |
+| Actual | Retail, no rule |
+| Evidence | `prefix_evidence/VAL-DEF-034_ew_back_state.json` |
+| Root cause | Book and rule held in component state only |
+| Files | `components/guided/early-warning-v4.tsx` (`?domain=`, `?reason=`), `app/early-warning/page.tsx` |
+| Test | `GW-CTL-EW` |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-036: An execution stalled every other request (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Execute a Compare run, watch the header's health poll |
+| Expected | Other requests answered while the run computes |
+| Actual | The health poll aborted after 8 s; the badge said the backend was unreachable |
+| Evidence | `prefix_evidence/VAL-DEF-036_execute_blocks_event_loop.json` |
+| Root cause | `async def` handlers running CPU-bound work on the event loop |
+| Files | `backend/workspace/runs_api.py` (sync handlers on the thread pool, serialised on their own lock) |
+| Test | `test_val_def_036_a_long_execution_does_not_stall_other_requests` (fails on the pre-fix code); mutation gate |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-037: Shared database connection race (HIGH)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Ask in What-If (a Cockpit run) while the scenario preview loads |
+| Expected | Both answer correctly |
+| Actual | HTTP 500 `KeyError 'entities'`: the workspace read received the run thread's rows |
+| Evidence | `prefix_evidence/VAL-DEF-037_browser_api_traceback.log`, `VAL-DEF-037_prefix_pytest.txt` |
+| Root cause | The workspace and the V4 run worker used one cached connection per book concurrently |
+| Files | `backend/workspace/access.py` (each read on its own cursor of the same in-memory database, under the session lock) |
+| Protected | No (the protected V4 run path is unchanged) |
+| Test | `test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query` (60 reads under a concurrent writer; fails on the pre-fix code); mutation gate |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-038: Session tree "open run" did nothing (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | What-If → session tree → open an earlier run |
+| Expected | That run opens |
+| Actual | The address changed; the page kept the current run |
+| Evidence | `prefix_evidence/VAL-DEF-038_tree_open_run.json`. The first fix also reacted to the page's own address lag and reopened the previous run when another scenario was started; that was caught by `GW-CTL-METHODS` (`VAL-DEF-038_selfwrite_reopen.json`) and corrected before any candidate. |
+| Files | `components/whatif/whatif-workspace.tsx` (a run named by a changed address, not written by the page itself, is opened) |
+| Test | `GW-CTL-METHODS` (tree open run, and CORP-03 started after CORP-02 stays on CORP-03) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-039: Address-sync race (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | What-If: load a scenario, clear it at once; then refresh |
+| Expected | No scenario |
+| Actual | The scenario came back (3 of 6 runs) |
+| Evidence | `prefix_evidence/VAL-DEF-039_prefix_race.txt` |
+| Root cause | Each write compared with `window.location`, which lags an in-flight `router.replace` |
+| Files | `lib/workspace/address.ts` (new), used by What-If, Scenario Library, Monitoring, Lens view, Lens Library, Metric Catalogue |
+| Test | `GW-CTL-WHATIF`, `-SCN`, `-MON`, `-LENS`, `-METRICS` (address equals state after every control) |
+| Retest | PASS (6 of 6) |
+| Disposition | FIXED |
+
+### VAL-DEF-040: Metric Catalogue filters lost on Back (LOW)
+
+| Field | Detail |
+|---|---|
+| Evidence | `prefix_evidence/VAL-DEF-040_041_metrics_prefix.json` |
+| Files | `components/metrics/metric-catalogue.tsx` (`q`, `domain`, `family` in the address) |
+| Test | `GW-CTL-METRICS` |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-041: Breakdown book switch sent an invalid dimension (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | A metric on both books → breakdown book Corporate → Retail |
+| Expected | Retail broken down by a Retail dimension |
+| Actual | `POST /metrics/evaluate` 422 INVALID_DIMENSION (sector on Retail); the breakdown vanished |
+| Evidence | `prefix_evidence/VAL-DEF-040_041_metrics_prefix.json` |
+| Files | `components/metrics/metric-catalogue.tsx` (dimensions filtered to the book's grid schema) |
+| Test | `GW-CTL-METRICS` |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-042: `run=` dropped while a run reopened (LOW)
+
+| Field | Detail |
+|---|---|
+| Evidence | `prefix_evidence/VAL-DEF-042_run_param_dropped.json` |
+| Files | `components/whatif/whatif-workspace.tsx` (the reopened run is the active run as soon as it is read) |
+| Test | `GW-CTL-METHODS` (result → open run: Forward and refresh keep the run) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-043: An empty population refused by the macro-sensitivity panel (LOW)
+
+| Field | Detail |
+|---|---|
+| Reproduction | What-If grid: filter "prior PD is empty" (no rows) |
+| Expected | The panel says no exposure matches, as the grid and explorer do |
+| Actual | `POST /whatif/sensitivity/tornado` 422 EMPTY_POPULATION, shown in red, plus a browser console error |
+| Evidence | `prefix_evidence/run_all1_ctl_prefix.json` (`grid-filter-nulls`), `VAL-DEF-043_prefix_pytest.txt` |
+| Files | `backend/workspace/macro_sensitivity.py` (200 with no bars and `empty: EMPTY_BY_FILTER`), `components/whatif/macro-tornado.tsx` (neutral notice) |
+| Test | `test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal`; `test_gw_macro_tornado.py` (contract updated: invalid parameters still refused); mutation gate; `GW-CTL-GRID` |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-044: A link's origin lagged the page's own address (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | What-If → Ask → "Use this conversation's cohort" → "Open full conversation" → Back to What-If |
+| Expected | What-If on the adopted cohort |
+| Actual | What-If on the cohort active before adopting (`back=` carried the previous address) |
+| Evidence | `prefix_evidence/VAL-DEF-044_whatif_stale_origin.json` (reproduced twice) |
+| Root cause | `withBack` read `window.location` during render; the render that follows a state change precedes the address commit, and nothing re-renders the link after it |
+| Files | `lib/workspace/nav.ts` (`currentAddress`: the address in flight, else the committed one), `lib/workspace/address.ts` (publishes and settles it) |
+| Test | `nav.test.ts` NAV04; `GW-CTL-WHATIF` (`whatif-open-thread` Back) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-045: Lens "Save as a new version" double-submitted (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Lens → Edit → double-click "Save as a new version" |
+| Expected | One new version |
+| Actual | Two `POST /lenses/{id}/revise` 200: two versions |
+| Evidence | `prefix_evidence/run_all1_ctl_prefix.json` (`lens-edit-form`) |
+| Root cause | A `busy` state flag disables the button only after the next render; a double-click fires twice before it. The same helper pattern was in the Lens Library, Monitoring (alert actions and the scheduler step), scenario builder, overlap resolve, run panel, Messages and the export package |
+| Files | `lens-view.tsx`, `lens-library.tsx`, `monitoring-centre.tsx`, `scenario-builder.tsx`, `preview-panel.tsx`, `run-panel.tsx`, `messages-center.tsx`, `export-package.tsx` (a synchronous in-flight ref, as `useSingleFlight`) |
+| Test | `GW-CTL-IDEMPOTENCY` (each mutating family double-clicked: exactly one write) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-046: "Opens my copy" had no origin (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Messages → shared definition → Duplicate → "opens my copy" → in-product Back |
+| Expected | Back to the message |
+| Actual | The Scenario Library |
+| Evidence | `prefix_evidence/run_all1_ctl_prefix.json` (`message-note-link`) |
+| Files | `components/messages/messages-center.tsx` |
+| Test | `GW-CTL-MSG` |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-047: Forward lost an unsaved Lens proposal (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Thread → "Save this analysis as a Lens" → browser Back → Forward |
+| Expected | The same proposal |
+| Actual | The library without it: the page removed `from_thread` from its own history entry once it proposed |
+| Evidence | `prefix_evidence/run_all1_ctl_prefix.json` (`thread-save-as-lens`) |
+| Files | `components/lenses/lens-library.tsx` (the origin stays in the address until the Lens is saved; saving drops it from that entry before opening the Lens, so Back never re-proposes a saved Lens, as VAL-DEF-019 requires) |
+| Test | `GW-CTL-THREAD` (Back, Forward, in-product Back; no write on the return trip) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-048: A cleared Lens selection stayed on the chart (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Lens breakdown → box-select two bars → Clear → box-select the same bars |
+| Expected | The chart clears; the second selection selects |
+| Actual | The box and highlighted bars stayed; the second drag deselected them and no selection was made |
+| Evidence | `prefix_evidence/VAL-DEF-048_probe.txt`, `VAL-DEF-048_lens_reselect.json` |
+| Root cause | `uirevision` keeps reader state (zoom, legend) across re-renders, selections included |
+| Files | `components/lenses/lens-view.tsx` (a `selectionrevision` that changes on Clear) |
+| Test | `GW-CTL-LENS` (`lens-selection-clear` asserts panel, address and chart cleared; the next box-select selects) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-049: Re-adopting a conversation's cohort made another cohort (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | What-If conversation → "Use this conversation's cohort" twice; or a Lens proposal from that conversation re-made |
+| Expected | The same governed cohort |
+| Actual | A new cohort object each time |
+| Evidence | `prefix_evidence/VAL-DEF-049_prefix_pytest.txt` |
+| Files | `backend/workspace/whatif.py` (`adopt_thread_cohort` returns the cohort already adopted for the same conversation, run, release and membership) |
+| Test | `test_gw_whatif.py::test_val_def_049_adopting_a_conversation_cohort_again_is_the_same_cohort`; mutation gate |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-050: An administrator recipient changed the sender's object (HIGH)
+
+| Field | Detail |
+|---|---|
+| Reproduction | As an administrator, receive a shared definition → "Run on my cohort" (What-If binds it to the cohort); receive a shared Lens → Save |
+| Expected | The recipient gets their own copy; the sender's object is unchanged |
+| Actual | A new version of the SENDER's scenario ("bound to cohort …", authored by the recipient); the sender's Lens renamed "(my copy)" in place |
+| Evidence | `prefix_evidence/VAL-DEF-050_prefix_pytest.txt`; the browser run showed version 3 of the sender's scenario written by the recipient |
+| Root cause | Recipient-side use actions decided "edit in place" with `can_edit`, which grants administrators edit rights on any object |
+| Files | `backend/workspace/scenarios.py` (`bind`: in place only for the owner or a named editor), `lenses.py` (`revise(copy=True)`), `messages.py` (Save always copies) |
+| Test | `test_gw_messages.py::test_val_def_050_an_administrator_recipient_never_changes_the_senders_object`; two mutation gates; `GW-CTL-MSG` (the sender's version unchanged across "run on my cohort") |
+| Retest | PASS |
+| Disposition | FIXED |

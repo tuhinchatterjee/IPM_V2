@@ -1,0 +1,6 @@
+E        +  where 422 = <Response [422 Unprocessable Content]>.status_code
+
+tests/cockpit_v4/test_gw_validation_defects.py:598: AssertionError
+=========================== short test summary info ============================
+FAILED tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal
+1 failed, 26 deselected in 2.45s

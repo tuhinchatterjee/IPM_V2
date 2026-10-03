@@ -738,14 +738,18 @@ def save(svc: ObjectService, who: dict[str, Any], spec: dict[str, Any], *,
 
 
 def revise(svc: ObjectService, who: dict[str, Any], oid: str,
-           changes: dict[str, Any], *, reason: str) -> dict[str, Any]:
+           changes: dict[str, Any], *, reason: str, copy: bool = False
+           ) -> dict[str, Any]:
     """Editing a Lens: a new version of your own, or your own copy of a
-    library/shared one (the original is not changed)."""
+    library/shared one (the original is not changed). `copy` always makes
+    the copy: saving a Lens someone shared with you never edits theirs, even
+    when you could (an administrator) (VAL-DEF-050)."""
     ensure_seeded(svc, who)
     principal = Principal.of(who)
     lens = svc.get(oid, principal)
     body = validate({**lens["body"], **changes}, who)
-    if can_edit(lens, principal) and lens["owner_id"] != LIBRARY_OWNER:
+    if not copy and can_edit(lens, principal) and \
+            lens["owner_id"] != LIBRARY_OWNER:
         return svc.revise(oid, principal, body=body, reason=reason,
                           title=body["name"][:160])
     body["source"] = {"kind": "copy", "object_id": oid,

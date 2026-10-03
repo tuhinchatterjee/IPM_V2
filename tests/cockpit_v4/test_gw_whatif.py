@@ -327,6 +327,35 @@ def test_thread_cohort_is_read_and_adopted_from_the_server_context(client,
     assert adopted["body"]["source"]["kind"] == "conversation"
 
 
+def test_val_def_049_adopting_a_conversation_cohort_again_is_the_same_cohort(
+        client, store_db):
+    """A second "Use this conversation's cohort", or a Lens proposal from the
+    conversation reopened by browser Forward, minted another cohort object
+    for the same population. Adoption is idempotent now: same conversation,
+    run, release and membership -> the cohort already adopted."""
+    thread_id = store_db.create_thread(
+        tenant_id="demo-tenant", principal_id="banker", domain_id="corporate",
+        release_id=CANDIDATE["corporate"], release_fingerprint="")
+    _produced, stored = converse_preview(
+        "corporate", {"filters": [{"column": "sector", "operator": "=",
+                                   "value": "Construction"}]})
+    store_db.set_thread_context(thread_id, tenant_id="demo-tenant",
+                                kind=th.KIND, body=stored)
+    count = lambda: len(client.get(  # noqa: E731
+        f"{P}/cohorts?domain=corporate").json()["cohorts"])
+    first = client.post(f"{P}/whatif/threads/{thread_id}/adopt-cohort",
+                        json={}).json()
+    n = count()
+    again = client.post(f"{P}/whatif/threads/{thread_id}/adopt-cohort",
+                        json={}).json()
+    assert again["object_id"] == first["object_id"]
+    for _ in range(2):
+        proposal = client.post(f"{P}/lenses/propose",
+                               json={"from_thread": thread_id}).json()
+        assert proposal["source"]["cohort_id"] == first["object_id"]
+    assert count() == n, "no further cohort was written"
+
+
 def test_someone_elses_thread_cohort_is_not_readable(client, store_db):
     thread_id = store_db.create_thread(
         tenant_id="demo-tenant", principal_id="someone-else",

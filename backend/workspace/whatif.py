@@ -333,8 +333,23 @@ def adopt_thread_cohort(who: dict[str, Any], thread_id: str, *, name: str = ""
         raise HTTPException(409, {"error_code": "RELEASE_MOVED",
                                   "message": "The conversation froze its "
                                              "cohort on another release."})
+    # Idempotent: the conversation's population adopted again (a second
+    # click, a Lens proposal reopened by browser Forward) is the cohort
+    # already adopted, not another copy (VAL-DEF-049).
+    principal = Principal.of(who)
+    svc = service.objects()
+    for c in svc.list("cohort", principal, domain_id=found["domain_id"]):
+        b = c["body"]
+        src = b.get("source") or {}
+        if (c.get("owner_id") == principal.id and c.get("status") == "ACTIVE"
+                and src.get("kind") == "conversation"
+                and src.get("thread_id") == thread_id
+                and src.get("run_id") == found["run_id"]
+                and b.get("release_id") == book.release_id
+                and b.get("membership_hash") == found["membership_hash"]):
+            return c
     return cohorts.adopt(
-        book, service.objects(), Principal.of(who),
+        book, svc, principal,
         name=name or f"From conversation: {found['described_as'][:100]}",
         predicate=found["_predicate"], selection=found["selection"],
         period=found["period"], described_as=found["described_as"],

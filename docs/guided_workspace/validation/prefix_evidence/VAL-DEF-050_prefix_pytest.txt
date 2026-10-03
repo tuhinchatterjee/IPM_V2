@@ -1,0 +1,4 @@
+>       assert bound["scenario"]["object_id"] != scenario["object_id"]
+E       AssertionError: assert 'scn-d69febc3541d' != 'scn-d69febc3541d'
+tests/cockpit_v4/test_gw_messages.py:477: AssertionError
+1 failed, 14 deselected in 2.61s

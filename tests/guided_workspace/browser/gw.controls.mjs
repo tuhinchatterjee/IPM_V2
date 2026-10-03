@@ -1936,7 +1936,10 @@ async function monitoringJourney() {
       return `filtered to ${sev}`;
     } });
     await ctl(page, record, { id: "monitoring-by-lens", prereq: "active view", action: "click the first Lens bar", expected: "the list is filtered to that Lens", run: async () => {
-      const id = await page.evaluate(() => String(document.querySelector('[data-testid="monitoring-by-lens"]')?.data?.[0]?.customdata?.[0]?.[0] ?? ""));
+      // The previous step reset a filter; the chart redraws on the new list.
+      await waitCount(await apiCount("view=active"));
+      await page.waitForSelector(`${sel("monitoring-by-lens")}[data-rendered="true"]`, { timeout: 60_000 });
+      const id = await (await page.waitForFunction(() => document.querySelector('[data-testid="monitoring-by-lens"]')?.data?.[0]?.customdata?.[0]?.[0], null, { timeout: 30_000 })).jsonValue();
       await clickPlotPoint(page, "monitoring-by-lens", { point: 0 });
       await page.waitForFunction((x) => document.querySelector('[data-testid="monitoring-lens"]')?.value === x, id, { timeout: 30_000 });
       await page.selectOption(sel("monitoring-lens"), "");
@@ -2200,7 +2203,7 @@ async function lensJourney() {
         const gd = document.querySelector(c);
         return (gd?._fullLayout?.selections?.length ?? 0) === 0 && !(gd?.data?.[0]?.selectedpoints?.length);
       }, sel(`lens-visual-${brk.visual_id}`), { timeout: 30_000 });
-      assert.equal(new URLSearchParams(new URL(page.url()).search).get("sel"), null, "the selection left the address");
+      await page.waitForFunction(() => !new URLSearchParams(location.search).get("sel"), null, { timeout: 30_000 });
       return "cleared: panel, address and chart selection";
     } });
     const selCohort = (sel0) => ({
@@ -2228,16 +2231,20 @@ async function lensJourney() {
     });
     await openLens(page, "lens-01");
     const owners = await lensVisual("lens-01", "top_owners");
-    const owner = String(owners.rows?.[0]?.owner ?? "");
+    // The owner of the bar that is clicked (point 0), read from the chart.
+    const ownersChart = sel(`lens-visual-${owners.visual_id}`);
+    await page.waitForSelector(`${ownersChart}[data-rendered="true"]`, { timeout: 60_000 });
+    const owner = await page.evaluate((c) => String(document.querySelector(c)?.data?.[0]?.customdata?.[0]?.[0] ?? ""), ownersChart);
+    assert.ok(owners.rows.some((r) => String(r.owner) === owner), `${owner} is one of the Lens's top owners`);
     await navTrip(page, record, {
-      id: "lens-chart-top-owners", prereq: pre, action: "click the largest owner", expected: "a Cockpit investigation on that owner's exposures",
+      id: "lens-chart-top-owners", prereq: pre, action: `click owner ${owner}'s bar`, expected: "a Cockpit investigation on that owner's exposures",
       state: lensState,
       go: (p) => clickPlotPoint(p, `lens-visual-${owners.visual_id}`, { point: 0 }),
       arrived: async (p) => { await waitPath(p, /^\/cockpit\/thread\//); await p.waitForSelector(sel("cockpit-v4-thread"), { timeout: 120_000 }); }, inApp: sel("thread-origin-back"),
       handoff: {
         source: async () => ({ owner }),
         destination: async (p) => { const t = /\/cockpit\/thread\/([^/?]+)/.exec(p.url())[1]; const c = (await api(`/whatif/threads/${t}/cohort`)).body; const o = await objectOf(c.seed_cohort_id); return { cohort: c.seed_cohort_id, values: o.body.filters?.[0]?.values ?? [] }; },
-        identity: (s, d) => { assert.ok(d.values.map(String).includes(s.owner) || !s.owner, `the cohort is ${s.owner}'s exposures`); return `owner ${s.owner} → cohort ${d.cohort} ${JSON.stringify(d.values)}`; },
+        identity: (s, d) => { assert.ok(s.owner && d.values.map(String).includes(s.owner), `the cohort is ${s.owner}'s exposures`); return `owner ${s.owner} → cohort ${d.cohort} ${JSON.stringify(d.values)}`; },
         writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/(cohorts|whatif\/selection\/cohort|cohorts\/[^/]+\/investigate|whatif\/investigate) /,
         describe,
       },
@@ -2411,10 +2418,20 @@ async function messagesJourney() {
       id: "message-run-go", prereq: "my cohort chosen", expected: "a NEW run of the shared definition on MY cohort opens in What-If (previewed, not executed)", state: messagesState,
       arrived: (p) => p.waitForSelector(`${sel("whatif-run")}[data-run-id^="wrun-"]`, { timeout: 120_000 }), inApp: sel("whatif-back"),
       handoff: {
-        source: async () => ({ scenario: d.share.object_id, cohort: mine.object_id }),
+        source: async () => ({ scenario: d.share.object_id, cohort: mine.object_id, version: (await objectOf(d.share.object_id)).version }),
         destination: async (p) => { const id = new URL(p.url()).searchParams.get("run"); const r = (await api(`/whatif/runs/${id}`)).body; return { run: id, scenario_from: r.body.shared_from?.object_id ?? r.body.scenario_id, cohort: r.body.cohort?.object?.cohort_id, status: r.status }; },
-        identity: (s, x) => { assert.equal(x.cohort, s.cohort, "on my cohort"); assert.notEqual(x.status, "EXECUTED"); return `definition ${s.scenario} → run ${x.run} on ${x.cohort} (${x.status})`; },
-        writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/messages\/[^/]+\/run /,
+        identity: async (s, x) => {
+          assert.equal(x.cohort, s.cohort, "on my cohort");
+          assert.notEqual(x.status, "EXECUTED");
+          // What-If binds the definition to my cohort as MY copy; the
+          // sender's definition keeps the version that was shared.
+          const theirs = await objectOf(s.scenario);
+          assert.equal(theirs.version, s.version, "the sender's definition is unchanged");
+          return `definition ${s.scenario} v${s.version} (unchanged) → run ${x.run} on ${x.cohort} (${x.status})`;
+        },
+        // The run, and What-If binding the definition to my cohort as my own
+        // copy (idempotent; VAL-DEF-050 keeps the sender's untouched).
+        writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/(messages\/[^/]+\/run|scenarios\/[^/]+\/bind) /,
         describe,
       },
     });
