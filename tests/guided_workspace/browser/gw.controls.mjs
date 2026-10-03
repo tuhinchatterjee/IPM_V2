@@ -1784,6 +1784,9 @@ async function scenarioJourney() {
           source: async () => ({ object: d.object_id, kind }),
           destination: async (p) => ({ object: await opens[kind].dest(p) }),
           identity: (src, dst) => { assert.equal(dst.object, src.object); return `CORP-04 "Used by" ${kind} ${src.object} → ${dst.object}`; },
+          // A run opens in What-If, which binds its scenario to its cohort
+          // as the user's own copy (idempotent; reused on every return).
+          ...(kind === "run" ? { writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/scenarios\/[^/]+\/bind / } : {}),
           describe,
         },
       });
