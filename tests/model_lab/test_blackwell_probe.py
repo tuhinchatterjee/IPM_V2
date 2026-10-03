@@ -236,8 +236,10 @@ def _snapshot(cache: Path, repo=("Qwen/Qwen3.5-4B"), rev=QREV,
 
 
 class Downloader:
-    """Stands in for hf_hub_download(force_download=True): writes a valid
-    config into blobs/ and repoints the snapshot entry. Records calls."""
+    """Stands in for hf_hub_download(revision=<pin>, force_download=True)
+    into the Pod-local STAGING cache it is given: the standard HF layout,
+    blobs/<etag> (etag = git blob id of the bytes) and a snapshot link.
+    Records calls."""
 
     def __init__(self, content=b'{"architectures": ["X"]}', other_rev=None,
                  fail=False):
@@ -249,14 +251,15 @@ class Downloader:
         if self.fail:
             raise RuntimeError("HTTP 503 from the Hub")
         rev = self.other_rev or revision
-        snap = hm.snapshot(cache, repo, rev)
+        snap = hm.snapshot(Path(cache), repo, rev)
         snap.mkdir(parents=True, exist_ok=True)
-        blob = snap.parents[1] / "blobs" / ("new-" + filename)
+        blob = snap.parents[1] / "blobs" / hm.git_blob_sha1(self.content)
+        blob.parent.mkdir(parents=True, exist_ok=True)
         blob.write_bytes(self.content)
         target = snap / filename
         if target.exists() or target.is_symlink():
             target.unlink()
-        target.symlink_to(blob)
+        target.symlink_to(os.path.relpath(blob, target.parent))
         return str(target)
 
 
@@ -269,7 +272,8 @@ def test_invalid_config_is_detected_and_recorded(tmp_path):
     assert ev["event"] == "CACHE_METADATA_CORRUPT"
     assert ev["repository"] == "Qwen/Qwen3.5-4B" and ev["revision"] == QREV
     assert ev["path"].endswith(f"snapshots/{QREV}/config.json")
-    assert ev["bytes"] == 0 and ev["failure"] == "empty file"
+    assert ev["bytes"] == 0 and ev["failure"] == "empty content (0 bytes read)"
+    assert ev["kind"] == "symlink" and ev["resolved_content_size"] == 0
     rec = json.loads((tmp_path / "rt/cache_integrity/q.json").read_text())
     assert rec[-1]["status"] == "MODEL_METADATA_CORRUPT"
     for bad, why in ((b"<html>error</html>", "invalid JSON"),
@@ -287,10 +291,11 @@ def test_exact_revision_metadata_is_force_refreshed_and_weights_kept(
     w_sha = hashlib.sha256(w.read_bytes()).hexdigest()
     dl = Downloader()
     r = hm.ensure("q", "Qwen/Qwen3.5-4B", QREV, [tmp_path / "hub"],
-                  downloader=dl)
+                  downloader=dl, staging=tmp_path / "stage")
     assert r["status"] == "CACHE_METADATA_REPAIRED"
     assert dl.calls == [("Qwen/Qwen3.5-4B", QREV, "config.json",
-                         str(tmp_path / "hub"))]      # only the bad file
+                         str(tmp_path / "stage"))]    # only the bad file,
+    #                                                   staged Pod-locally
     rep = [e for e in r["events"] if e["event"] == "CACHE_METADATA_REPAIRED"]
     assert rep[0]["old_status"] == "CACHE_METADATA_CORRUPT"
     assert rep[0]["new_status"] == "VALID"
@@ -332,7 +337,7 @@ def test_content_from_another_revision_is_caught_by_blob_id(tmp_path):
     r = hm.check("Qwen/Qwen3.5-4B", QREV, [tmp_path / "hub"],
                  {"config.json": hm.git_blob_sha1(good)})
     assert r["status"] == "CACHE_METADATA_CORRUPT"
-    assert "git blob id mismatch" in r["bad"][0]["failure"]
+    assert "blob id mismatch" in r["bad"][0]["failure"]
     info = {"siblings": [
         {"rfilename": "config.json", "blobId": "abc"},
         {"rfilename": "model.safetensors", "blobId": "x", "lfs": {"sha256": "y"}},

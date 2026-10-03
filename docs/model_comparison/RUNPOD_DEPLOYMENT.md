@@ -169,29 +169,69 @@ sampling_backend: {flashinfer_sampler: disabled,
 - vLLM is not downgraded;
 - no other kernel is disabled.
 
-### 2. Invalid persistent config metadata
+### 2. Persistent snapshot metadata on geesefs
 
-**What failed.** The snapshots of Ministral-3-8B@`5b26027e`, Qwen3.5-4B@`851bf6e8` and Qwen3.5-9B@`c2022362` held a `config.json` that did not parse (`JSONDecodeError: Expecting value: line 1 column 1`).
+**Live evidence (Qwen/Qwen3.5-4B@`851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a`).**
+- `snapshots/<rev>/config.json` is a symlink to `../../blobs/557d961b205319c6a7da5f757f565b69b3967b7d`. The blob holds 3161 bytes of valid JSON (`model_type` `qwen3_5`). Reading through the link works, but geesefs reports the symlink's own `lstat` size as 0.
+- `chat_template.jinja`, `model.safetensors.index.json`, `preprocessor_config.json`, `tokenizer.json`, `tokenizer_config.json` and `video_preprocessor_config.json` are zero-byte **regular files** in the snapshot.
 
-**What is checked.** Before any server start, `hf_metadata.ensure` checks every critical small metadata file in the exact `snapshots/<pinned revision>/`, in both `HF_HUB_CACHE` and `MODEL_CACHE_DIR`. The files are:
-- `config.json`, `generation_config.json`, `tokenizer_config.json`;
-- `special_tokens_map.json`, `preprocessor_config.json`, `processor_config.json`;
-- `params.json`, `tokenizer.json`, `chat_template.jinja`.
+**Validation rule: content, never link size.** `hf_metadata.validate_file` checks every metadata entry of the exact `snapshots/<pinned revision>/`. That means every `.json`, `.jinja` and `.txt` file plus tokenizer models; weight files are never read. It checks them in both `HF_HUB_CACHE` and `MODEL_CACHE_DIR`.
 
-Each must:
-- exist, with no dangling symlink;
-- be non-empty and UTF-8;
-- for JSON files, parse to a JSON object.
+For each entry it records:
+- `kind`: `regular`, `symlink` or `missing`;
+- for a symlink, the raw `link_target` and the `resolved` path;
+- `link_metadata_size`, which is the `lstat` size, recorded only and never used for validity;
+- `resolved_content_size`, the number of bytes actually read through the path.
 
-When the pinned Hub listing provides a git blob id, the content must also hash to it.
+A symlink is refused when:
+- it resolves outside the exact repository cache (`symlink escapes the repository cache`);
+- its target does not exist (dangling);
+- its target is not a regular file.
 
-**What happens on failure:**
-1. A `CACHE_METADATA_CORRUPT` event records the repository, revision, path, byte size and the failure.
-2. **Only that file** is downloaded again, at **the same revision**, with `hf_hub_download(..., revision=<sha>, force_download=True)` inside the Pod-local vLLM environment. A branch name, another revision or another repository is refused.
-3. The file is validated again.
-4. Success is recorded as `CACHE_METADATA_REPAIRED`, with the old and new status and the revision unchanged. Otherwise the model stops with `MODEL_METADATA_CORRUPT` and the roster continues.
+Validity is decided by the bytes read:
+- the read must succeed with more than 0 bytes;
+- the content must be UTF-8;
+- JSON files must parse to an object;
+- text files must not be blank;
+- where the pinned Hub listing gives a blob id (git sha1, or sha256 for LFS), the content must hash to it.
 
-Weight blobs are never deleted or re-downloaded by this check. The history is kept in `runtime/cache_integrity/<profile>.json`.
+A geesefs symlink with `lstat` size 0 and a valid 3161-byte target is therefore `VALID`.
+
+**Repair: exact revision, one file, verified blob identity:**
+1. A `CACHE_METADATA_CORRUPT` event records the path, kind, link target, link metadata size, resolved content size and failure.
+2. Only that file is fetched with `hf_hub_download(repo, filename, revision=<40-hex sha>, force_download=True)` into a Pod-local staging cache (`$CREDITPROBE_APP_ROOT/cache/hf_staging`), inside the vLLM environment. A branch name, a staged path outside `snapshots/<pinned revision>/`, or another repository is refused.
+3. The staged blob name is the Hub etag. The bytes must hash to it, and to the pinned listing's blob id when one is given. Otherwise the repair is refused; no blob mapping is ever guessed.
+4. The persistent `blobs/<etag>` is written only if it is absent or invalid, via a temporary file and an atomic rename. A valid existing blob is kept as is.
+5. Only the broken snapshot entry is replaced, by a relative symlink to that verified blob. If the filesystem refuses symlinks, a byte copy is used instead.
+6. The snapshot path is validated again by reading it. Success is recorded as `CACHE_METADATA_REPAIRED`, with the revision unchanged. Otherwise the model stops with `MODEL_METADATA_CORRUPT` and the roster continues.
+
+Weight blobs and other valid blobs are never deleted, rewritten or re-downloaded. The history is kept in `runtime/cache_integrity/<profile>.json`.
+
+### 3. Target one model first
+
+The roster stays complete. A live check can still probe exactly one profile, with every gate in force (pin, licence, hardware fit, runtime, metadata) and at the existing exact revision:
+
+```bash
+.venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py \
+  --runtime-dir "$MODEL_LAB_RUNTIME_DIR" --profile qwen3.5-4b-runpod --probe
+.venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py \
+  --runtime-dir "$MODEL_LAB_RUNTIME_DIR" --profile qwen3.5-4b-runpod --summary
+# or, through the bootstrap
+bash RUNPOD_BOOTSTRAP.sh --probe-profile=qwen3.5-4b-runpod
+```
+
+A targeted run merges its entry into `pins/ROSTER.json`. Other profiles' roster entries, probe records and profile files are left untouched, and `last_run_profiles` names the profiles that ran. The run ends with `FINAL READINESS <profile>: <status>`.
+
+**Qwen3.5-4B live success gate:**
+- revision `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` is preserved;
+- metadata is validated by resolved content;
+- broken entries are repaired at that revision;
+- the server environment has `VLLM_USE_FLASHINFER_SAMPLER=0`;
+- `/v1/models` becomes ready;
+- the probe passes tools, forced tool use, the tool-result round trip, stop-reason mapping and identity;
+- the final status is `READY_E2E`.
+
+No CreditProbe benchmark question is run at this step.
 
 ### Server failures are specific
 

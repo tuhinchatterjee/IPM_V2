@@ -4,7 +4,9 @@ Pre-benchmark qualification on the RunPod pod: resolve, PIN, fit, probe.
     python scripts/model_lab/runpod/pin_and_probe_models.py           # pin+fit
     python scripts/model_lab/runpod/pin_and_probe_models.py --probe   # + probe
     python scripts/model_lab/runpod/pin_and_probe_models.py \\
-        --profile qwen3.5-4b-runpod --probe
+        --profile qwen3.5-4b-runpod --probe      # ONE model; others untouched
+    python scripts/model_lab/runpod/pin_and_probe_models.py \\
+        --profile qwen3.5-4b-runpod --summary    # its evidence + readiness
     python scripts/model_lab/runpod/pin_and_probe_models.py \\
         --repo ornith-1.5-9b-runpod=SomeOrg/Ornith-1.5-9B     # operator names it
 
@@ -842,16 +844,44 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
               f"{str(rec.get('resource_status') or ''):22} "
               f"{rec.get('probe_status', '')}  "
               f"{(rec.get('revision') or rec.get('reason') or '')[:48]}")
-    (out_dir / "ROSTER.json").write_text(json.dumps(
-        {"generated_at": time.time(), "roster": roster}, indent=1,
-        default=str))
+    # A targeted run (--profile) updates only its own entries; every other
+    # model's roster entry is kept exactly as it was.
+    ros_path = out_dir / "ROSTER.json"
+    prev = json.loads(ros_path.read_text()).get("roster", []) \
+        if ros_path.exists() else []
+    done = {r["profile_id"] for r in roster}
+    merged = [r for r in prev if r.get("profile_id") not in done] + roster
+    order = {pid: i for i, pid in enumerate(suite_profiles())}
+    merged.sort(key=lambda r: order.get(r.get("profile_id"), 10 ** 6))
+    ros_path.write_text(json.dumps(
+        {"generated_at": time.time(), "roster": merged,
+         "last_run_profiles": sorted(done)}, indent=1, default=str))
     if do_probe:
         detail = failure_summary(roster)
         if detail:
             print("models not READY_E2E (full server logs kept at the paths "
                   "shown):")
             print("\n".join(detail))
+    for pid in ids:
+        print(f"FINAL READINESS {pid}: {final_readiness(pid, runtime)}")
     return roster
+
+
+def final_readiness(pid: str, runtime: Path) -> str:
+    """The registry's verdict for one profile from the saved evidence
+    (pin, licence approvals, current-host fit, probe result)."""
+    from backend.model_lab import registry
+
+    try:
+        prof = registry.load_profiles(PROFILES)[pid]
+    except KeyError:
+        return "UNKNOWN_PROFILE"
+    pf = runtime / "probes.json"            # written by probe.save()
+    probes = json.loads(pf.read_text()) if pf.exists() else {}
+    st = registry.readiness(prof, approvals=registry.load_approvals(runtime),
+                            probes=probes)
+    return st.status + (f" ({'; '.join(st.reasons)[:200]})"
+                        if st.reasons and st.status != "READY_E2E" else "")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -871,11 +901,22 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
     if args.summary:
-        ros = Path(args.runtime_dir).expanduser() / "pins" / "ROSTER.json"
+        rt = Path(args.runtime_dir).expanduser()
+        ros = rt / "pins" / "ROSTER.json"
         roster = json.loads(ros.read_text())["roster"] if ros.exists() \
             else []
+        if args.profile:
+            roster = [r for r in roster if r.get("profile_id") in
+                      args.profile]
         print("\n".join(failure_summary(roster)) or "every probed model is "
               "READY_E2E (or nothing has been probed yet)")
+        for pid in args.profile or []:
+            r = next((x for x in roster if x.get("profile_id") == pid), {})
+            print(f"{pid}: probe {r.get('probe_status') or 'NOT_PROBED'}; "
+                  f"{r.get('repository') or '-'}@{r.get('revision') or '-'}; "
+                  f"metadata {(r.get('metadata') or {}).get('status')}; "
+                  f"sampling {(r.get('sampling_backend') or {}).get('flashinfer_sampler')}")
+            print(f"FINAL READINESS {pid}: {final_readiness(pid, rt)}")
         return 0
     overrides = dict(x.split("=", 1) for x in args.repo)
     ids = args.profile or suite_profiles()

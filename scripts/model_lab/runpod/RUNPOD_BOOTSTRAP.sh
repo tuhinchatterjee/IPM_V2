@@ -34,6 +34,10 @@
 # it in every new shell. It never contains a credential.
 #   --storage-check  stop after the storage verdict
 #   --prepare-only   stop after deployment + app rebuild (before installs)
+#   --probe-profile=<id>  probe ONLY this profile (repeatable); pinning,
+#                    licence, hardware, runtime and metadata gates unchanged;
+#                    e.g. --probe-profile=qwen3.5-4b-runpod for the single-
+#                    model UAT
 #   --smoke-only     deployment + app rebuild + offline smoke gate + gated
 #                    pin restore, then stop; on a fresh Pod it first builds
 #                    the Pod-local offline Python env (no GPU, no Node)
@@ -68,9 +72,10 @@
 set -euo pipefail
 
 SKIP_BROWSER=0; WITH_VLLM=1; START=1; PROBE=1; STORAGE_ONLY=0; PREPARE_ONLY=0
-SMOKE_ONLY=0
+SMOKE_ONLY=0; PROBE_PROFILES=()
 for a in "$@"; do
   case "$a" in
+    --probe-profile=*) PROBE_PROFILES+=("--profile" "${a#--probe-profile=}") ;;
     --storage-check) STORAGE_ONLY=1 ;;
     --prepare-only) PREPARE_ONLY=1 ;;
     --smoke-only) SMOKE_ONLY=1 ;;
@@ -301,7 +306,11 @@ fi
 if [ "$PROBE" = 1 ] && [ "$VLLM_STATE" = READY ]; then
   echo "== 11. Capability probe: runtime-ready, pinned, licence-clear, fitting models only"
   echo "   downloads each such checkpoint into $MODEL_CACHE_DIR (HF_HOME=$HF_HOME); dummy tool only; no benchmark question"
+  if [ "${#PROBE_PROFILES[@]}" -gt 0 ]; then
+    echo "   TARGETED: probing only ${PROBE_PROFILES[*]} (every other model's status is left as it is)"
+  fi
   .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir "$RUNTIME" --probe \
+    "${PROBE_PROFILES[@]}" \
     || echo "  WARN probe step reported errors; see $RUNTIME/pins/ROSTER.json"
 elif [ "$PROBE" = 1 ]; then
   echo "== 11. Capability probe NOT run: $VLLM_STATE"
@@ -381,6 +390,8 @@ $HEAD_LINE
        model, smallest first, checkpointed, resumable):
              .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir $RUNTIME --run --confirm-model-calls --serve
   report:    .venv/bin/python scripts/model_lab/suite_report.py --runtime-dir $RUNTIME
+  one model: .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --profile qwen3.5-4b-runpod --probe
+             .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --profile qwen3.5-4b-runpod --summary
   failures:  .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --summary
              (class, repository@revision, server log path, return code, root cause, workaround)
 EOF
