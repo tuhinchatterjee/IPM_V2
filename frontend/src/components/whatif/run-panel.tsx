@@ -103,7 +103,12 @@ export function RunPanel({
     };
   }, [initialRunId, update]);
 
+  // One governed mutation at a time: a double-click fires twice before
+  // `busy` disables the control; the ref closes that window.
+  const inFlight = React.useRef(false);
   async function act(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -111,6 +116,7 @@ export function RunPanel({
     } catch (e) {
       setError(errorText(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

@@ -240,7 +240,12 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareId, reload]);
 
+  // One governed mutation at a time: a double-click fires twice before
+  // `busy` disables the control; the ref closes that window.
+  const inFlight = React.useRef(false);
   async function go(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -248,6 +253,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
     } catch (e) {
       setError(errorText(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -333,7 +339,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
           {note && (
             <p className="text-xs text-positive" data-testid="message-note">
               {note.text}{" "}
-              <Link href={note.href} className="text-accent underline" data-testid="message-note-link">
+              <Link href={withBack(note.href)} className="text-accent underline" data-testid="message-note-link">
                 Open it
               </Link>
             </p>

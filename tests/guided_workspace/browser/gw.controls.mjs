@@ -2170,6 +2170,8 @@ async function lensJourney() {
       await page.mouse.move(b1.x + b1.width + 4, b0.y + b0.height - 2, { steps: 12 });
       await page.mouse.up();
       await page.waitForSelector(sel("lens-selection"), { timeout: 60_000 });
+      // The selection is written to the address after it is shown.
+      await page.waitForFunction(() => new URLSearchParams(location.search).get("sel"), null, { timeout: 30_000 });
       return page.evaluate(() => JSON.parse(new URLSearchParams(location.search).get("sel") ?? "null"));
     };
     let selection = null;
@@ -2193,7 +2195,13 @@ async function lensJourney() {
     await ctl(page, record, { id: "lens-selection-clear", prereq: "a box-selected cohort", expected: "the temporary cohort is dropped", run: async () => {
       await page.click(sel("lens-selection-clear"));
       await page.waitForSelector(sel("lens-selection"), { state: "detached", timeout: 30_000 });
-      return "cleared";
+      // The chart drops the box and the highlighted bars too.
+      await page.waitForFunction((c) => {
+        const gd = document.querySelector(c);
+        return (gd?._fullLayout?.selections?.length ?? 0) === 0 && !(gd?.data?.[0]?.selectedpoints?.length);
+      }, sel(`lens-visual-${brk.visual_id}`), { timeout: 30_000 });
+      assert.equal(new URLSearchParams(new URL(page.url()).search).get("sel"), null, "the selection left the address");
+      return "cleared: panel, address and chart selection";
     } });
     const selCohort = (sel0) => ({
       source: async () => ({ filters: sel0.filters }),
@@ -3105,6 +3113,7 @@ async function responsiveJourney() {
       return el === top || el.contains(top) ? "" : `covered by ${top?.getAttribute("data-testid") ?? top?.tagName}`;
     }, s);
     const hscroll = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const prep = { "cockpit-v4-ask": sel("cockpit-v4-question"), "whatif-ask": sel("whatif-ask-input") };
     const checks = [
       ["/", ["cockpit-v4-ask", "issue-investigate"]],
       ["/what-if?domain=corporate", ["whatif-ask", "whatif-load-scenario", "whatif-library", "whatif-grid-next"]],
@@ -3121,6 +3130,9 @@ async function responsiveJourney() {
       await page.waitForLoadState("networkidle").catch(() => undefined);
       for (const id of ids) {
         await ctl(page, record, { id: `check:390px:${id}`, prereq: `${url} at 390 px`, expected: "visible, not covered, clickable; no horizontal page scroll", run: async () => {
+          // An Ask button is disabled until a question is typed (by
+          // design); type one, without submitting, so it can be clicked.
+          if (prep[id]) await page.fill(prep[id], "Which segments drive the change?");
           const c = await covered(`[data-testid="${id}"]`);
           assert.equal(c, "", `${id}: ${c}`);
           await page.locator(sel(id)).first().click({ trial: true });

@@ -18,9 +18,39 @@ export function safeBack(raw: string | null | undefined): string {
   return v;
 }
 
+// The address this page has asked the router for and the browser has not
+// committed yet (set by `useAddress`). A link rendered in that window is
+// rendered once, before the commit, and nothing re-renders it after: read
+// from `window.location` it kept the previous address as its origin, so
+// Back from it restored a state the page had already left (VAL-DEF-044).
+let requested = "";
+
+/** Record (or, with "", clear) the address in flight. */
+export function setRequestedAddress(path: string): void {
+  requested = path;
+}
+
+/** Clear the address in flight once the browser shows it. */
+export function settleRequestedAddress(): void {
+  if (typeof window !== "undefined" && requested === `${window.location.pathname}${window.location.search}`) requested = "";
+}
+
+/** True while this page's own address write has not landed yet. */
+export function addressInFlight(): boolean {
+  return typeof window !== "undefined" && currentAddress() !== `${window.location.pathname}${window.location.search}`;
+}
+
+/** This page's address: the one in flight, else the committed one. */
+export function currentAddress(): string {
+  if (typeof window === "undefined") return "";
+  const live = `${window.location.pathname}${window.location.search}`;
+  if (requested && requested !== live && requested.split("?")[0] === window.location.pathname) return requested;
+  return live;
+}
+
 /** `href` with `back=<origin>` appended (origin defaults to the current URL). */
 export function withBack(href: string, origin?: string): string {
-  const from = origin ?? (typeof window === "undefined" ? "" : `${window.location.pathname}${window.location.search}`);
+  const from = origin ?? currentAddress();
   const back = safeBack(from);
   if (!back) return href;
   return `${href}${href.includes("?") ? "&" : "?"}back=${encodeURIComponent(back)}`;

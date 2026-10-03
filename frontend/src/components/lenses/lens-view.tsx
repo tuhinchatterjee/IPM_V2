@@ -72,6 +72,11 @@ export function LensView({ lensId }: { lensId: string }) {
     fromUrl(params.get("sel"), null, (v) => isObject(v) && Array.isArray((v as { filters?: unknown }).filters)),
   );
   const [savedCohort, setSavedCohort] = React.useState(params.get("cohort") ?? "");
+  // Bumped when the selection is cleared: the chart keeps the reader's zoom
+  // and legend across re-renders (`uirevision`), and without this it also
+  // kept the cleared box and highlighted bars, so dragging over the same
+  // bars again deselected them instead of selecting (VAL-DEF-048).
+  const [selectionRevision, setSelectionRevision] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [note, setNote] = React.useState("");
@@ -137,7 +142,12 @@ export function LensView({ lensId }: { lensId: string }) {
     };
   }, [lensId, periods, cross]);
 
+  // One governed mutation at a time: a double-click fires twice before
+  // `busy` disables the control; the ref closes that window.
+  const inFlight = React.useRef(false);
   async function go(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -145,6 +155,7 @@ export function LensView({ lensId }: { lensId: string }) {
     } catch (e) {
       setError(errorText(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -237,7 +248,7 @@ export function LensView({ lensId }: { lensId: string }) {
 {...common}
           control="lens-chart-breakdown"
           data={fig.data}
-          layout={fig.layout}
+          layout={{ ...fig.layout, selectionrevision: `selection-${selectionRevision}` }}
           selectable
           onPointClick={(p) => addCross(clickFilter(v, p.customdata))}
           onSelected={(pts) => select(v, pts)}
@@ -355,7 +366,7 @@ export function LensView({ lensId }: { lensId: string }) {
               <option key={c}>{c}</option>
             ))}
           </select>
-          <button type="submit" className="rounded-md bg-accent px-3 py-1 text-accent-contrast" data-testid="lens-edit-save">
+          <button type="submit" disabled={busy} className="rounded-md bg-accent px-3 py-1 text-accent-contrast disabled:opacity-40" data-testid="lens-edit-save">
             Save as a new version
           </button>
         </form>
@@ -428,7 +439,15 @@ export function LensView({ lensId }: { lensId: string }) {
             What-If
           </button>
           {savedCohort && <ShareButton objectId={savedCohort} testId="lens-selection-share" />}
-          <button data-testid="lens-selection-clear" type="button" onClick={() => setSelection(null)} className="ml-auto text-accent underline">
+          <button
+            data-testid="lens-selection-clear"
+            type="button"
+            onClick={() => {
+              setSelection(null);
+              setSelectionRevision((n) => n + 1);
+            }}
+            className="ml-auto text-accent underline"
+          >
             clear
           </button>
         </section>

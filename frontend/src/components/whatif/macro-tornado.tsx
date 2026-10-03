@@ -27,6 +27,8 @@ interface TornadoResponse {
   material_rows: number;
   excluded: { factor_id: string; factor_name: string; parameter_label: string; readiness: string; reason: string }[];
   evidence: string;
+  /** Set when the filter matches nothing: an empty state, not an error. */
+  empty: { error_code: string; message: string } | null;
 }
 
 export function MacroTornado({ domain, filters }: { domain: DomainId; filters: Filter[] }) {
@@ -75,7 +77,12 @@ export function MacroTornado({ domain, filters }: { domain: DomainId; filters: F
         {state.key !== key && <Loader2 className="h-4 w-4 animate-spin text-text-muted" />}
       </div>
       {state.error && <p className="text-xs text-negative">{state.error}</p>}
-      {data && (
+      {data?.empty && (
+        <p className="text-xs text-text-muted" data-testid="tornado-empty" data-code={data.empty.error_code}>
+          {data.empty.message} ({data.empty.error_code})
+        </p>
+      )}
+      {data && !data.empty && (
         <ChartCard
           title="Governed MEV sensitivities of this population, ranked"
           subtitle={`${data.population.entities.toLocaleString()} exposures · ${data.period} · ${data.rows.length} of ${data.material_rows} supported (MEV, parameter) pairs · bars = parameter movement for a down / up standard shock`}

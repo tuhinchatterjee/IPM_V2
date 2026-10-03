@@ -55,15 +55,13 @@ export function LensLibrary() {
     const thread = params.get("from_thread");
     if (!inv && !thread) return;
     origin.current = true;
+    // The origin stays in the address while the proposal is unsaved, so
+    // browser Forward back to this page shows the same proposal again. It
+    // is dropped when the Lens is saved (see save()).
     proposeLens(inv ? { from_investigation: inv } : { from_thread: thread ?? "" })
-      .then((p) => {
-        setProposal(p);
-        // The origin has been consumed: Back to this page shows the library,
-        // it does not propose (and invite saving) the same Lens again.
-        address.replace({ from_investigation: null, from_thread: null });
-      })
+      .then(setProposal)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [params, address]);
+  }, [params]);
 
   // The filter text is part of the address, so Back from a Lens restores it.
   React.useEffect(() => {
@@ -73,7 +71,13 @@ export function LensLibrary() {
     return () => clearTimeout(t);
   }, [q, address]);
 
+  // One request at a time: a double-click fires twice before `busy`
+  // disables the button; the ref closes that window (Save would mint two
+  // Lenses).
+  const inFlight = React.useRef(false);
   async function propose(base?: Proposal) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -81,18 +85,27 @@ export function LensLibrary() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
 
   async function save() {
-    if (!proposal) return;
+    if (!proposal || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
       const obj = await saveLens(proposal.spec, proposal.source);
-      router.push(withBack(`/lenses/${obj.object_id}`, urlWith({ from_investigation: null, from_thread: null })));
+      // Saved: this page's history entry no longer proposes. Back (browser
+      // or in-product) from the new Lens shows the library, never the same
+      // proposal inviting a second save (VAL-DEF-019). The native replace
+      // is synchronous, so it cannot overtake the push that follows.
+      const here = urlWith({ from_investigation: null, from_thread: null });
+      window.history.replaceState(window.history.state, "", here);
+      router.push(withBack(`/lenses/${obj.object_id}`, here));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      inFlight.current = false;
       setBusy(false);
     }
   }

@@ -111,7 +111,12 @@ export function ScenarioBuilder() {
     };
   }
 
+  // One governed mutation at a time: a double-click fires twice before
+  // `busy` disables the control; the ref closes that window.
+  const inFlight = React.useRef(false);
   async function run(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -119,6 +124,7 @@ export function ScenarioBuilder() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

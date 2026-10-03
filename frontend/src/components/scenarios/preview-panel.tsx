@@ -50,6 +50,7 @@ export function PreviewPanel({
   const [choices, setChoices] = React.useState<Record<string, string>>({});
   const [open, setOpen] = React.useState<string>("");
   const [busy, setBusy] = React.useState(false);
+  const inFlight = React.useRef(false);
   const stageFig = scopeStageFigure(preview);
   const bandFig = scopeBandFigure(preview);
   const methods = (["delta", "ml", "user_defined"] as const).map((m) => [m, preview.methods[m]] as const);
@@ -253,10 +254,14 @@ export function PreviewPanel({
               type="button"
               disabled={busy || !pending.every((o) => o.overlap_id && choices[o.overlap_id])}
               onClick={async () => {
+                // A double-click fires twice before `busy` disables this.
+                if (inFlight.current) return;
+                inFlight.current = true;
                 setBusy(true);
                 try {
                   await onResolve(resolutionsFrom(pending, choices));
                 } finally {
+                  inFlight.current = false;
                   setBusy(false);
                 }
               }}

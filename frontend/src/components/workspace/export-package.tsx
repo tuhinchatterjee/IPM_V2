@@ -42,7 +42,12 @@ export function ExportPackage({ objectId, scopeSelector, testId = "export-packag
   const [llm, setLlm] = React.useState(false);
   const [note, setNote] = React.useState("");
   const [error, setError] = React.useState("");
+  // One governed mutation at a time: a double-click fires twice before
+  // `busy` disables the control; the ref closes that window.
+  const inFlight = React.useRef(false);
   async function run() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     setNote("");
@@ -54,6 +59,7 @@ export function ExportPackage({ objectId, scopeSelector, testId = "export-packag
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

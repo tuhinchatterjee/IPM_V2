@@ -86,6 +86,7 @@ export function MonitoringCentre() {
   const [error, setError] = React.useState("");
   const [reload, setReload] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
+  const ticking = React.useRef(false);
   const [note, setNote] = React.useState("");
   const selected = params.get("alert") ?? "";
 
@@ -126,6 +127,9 @@ export function MonitoringCentre() {
           <p className="text-xs text-text-muted">Breaches and material changes from saved Lenses and their governed rules. Acting on an alert never changes source data.</p>
         </div>
         <button type="button" disabled={busy} onClick={() => {
+          // A double-click fires twice before `busy` disables this.
+          if (ticking.current) return;
+          ticking.current = true;
           setBusy(true);
           runDueRefreshes()
             .then((r) => {
@@ -133,7 +137,10 @@ export function MonitoringCentre() {
               setReload((n) => n + 1);
             })
             .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-            .finally(() => setBusy(false));
+            .finally(() => {
+              ticking.current = false;
+              setBusy(false);
+            });
         }} className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm" data-testid="monitoring-tick">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Refresh due Lenses now
         </button>
@@ -296,7 +303,12 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [alertId, reload]);
 
+  // One governed mutation at a time: a double-click fires twice before
+  // `busy` disables the control; the ref closes that window.
+  const inFlight = React.useRef(false);
   async function go(fn: () => Promise<void>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
@@ -307,6 +319,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

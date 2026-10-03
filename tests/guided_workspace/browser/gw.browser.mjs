@@ -2279,11 +2279,15 @@ const WRITE_ON_BACK = /^POST \/api\/v1\/cockpit-v4\/(workspace\/(whatif\/runs($|
 
 async function storeCounts() {
   const n = async (p, key) => ((await api(p)).body?.[key] ?? []).length;
+  // Lenses first: the first Lens listing on a fresh store seeds the Lens
+  // Library and its demo results (by design, once per tenant). Counted
+  // after the results, that seeding showed up as a write on the next trip.
+  const lenses = await n("/lenses", "lenses");
   return {
     scenarios: await n("/scenarios?owner=mine", "scenarios"),
     cohorts: await n("/cohorts", "cohorts"),
     results: await n("/whatif/results", "results"),
-    lenses: await n("/lenses", "lenses"),
+    lenses,
     sent: await n("/messages?box=sent", "items"),
   };
 }

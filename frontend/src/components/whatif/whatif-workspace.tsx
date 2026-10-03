@@ -45,7 +45,7 @@ import {
   type WorkspaceSelection,
 } from "@/lib/workspace/whatif";
 import { methodLabel } from "@/lib/workspace/method-labels";
-import { withBack } from "@/lib/workspace/nav";
+import { addressInFlight, withBack } from "@/lib/workspace/nav";
 import { useAddress } from "@/lib/workspace/address";
 
 function toSelection(sel: GridSelection): WorkspaceSelection | null {
@@ -172,8 +172,16 @@ export function WhatIfWorkspace() {
   // as a deep link would (VAL-DEF-038).
   const urlRun = params.get("run") ?? "";
   const handledRun = React.useRef(urlRun);
+  const activeRunId = React.useRef(runId);
   React.useEffect(() => {
-    if (!urlRun || urlRun === handledRun.current || urlRun === runId) return;
+    activeRunId.current = runId;
+  }, [runId]);
+  // Only a change of the address itself opens a run, and only one this page
+  // did not write: while the page's own write is in flight the address
+  // still names the previous run (a new run started, another scenario
+  // loaded), and that lag must not reopen it.
+  React.useEffect(() => {
+    if (!urlRun || urlRun === handledRun.current || urlRun === activeRunId.current || addressInFlight()) return;
     handledRun.current = urlRun;
     setPending((n) => n + 1);
     readRun(urlRun)
@@ -191,7 +199,7 @@ export function WhatIfWorkspace() {
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(settle);
-  }, [urlRun, runId, settle]);
+  }, [urlRun, settle]);
   // Set when this page navigates away, so a replace never overtakes the push.
   const leaving = React.useRef(false);
   React.useEffect(() => {
