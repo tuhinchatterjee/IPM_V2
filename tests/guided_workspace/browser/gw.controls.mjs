@@ -1898,9 +1898,11 @@ async function monitoringJourney() {
     for (const v of ["new_today", "active", "worsening", "acknowledged", "resolved", "all", "changes", "history", "mine", "active"]) {
       await ctl(page, record, { id: `monitoring-view-${v}`, prereq: "Monitoring Centre", expected: `the ${v} view lists the backend's alerts for it`, run: async () => {
         await page.click(sel(`monitoring-view-${v}`));
+        // The address is written after the click; wait for it (it never
+        // arrives if the view is not kept), then for the backend's count.
+        await page.waitForFunction((w) => (new URLSearchParams(location.search).get("view") ?? "active") === w, v, { timeout: 30_000 });
         const want = await apiCount(`view=${v}`);
         await waitCount(want);
-        assert.equal(new URL(page.url()).searchParams.get("view") ?? "active", v);
         return `${v}: ${want} (backend ${want})`;
       } });
     }
