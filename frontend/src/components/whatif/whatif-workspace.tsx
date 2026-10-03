@@ -93,8 +93,24 @@ export function WhatIfWorkspace() {
   const [note, setNote] = React.useState("");
   const [error, setError] = React.useState("");
   const [panel, setPanel] = React.useState<"" | "save" | "share" | "cohorts" | "scenarios">("");
-  const [applyKey, setApplyKey] = React.useState(0);
+  const [applyKey, setApplyKeyState] = React.useState(0);
+  // Each scenario application (and its run panel) belongs to one apply key.
+  // The key moves on synchronously, so a panel that a newer application
+  // replaced cannot make its run the active run on its way out: Back then
+  // Forward between two runs, or loading another scenario, ended on the
+  // replaced run when its late read landed (VAL-DEF-038).
+  const applyKeyNow = React.useRef(0);
+  const setApplyKey = React.useCallback((next: (k: number) => number) => {
+    applyKeyNow.current = next(applyKeyNow.current);
+    setApplyKeyState(applyKeyNow.current);
+  }, []);
   const [activeRun, setActiveRun] = React.useState<Run | null>(null);
+  const onPanelRun = React.useMemo(() => {
+    const mine = applyKey;
+    return (r: Run | null) => {
+      if (mine === applyKeyNow.current) setActiveRun(r);
+    };
+  }, [applyKey]);
   const [entry] = React.useState<"whatif" | "library" | "cockpit" | "messages">(() => {
     const from = params.get("from");
     return from === "library" || from === "cockpit" || from === "messages" ? from : "whatif";
@@ -171,18 +187,32 @@ export function WhatIfWorkspace() {
   // deep-link effect above has run once. Load the run `?run=` names here,
   // as a deep link would (VAL-DEF-038).
   const urlRun = params.get("run") ?? "";
-  const handledRun = React.useRef(urlRun);
+  // The address's run as last seen; the mount's is the deep link's.
+  const seenRun = React.useRef(urlRun);
   const activeRunId = React.useRef(runId);
   React.useEffect(() => {
     activeRunId.current = runId;
   }, [runId]);
-  // Only a change of the address itself opens a run, and only one this page
-  // did not write: while the page's own write is in flight the address
-  // still names the previous run (a new run started, another scenario
-  // loaded), and that lag must not reopen it.
+  // Every change of the address's run opens that run (a link, browser Back
+  // or Forward), unless the page wrote it itself: while the page's own
+  // write is in flight the address still names the previous run (a new run
+  // started, another scenario loaded), and that lag must not reopen it.
+  // A later change supersedes a load still in flight: Back then Forward in
+  // quick succession must not end on the run Back started loading.
+  const runLoad = React.useRef(0);
+  // The run being opened, visible at once: `pending` (state) only reaches
+  // the address sync on the next render, and a sync in between wrote the
+  // previous run's state onto the entry being opened.
+  const openingRun = React.useRef("");
   React.useEffect(() => {
-    if (!urlRun || urlRun === handledRun.current || urlRun === activeRunId.current || addressInFlight()) return;
-    handledRun.current = urlRun;
+    const changed = urlRun !== seenRun.current;
+    seenRun.current = urlRun;
+    if (!changed) return;
+    const load = ++runLoad.current;
+    openingRun.current = "";
+    if (!urlRun || urlRun === activeRunId.current || addressInFlight()) return;
+    const current = () => load === runLoad.current;
+    openingRun.current = urlRun;
     setPending((n) => n + 1);
     readRun(urlRun)
       .then(async (r) => {
@@ -190,6 +220,7 @@ export function WhatIfWorkspace() {
         const co = r.body.cohort.object.cohort_id
           ? await readObject<Cohort["body"]>(r.body.cohort.object.cohort_id, r.body.cohort.object.version ?? undefined)
           : null;
+        if (!current()) return;
         setDomain(r.body.domain_id as DomainId);
         setCohort((co as Cohort | null) ?? null);
         setScenario(sc as ScenarioObject);
@@ -197,22 +228,46 @@ export function WhatIfWorkspace() {
         setInitialRunId(urlRun);
         setApplyKey((k) => k + 1);
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(settle);
-  }, [urlRun, settle]);
+      .catch((e: unknown) => {
+        if (current()) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (current()) openingRun.current = "";
+        settle();
+      });
+  }, [urlRun, settle, setApplyKey]);
   // Set when this page navigates away, so a replace never overtakes the push.
   const leaving = React.useRef(false);
+  // The run this page last wrote into its address. An address naming
+  // another run was put there by a navigation (a link, Back, Forward) whose
+  // run is still to be opened: the page's current state must not overwrite
+  // it, or Forward lands on the run Back left (VAL-DEF-038).
+  const wroteRun = React.useRef(urlRun);
+  const wroteState = React.useRef("");
   React.useEffect(() => {
-    if (pending || leaving.current) return;
+    if (pending || openingRun.current || leaving.current) return;
+    // Back/Forward moves the browser's address before React's view of it:
+    // in between, writing would put this page's state on the entry being
+    // navigated to.
+    if ((new URLSearchParams(window.location.search).get("run") ?? "") !== urlRun) return;
+    if (urlRun !== (runId || "") && urlRun !== wroteRun.current) return;
     const f = filters.length ? JSON.stringify(filters) : "";
-    address.replace({
+    const want = {
       domain,
       f: f.length <= 1200 ? f : null,
       cohort: cohort?.object_id ?? null,
       scenario: scenario?.object_id ?? null,
       run: runId || null,
-    });
-  }, [pending, domain, filters, cohort, scenario, runId, address]);
+    };
+    // Only a change of this page's state is written: an unchanged state has
+    // nothing to say, and writing it again could land on an entry Back or
+    // Forward just moved to.
+    const key = JSON.stringify(want);
+    if (key === wroteState.current) return;
+    wroteState.current = key;
+    wroteRun.current = runId || "";
+    address.replace(want);
+  }, [pending, domain, filters, cohort, scenario, runId, address, urlRun]);
 
   const selection = toSelection(gridSel);
   const selKey = JSON.stringify({ domain, selection });
@@ -574,7 +629,7 @@ export function WhatIfWorkspace() {
           scenario={scenario}
           entry={entry}
           initialRunId={initialRunId}
-          onRun={setActiveRun}
+          onRun={onPanelRun}
         />
       )}
       <SessionTree domain={domain} refreshKey={`${activeRun?.object_id ?? ""}-${activeRun?.status ?? ""}`} />

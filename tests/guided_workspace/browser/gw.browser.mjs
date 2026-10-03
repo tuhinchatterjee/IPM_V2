@@ -74,6 +74,17 @@ async function journey(id, what, fn) {
 
 async function open() {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  // The page's own address writes (and Back/Forward), last 40: quoted when a
+  // Back/Forward check fails, so the record says who wrote what.
+  await page.addInitScript(() => {
+    const log = (window.__gwHistory = []);
+    const keep = (line) => { log.push(line); if (log.length > 40) log.shift(); };
+    for (const k of ["pushState", "replaceState"]) {
+      const orig = history[k].bind(history);
+      history[k] = (st, t, url) => { keep(`${Math.round(performance.now())} ${k} ${String(url ?? "").replace(/back=[^&]*/, "back=…").slice(0, 140)}`); return orig(st, t, url); };
+    }
+    addEventListener("popstate", () => keep(`${Math.round(performance.now())} popstate ${location.search.replace(/back=[^&]*/, "back=…").slice(0, 140)}`));
+  });
   const calls = [];
   page.on("request", (r) => {
     if (r.url().startsWith(API)) calls.push(`${r.method()} ${r.url().replace(API, "")}`);
@@ -2379,7 +2390,10 @@ async function backTrip(page, record, { path, state, go, arrived, inApp, inAppTa
     await arrived(page);
     row.browser_forward = new URL(page.url()).pathname === new URL(`${UI}${destination}`).pathname ? "PASS" : `FAILED at ${here(page)}`;
   } catch (e) {
-    row.browser_forward = `FAILED ${String(e.message).slice(0, 120)}`;
+    const shown = await page.evaluate(() => document.querySelector('[data-testid="whatif-run"]')?.getAttribute("data-run-id") ?? "").catch(() => "");
+    const writes = await page.evaluate(() => (window.__gwHistory ?? []).slice(-12)).catch(() => []);
+    row.browser_forward = `FAILED at ${here(page)}${shown ? ` (run panel ${shown})` : ""}: ${String(e.message).slice(0, 120)}`;
+    row.history_tail = writes;
   }
   // Browser Back/Forward alone must write nothing; a declared in-app Cancel
   // may then retire what the forward step made.

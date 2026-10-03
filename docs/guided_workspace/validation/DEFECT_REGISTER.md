@@ -544,12 +544,13 @@ A run's stored contract holds the engine predicate that defines its population, 
 
 | Field | Detail |
 |---|---|
-| Reproduction | What-If → session tree → open an earlier run |
-| Expected | That run opens |
+| Reproduction | What-If → session tree → open another run of the session; then browser Back and Forward |
+| Expected | That run opens; Back returns to the previous run; Forward reopens the opened run |
 | Actual | The address changed; the page kept the current run |
-| Evidence | `prefix_evidence/VAL-DEF-038_tree_open_run.json`. The first fix also reacted to the page's own address lag and reopened the previous run when another scenario was started; that was caught by `GW-CTL-METHODS` (`VAL-DEF-038_selfwrite_reopen.json`) and corrected before any candidate. |
-| Files | `components/whatif/whatif-workspace.tsx` (a run named by a changed address, not written by the page itself, is opened) |
-| Test | `GW-CTL-METHODS` (tree open run, and CORP-03 started after CORP-02 stays on CORP-03) |
+| Evidence | `prefix_evidence/VAL-DEF-038_tree_open_run.json`. The fix was refined three times before any candidate, each time on a failing browser record: it first reopened the previous run while the page's own address write was in flight (`VAL-DEF-038_selfwrite_reopen.json`); then browser Forward to an opened run did not reopen it (`VAL-DEF-038_forward_not_reopened.json`); then Back followed quickly by Forward ended on the run Back had started, because the page wrote its previous run's state onto the entry being opened before the new run's load was visible to the address sync, and a replaced run panel's late read made its run active again (`VAL-DEF-038_forward_race_journey.json`, `VAL-DEF-038_forward_history_tail.json`, `VAL-DEF-038_forward_trace.json`, with the page's own history writes and the source of each active-run change). |
+| Root cause | The page read `?run=` once per mount; and, once it followed the address, its address sync could write stale state during a navigation |
+| Files | `components/whatif/whatif-workspace.tsx`: every change of the address's run opens that run unless the page wrote it; a later change supersedes a load in flight; the address sync writes only a changed state, never while a run is being opened or while the browser's address and React's view of it differ; a run panel's update counts only for the application it belongs to |
+| Test | `GW-CTL-METHODS` (tree open run with Back, Forward and in-product Back; CORP-03 started after CORP-02 stays on CORP-03); `GW-CTL-WHATIF` |
 | Retest | PASS |
 | Disposition | FIXED |
 

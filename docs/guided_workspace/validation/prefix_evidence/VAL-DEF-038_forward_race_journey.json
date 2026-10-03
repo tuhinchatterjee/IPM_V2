@@ -1,0 +1,1742 @@
+{
+  "suite": "guided-workspace",
+  "model": "MODEL MOCK",
+  "ui": "http://127.0.0.1:5444",
+  "api": "http://127.0.0.1:8444",
+  "passed": 0,
+  "total": 1,
+  "journeys": [
+    {
+      "journey": "GW-CTL-METHODS",
+      "what": "Method gate: no method → blocked; method change before execution; User-defined form/value/stated; Compare; result method tabs; compact, waterfall click, decomposition row; layering vs original baseline; Retail ML blocked by G4; tree compare/new session/result/open run; result page links",
+      "prompts": [],
+      "screenshots": [],
+      "model": "MODEL MOCK (scripted analyst)",
+      "back": [
+        {
+          "path": "whatif-bound-scenario: opens the applied scenario at the version shown",
+          "origin": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "destination": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-02",
+          "origin_state": {
+            "scenario": "scn-tpl-corp-02",
+            "domain": "corporate"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "in_app_control": "scenario-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "tree-compare: a comparison of exactly those two results opens",
+          "origin": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "destination": "/what-if/compare/cmp-223ad67310ab?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "origin_state": {
+            "domain": "corporate",
+            "cohort": "",
+            "scenario": "scn-tpl-corp-03",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "in_app_control": "comparison-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "tree-result-link: opens that node's result",
+          "origin": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "destination": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "origin_state": {
+            "domain": "corporate",
+            "cohort": "",
+            "scenario": "scn-tpl-corp-03",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "in_app_control": "whatif-result-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "tree-open-run: reopens that run in What-If",
+          "origin": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "destination": "/what-if?run=wrun-f452b3eb20ef&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-03",
+          "origin_state": {
+            "domain": "corporate",
+            "cohort": "",
+            "scenario": "scn-tpl-corp-02",
+            "filters": ""
+          },
+          "browser_back": "PASS",
+          "browser_forward": "FAILED at /what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-02 (run panel wrun-00b4d96effde): page.waitForSelector: Timeout 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-testid=\"whatif-run\"][data-",
+          "in_app_target": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "in_app_control": "whatif-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "FAILED"
+        },
+        {
+          "path": "whatif-result-open-run: reopens the run that produced it",
+          "origin": "/what-if/result/res-66643096ff2a",
+          "destination": "/what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a&domain=corporate&scenario=scn-tpl-corp-02",
+          "origin_state": {
+            "result": "res-66643096ff2a",
+            "method": "whatif-result-method-delta"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if/result/res-66643096ff2a",
+          "in_app_control": "whatif-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "whatif-result-open-scenario: opens the scenario version it ran",
+          "origin": "/what-if/result/res-66643096ff2a",
+          "destination": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a",
+          "origin_state": {
+            "result": "res-66643096ff2a",
+            "method": "whatif-result-method-delta"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if/result/res-66643096ff2a",
+          "in_app_control": "scenario-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "whatif-result-open-scenario: opens the scenario version that ran, not the latest",
+          "origin": "/what-if/result/res-7ab89b7f7bd2",
+          "destination": "/scenarios/scn-1708b4d49f93?version=1&back=%2Fwhat-if%2Fresult%2Fres-7ab89b7f7bd2",
+          "origin_state": {
+            "result": "res-7ab89b7f7bd2",
+            "method": "whatif-result-method-delta"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if/result/res-7ab89b7f7bd2",
+          "in_app_control": "scenario-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        },
+        {
+          "path": "comparison-result-link: opens that result",
+          "origin": "/what-if/compare/cmp-91671a5efe85",
+          "destination": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%2Fcompare%2Fcmp-91671a5efe85",
+          "origin_state": {
+            "at": "/what-if/compare/cmp-91671a5efe85"
+          },
+          "browser_back": "PASS",
+          "browser_forward": "PASS",
+          "in_app_target": "/what-if/compare/cmp-91671a5efe85",
+          "in_app_control": "whatif-result-back",
+          "in_app_back": "PASS",
+          "declared_in_app_writes": [],
+          "writes_on_return": [],
+          "objects_written_on_return": "none",
+          "status": "PASS"
+        }
+      ],
+      "handoffs": [
+        {
+          "control": "whatif-bound-scenario",
+          "from_url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "to_url": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-02",
+          "source": "{\"scenario\":\"scn-tpl-corp-02\",\"version\":1}",
+          "destination": "{\"scenario\":\"scn-tpl-corp-02\",\"version\":1}",
+          "identity": "applied scn-tpl-corp-02 v1 → detail scn-tpl-corp-02 v1",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "tree-compare",
+          "from_url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "to_url": "/what-if/compare/cmp-223ad67310ab?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "source": "{\"results\":[\"res-4c87a1e7c761\",\"res-66643096ff2a\"]}",
+          "destination": "{\"comparison\":\"cmp-223ad67310ab\",\"results\":[\"res-4c87a1e7c761\",\"res-66643096ff2a\"]}",
+          "identity": "results res-4c87a1e7c761, res-66643096ff2a → cmp-223ad67310ab",
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/compare 201"
+          ],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "whatif-result-open-scenario",
+          "from_url": "/what-if/result/res-66643096ff2a",
+          "to_url": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a",
+          "source": "{\"scenario\":\"scn-tpl-corp-02\",\"version\":1}",
+          "destination": "{\"scenario\":\"scn-tpl-corp-02\",\"version\":1}",
+          "identity": "result res-66643096ff2a → scn-tpl-corp-02 v1",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        },
+        {
+          "control": "whatif-result-open-scenario",
+          "from_url": "/what-if/result/res-7ab89b7f7bd2",
+          "to_url": "/scenarios/scn-1708b4d49f93?version=1&back=%2Fwhat-if%2Fresult%2Fres-7ab89b7f7bd2",
+          "source": "{\"scenario\":\"scn-1708b4d49f93\",\"version\":1}",
+          "destination": "{\"scenario\":\"scn-1708b4d49f93\",\"version\":1}",
+          "identity": "result res-7ab89b7f7bd2 → scn-1708b4d49f93 v1 (latest is v2)",
+          "writes": [],
+          "unintended_writes": [],
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          },
+          "status": "PASS"
+        }
+      ],
+      "controls": [
+        {
+          "id": "whatif-bound-scenario",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "prereq": "CORP-02 applied in What-If (no cohort)",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the applied scenario at the version shown",
+          "observed": "/what-if?domain=corporate&scenario=scn-tpl-corp-02 → /scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-02",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/results 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-02",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-run-execute",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "CORP-02 confirmed, METHOD_SELECTION (run wrun-00b4d96effde), no method chosen",
+          "action": "read the execute control with nothing chosen",
+          "expected": "execution is not possible until a method is chosen",
+          "observed": "execute disabled; the gate says why",
+          "result": "BLOCKED_WITH_GOVERNED_REASON",
+          "reason": "No method is preselected. Nothing runs until you choose one.",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-method-pick-delta",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "CORP-02 confirmed, METHOD_SELECTION (run wrun-00b4d96effde)",
+          "action": "click",
+          "expected": "Delta is chosen; execute names it",
+          "observed": "Run with Method 1 — Delta",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-method-pick-ml",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "CORP-02 confirmed, METHOD_SELECTION (run wrun-00b4d96effde), Delta chosen",
+          "action": "change the method before execution: untick Delta, tick ML",
+          "expected": "the choice is ML only; nothing executed",
+          "observed": "Run with Method 2 — ML emulator",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-method-pick-user_defined",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "CORP-02 confirmed, METHOD_SELECTION (run wrun-00b4d96effde), ML chosen",
+          "action": "click",
+          "expected": "User-defined asks for its assumption (form, value, words)",
+          "observed": "assumption inputs shown",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-ud-form",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "User-defined chosen",
+          "action": "click",
+          "expected": "the assumption form is selectable",
+          "observed": "forms relative, absolute, target_amount, target_rate; relative chosen",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-ud-value",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "User-defined chosen",
+          "action": "type 15",
+          "expected": "the value is held",
+          "observed": "15",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-ud-stated",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "User-defined chosen",
+          "action": "type the assumption in words",
+          "expected": "kept for audit",
+          "observed": "stated",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-method-pick-compare",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "User-defined with its assumption",
+          "action": "tick Compare and execute",
+          "expected": "every available method runs; the result has one tab per method",
+          "observed": "methods ran: delta, ml, user_defined",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/method 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/execute 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/method 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/execute 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-result-method-delta",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "Compare executed",
+          "action": "click",
+          "expected": "the decomposition switches to that method",
+          "observed": "decomposition method delta",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-result-method-ml",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "Compare executed",
+          "action": "click",
+          "expected": "the decomposition switches to that method",
+          "observed": "decomposition method ml",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-result-method-user_defined",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "Compare executed",
+          "action": "click",
+          "expected": "the decomposition switches to that method",
+          "observed": "decomposition method user_defined",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-decomp-compact",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "result shown",
+          "action": "click",
+          "expected": "the bridge hides N/A components (the table keeps all)",
+          "observed": "bars 20 → 4; table 20 rows throughout",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-waterfall-selected",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "result shown",
+          "action": "click a bridge bar",
+          "expected": "that component is highlighted in the table",
+          "observed": "highlighted management_overlay",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-decomp-row",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "prereq": "a component highlighted",
+          "action": "click another table row, then again",
+          "expected": "highlight moves to it, then clears",
+          "observed": "repayment_amortisation highlighted then cleared",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-baseline-option",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "prereq": "CORP-03 started after CORP-02 executed in this session",
+          "action": "choose 'layer on the previous scenario'",
+          "expected": "the prior run is offered as a baseline",
+          "observed": "PRIOR_SCENARIO chosen",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde"
+        },
+        {
+          "id": "whatif-baseline-choose",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "prereq": "PRIOR_SCENARIO chosen",
+          "action": "click",
+          "expected": "the run is layered on CORP-02 (strip says so)",
+          "observed": "baseline PRIOR_SCENARIO",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/baseline 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/baseline 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e"
+        },
+        {
+          "id": "whatif-run-start",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "prereq": "CORP-03 layered result shown",
+          "action": "Start another run, choose the original baseline",
+          "expected": "a new run on the original reported baseline",
+          "observed": "baseline SOURCE_BASELINE (original reported)",
+          "result": "PASS",
+          "reason": "",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef/baseline 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef/baseline 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef"
+        },
+        {
+          "id": "tree-compare",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "prereq": "two results ticked in the session tree",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "a comparison of exactly those two results opens",
+          "observed": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef → /what-if/compare/cmp-223ad67310ab?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/compare 201",
+            "GET /api/v1/cockpit-v4/workspace/objects/cmp-223ad67310ab 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/compare 201"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if/compare/cmp-223ad67310ab?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "tree-result-link",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "prereq": "session tree",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens that node's result",
+          "observed": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef → /what-if/result/res-66643096ff2a?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "tree-open-run",
+          "url": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "prereq": "session tree; run wrun-00b4d96effde open, opening wrun-f452b3eb20ef",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "reopens that run in What-If",
+          "observed": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02 → /what-if?run=wrun-f452b3eb20ef&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-03 · FAILED: tree-open-run: reopens that run in What-If: browser Forward",
+          "result": "FAILED",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/scn-tpl-corp-03?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?run=wrun-f452b3eb20ef&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-03",
+          "back": {
+            "ok": false,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "FAILED at /what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-02 (run panel wrun-00b4d96effde): page.waitForSelector: Timeout 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-testid=\"whatif-run\"][data-",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "tree-new-session",
+          "url": "/what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-02",
+          "prereq": "session tree with nodes",
+          "action": "click",
+          "expected": "a new session starts: the tree empties; nothing is deleted",
+          "observed": "session wses-db05b33d-a66 → new",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02"
+        },
+        {
+          "id": "whatif-result-open-run",
+          "url": "/what-if/result/res-66643096ff2a",
+          "prereq": "result res-66643096ff2a",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "reopens the run that produced it",
+          "observed": "/what-if/result/res-66643096ff2a → /what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a&domain=corporate&scenario=scn-tpl-corp-02",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-ce41950c-c1b&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/scn-tpl-corp-02?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a&domain=corporate&scenario=scn-tpl-corp-02",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-result-open-scenario",
+          "url": "/what-if/result/res-66643096ff2a",
+          "prereq": "result res-66643096ff2a",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the scenario version it ran",
+          "observed": "/what-if/result/res-66643096ff2a → /scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a",
+          "result": "PASS",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/results 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-result-open-scenario",
+          "url": "/what-if/result/res-7ab89b7f7bd2",
+          "prereq": "result res-7ab89b7f7bd2; its scenario revised since",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens the scenario version that ran, not the latest",
+          "observed": "/what-if/result/res-7ab89b7f7bd2 → /scenarios/scn-1708b4d49f93?version=1&back=%2Fwhat-if%2Fresult%2Fres-7ab89b7f7bd2",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-1708b4d49f93?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-1708b4d49f93/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-1708b4d49f93/results 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/scenarios/scn-1708b4d49f93?version=1&back=%2Fwhat-if%2Fresult%2Fres-7ab89b7f7bd2",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "comparison-scope-total",
+          "url": "/what-if/compare/cmp-91671a5efe85",
+          "prereq": "comparison cmp-91671a5efe85",
+          "action": "click",
+          "expected": "the chart shows the total scope",
+          "observed": "total scope",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if/compare/cmp-91671a5efe85"
+        },
+        {
+          "id": "comparison-scope-selected",
+          "url": "/what-if/compare/cmp-91671a5efe85",
+          "prereq": "comparison cmp-91671a5efe85",
+          "action": "click",
+          "expected": "the chart shows the selected scope",
+          "observed": "selected scope",
+          "result": "PASS",
+          "reason": "",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if/compare/cmp-91671a5efe85"
+        },
+        {
+          "id": "comparison-result-link",
+          "url": "/what-if/compare/cmp-91671a5efe85",
+          "prereq": "comparison cmp-91671a5efe85",
+          "action": "click; browser Back; browser Forward; in-product Back",
+          "expected": "opens that result",
+          "observed": "/what-if/compare/cmp-91671a5efe85 → /what-if/result/res-66643096ff2a?back=%2Fwhat-if%2Fcompare%2Fcmp-91671a5efe85",
+          "result": "PASS",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%2Fcompare%2Fcmp-91671a5efe85",
+          "back": {
+            "ok": true,
+            "in_app": "PASS",
+            "browser_back": "PASS",
+            "browser_forward": "PASS",
+            "writes_on_return": []
+          }
+        },
+        {
+          "id": "whatif-method-pick-ml",
+          "url": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b",
+          "prereq": "Retail RET-01 confirmed, METHOD_SELECTION",
+          "action": "read the ML method; choose it and try to execute",
+          "expected": "ML is UNAVAILABLE with the G4 reason; choosing it cannot produce an ML result",
+          "observed": "UNAVAILABLE; run state METHOD_UNAVAILABLE; no result",
+          "result": "BLOCKED_WITH_GOVERNED_REASON",
+          "reason": "Validation gate failed: G4 (worst material-group WAPE) — never substituted",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-ce41950c-c1b&domain=retail 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-90eec3658b0b/method 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-90eec3658b0b/method 200"
+          ],
+          "failed": [],
+          "refused": [],
+          "console": [],
+          "excused_console": [],
+          "download": "",
+          "url_after": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b"
+        }
+      ],
+      "retail_ml_reason": "ML emulator validation gate failed: G4 (worst material-group WAPE): measured 0.343562 against a threshold of 0.15. Shown, never substituted.",
+      "status": "FAILED",
+      "error": "every exercised control passed | + actual - expected |  | + [ | +   'tree-open-run: /what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02 → /what-if?run=wrun-f452b3eb20ef&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-03 · FAILED: tree-open-run: reopens that run in ' | + ]",
+      "on_screen": "http://127.0.0.1:5444/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b :: app-content-column whatif-workspace ws-domain-switch ws-domain-corporate ws-domain-retail whatif-book whatif-method-badges whatif-method-delta whatif-method-ml whatif-method-user_defined whatif-ml-unavailable whatif-ask-box whatif-ask-input whatif-ask whatif-strip whatif-strip-cohort whatif-load-cohort whatif-strip-scenario whatif-strip-clear-scenario whatif-load-scenario whatif-strip-baseline whatif-strip-method whatif-explorer whatif-explorer-dimension whatif-explorer-measure whatif-chart-dimension-card whatif-chart-dimension-view-data whatif-chart-dimension-csv whatif-chart-dimension-png whatif-chart-dimension-svg whatif-chart-dimension whatif-chart-stage-card whatif-chart-stage-view-data whatif-chart-stage-csv whatif-chart-stage-png whatif-chart-stage-svg whatif-chart-stage whatif-matrices whatif-chart-heatmap-card whatif-heatmap-measure whatif-chart-heatmap-view-data whatif-chart-heatmap-csv whatif-chart-heatmap-png whatif-chart-heatmap-svg whatif-chart-heatmap whatif-heatmap-reconcile whatif-chart-sankey-card whatif-chart-sankey-view-data whatif-chart-sankey-csv whatif-chart-sankey-png",
+      "hovers": [
+        {
+          "chart": "whatif-waterfall-selected",
+          "control": "",
+          "text": "Management overlay / user-defined+SAR 25.7m · MEASUREDraw 25.652419The reader's own stated impact (Method 3) or a management overlay."
+        }
+      ],
+      "exec": [
+        {
+          "id": "whatif-bound-scenario",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-02",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/results 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "scenario-back",
+          "control": "",
+          "url": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-start",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-confirm",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/confirm 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/confirm 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-delta",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-delta",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-ml",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-ml",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-user_defined",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-user_defined",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-compare",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-execute",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/method 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/execute 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/method 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde/execute 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-method-delta",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-method-ml",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-method-user_defined",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-decomp-compact",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-decomp-compact",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-waterfall-selected",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-decomp-row",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-decomp-row",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-load-scenario",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios?domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-scenario-pick",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-02&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03/preview?version=1 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-start",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-baseline-option",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-baseline-choose",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-00b4d96effde",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/baseline 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/baseline 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-confirm",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/confirm 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/confirm 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-delta",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-execute",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/method 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/execute 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/method 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-aafd83380d5e/execute 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-start",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-baseline-option",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-aafd83380d5e",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-baseline-choose",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef/baseline 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef/baseline 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "tree-compare-pick",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "tree-compare-pick",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "tree-compare",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if/compare/cmp-223ad67310ab?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/compare 201",
+            "GET /api/v1/cockpit-v4/workspace/objects/cmp-223ad67310ab 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/compare 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "comparison-back",
+          "control": "",
+          "url": "/what-if/compare/cmp-223ad67310ab?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef&domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/scn-tpl-corp-03?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "tree-result-link",
+          "control": "",
+          "url": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-back",
+          "control": "",
+          "url": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%3Fdomain%3Dcorporate%26scenario%3Dscn-tpl-corp-03%26run%3Dwrun-f452b3eb20ef&domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "url_after": "/what-if?domain=corporate&scenario=scn-tpl-corp-03&run=wrun-f452b3eb20ef",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/scn-tpl-corp-03?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03/preview?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "tree-open-run",
+          "control": "",
+          "url": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if?run=wrun-f452b3eb20ef&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-03",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/scn-tpl-corp-03?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-03/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-db05b33d-a66&domain=corporate 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%3Frun%3Dwrun-00b4d96effde%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "tree-new-session",
+          "control": "",
+          "url": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if?run=wrun-00b4d96effde&domain=corporate&scenario=scn-tpl-corp-02",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-open-run",
+          "control": "",
+          "url": "/what-if/result/res-66643096ff2a",
+          "url_after": "/what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a&domain=corporate&scenario=scn-tpl-corp-02",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/grid/schema?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-ce41950c-c1b&domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/context?domain=corporate 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-00b4d96effde 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/scn-tpl-corp-02?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group2 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/group 200",
+            "POST /api/v1/cockpit-v4/workspace/whatif/sensitivity/tornado 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/grid/query 200",
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-back",
+          "control": "",
+          "url": "/what-if?run=wrun-00b4d96effde&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a&domain=corporate&scenario=scn-tpl-corp-02",
+          "url_after": "/what-if/result/res-66643096ff2a",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-open-scenario",
+          "control": "",
+          "url": "/what-if/result/res-66643096ff2a",
+          "url_after": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-tpl-corp-02/results 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "scenario-back",
+          "control": "",
+          "url": "/scenarios/scn-tpl-corp-02?version=1&back=%2Fwhat-if%2Fresult%2Fres-66643096ff2a",
+          "url_after": "/what-if/result/res-66643096ff2a",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-open-scenario",
+          "control": "",
+          "url": "/what-if/result/res-7ab89b7f7bd2",
+          "url_after": "/scenarios/scn-1708b4d49f93?version=1&back=%2Fwhat-if%2Fresult%2Fres-7ab89b7f7bd2",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-1708b4d49f93?version=1 200",
+            "POST /api/v1/cockpit-v4/workspace/scenarios/scn-1708b4d49f93/preview?version=1 200",
+            "GET /api/v1/cockpit-v4/workspace/scenarios/scn-1708b4d49f93/results 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "scenario-back",
+          "control": "",
+          "url": "/scenarios/scn-1708b4d49f93?version=1&back=%2Fwhat-if%2Fresult%2Fres-7ab89b7f7bd2",
+          "url_after": "/what-if/result/res-7ab89b7f7bd2",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/res-7ab89b7f7bd2 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "comparison-scope-total",
+          "control": "",
+          "url": "/what-if/compare/cmp-91671a5efe85",
+          "url_after": "/what-if/compare/cmp-91671a5efe85",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "comparison-scope-selected",
+          "control": "",
+          "url": "/what-if/compare/cmp-91671a5efe85",
+          "url_after": "/what-if/compare/cmp-91671a5efe85",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "comparison-result-link",
+          "control": "",
+          "url": "/what-if/compare/cmp-91671a5efe85",
+          "url_after": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%2Fcompare%2Fcmp-91671a5efe85",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/res-66643096ff2a 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-result-back",
+          "control": "",
+          "url": "/what-if/result/res-66643096ff2a?back=%2Fwhat-if%2Fcompare%2Fcmp-91671a5efe85",
+          "url_after": "/what-if/compare/cmp-91671a5efe85",
+          "api": [
+            "GET /api/v1/cockpit-v4/workspace/objects/cmp-91671a5efe85 200"
+          ],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-start",
+          "control": "",
+          "url": "/what-if?domain=retail&scenario=scn-tpl-ret-01",
+          "url_after": "/what-if?domain=retail&scenario=scn-tpl-ret-01",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-ce41950c-c1b&domain=retail 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs 201"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-confirm",
+          "control": "",
+          "url": "/what-if?domain=retail&scenario=scn-tpl-ret-01",
+          "url_after": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-90eec3658b0b/confirm 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-ce41950c-c1b&domain=retail 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-90eec3658b0b/confirm 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-method-pick-ml",
+          "control": "",
+          "url": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b",
+          "url_after": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b",
+          "api": [],
+          "writes": [],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        },
+        {
+          "id": "whatif-run-execute",
+          "control": "",
+          "url": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b",
+          "url_after": "/what-if?domain=retail&scenario=scn-tpl-ret-01&run=wrun-90eec3658b0b",
+          "api": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-90eec3658b0b/method 200",
+            "GET /api/v1/cockpit-v4/workspace/whatif/tree?session_id=wses-ce41950c-c1b&domain=retail 200"
+          ],
+          "writes": [
+            "POST /api/v1/cockpit-v4/workspace/whatif/runs/wrun-90eec3658b0b/method 200"
+          ],
+          "failed": [],
+          "console": [],
+          "download": "",
+          "journey": "GW-CTL-METHODS"
+        }
+      ],
+      "controls_clicked": [
+        "comparison-back",
+        "comparison-result-link",
+        "comparison-scope-selected",
+        "comparison-scope-total",
+        "scenario-back",
+        "tree-compare",
+        "tree-compare-pick",
+        "tree-new-session",
+        "tree-open-run",
+        "tree-result-link",
+        "whatif-back",
+        "whatif-baseline-choose",
+        "whatif-baseline-option",
+        "whatif-bound-scenario",
+        "whatif-decomp-compact",
+        "whatif-decomp-row",
+        "whatif-load-scenario",
+        "whatif-method-pick-compare",
+        "whatif-method-pick-delta",
+        "whatif-method-pick-ml",
+        "whatif-method-pick-user_defined",
+        "whatif-result-back",
+        "whatif-result-method-delta",
+        "whatif-result-method-ml",
+        "whatif-result-method-user_defined",
+        "whatif-result-open-run",
+        "whatif-result-open-scenario",
+        "whatif-run-confirm",
+        "whatif-run-execute",
+        "whatif-run-start",
+        "whatif-scenario-pick",
+        "whatif-waterfall-selected"
+      ],
+      "urls": [
+        "/scenarios/scn-1708b4d49f93",
+        "/scenarios/scn-tpl-corp-02",
+        "/what-if",
+        "/what-if/compare/cmp-223ad67310ab",
+        "/what-if/compare/cmp-91671a5efe85",
+        "/what-if/result/res-66643096ff2a",
+        "/what-if/result/res-7ab89b7f7bd2"
+      ],
+      "console": [],
+      "http_errors": [
+        "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED",
+        "FAILED GET /api/v1/cockpit-v4/workspace/whatif/runs/wrun-f452b3eb20ef net::ERR_ABORTED"
+      ],
+      "ms": 171129
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+ "journey": "GW-CTL-METHODS",
+ "status": "FAILED",
+ "back": [
+  {
+   "path": "tree-open-run: reopens that run in What-If",
+   "origin": "/what-if?run=wrun-d303b4d42bba&domain=corporate&scenario=scn-tpl-corp-02",
+   "destination": "/what-if?run=wrun-b5be39163cc6&back=%2Fwhat-if%3Frun%3Dwrun-d303b4d42bba%26domain%3Dcorporate%26scenario%3Dscn-tpl-corp-02&domain=corporate&scenario=scn-tpl-corp-03",
+   "origin_state": {
+    "domain": "corporate",
+    "cohort": "",
+    "scenario": "scn-tpl-corp-02",
+    "filters": ""
+   },
+   "browser_back": "PASS",
+   "browser_forward": "FAILED page.waitForSelector: Timeout 120000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-testid=\"whatif-run\"][data-",
+   "in_app_target": "/what-if?run=wrun-d303b4d42bba&domain=corporate&scenario=scn-tpl-corp-02",
+   "in_app_control": "whatif-back",
+   "in_app_back": "PASS",
+   "declared_in_app_writes": [],
+   "writes_on_return": [],
+   "objects_written_on_return": "none",
+   "status": "FAILED"
+  }
+ ]
+}
