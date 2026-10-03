@@ -213,6 +213,15 @@ GATES: list[tuple] = [
      ["tests/cockpit_v4/test_gw_messages.py::"
       "test_val_def_050_an_administrator_recipient_never_changes_the_"
       "senders_object"]),
+    ("a question asked in the investigation is not offered again "
+     "(VAL-DEF-053)",
+     "backend/workspace/issues_api.py",
+     "                                 asked_under={nbq._norm(q): scope\n"
+     "                                              for q in asked},\n",
+     "",
+     ["tests/cockpit_v4/test_gw_guided.py::"
+      "test_val_def_053_a_question_asked_in_the_investigation_is_not_offered_"
+      "again"]),
 ]
 
 

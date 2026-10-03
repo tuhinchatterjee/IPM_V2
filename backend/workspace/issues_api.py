@@ -189,9 +189,15 @@ def _state(who: dict[str, Any], inv: dict[str, Any]) -> dict[str, Any]:
                 step["detail"] = step["detail"] or answered[-1][:160]
     if any(c.get("kind") == "run_whatif" for c in inv["body"].get("clicks", [])):
         path[-1]["status"] = "in_progress"
-    suggestions = (nbq.for_issue(card, answered=answered +
-                                 inv["body"].get("asked", []),
-                                 cohort_hash=inv["body"]["cohort_membership_hash"],
+    # An investigation's cohort is fixed when it opens, so every question
+    # asked in it was asked under that cohort: say so, or the ranking reads
+    # "asked under an unknown cohort" as "the cohort changed" and offers the
+    # question again (VAL-DEF-053).
+    asked = answered + inv["body"].get("asked", [])
+    scope = inv["body"]["cohort_membership_hash"]
+    suggestions = (nbq.for_issue(card, answered=asked, cohort_hash=scope,
+                                 asked_under={nbq._norm(q): scope
+                                              for q in asked},
                                  has_finding=has_finding)
                    if card else {"primary": [], "more": [], "suppressed": [],
                                  "note": "The issue is not in the current "

@@ -1,6 +1,6 @@
 # Defect register: exhaustive validation round
 
-Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 052 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
+Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 053 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
 
 **Severity:**
 - CRITICAL: wrong data, security, tenant leakage, wrong ECL or cohort, silent method execution, corruption.
@@ -70,7 +70,8 @@ Branch `claude/guided-workspace-exhaustive-validation`. The round started on evi
 | VAL-DEF-050 | HIGH | Sharing (recipient actions) | An administrator recipient changed the sender's object: opening a shared definition on their cohort revised the sender's scenario; Save on a shared Lens renamed the sender's Lens | FIXED |
 | VAL-DEF-051 | MEDIUM | What-If / Scenario Library | A link labelled with a scenario version (a result's scenario, What-If's applied scenario, a lineage ancestor) opened the latest version instead | FIXED |
 | VAL-DEF-052 | MEDIUM | Lenses | A library Lens customised as my copy opened without its origin: the copy's in-product Back went to the Lens Library, not the Lens it came from | FIXED |
-Found: 51 (1 CRITICAL, 12 HIGH, 26 MEDIUM, 12 LOW). Fixed: 50. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
+| VAL-DEF-053 | MEDIUM | Guided investigation | Answered next-best questions were never suppressed: each was re-offered as if the cohort had changed, and lower-ranked actions (Monitor in a Lens) never reached the chips shown | FIXED |
+Found: 52 (1 CRITICAL, 12 HIGH, 27 MEDIUM, 12 LOW). Fixed: 51. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
 
 ## Details
 
@@ -730,5 +731,19 @@ A run's stored contract holds the engine predicate that defines its population, 
 | Evidence | `prefix_evidence/VAL-DEF-052_lens_copy_origin.json` |
 | Files | `components/lenses/lens-view.tsx` (the copy opens with `withBack`, as every other navigation from the Lens view) |
 | Test | `GW-CTL-LENS` (`lens-edit-form` as a Back trip with the copy's identity) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-053: Answered next-best questions came back (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Investigate an issue → click the first suggested question → read the chips again |
+| Expected | The answered question is not offered again; the next suggestion moves up |
+| Actual | The same question, re-labelled "Re-offered: the active cohort changed since it was asked" although the investigation's cohort is fixed; "Monitor in a Lens" never reached the five chips shown |
+| Evidence | `prefix_evidence/VAL-DEF-053_prefix_pytest.txt`; found by `GW-CTL-THREAD`, whose save/share/monitor chip never appeared |
+| Root cause | The investigation passed the questions asked but not the cohort they were asked under; the ranking read the unknown scope as a changed cohort |
+| Files | `backend/workspace/issues_api.py` (`_state`: every asked question is under the investigation's fixed cohort) |
+| Test | `test_gw_guided.py::test_val_def_053_a_question_asked_in_the_investigation_is_not_offered_again`; mutation gate; `GW-CTL-THREAD` (the Lens Library hand-off from the investigation) |
 | Retest | PASS |
 | Disposition | FIXED |

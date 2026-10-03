@@ -1146,12 +1146,25 @@ async function methodsJourney() {
       go: (p) => p.locator(sel("tree-result-link")).first().click(),
       arrived: (p) => p.waitForSelector(`[data-testid="whatif-result"][data-result-id="${nodeResult}"]`, { timeout: 120_000 }), inApp: sel("whatif-result-back"),
     });
-    if (await page.locator(sel("tree-open-run")).count()) {
-      const href = await page.locator(sel("tree-open-run")).first().getAttribute("href");
-      const runId = /run=([^&]+)/.exec(href)[1];
+    // The tree offers "open run" for the session's unexecuted runs. Open an
+    // EXECUTED run of the session first, so the link goes somewhere else
+    // (opening the run already open is the same address).
+    const session = await page.getAttribute(sel("whatif-tree"), "data-session-id");
+    const nodes = (await api(`/whatif/tree?session_id=${encodeURIComponent(session)}&domain=corporate`)).body.nodes.filter((n) => n.kind !== "baseline");
+    const executed = nodes.find((n) => n.result_id);
+    const pending = nodes.find((n) => !n.result_id);
+    if (executed && pending) {
+      await page.goto(`${H.UI}/what-if?run=${executed.id}`, { waitUntil: "domcontentloaded" });
+      await page.waitForSelector(`[data-testid="whatif-run"][data-run-id="${executed.id}"]`, { timeout: 120_000 });
+      await page.waitForSelector(`${sel("tree-open-run")}[href*="run=${pending.id}"]`, { timeout: 120_000 });
+    }
+    const current = new URL(page.url()).searchParams.get("run") ?? "";
+    const others = await page.locator(sel("tree-open-run")).evaluateAll((els, cur) => els.map((e, i) => ({ i, run: /run=([^&]+)/.exec(e.getAttribute("href") ?? "")?.[1] ?? "" })).filter((x) => x.run && x.run !== cur), current);
+    if (others.length) {
+      const { i: pick, run: runId } = others[0];
       await navTrip(page, record, {
-        id: "tree-open-run", prereq: "session tree with an unexecuted run", expected: "reopens that run in What-If", state: H.whatifState,
-        go: (p) => p.locator(sel("tree-open-run")).first().click(),
+        id: "tree-open-run", prereq: `session tree; run ${current || "(none)"} open, opening ${runId}`, expected: "reopens that run in What-If", state: H.whatifState,
+        go: (p) => p.locator(sel("tree-open-run")).nth(pick).click(),
         arrived: (p) => p.waitForSelector(`[data-testid="whatif-run"][data-run-id="${runId}"]`, { timeout: 120_000 }), inApp: sel("whatif-back"),
       });
     }
@@ -1545,8 +1558,11 @@ async function scenarioJourney() {
         await page.waitForSelector(`${sel("scenario-combine-preview")}, ${sel("scenario-combine-save")}`, { timeout: 120_000 });
         return "named";
       } });
+      // Save is offered when no overlap needs a policy; otherwise each
+      // overlap's policy is chosen and the matrix's resolve saves.
+      const direct = (await page.locator(sel("scenario-combine-save")).count()) > 0;
       const selects = page.locator(`${sel("scenario-combine-panel")} ${sel("overlap-policy-select")}`);
-      const n = await selects.count();
+      const n = direct ? 0 : await selects.count();
       for (let i = 0; i < n; i += 1) {
         await ctl(page, record, { id: "overlap-policy-select", prereq: `overlap ${i + 1} of ${n}`, expected: "the overlap's policy is chosen from its allowed list", run: async () => {
           const opts = await selects.nth(i).locator("option").evaluateAll((o) => o.map((x) => x.value).filter(Boolean));
@@ -1580,6 +1596,10 @@ async function scenarioJourney() {
     await page.click(sel("scenario-selection-clear")).catch(() => undefined);
     const three = await combine(["CORP-01", "CORP-02", "CORP-03"], "GW-CTL combined 3");
     assert.ok(three, "three combined");
+    // A pair with no overlap needing a policy: saved directly.
+    await page.click(sel("scenario-selection-clear")).catch(() => undefined);
+    const plain = await combine(["CORP-01", "CORP-04"], "GW-CTL combined, no policy needed");
+    assert.ok(plain && plain.overlaps === 0, "saved without a policy");
     assert.ok((two.overlaps + three.overlaps) > 0, "the combinations had overlaps to resolve");
     await openLibrary(page);
     const lib = libraryState;

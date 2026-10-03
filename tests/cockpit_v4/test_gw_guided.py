@@ -250,3 +250,33 @@ def test_the_issue_feed_is_served_and_counted(client):
     one = client.get(f"{P}/issues/{feed['issues'][0]['issue_id']}").json()
     assert one["issue_id"] == feed["issues"][0]["issue_id"]
     assert "context_series" in one
+
+
+def test_val_def_053_a_question_asked_in_the_investigation_is_not_offered_again(
+        feeds, client):
+    """The investigation never told the ranking under which cohort a
+    question had been asked, so every answered question was re-offered with
+    "the active cohort changed since it was asked" -- untrue: an
+    investigation's cohort is fixed -- and lower-ranked actions (Monitor in
+    a Lens) never reached the five shown. A question asked in the
+    investigation is now suppressed, and the next suggestion moves up."""
+    card = feeds["corporate"]["issues"][0]
+    out = client.post(f"{P}/issues/{card['issue_id']}/investigate", json={})
+    assert out.status_code == 201, out.text
+    thread = out.json()["thread_id"]
+    state = client.get(f"{P}/investigations/by-thread/{thread}").json()
+    first = state["suggestions"]["primary"][0]
+    shown_before = [s["exact_request"] for s in state["suggestions"]["primary"]]
+    after = client.post(
+        f"{P}/investigations/{state['investigation_id']}/steps",
+        json={"suggestion_id": first["suggestion_id"], "kind": first["type"],
+              "question": first["exact_request"]})
+    assert after.status_code == 200, after.text
+    sugg = after.json()["suggestions"]
+    primary = [s["exact_request"] for s in sugg["primary"]]
+    assert first["exact_request"] not in primary, "not offered again"
+    assert first["exact_request"] in [s["exact_request"]
+                                      for s in sugg["suppressed"]]
+    assert not any("Re-offered" in s["rationale"]
+                   for s in sugg["primary"] + sugg["more"])
+    assert set(shown_before[1:]) <= set(primary), "the rest stay offered"
