@@ -1252,6 +1252,7 @@ async function methodsJourney() {
         assert.equal(await page.getAttribute(sel("whatif-method-ml"), "data-status"), "UNAVAILABLE");
         const reason = await page.textContent(sel("whatif-method-reason-ml"));
         assert.match(reason, /G4/);
+        const resultsBefore = (await api("/whatif/results")).body.results.length;
         await page.check(sel("whatif-method-pick-ml"));
         if (!(await page.isDisabled(sel("whatif-run-execute")))) {
           await page.click(sel("whatif-run-execute"));
@@ -1259,8 +1260,15 @@ async function methodsJourney() {
         }
         const state = await page.getAttribute(sel("whatif-run"), "data-state");
         assert.notEqual(state, "EXECUTED", "no ML result is produced");
+        // The server's record: no method ran in ML's place, no result.
+        const runId = await page.getAttribute(sel("whatif-run"), "data-run-id");
+        const server = (await api(`/whatif/runs/${runId}`)).body;
+        assert.notEqual(server.status, "EXECUTED", "the run did not execute");
+        assert.deepEqual(server.body.methods_ran ?? [], [], "no substitute method ran");
+        assert.ok(!server.body.result_id, "no result object");
+        assert.equal((await api("/whatif/results")).body.results.length, resultsBefore, "no result written");
         record.retail_ml_reason = reason.trim();
-        return `UNAVAILABLE; run state ${state}; no result`;
+        return `UNAVAILABLE; run ${runId} state ${state} (server ${server.status}); methods ran: none; no result`;
       }, reason: "Validation gate failed: G4 (worst material-group WAPE) — never substituted", expect4xx: /\/whatif\/runs\/[^/]+\/(method|execute) 4\d\d$/ });
   });
 }
@@ -3322,6 +3330,102 @@ async function responsiveJourney() {
   });
 }
 
+// =========================================================================
+// HISTORY — Back/Forward across three runs on one What-If page (VAL-DEF-038):
+// the address and the page agree at every step, fast moves included
+// =========================================================================
+
+async function historyJourney() {
+  const { journey, open, assert, api, post } = H;
+  await journey("GW-CTL-HISTORY", "What-If history: A → B → C by the session tree, then Back, Back, Forward, Forward (twice), each move made as soon as the previous one shows — URL, run, cohort, scenario, book and filters agree at every step; no model call and no write on Back/Forward", async (record) => {
+    const page = await open();
+    const session = `gw-ctl-history-${Date.now()}`;
+    await page.addInitScript((v) => sessionStorage.setItem("gw.whatif.session", v), session);
+    const tpl = async (code) => (await api(`/scenarios?domain=corporate&q=${code}`)).body.scenarios.find((c) => c.template_id === code).object_id;
+    const cohort = async (sector) => (await post("/whatif/selection/cohort", { domain: "corporate", name: `GW-CTL history ${sector}`, selection: { mode: "filtered", filters: [{ column: "sector", op: "in", values: [sector] }] } })).body.object_id;
+    const mk = async (code, sector, execute) => {
+      const scenario = await tpl(code);
+      const co = await cohort(sector);
+      let run = (await post("/whatif/runs", { scenario_id: scenario, session_id: session, cohort_id: co, baseline: { mode: "SOURCE_BASELINE" } })).body;
+      if (execute) {
+        run = (await post(`/whatif/runs/${run.object_id}/confirm`, { digest: run.body.contract.digest })).body;
+        run = (await post(`/whatif/runs/${run.object_id}/method`, { methods: ["delta"] })).body;
+        await post(`/whatif/runs/${run.object_id}/execute`, {});
+      }
+      return { id: run.object_id, cohort: co, scenario };
+    };
+    // A is executed (the tree offers "open run" for the others), B and C not.
+    const A = await mk("CORP-02", "Construction", true);
+    const B = await mk("CORP-03", "Real Estate", false);
+    const C = await mk("CORP-04", "Hospitality", false);
+    const name = { [A.id]: "A", [B.id]: "B", [C.id]: "C" };
+    const snap = () => page.evaluate(() => ({
+      url: new URLSearchParams(location.search).get("run") ?? "",
+      run: document.querySelector('[data-testid="whatif-run"]')?.getAttribute("data-run-id") ?? "",
+      cohort: document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") ?? "",
+      scenario: document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id") ?? "",
+      domain: document.querySelector('[data-testid="whatif-workspace"]')?.getAttribute("data-domain") ?? "",
+      f: new URLSearchParams(location.search).get("f"),
+    }));
+    // Shows X: the address names X and the page shows X with its cohort and
+    // scenario. Returns as soon as it does (the next move follows at once).
+    const shows = async (X, step) => {
+      await page.waitForFunction(([id, co, sc]) => {
+        const q = new URLSearchParams(location.search);
+        return q.get("run") === id && document.querySelector('[data-testid="whatif-run"]')?.getAttribute("data-run-id") === id &&
+          document.querySelector('[data-testid="whatif-strip-cohort"]')?.getAttribute("data-cohort-id") === co &&
+          document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id") === sc;
+      }, [X.id, X.cohort, X.scenario], { timeout: 60_000 }).catch(async () => {
+        const at = await snap();
+        assert.fail(`${step}: expected ${name[X.id]} (${X.id}); address names ${name[at.url] ?? at.url}, page shows run ${name[at.run] ?? at.run}, cohort ${at.cohort}, scenario ${at.scenario}`);
+      });
+      const at = await snap();
+      assert.equal(at.domain, "corporate", `${step}: book`);
+      assert.equal(at.f, null, `${step}: no filters`);
+      return `${step}: ${name[X.id]}`;
+    };
+    const counts = async () => JSON.stringify({
+      scenarios: (await api("/scenarios?owner=mine")).body.scenarios.length,
+      cohorts: (await api("/cohorts")).body.cohorts.length,
+      results: (await api("/whatif/results")).body.results.length,
+      runs: (await api(`/whatif/tree?session_id=${encodeURIComponent(session)}&domain=corporate`)).body.nodes.length,
+    });
+    await page.goto(`${H.UI}/what-if?run=${A.id}`, { waitUntil: "domcontentloaded" });
+    const steps = [await shows(A, "open A")];
+    for (const [to, step] of [[B, "A → B (tree)"], [C, "B → C (tree)"]]) {
+      await page.waitForSelector(`[data-testid="tree-open-run"][href*="run=${to.id}"]`, { timeout: 120_000 });
+      await page.click(`[data-testid="tree-open-run"][href*="run=${to.id}"]`);
+      steps.push(await shows(to, step));
+    }
+    // Back/Forward: no model call, no write. (Opening B and C above bound
+    // each template to its cohort; returning to them reuses that binding.)
+    await page.waitForLoadState("networkidle").catch(() => undefined);
+    const before = await counts();
+    const mark = page.calls.length;
+    for (let cycle = 1; cycle <= 2; cycle += 1) {
+      for (const [move, X, step] of [["back", B, "Back → B"], ["back", A, "Back → A"], ["forward", B, "Forward → B"], ["forward", C, "Forward → C"]]) {
+        if (move === "back") await page.goBack(); else await page.goForward();
+        steps.push(await shows(X, `cycle ${cycle}: ${step}`));
+      }
+      // ... and back to A again for the second cycle.
+      if (cycle === 1) { await page.goBack(); await shows(B, "reset Back → B"); await page.goBack(); await shows(A, "reset Back → A"); await page.goForward(); await shows(B, "reset Forward → B"); await page.goForward(); await shows(C, "reset Forward → C"); }
+    }
+    // Settled: still C, nothing flipped.
+    await page.waitForTimeout(2000);
+    steps.push(await shows(C, "settled on C"));
+    const calls = page.calls.slice(mark);
+    const model = calls.filter((c) => /^POST \/api\/v1\/cockpit-v4\/(runs|ask|threads)(\/|\?|$)/.test(c) || /\/execute($|\?)/.test(c));
+    const writes = calls.filter((c) => !c.startsWith("GET ") && !/\/(preview|grid\/query|grid\/group|metrics\/evaluate|sensitivity\/tornado|selection\/summary|lenses\/[^/]+\/render)(\?|$)/.test(c) && !/\/bind(\?|$)/.test(c));
+    assert.deepEqual(model, [], "no model call on Back/Forward");
+    assert.deepEqual(writes, [], "no write request on Back/Forward");
+    assert.equal(await counts(), before, "no object written on Back/Forward");
+    const history = await page.evaluate(() => (window.__gwHistory ?? []).slice(-40));
+    record.history_steps = steps;
+    record.page_history_writes = history;
+    record.controls = [...(record.controls ?? []), { id: "check:history-a-b-c", result: "PASS", prereq: `runs A ${A.id}, B ${B.id}, C ${C.id} in session ${session}`, action: "A → B → C, then Back, Back, Forward, Forward, twice", expected: "URL, run, cohort, scenario, book and filters agree at every step; no model call; no write", observed: `${steps.length} steps: ${steps.join("; ")}`.slice(0, 900) }];
+  });
+}
+
 export async function controlJourneys(helpers) {
   H = helpers;
   await naJourney();
@@ -3331,6 +3435,7 @@ export async function controlJourneys(helpers) {
   await ewJourney();
   await whatifJourney();
   await methodsJourney();
+  await historyJourney();
   await gridJourney();
   await scenarioJourney();
   await builderJourney();

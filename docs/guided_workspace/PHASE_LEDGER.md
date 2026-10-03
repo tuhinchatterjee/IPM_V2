@@ -1054,6 +1054,26 @@ The performance smoke (`validation/perf_smoke.json`) was measured on the working
 
 ---
 
+## C — Interaction-coverage closure (candidate L)
+
+**Lineage.** Work continues on `claude/guided-workspace-exhaustive-validation` directly on K's evidence commit; nothing was rebased or force-pushed. The proof was taken before L was cut:
+
+| Check | Result |
+|---|---|
+| `git merge-base --is-ancestor 62ba4dda50363b7700849ff9e11a4731d118f11b HEAD` (candidate K) | exit 0: K is an ancestor |
+| `git merge-base --is-ancestor 510f5c833e872232a6384fc58c62724db8e96b54 HEAD` (K's evidence commit) | exit 0: an ancestor |
+| History from K | linear: `62ba4dda` → `510f5c83` → the round's commits |
+
+`57e4cf4f` (the P15 record on `claude/eager-keller-7ue2yk`) is an older ancestor, three branch points back; the round is not based on it. The exact output is published with the evidence (`evidence/ancestry_candidate_L.txt`).
+
+**Scope.** Every UI control, route, integration handoff, Back/Forward path and interactive chart was executed in the browser (`GW-CTL-*`, 21 journeys) and joined to the source inventory by `scripts/guided_workspace/control_execution.py`. A control is closed only as PASS, BLOCKED_WITH_GOVERNED_REASON or NOT_APPLICABLE_WITH_PROOF. One never-rendered control (`ResultLink`, exported but used nowhere) was removed from the source, so the inventory counts 394 controls, one fewer than before.
+
+**Defects.** VAL-DEF-024, 025 and 026 (via 032) were fixed; 027 was accepted by design; VAL-DEF-032 to 053 were found by the execution and fixed (see `validation/DEFECT_REGISTER.md`; pre-fix records in `validation/prefix_evidence/`). Each backend fix has a regression test that fails on the pre-fix code and a pytest mutation gate. The What-If Back/Forward guard (VAL-DEF-038) has a browser mutation gate: `scripts/guided_workspace/browser_mutation_gates.py` puts the pre-fix address sync back and requires `GW-CTL-HISTORY` (A → B → C, Back, Back, Forward, Forward, twice) to fail.
+
+**Results.** Measured on candidate L by the regression of record (see `validation/VALIDATION_REPORT.md`).
+
+---
+
 ## Baseline counts (H2 `feb80f58`, isolated worktree `/home/user/baseline_wt`, no round code)
 
 Protocol fixed at P0 and reused at P13: the V4 + frontend suites run on the ACCEPTED

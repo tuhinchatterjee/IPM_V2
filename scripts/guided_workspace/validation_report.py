@@ -194,6 +194,48 @@ def main() -> int:
     w(f"| Plotly interaction contracts | {inv.get('plotly_contracts', 0)} | "
       f"{json.dumps(inv.get('plotly_contracts_by_status', {}))} |")
     w("")
+    by = inv["controls_by_status"]
+    closed = sum(by.get(k, 0) for k in CLOSED)
+    w("### Control closure (measured after cleanup)")
+    w("")
+    w("| Measure | Count |")
+    w("|---|---|")
+    w(f"| Total controls discovered in source | {inv['controls']} |")
+    w(f"| With runtime evidence (executed, or proven not rendered) | "
+      f"{closed} |")
+    w(f"| PASS | {by.get('PASS', 0)} |")
+    w(f"| BLOCKED_WITH_GOVERNED_REASON | "
+      f"{by.get('BLOCKED_WITH_GOVERNED_REASON', 0)} |")
+    w(f"| NOT_APPLICABLE_WITH_PROOF | "
+      f"{by.get('NOT_APPLICABLE_WITH_PROOF', 0)} |")
+    w(f"| FAILED | {by.get('FAILED', 0)} |")
+    w(f"| Not exercised (open) | {inv['controls'] - closed - by.get('FAILED', 0)} |")
+    w("")
+    w(f"PASS + BLOCKED + N/A = {closed} of {inv['controls']} discovered"
+      f"{'' if closed == inv['controls'] else ' (NOT CLOSED)'}. The count "
+      "is what the scanner finds in the candidate's source; a control that "
+      "is never rendered is removed from the source, not counted as "
+      "exercised.")
+    w("")
+    blocked = []
+    matrix_csv = v / "UI_CONTROL_EXECUTION_MATRIX.csv"
+    if matrix_csv.exists():
+        import csv
+        for row in csv.DictReader(matrix_csv.open(encoding="utf-8")):
+            if "BLOCKED_WITH_GOVERNED_REASON" in (row.get("results_seen") or
+                                                  row.get("status") or ""):
+                reason = row["observed"].split("reason shown: ")
+                blocked.append((row["testid"], row["status"],
+                                reason[-1][:220] if len(reason) > 1 else
+                                row["observed"][:220]))
+    if blocked:
+        w("Controls refused with a governed reason (the reason as shown):")
+        w("")
+        w("| Control | Row status | Governed reason |")
+        w("|---|---|---|")
+        for tid, st, why in blocked:
+            w(f"| `{tid}` | {st} | {why.replace('|', '/')} |")
+        w("")
     w("Control applicability under the enabled configuration (V4 and the "
       "guided workspace on): "
       f"{json.dumps(inv.get('controls_by_applicability', {}))}.")
@@ -246,6 +288,14 @@ def main() -> int:
     mg = res.get("mutation_gates") or {}
     w(f"Mutation gates: {sum(1 for x in mg.values() if x == 'KILLED')} of "
       f"{len(mg)} killed.")
+    bg_file = ROOT / "docs/guided_workspace/evidence/browser_mutation_gates.json"
+    if bg_file.exists():
+        bg = json.loads(bg_file.read_text())
+        w(f"Browser mutation gates: "
+          f"{sum(1 for g in bg['gates'] if g['result'] == 'KILLED')} of "
+          f"{len(bg['gates'])} killed ("
+          + "; ".join(f"{g['gate']}: {g['result']}" for g in bg["gates"])
+          + ").")
     w("")
     w("## Performance smoke (this machine, warm, sequential)")
     w("")
