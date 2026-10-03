@@ -1,4 +1,4 @@
-# Guided Risk Workspace — handoff (P15, updated P16)
+# Guided Risk Workspace — handoff (P15, updated through candidate L)
 
 | Item | Value |
 |---|---|
@@ -9,14 +9,16 @@
 | Record | `PHASE_LEDGER.md` (per phase, measured), `REQUIREMENT_MATRIX.md` (generated, 325 ids), `PROTECTED_EXTENSION_MAP.md`, `BASELINE_PROVENANCE.md` |
 | Acceptance gate still open | The Mac live-provider UAT (`MAC_LIVE_UAT.md`): a paid provider run, the user's decision |
 
-**Final regression of record (exhaustive validation round):** candidate K `62ba4dda50363b7700849ff9e11a4731d118f11b` (`evidence/final_regression_62ba4dda5036/`).
-- **Steps:** 17 of 18 PASS, 1 BLOCKED_ENV (emulator pickle bytes).
-- **Guided browser suite:** 82/82, including 22 back-navigation and 10 GOLD cross-module journeys.
-- **Validation matrix:** 32 PASS, 2 BLOCKED (emulator bytes; live provider).
-- **Defects:** 31 found; all 10 CRITICAL/HIGH fixed; 4 LOW open.
-- **Mutation gates:** 18 of 18 killed.
-- **Records:** `validation/VALIDATION_REPORT.md`, `validation/DEFECT_REGISTER.md`, `validation/FINAL_UAT_READINESS.md`.
-- **Rejected candidates:** I (`fc8754a1`, an evidence-label meta-test) and J (`84b0ca12`, a harness race); both runs are kept as measured.
+**Final regression of record (interaction-coverage closure):** candidate L `271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6` (`evidence/final_regression_271381b6bcf0/`), run from a fresh detached clone. Candidate K and its evidence commit are ancestors (`evidence/ancestry_candidate_L.txt`).
+- **Steps:** 17 of 18 PASS, 1 BLOCKED_ENV (emulator pickle bytes, as at H and K). No unexpected failure.
+- **Browser suites:** guided 103/103 (22 back-navigation, 10 GOLD, 21 control-execution journeys), What-If candidate 15/15 per book, flags-OFF accepted 76/76.
+- **Controls:** 394 discovered; 284 PASS, 2 BLOCKED_WITH_GOVERNED_REASON, 108 NOT_APPLICABLE_WITH_PROOF, 0 FAILED, 0 unexercised. Routes 27/27, handoffs 41/41, Back paths 109/109, Plotly 70 render rows and 44 interaction contracts PASS.
+- **Validation matrix:** 32 PASS, 2 BLOCKED (emulator bytes; live provider). **Requirement matrix:** 293 PASS, 26 PARTIAL, 6 BLOCKED, 0 FAILED.
+- **Defects:** 53 found (1 CRITICAL, 13 HIGH, 27 MEDIUM, 12 LOW); 52 fixed; 1 LOW open, accepted by design (VAL-DEF-027).
+- **Mutation gates:** 28 of 28 killed; browser mutation gate 1 of 1 killed.
+- **Records:** `validation/VALIDATION_REPORT.md`, `validation/UI_CONTROL_EXECUTION_MATRIX.csv`, `validation/DEFECT_REGISTER.md`, `validation/FINAL_UAT_READINESS.md`.
+
+**Previous regression of record:** candidate K `62ba4dda50363b7700849ff9e11a4731d118f11b` (`evidence/final_regression_62ba4dda5036/`): 17 of 18 PASS, 1 BLOCKED_ENV; guided 82/82; 31 defects found. Rejected candidates I (`fc8754a1`) and J (`84b0ca12`) are kept as measured.
 
 **Previous regression of record:** candidate H `8b1592f46b06d03cec089d5b49cb93280b819993` (`evidence/final_regression_8b1592f46b06/`).
 - **Steps:** 16 of 17 PASS, 1 BLOCKED_ENV (emulator pickle bytes), 0 unexpected failures. Browser journeys: Guided Workspace 48/48, What-If 15/15 per book, accepted suite 76/76 with the flags off.

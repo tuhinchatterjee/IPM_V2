@@ -1,12 +1,12 @@
 # Exhaustive validation report
 
-Generated 2026-10-02T22:21:55Z by `scripts/guided_workspace/validation_report.py`; every figure below is read from a measured file.
+Generated 2026-10-03T15:43:15Z by `scripts/guided_workspace/validation_report.py`; every figure below is read from a measured file.
 
 | Item | Value |
 |---|---|
 | Validation branch | `claude/guided-workspace-exhaustive-validation` |
 | Starting candidate H | `8b1592f46b06d03cec089d5b49cb93280b819993` |
-| Final candidate (regression of record) | `62ba4dda50363b7700849ff9e11a4731d118f11b` |
+| Final candidate (regression of record) | `271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6` |
 | Evidence commit | the commit that adds this file (the next commit after the candidate on the branch) |
 | Round started | 2026-10-02T16:22:29Z |
 | Environment | Linux container; Python 3.12.3 (accepted `/home/user/.venv312`, candidate ML `.venv-whatif`); Node 22; Next.js 16.3.2; Chromium (Playwright) |
@@ -17,44 +17,70 @@ Generated 2026-10-02T22:21:55Z by `scripts/guided_workspace/validation_report.py
 
 | Step | Status | Tests | Failed | Skipped | Seconds |
 |---|---|---|---|---|---|
-| v4_backend_and_frontend_py_accepted | PASS | 4847 | 3 | 39 | 1567.8 |
-| whatif_suite_whatif_venv | PASS | 1446 | 9 | 2 | 593.9 |
-| v3_cockpit_agentic | PASS | 590 | 1 | 0 | 148.8 |
-| llm_adapters | PASS | 25 | 0 | 8 | 6.6 |
-| frontend_unit | PASS | 669 | 0 | 0 | 6.7 |
-| frontend_typecheck | PASS |  |  |  | 16.7 |
-| frontend_lint_new_code | PASS |  |  |  | 33.3 |
+| v4_backend_and_frontend_py_accepted | PASS | 4857 | 3 | 39 | 1837.4 |
+| whatif_suite_whatif_venv | PASS | 1456 | 9 | 2 | 717.9 |
+| v3_cockpit_agentic | PASS | 590 | 1 | 0 | 183.0 |
+| llm_adapters | PASS | 25 | 0 | 8 | 7.3 |
+| frontend_unit | PASS | 670 | 0 | 0 | 8.8 |
+| frontend_typecheck | PASS |  |  |  | 18.1 |
+| frontend_lint_new_code | PASS |  |  |  | 35.2 |
 | python_lint_round_code | PASS |  |  |  | 0.1 |
-| protected_baseline_round | PASS |  |  |  | 0.4 |
-| protected_hashes_accepted_tool | PASS |  |  |  | 0.3 |
-| release_fingerprints | PASS |  |  |  | 0.8 |
-| release_report_digests | PASS |  |  |  | 26.5 |
-| sensitivity_libraries_reproduce | PASS |  |  |  | 50.7 |
-| emulator_artifacts_reproduce | BLOCKED_ENV |  |  |  | 536.3 |
-| gw_browser_journeys_clean_store | PASS |  |  |  | 1114.1 |
-| validation_inventory_runtime | PASS |  |  |  | 0.3 |
-| whatif_candidate_browser | PASS |  |  |  | 140.3 |
-| accepted_browser_suite_flags_off | PASS |  |  |  | 200.2 |
+| protected_baseline_round | PASS |  |  |  | 0.7 |
+| protected_hashes_accepted_tool | PASS |  |  |  | 0.7 |
+| release_fingerprints | PASS |  |  |  | 1.2 |
+| release_report_digests | PASS |  |  |  | 38.8 |
+| sensitivity_libraries_reproduce | PASS |  |  |  | 62.6 |
+| emulator_artifacts_reproduce | BLOCKED_ENV |  |  |  | 620.3 |
+| gw_browser_journeys_clean_store | PASS |  |  |  | 2064.9 |
+| validation_inventory_runtime | PASS |  |  |  | 1.3 |
+| whatif_candidate_browser | PASS |  |  |  | 153.9 |
+| accepted_browser_suite_flags_off | PASS |  |  |  | 215.2 |
 
 Failures counted in a PASS step are the pre-existing baseline failures the step's known list names (unchanged from candidate H); each step's detail is in its log.
 
 ## Browser journeys
 
-- Guided Workspace suite: **82/82** PASS (MODEL MOCK).
+- Guided Workspace suite: **103/103** PASS (MODEL MOCK).
 - GOLD cross-module journeys: 10 run: GW-GOLD-01, GW-GOLD-02, GW-GOLD-03, GW-GOLD-04, GW-GOLD-05, GW-GOLD-06, GW-GOLD-07, GW-GOLD-08, GW-GOLD-09, GW-GOLD-10.
-- Back-navigation journeys: 22 (23 matrix rows, by status {"PASS": 23}).
+- Back-navigation journeys: 22 (109 matrix rows, by status {"PASS": 109}).
 
 ## Inventories
 
 | Inventory | Rows | By status |
 |---|---|---|
-| Routes | 27 | {"PASS": 25, "PARTIAL": 2} |
-| Interactive controls | 395 (with test id 204; exercised 101) | {"PASS": 101, "PARTIAL": 294} |
-| API functions | 107 | {"PASS": 107} |
-| Integration handoffs | 41 (carrying their origin 41) | {"PASS": 39, "PARTIAL": 2} |
-| Plotly chart audit rows | 70 | {"PASS": 70} |
+| Routes | 27 | {"PASS": 27} |
+| Interactive controls | 394 (with test id 282; clicked at runtime 221) | {"PASS": 284, "BLOCKED_WITH_GOVERNED_REASON": 2, "NOT_APPLICABLE_WITH_PROOF": 108} |
+| API functions | 108 | {"PASS": 108} |
+| Integration handoffs | 41 (carrying their origin 41) | {"PASS": 41} |
+| Back paths (one per navigating control) | 109 | {"PASS": 109} |
+| Plotly chart render audit | 70 | {"PASS": 70} |
+| Plotly interaction contracts | 44 | {"PASS": 44} |
 
-A control is EXERCISED only when a browser journey clicked an element carrying its test id (recorded at runtime); a PARTIAL control is present and wired in source but was not clicked in the run.
+### Control closure (measured after cleanup)
+
+| Measure | Count |
+|---|---|
+| Total controls discovered in source | 394 |
+| With runtime evidence (executed, or proven not rendered) | 394 |
+| PASS | 284 |
+| BLOCKED_WITH_GOVERNED_REASON | 2 |
+| NOT_APPLICABLE_WITH_PROOF | 108 |
+| FAILED | 0 |
+| Not exercised (open) | 0 |
+
+PASS + BLOCKED + N/A = 394 of 394 discovered. The count is what the scanner finds in the candidate's source; a control that is never rendered is removed from the source, not counted as exercised.
+
+Controls refused with a governed reason (the reason as shown):
+
+| Control | Row status | Governed reason |
+|---|---|---|
+| `whatif-method-pick-${m.id}` | PASS | Validation gate failed: G4 (worst material-group WAPE) — never substituted |
+| `whatif-run-execute` | BLOCKED_WITH_GOVERNED_REASON | No method is preselected. Nothing runs until you choose one. |
+| `lab-provider-test` | BLOCKED_WITH_GOVERNED_REASON | Not configured: needs COCKPIT_ANTHROPIC_API_KEY / Not configured: needs CREDITPROBE_MODEL_LAB_OPENWEIGHT_URL and CREDITPROBE_MODEL_LAB_OPENWEIGHT_MODEL |
+
+Control applicability under the enabled configuration (V4 and the guided workspace on): {"REACHABLE": 286, "LEGACY": 108}.
+
+A control is PASS only when a browser journey executed it (an element carrying its test id was clicked, typed into or hovered) and the journey asserted its result: the API calls in its window, the writes it made, the console, the resulting route and its Back. BLOCKED_WITH_GOVERNED_REASON means the control was clicked and the product refused with its governed reason. NOT_APPLICABLE_WITH_PROOF means a journey proved the control's surface is not rendered under the enabled configuration. Each row's evidence is in `UI_CONTROL_EXECUTION_MATRIX.csv`.
 
 ## Validation matrix
 
@@ -105,9 +131,9 @@ Area status counts: {"PASS": 32, "BLOCKED": 2}. Evidence per row: `VALIDATION_MA
 
 ## Defects
 
-- Found: 31 ({"HIGH": 9, "MEDIUM": 12, "LOW": 9, "CRITICAL": 1}).
-- Fixed: 27.
-- Remaining: 4 ({"LOW": 4}). Detail: `DEFECT_REGISTER.md`.
+- Found: 53 ({"HIGH": 13, "MEDIUM": 27, "LOW": 12, "CRITICAL": 1}).
+- Fixed: 52.
+- Remaining: 1 ({"LOW": 1}). Detail: `DEFECT_REGISTER.md`.
 
 ## Security, isolation, reconciliation
 
@@ -115,7 +141,8 @@ Area status counts: {"PASS": 32, "BLOCKED": 2}. Evidence per row: `VALIDATION_MA
 - ECL reconciliation (independent oracle): **PASS**: v4_accepted.xml:test_gw_ecl_reconciliation.py 6 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_ecl_reconciliation.py 6 tests, 0 failed, 0 skipped | v4_accepted.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_decomposition.py 15 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_ml_decomposition.py 3 tests, 0 failed, 0 skipped | GW-P6-01*: 1/1 PASS | GW-P13-04*: 1/1 PASS
 - Release fingerprints and seeds: **PASS**: v4_accepted.xml:test_gw_uat_preflight.py 19 tests, 0 failed, 0 skipped | whatif_venv.xml:test_gw_uat_preflight.py 19 tests, 0 failed, 0 skipped | step release_fingerprints: PASS | step release_report_digests: PASS | step sensitivity_libraries_reproduce: PASS | step protected_baseline_round: PASS
 
-Mutation gates: 18 of 18 killed.
+Mutation gates: 28 of 28 killed.
+Browser mutation gates: 1 of 1 killed (the address sync never writes stale state onto a navigated entry (VAL-DEF-038): KILLED).
 
 ## Performance smoke (this machine, warm, sequential)
 
@@ -163,6 +190,11 @@ BLOCKED / PENDING_LIVE: live-provider use is not authorised in this environment 
 | tenant isolation passes | PASS | VAL-23 |
 | Guided Workspace regression passes | PASS | REG-WI |
 | flags-OFF accepted regression passes | PASS | REG-BR |
+| every UI control executed at runtime (PASS, governed BLOCKED or N/A with proof) | PASS | controls_by_status {"PASS": 284, "BLOCKED_WITH_GOVERNED_REASON": 2, "NOT_APPLICABLE_WITH_PROOF": 108} |
+| every route checked: direct, refresh, Back/Forward, in-product Back, invalid and stale ids | PASS | routes_by_status {"PASS": 27} |
+| every integration handoff keeps its object identity, writes only what it should and Back restores the source | PASS | handoffs_by_status {"PASS": 41} |
+| every navigating control has a passing Back record | PASS | back_by_status {"PASS": 109} |
+| every interactive chart meets its interaction contract | PASS | plotly_contracts_by_status {"PASS": 44} |
 
 **READY FOR MAC LIVE UAT**
 
@@ -171,7 +203,7 @@ BLOCKED / PENDING_LIVE: live-provider use is not authorised in this environment 
 ```bash
 git checkout --detach 8b1592f46b06d03cec089d5b49cb93280b819993   # candidate H, unchanged
 # or keep the branch and revert this round's commits:
-git revert --no-edit 55bfb9a4..62ba4dda5036
+git revert --no-edit 55bfb9a4..271381b6bcf0
 ```
 
 ## Mac launch / UAT

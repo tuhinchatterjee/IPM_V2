@@ -1,5 +1,5 @@
 {
-  "expected_guided_uat_sha": "62ba4dda50363b7700849ff9e11a4731d118f11b",
+  "expected_guided_uat_sha": "271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6",
   "branch": "claude/guided-workspace-exhaustive-validation",
   "tag": null,
   "regression_status": "PASS_WITH_BLOCKED_ENV",
@@ -23,7 +23,7 @@
     "whatif_candidate_browser": "PASS",
     "accepted_browser_suite_flags_off": "PASS"
   },
-  "regression_record": "docs/guided_workspace/evidence/final_regression_62ba4dda5036/summary.json",
+  "regression_record": "docs/guided_workspace/evidence/final_regression_271381b6bcf0/summary.json",
   "seed_digests": {
     "scenario_templates": "b257bb00cb9636cefc3fb6d720dc6fa898370cdb0c0ac18969af6ff7a375e6da",
     "lenses": "055c4e6aaad7c7e6fbe32078c5ee99f63b0ee19a43f798988d4a82bdd59a6427",

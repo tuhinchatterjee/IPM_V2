@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-02T18:10:21Z",
+  "at": "2026-10-03T13:58:52Z",
   "gates": [
     {
       "gate": "tenant isolation (access rule)",
@@ -10,8 +10,8 @@
         "tests/cockpit_v4/test_gw_whatif.py::test_another_tenants_cohort_cannot_be_named"
       ],
       "interpreter": "accepted",
-      "clean_run": "3 passed in 2.58s",
-      "mutated_run": "1 failed, 1 passed in 0.85s",
+      "clean_run": "3 passed in 4.21s",
+      "mutated_run": "1 failed, 1 passed in 1.42s",
       "restored": true,
       "result": "KILLED"
     },
@@ -22,8 +22,8 @@
         "tests/cockpit_v4/test_gw_objects.py::test_tenant_wide_objects_stay_inside_their_tenant"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 1.76s",
-      "mutated_run": "1 failed in 0.78s",
+      "clean_run": "1 passed in 0.81s",
+      "mutated_run": "1 failed in 0.89s",
       "restored": true,
       "result": "KILLED"
     },
@@ -35,8 +35,8 @@
         "tests/cockpit_v4/test_gw_runs.py::test_an_empty_method_choice_stays_at_method_selection"
       ],
       "interpreter": "accepted",
-      "clean_run": "2 passed in 2.94s",
-      "mutated_run": "1 failed, 1 passed in 2.93s",
+      "clean_run": "2 passed in 3.12s",
+      "mutated_run": "1 failed, 1 passed in 3.14s",
       "restored": true,
       "result": "KILLED"
     },
@@ -47,8 +47,8 @@
         "tests/cockpit_v4/test_gw_runs.py::test_branches_a_b_ab_abc_persist_their_lineage"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 7.10s",
-      "mutated_run": "1 failed in 5.70s",
+      "clean_run": "1 passed in 6.03s",
+      "mutated_run": "1 failed in 6.01s",
       "restored": true,
       "result": "KILLED"
     },
@@ -59,7 +59,7 @@
         "tests/cockpit_v4/test_gw_metrics.py::test_book_formulas_reconcile_to_a_python_recomputation"
       ],
       "interpreter": "accepted",
-      "clean_run": "2 passed in 4.13s",
+      "clean_run": "2 passed in 4.14s",
       "mutated_run": "1 failed in 2.09s",
       "restored": true,
       "result": "KILLED"
@@ -71,8 +71,8 @@
         "tests/cockpit_v4/test_gw_monitoring.py::test_threshold_comparisons_are_exact"
       ],
       "interpreter": "accepted",
-      "clean_run": "12 passed in 0.65s",
-      "mutated_run": "1 failed, 1 passed in 0.77s",
+      "clean_run": "12 passed in 0.86s",
+      "mutated_run": "1 failed, 1 passed in 0.89s",
       "restored": true,
       "result": "KILLED"
     },
@@ -84,8 +84,8 @@
         "tests/cockpit_v4/test_gw_secret_leak.py::test_no_canary_reaches_any_store_file"
       ],
       "interpreter": "accepted",
-      "clean_run": "2 passed in 7.33s",
-      "mutated_run": "1 failed in 0.97s",
+      "clean_run": "2 passed in 6.63s",
+      "mutated_run": "1 failed in 0.96s",
       "restored": true,
       "result": "KILLED"
     },
@@ -96,8 +96,8 @@
         "tests/cockpit_v4/test_gw_whatif.py::test_adoption_refuses_a_moved_membership"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 2.16s",
-      "mutated_run": "1 failed in 2.64s",
+      "clean_run": "1 passed in 2.02s",
+      "mutated_run": "1 failed in 2.10s",
       "restored": true,
       "result": "KILLED"
     },
@@ -108,8 +108,8 @@
         "tests/cockpit_v4/test_gw_v4_secret_persistence.py::test_no_secret_bytes_in_the_database_wal_or_shm"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 1.77s",
-      "mutated_run": "1 failed in 1.69s",
+      "clean_run": "1 passed in 1.82s",
+      "mutated_run": "1 failed in 1.95s",
       "restored": true,
       "result": "KILLED"
     },
@@ -120,8 +120,8 @@
         "tests/cockpit_v4/test_gw_trace.py::test_every_governed_write_is_chained_and_verifies"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 0.86s",
-      "mutated_run": "1 failed in 0.77s",
+      "clean_run": "1 passed in 0.91s",
+      "mutated_run": "1 failed in 1.09s",
       "restored": true,
       "result": "KILLED"
     },
@@ -132,8 +132,8 @@
         "tests/cockpit_v4/test_gw_macro_tornado.py::test_signs_are_preserved_as_fitted"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 2.11s",
-      "mutated_run": "1 failed in 2.21s",
+      "clean_run": "1 passed in 2.40s",
+      "mutated_run": "1 failed in 2.28s",
       "restored": true,
       "result": "KILLED"
     },
@@ -144,8 +144,8 @@
         "tests/cockpit_v4/test_whatif_bridge.py::test_p9b_a_feature_never_appears_as_an_attribution_driver"
       ],
       "interpreter": "candidate (.venv-whatif)",
-      "clean_run": "1 passed, 14 warnings in 3.98s",
-      "mutated_run": "1 failed, 14 warnings in 3.80s",
+      "clean_run": "1 passed, 14 warnings in 3.93s",
+      "mutated_run": "1 failed, 14 warnings in 4.15s",
       "restored": true,
       "result": "KILLED"
     },
@@ -156,8 +156,8 @@
         "tests/cockpit_v4/test_gw_lens_content.py::test_m069_reasons_match_each_rule_recomputed"
       ],
       "interpreter": "accepted",
-      "clean_run": "2 passed in 3.71s",
-      "mutated_run": "1 failed in 2.08s",
+      "clean_run": "2 passed in 4.10s",
+      "mutated_run": "1 failed in 2.31s",
       "restored": true,
       "result": "KILLED"
     },
@@ -168,8 +168,8 @@
         "tests/cockpit_v4/test_gw_runs.py::test_decomp21_selected_scope_equal_to_the_book_is_one_population"
       ],
       "interpreter": "accepted",
-      "clean_run": "2 passed in 3.95s",
-      "mutated_run": "1 failed, 1 passed in 3.50s",
+      "clean_run": "2 passed in 3.92s",
+      "mutated_run": "1 failed, 1 passed in 3.94s",
       "restored": true,
       "result": "KILLED"
     },
@@ -181,8 +181,8 @@
         "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_010_a_retired_scenario_is_not_run"
       ],
       "interpreter": "accepted",
-      "clean_run": "2 passed in 4.28s",
-      "mutated_run": "1 failed in 4.10s",
+      "clean_run": "2 passed in 4.36s",
+      "mutated_run": "1 failed in 4.21s",
       "restored": true,
       "result": "KILLED"
     },
@@ -193,8 +193,8 @@
         "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_016_rebinding_reuses_the_binding"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 4.40s",
-      "mutated_run": "1 failed in 4.01s",
+      "clean_run": "1 passed in 4.28s",
+      "mutated_run": "1 failed in 4.27s",
       "restored": true,
       "result": "KILLED"
     },
@@ -205,8 +205,8 @@
         "tests/cockpit_v4/test_gw_validation_defects.py::test_an_unevaluable_lens_rule_is_refused_on_save"
       ],
       "interpreter": "accepted",
-      "clean_run": "5 passed in 10.21s",
-      "mutated_run": "1 failed in 5.07s",
+      "clean_run": "5 passed in 10.65s",
+      "mutated_run": "1 failed in 5.55s",
       "restored": true,
       "result": "KILLED"
     },
@@ -217,8 +217,128 @@
         "tests/cockpit_v4/test_gw_validation_defects.py::test_a_wrong_type_filter_value_is_422_in_plain_words"
       ],
       "interpreter": "accepted",
-      "clean_run": "1 passed in 2.30s",
-      "mutated_run": "1 failed in 2.74s",
+      "clean_run": "1 passed in 2.44s",
+      "mutated_run": "1 failed in 3.10s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a malformed request is the governed envelope (VAL-DEF-024)",
+      "file": "backend/workspace/errors.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_024_a_malformed_request_is_the_governed_envelope"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 2.72s",
+      "mutated_run": "1 failed in 1.49s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a Lens reads directly by id (VAL-DEF-025)",
+      "file": "backend/workspace/lenses_api.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_025_a_lens_reads_directly_by_id"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 6.25s",
+      "mutated_run": "1 failed in 1.34s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a long execution does not stall other requests (VAL-DEF-036)",
+      "file": "backend/workspace/runs_api.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_036_a_long_execution_does_not_stall_other_requests"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 4.30s",
+      "mutated_run": "1 failed in 4.73s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "workspace reads use their own connection (VAL-DEF-037)",
+      "file": "backend/workspace/access.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 8.93s",
+      "mutated_run": "1 failed in 3.04s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "an empty population is a tornado state (VAL-DEF-043)",
+      "file": "backend/workspace/macro_sensitivity.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 2.65s",
+      "mutated_run": "1 failed in 2.61s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "adopting a conversation's cohort again is the same cohort (VAL-DEF-049)",
+      "file": "backend/workspace/whatif.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_whatif.py::test_val_def_049_adopting_a_conversation_cohort_again_is_the_same_cohort"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 2.62s",
+      "mutated_run": "1 failed in 2.50s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a recipient never changes the sender's scenario (VAL-DEF-050)",
+      "file": "backend/workspace/scenarios.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_messages.py::test_val_def_050_an_administrator_recipient_never_changes_the_senders_object"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 6.04s",
+      "mutated_run": "1 failed in 2.77s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a recipient's Lens save is a copy (VAL-DEF-050)",
+      "file": "backend/workspace/messages.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_messages.py::test_val_def_050_an_administrator_recipient_never_changes_the_senders_object"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 6.45s",
+      "mutated_run": "1 failed in 6.93s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a question asked in the investigation is not offered again (VAL-DEF-053)",
+      "file": "backend/workspace/issues_api.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_guided.py::test_val_def_053_a_question_asked_in_the_investigation_is_not_offered_again"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 16.51s",
+      "mutated_run": "1 failed in 17.52s",
+      "restored": true,
+      "result": "KILLED"
+    },
+    {
+      "gate": "a non-scenario id on a scenario route is refused (VAL-DEF-054)",
+      "file": "backend/workspace/scenarios.py",
+      "named_tests": [
+        "tests/cockpit_v4/test_gw_validation_defects.py::test_val_def_054_a_non_scenario_id_on_a_scenario_route_is_refused"
+      ],
+      "interpreter": "accepted",
+      "clean_run": "1 passed in 4.31s",
+      "mutated_run": "1 failed in 5.10s",
       "restored": true,
       "result": "KILLED"
     }

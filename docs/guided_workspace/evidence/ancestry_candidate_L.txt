@@ -1,0 +1,21 @@
+candidate L ancestry check 2026-10-03T14:01:37Z
+branch: claude/guided-workspace-exhaustive-validation
+candidate L: 271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6
+remote: 271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6
+git merge-base --is-ancestor 62ba4dda50363b7700849ff9e11a4731d118f11b 271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6 -> exit 0
+git merge-base --is-ancestor 510f5c833e872232a6384fc58c62724db8e96b54 271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6 -> exit 0
+tags at L: 0
+status lines: 0
+* 271381b6 Control suite: a run descendant opens in What-If, whose idempotent bind is declared
+* 0836d040 Scenario routes refuse non-scenario ids; lineage descendants open by kind (not a candidate)
+* dda2eff5 Interaction-coverage closure: history journey, browser mutation gate, Retail ML server proof, ledger with ancestry proof (not a candidate)
+* b5a80efb What-If Back/Forward between runs: the address sync never writes stale state onto a navigated entry (not a candidate)
+* 26af42f6 Interaction-coverage closure: answered investigation questions suppressed; deterministic tree and combine trips (not a candidate)
+* 264227bf Interaction-coverage closure: version-true scenario links, Lens copy origin, Back trips for creation controls (not a candidate)
+* 187a6232 Interaction-coverage closure: recipient-safety and idempotency fixes, register (not a candidate)
+* 0215615e Interaction-coverage closure: defect fixes in progress (not a candidate)
+* 13c5079b Control suite: the descendant-link check follows the lineage the API lists
+* f4340acd Control suite: the Monitoring view check waits for the address
+* 9b46c2e6 Interaction-coverage closure: work in progress (not a candidate)
+* 510f5c83 Record the exhaustive validation round: regression of record on candidate K (62ba4dda)
+* 62ba4dda Exhaustive validation: candidate K

@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-03T14:01:27Z",
+  "gates": [
+    {
+      "gate": "the address sync never writes stale state onto a navigated entry (VAL-DEF-038)",
+      "file": "frontend/src/components/whatif/whatif-workspace.tsx",
+      "journey": "^GW-CTL-HISTORY$",
+      "clean_run": {
+        "passed": true,
+        "tail": "ok   GW-CTL-HISTORY  What-If history: A \u2192 B \u2192 C by the session tree, then Back, Back, Forward, Forward (twice), each move made as soon as the previous one shows \u2014 URL, run, cohort, scenario, book and filters agree at every step; no model call and no write on Back/Forward | 1/1 journeys passed this run"
+      },
+      "mutated_runs": [
+        {
+          "passed": false,
+          "tail": "FAIL GW-CTL-HISTORY  What-If history: A \u2192 B \u2192 C by the session tree, then Back, Back, Forward, Forward (twice), each move made as soon as the previous one shows \u2014 URL, run, cohort, scenario, book and filters agree at every step; no model call and no write on Back/Forward | B \u2192 C (tree): expected C (wrun-11a8cfe2e236); address names B, page shows run B, cohort coh-b27aa96e1816, scenario scn-tpl-corp-03 | on screen: http://127.0.0.1:5444/what-if?run=wrun-6ea16cf86e84&back=%2Fwhat-if%3Frun%3Dwrun-6ea16cf86e84%26back%3D%252Fwhat-if%253Frun%253Dwrun-fe1090a697f8%2526domain%253Dcorporate%2526cohort%253Dcoh-c2dd3cf7fbf5%2526scenario%253Dscn-tpl-corp-02%26domain%3Dcorporate%26cohort%3Dcoh-b27aa96e1816%26sc | 0/1 journeys passed this run"
+        }
+      ],
+      "restored": true,
+      "restored_run": {
+        "passed": true,
+        "tail": "ok   GW-CTL-HISTORY  What-If history: A \u2192 B \u2192 C by the session tree, then Back, Back, Forward, Forward (twice), each move made as soon as the previous one shows \u2014 URL, run, cohort, scenario, book and filters agree at every step; no model call and no write on Back/Forward | 1/1 journeys passed this run"
+      },
+      "result": "KILLED"
+    }
+  ],
+  "all_killed": true
+}

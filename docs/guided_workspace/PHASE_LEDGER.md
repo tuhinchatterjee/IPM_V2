@@ -1070,7 +1070,12 @@ The performance smoke (`validation/perf_smoke.json`) was measured on the working
 
 **Defects.** VAL-DEF-024, 025 and 026 (via 032) were fixed; 027 was accepted by design; VAL-DEF-032 to 054 were found by the execution and fixed (see `validation/DEFECT_REGISTER.md`; pre-fix records in `validation/prefix_evidence/`). Each backend fix has a regression test that fails on the pre-fix code and a pytest mutation gate. The What-If Back/Forward guard (VAL-DEF-038) has a browser mutation gate: `scripts/guided_workspace/browser_mutation_gates.py` puts the pre-fix address sync back and requires `GW-CTL-HISTORY` (A → B → C, Back, Back, Forward, Forward, twice) to fail.
 
-**Results.** Measured on candidate L by the regression of record (see `validation/VALIDATION_REPORT.md`).
+**Results.** The regression of record is on candidate L (`271381b6bcf0e60b4cb2e77d35f38b0b9b4099d6`), from a fresh detached clone with no repository edit while it ran.
+- **Steps:** 17 of 18 PASS, 1 BLOCKED_ENV (emulator pickle bytes). Accepted V4 + frontend-py 4857 tests (the 3 known environment failures), What-If on the candidate interpreter 1456 (9 known), V3 590 (1 known), LLM adapters 25, frontend unit 670/670, TypeScript and lint clean, protected set 6 = 6 mapped, fingerprints, digests and sensitivity libraries reproduce.
+- **Browser:** guided 103/103 (GW-CTL 21, BACK 22, GOLD 10), What-If 15/15 per book, flags-OFF 76/76.
+- **Closure:** 394 controls = 284 PASS + 2 governed BLOCKED + 108 N/A with proof; 0 FAILED; 0 unexercised. Routes 27/27, handoffs 41/41, Back paths 109/109, Plotly contracts 44/44.
+- **Gates:** pytest mutation gates 28 of 28 killed; browser mutation gate 1 of 1 killed, both on the committed candidate.
+- **Matrices:** validation 32 PASS, 2 BLOCKED; requirements 293 PASS, 26 PARTIAL, 6 BLOCKED, 0 FAILED. The verdict is READY FOR MAC LIVE UAT. L is pinned in `UAT_CANDIDATE.json`; there is no tag.
 
 ---
 
