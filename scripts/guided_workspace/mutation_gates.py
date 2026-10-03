@@ -222,6 +222,12 @@ GATES: list[tuple] = [
      ["tests/cockpit_v4/test_gw_guided.py::"
       "test_val_def_053_a_question_asked_in_the_investigation_is_not_offered_"
       "again"]),
+    ("a non-scenario id on a scenario route is refused (VAL-DEF-054)",
+     "backend/workspace/scenarios.py",
+     '    if obj["kind"] != "scenario":\n',
+     '    if False:\n',
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_054_a_non_scenario_id_on_a_scenario_route_is_refused"]),
 ]
 
 

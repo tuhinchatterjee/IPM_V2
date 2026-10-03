@@ -281,7 +281,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             <p>
               Used by:{" "}
               {detail.lineage.descendants.map((d) => (
-                <Link data-testid="scenario-lineage-descendant" key={`${d.object_id}-${d.version}`} href={withBack(`/scenarios/${d.object_id}`)} className="mr-2 text-accent underline">
+                <Link data-testid="scenario-lineage-descendant" data-kind={d.kind ?? "scenario"} key={`${d.object_id}-${d.version}`} href={withBack(descendantHref(d))} className="mr-2 text-accent underline">
                   {d.title} ({d.operation})
                 </Link>
               ))}
@@ -401,4 +401,14 @@ function BindPanel({ domain, onBind }: { domain: "corporate" | "retail"; onBind:
       ))}
     </ul>
   );
+}
+
+/** Where a descendant opens: its own page by kind (a scenario, a run in
+ * What-If, a result), never a scenario page for a run (VAL-DEF-054). */
+function descendantHref(d: { object_id: string; kind?: string }): string {
+  const id = encodeURIComponent(d.object_id);
+  if (!d.kind || d.kind === "scenario") return `/scenarios/${id}`;
+  if (d.kind === "run") return `/what-if?run=${id}`;
+  if (d.kind === "scenario_result") return `/what-if/result/${id}`;
+  return `/trace/object/${id}`;
 }

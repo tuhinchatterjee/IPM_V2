@@ -1756,11 +1756,39 @@ async function scenarioJourney() {
     // The template's descendants include the copy.
     await page.goto(`${H.UI}/scenarios/${(await tpl("CORP-04")).object_id}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(sel("scenario-lineage-descendant"), { timeout: 120_000 });
-    await navTrip(page, record, {
-      id: "scenario-lineage-descendant", prereq: "template CORP-04 with copies", expected: "opens a scenario derived from this template", state: detailState,
-      go: (p) => p.locator(sel("scenario-lineage-descendant")).first().click(),
-      arrived: async (p) => { await waitPath(p, /^\/scenarios\/scn-(?!tpl)/); await p.waitForSelector(sel("scenario-detail"), { timeout: 120_000 }); }, inApp: sel("scenario-back"),
-    });
+    // "Used by" lists every derived object: scenarios (copies, bindings) and
+    // the runs made of the template. Each opens its own page (VAL-DEF-054):
+    // follow the first of each kind listed.
+    const tplId = (await tpl("CORP-04")).object_id;
+    await H.apiRun(tplId, `gw-ctl-scn-desc-${Date.now()}`, ["delta"]);
+    const descendants = (await api(`/scenarios/${tplId}`)).body.lineage.descendants;
+    const firstOf = (kind) => descendants.find((d) => (d.kind ?? "scenario") === kind);
+    const opens = {
+      scenario: { arrive: (p, d) => p.waitForSelector(`[data-testid="scenario-detail"][data-object-id="${d.object_id}"]`, { timeout: 120_000 }), back: "scenario-back", dest: async (p) => p.getAttribute(sel("scenario-detail"), "data-object-id") },
+      run: { arrive: (p, d) => p.waitForSelector(`[data-testid="whatif-run"][data-run-id="${d.object_id}"]`, { timeout: 120_000 }), back: "whatif-back", dest: async (p) => new URL(p.url()).searchParams.get("run") },
+      scenario_result: { arrive: (p, d) => p.waitForSelector(`[data-testid="whatif-result"][data-result-id="${d.object_id}"]`, { timeout: 120_000 }), back: "whatif-result-back", dest: async (p) => p.getAttribute(sel("whatif-result"), "data-result-id") },
+    };
+    let followed = 0;
+    for (const kind of Object.keys(opens)) {
+      const d = firstOf(kind);
+      if (!d) continue;
+      followed += 1;
+      await page.goto(`${H.UI}/scenarios/${tplId}`, { waitUntil: "domcontentloaded" });
+      const link = page.locator(`${sel("scenario-lineage-descendant")}[data-kind="${kind}"]`).first();
+      await link.waitFor({ timeout: 120_000 });
+      await navTrip(page, record, {
+        id: "scenario-lineage-descendant", prereq: `template CORP-04; first "${kind}" descendant ${d.object_id}`, expected: `opens that ${kind.replace("_", " ")} on its own page`, state: detailState,
+        go: () => link.click(),
+        arrived: (p) => opens[kind].arrive(p, d), inApp: sel(opens[kind].back),
+        handoff: {
+          source: async () => ({ object: d.object_id, kind }),
+          destination: async (p) => ({ object: await opens[kind].dest(p) }),
+          identity: (src, dst) => { assert.equal(dst.object, src.object); return `CORP-04 "Used by" ${kind} ${src.object} → ${dst.object}`; },
+          describe,
+        },
+      });
+    }
+    assert.ok(followed >= 2, `descendants of two kinds or more were followed (${followed})`);
     // A result of the copy, then its result link and Open in What-If.
     await H.apiRun(copy, `gw-ctl-scn-${Date.now()}`, ["delta"]);
     await page.goto(`${H.UI}/scenarios/${copy}`, { waitUntil: "domcontentloaded" });

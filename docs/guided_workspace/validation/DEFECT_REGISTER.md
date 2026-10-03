@@ -1,6 +1,6 @@
 # Defect register: exhaustive validation round
 
-Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 053 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
+Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 054 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
 
 **Severity:**
 - CRITICAL: wrong data, security, tenant leakage, wrong ECL or cohort, silent method execution, corruption.
@@ -71,7 +71,8 @@ Branch `claude/guided-workspace-exhaustive-validation`. The round started on evi
 | VAL-DEF-051 | MEDIUM | What-If / Scenario Library | A link labelled with a scenario version (a result's scenario, What-If's applied scenario, a lineage ancestor) opened the latest version instead | FIXED |
 | VAL-DEF-052 | MEDIUM | Lenses | A library Lens customised as my copy opened without its origin: the copy's in-product Back went to the Lens Library, not the Lens it came from | FIXED |
 | VAL-DEF-053 | MEDIUM | Guided investigation | Answered next-best questions were never suppressed: each was re-offered as if the cohort had changed, and lower-ranked actions (Monitor in a Lens) never reached the chips shown | FIXED |
-Found: 52 (1 CRITICAL, 12 HIGH, 27 MEDIUM, 12 LOW). Fixed: 51. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
+| VAL-DEF-054 | HIGH | Scenario Library | "Used by" on a scenario linked its runs to the scenario page, which failed with HTTP 500 (a run read as a scenario); the scenario routes returned 500 for any non-scenario id | FIXED |
+Found: 53 (1 CRITICAL, 13 HIGH, 27 MEDIUM, 12 LOW). Fixed: 52. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
 
 ## Details
 
@@ -746,5 +747,19 @@ A run's stored contract holds the engine predicate that defines its population, 
 | Root cause | The investigation passed the questions asked but not the cohort they were asked under; the ranking read the unknown scope as a changed cohort |
 | Files | `backend/workspace/issues_api.py` (`_state`: every asked question is under the investigation's fixed cohort) |
 | Test | `test_gw_guided.py::test_val_def_053_a_question_asked_in_the_investigation_is_not_offered_again`; mutation gate; `GW-CTL-THREAD` (the Lens Library hand-off from the investigation) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-054: A run opened as a scenario (HIGH)
+
+| Field | Detail |
+|---|---|
+| Reproduction | A template with runs → its page → "Used by" → a run |
+| Expected | The run opens in What-If |
+| Actual | `/scenarios/<run id>`: `GET /scenarios/<run id>` and its preview failed with HTTP 500 (`KeyError 'name'`, a run read as a scenario); the response had no CORS headers, so the page showed a failed fetch |
+| Evidence | `prefix_evidence/VAL-DEF-054_browser.json` (`GW-CTL-SCN` on a fresh store, where the first descendant was a run); `VAL-DEF-054_prefix_pytest.txt` |
+| Root cause | The descendant link assumed every descendant is a scenario; the scenario operations read objects without checking their kind |
+| Files | `backend/workspace/scenarios.py` (`get_scenario`: another kind is a governed 422 NOT_A_SCENARIO in read, preview, revise, clone, combine, resolve, bind, results, retire and share), `scenarios_api.py`; `components/scenarios/scenario-detail.tsx` (a descendant opens by its kind: scenario, run in What-If, result), `lib/workspace/scenarios.ts` |
+| Test | `test_val_def_054_a_non_scenario_id_on_a_scenario_route_is_refused` (seven routes; fails on the pre-fix code); mutation gate; `GW-CTL-SCN` (the first descendant of each kind, with its identity and Back) |
 | Retest | PASS |
 | Disposition | FIXED |

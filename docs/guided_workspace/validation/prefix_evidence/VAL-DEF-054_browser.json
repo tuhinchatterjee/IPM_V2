@@ -1,0 +1,49 @@
+{
+ "journey": "GW-CTL-SCN",
+ "status": "FAILED",
+ "controls": [
+  {
+   "id": "scenario-lineage-descendant",
+   "url": "/scenarios/scn-tpl-corp-04",
+   "prereq": "template CORP-04 with copies",
+   "action": "click; browser Back; browser Forward; in-product Back",
+   "expected": "opens a scenario derived from this template",
+   "observed": "FAILED: page.waitForFunction: Timeout 90000ms exceeded. \u00b7 unexpected: FAILED GET /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796 net::ERR_FAILED | FAILED POST /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796/preview net::ERR_FAILED | FAILED GET /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796 net::ERR_FAILED | FAILED POST /api/v1/cockpit-v4/wo",
+   "result": "FAILED",
+   "api": [
+    "GET /api/v1/health 200"
+   ],
+   "writes": [],
+   "failed": [
+    "FAILED GET /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796 net::ERR_FAILED",
+    "FAILED POST /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796/preview net::ERR_FAILED",
+    "FAILED GET /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796 net::ERR_FAILED",
+    "FAILED POST /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796/preview net::ERR_FAILED"
+   ],
+   "refused": [],
+   "console": [
+    "error: Access to fetch at 'http://127.0.0.1:8444/api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796' from origin 'http://127.0.0.1:5444' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "error: Failed to load resource: net::ERR_FAILED",
+    "error: Access to fetch at 'http://127.0.0.1:8444/api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796/preview' from origin 'http://127.0.0.1:5444' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "error: Failed to load resource: net::ERR_FAILED",
+    "error: Access to fetch at 'http://127.0.0.1:8444/api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796' from origin 'http://127.0.0.1:5444' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "error: Failed to load resource: net::ERR_FAILED",
+    "error: Access to fetch at 'http://127.0.0.1:8444/api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796/preview' from origin 'http://127.0.0.1:5444' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "error: Failed to load resource: net::ERR_FAILED"
+   ],
+   "excused_console": [],
+   "download": "",
+   "url_after": "",
+   "back": {
+    "ok": false,
+    "error": "page.waitForFunction: Timeout 90000ms exceeded."
+   }
+  }
+ ],
+ "http_errors": [
+  "FAILED GET /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796 net::ERR_FAILED",
+  "FAILED POST /api/v1/cockpit-v4/workspace/scenarios/wrun-ab2767eb3796/preview net::ERR_FAILED",
+  "FAILED POST /api/v1/cockpit-v4/workspace/grid/query net::ERR_ABORTED"
+ ],
+ "console": null
+}

@@ -607,3 +607,37 @@ def test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal(
     assert grid["total"] == 0, "the grid shows the same filter as empty"
     assert client.post(f"{P}/whatif/sensitivity/tornado", json={
         "domain": "corporate", "parameter": "ccf"}).status_code == 422
+
+
+def test_val_def_054_a_non_scenario_id_on_a_scenario_route_is_refused(client):
+    """The scenario page's "Used by" linked a run to /scenarios/<run id>;
+    reading, previewing or cloning a run as a scenario failed with an
+    unhandled HTTP 500 (KeyError 'name'), which the browser saw as a CORS
+    failure. Every scenario operation now refuses another kind with a
+    governed 422 NOT_A_SCENARIO, and nothing leaks."""
+    tpl = client.get(f"{P}/scenarios?domain=corporate&q=CORP-04").json()[
+        "scenarios"][0]["object_id"]
+    run = client.post(f"{P}/whatif/runs", json={
+        "scenario_id": tpl, "session_id": "val-def-054"}).json()
+    rid = run["object_id"]
+    calls = [
+        ("get", f"{P}/scenarios/{rid}", None),
+        ("post", f"{P}/scenarios/{rid}/preview", {}),
+        ("post", f"{P}/scenarios/{rid}/clone", {}),
+        ("post", f"{P}/scenarios/{rid}/revise",
+         {"changes": {"name": "x"}, "reason": "x"}),
+        ("post", f"{P}/scenarios/{rid}/retire", {}),
+        ("post", f"{P}/scenarios/{rid}/share", {"to": ["colleague"]}),
+        ("get", f"{P}/scenarios/{rid}/results", None),
+    ]
+    for verb, url, body in calls:
+        r = getattr(client, verb)(url, **({"json": body} if body is not None
+                                            else {}))
+        assert r.status_code == 422, (url, r.status_code, r.text[:200])
+        assert _code(r) == "NOT_A_SCENARIO", (url, r.text[:200])
+        _no_leak(r)
+    # The run itself is untouched and still a run.
+    assert client.get(f"{P}/whatif/runs/{rid}").json()["object_id"] == rid
+    lineage = client.get(f"{P}/scenarios/{tpl}").json()["lineage"]
+    kinds = {d["object_id"]: d.get("kind") for d in lineage["descendants"]}
+    assert kinds.get(rid) == "run", "the lineage names the run's kind"

@@ -128,7 +128,7 @@ export interface ScenarioDetail {
   card: ScenarioCard;
   lineage: {
     ancestors: { object_id: string; version: number; title: string }[];
-    descendants: { object_id: string; version: number; title: string; operation: string }[];
+    descendants: { object_id: string; version: number; title: string; operation: string; kind?: string }[];
     versions: { version: number; status: string; reason: string; content_hash: string; created_at: number }[];
   };
   equation: string;

@@ -67,6 +67,20 @@ def ensure_seeded(svc: ObjectService, who: dict[str, Any]) -> dict[str, Any]:
             "skipped": skipped}
 
 
+
+def get_scenario(svc: ObjectService, principal: Principal, object_id: str,
+                 *, version: int | None = None) -> dict[str, Any]:
+    """A scenario, or a governed refusal: an id of another kind (a run, a
+    result, a cohort) named where a scenario is expected must not reach
+    code that reads scenario fields (VAL-DEF-054)."""
+    obj = svc.get(object_id, principal, version=version)
+    if obj["kind"] != "scenario":
+        raise HTTPException(422, {"error_code": "NOT_A_SCENARIO",
+                                  "message": f"{object_id} is a "
+                                             f"{obj['kind'].replace('_', ' ')}"
+                                             f", not a scenario."})
+    return obj
+
 # ---- listing --------------------------------------------------------------------
 
 def card(obj: dict[str, Any], who: Principal, *, results: int = 0
@@ -178,7 +192,7 @@ def create(svc: ObjectService, who: dict[str, Any], definition: dict[str, Any],
 def revise(svc: ObjectService, who: dict[str, Any], object_id: str,
            changes: dict[str, Any], *, reason: str) -> dict[str, Any]:
     principal = Principal.of(who)
-    current = svc.get(object_id, principal)
+    current = get_scenario(svc, principal, object_id)
     if current["owner_id"] == LIBRARY_OWNER:
         raise HTTPException(403, {"error_code": "TEMPLATE_READ_ONLY",
                                   "message": "Library templates are not "
@@ -204,7 +218,7 @@ def clone(svc: ObjectService, who: dict[str, Any], object_id: str, *,
           ) -> dict[str, Any]:
     """A NEW scenario from an existing one (duplicate or branch)."""
     principal = Principal.of(who)
-    source = svc.get(object_id, principal, version=version)
+    source = get_scenario(svc, principal, object_id, version=version)
     merged = {**source["body"], **(changes or {})}
     merged["name"] = name or (f"{source['body']['name']} (copy)"
                               if operation == "duplicate" else
@@ -231,7 +245,7 @@ def combine(svc: ObjectService, who: dict[str, Any],
             resolutions: dict[str, Any] | None = None, save: bool = True
             ) -> dict[str, Any]:
     principal = Principal.of(who)
-    objs = [svc.get(s["object_id"], principal, version=s.get("version"))
+    objs = [get_scenario(svc, principal, s["object_id"], version=s.get("version"))
             for s in sources]
     raw = lib.combine(objs, name=name or " + ".join(
         o["body"]["name"] for o in objs), resolutions=resolutions)
@@ -253,7 +267,7 @@ def resolve(svc: ObjectService, who: dict[str, Any], object_id: str,
             resolutions: dict[str, Any]) -> dict[str, Any]:
     """Record explicit composition policies as a new version."""
     principal = Principal.of(who)
-    current = svc.get(object_id, principal)
+    current = get_scenario(svc, principal, object_id)
     known = {m.get("overlap_id") for m in lib.preview(
         _book_for(who, current), current["body"])["overlaps"]}
     unknown = sorted(set(resolutions) - known)
@@ -277,7 +291,7 @@ def bind(svc: ObjectService, who: dict[str, Any], object_id: str,
     """Bind to a governed cohort: a new version (own) or a new scenario
     (template / someone else's). The cohort must belong to the same book."""
     principal = Principal.of(who)
-    scenario = svc.get(object_id, principal)
+    scenario = get_scenario(svc, principal, object_id)
     cohort = svc.get(cohort_id, principal)
     if cohort["kind"] != "cohort":
         raise HTTPException(422, {"error_code": "NOT_A_COHORT",
@@ -344,7 +358,7 @@ def results(svc: ObjectService, who: dict[str, Any], object_id: str
             ) -> list[dict[str, Any]]:
     """Persisted results of this scenario (any version), newest first."""
     principal = Principal.of(who)
-    svc.get(object_id, principal)
+    get_scenario(svc, principal, object_id)
     out = []
     for r in svc.list("scenario_result", principal):
         b = r["body"]
@@ -363,7 +377,7 @@ def results(svc: ObjectService, who: dict[str, Any], object_id: str
 def retire(svc: ObjectService, who: dict[str, Any], object_id: str
            ) -> dict[str, Any]:
     principal = Principal.of(who)
-    current = svc.get(object_id, principal)
+    current = get_scenario(svc, principal, object_id)
     if current["owner_id"] == LIBRARY_OWNER:
         raise HTTPException(403, {"error_code": "TEMPLATE_READ_ONLY",
                                   "message": "Library templates are retired "
@@ -384,7 +398,7 @@ def share(svc: ObjectService, who: dict[str, Any], object_id: str, *,
     the share, and opening it runs through the same `can_read` check.
     """
     principal = Principal.of(who)
-    obj = svc.get(object_id, principal, version=version)
+    obj = get_scenario(svc, principal, object_id, version=version)
     recipients = [str(t)[:120] for t in to if str(t).strip()][:20]
     if not recipients:
         raise HTTPException(422, {"error_code": "NO_RECIPIENT",

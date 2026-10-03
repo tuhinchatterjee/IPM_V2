@@ -100,7 +100,7 @@ async def read_scenario(object_id: str, version: int | None = None,
     svc = service.objects()
     scenarios.ensure_seeded(svc, who)
     principal = service.principal(who)
-    obj = svc.get(object_id, principal, version=version)
+    obj = scenarios.get_scenario(svc, principal, object_id, version=version)
     return {"scenario": obj,
             "card": scenarios.card(obj, principal),
             "lineage": svc.lineage_tree(object_id, principal),
@@ -116,7 +116,8 @@ async def preview_saved(object_id: str, version: int | None = None,
                         ) -> dict[str, Any]:
     svc = service.objects()
     scenarios.ensure_seeded(svc, who)
-    obj = svc.get(object_id, service.principal(who), version=version)
+    obj = scenarios.get_scenario(svc, service.principal(who), object_id,
+                                 version=version)
     book = access.book(who, obj["domain_id"])
     out = lib.preview(book, obj["body"])
     out["object_id"], out["version"] = obj["object_id"], obj["version"]
