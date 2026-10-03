@@ -246,10 +246,20 @@ def owning_controls(file_text: str, line: int, rows: list[dict[str, Any]],
 
 def target_regex(target: str) -> re.Pattern:
     """`/what-if?cohort=${x}&from=issue` -> a pattern over a destination
-    address whose `back=` parameter has been removed."""
+    address whose `back=` parameter has been removed.
+
+    The link's own path and parameters must be there as written (a
+    placeholder is one value); the destination may then add its own state
+    parameters (What-If writes `&domain=` once it opens). A placeholder the
+    source extraction cut short -- a nested template such as
+    `${question ? `?ask=${q}` : ""}` -- matches whatever follows."""
     pat = re.escape(target)
     pat = re.sub(r"\\\$\\\{(?:[^{}]|\\\{[^{}]*\\\})*?\\\}", "[^&/]*", pat)
-    return re.compile("^" + pat + "$")
+    cut = pat.find("\\$\\{")
+    if cut >= 0:
+        return re.compile("^" + pat[:cut] + ".*$")
+    extra = "(?:&.*)?" if "?" in target else "(?:\\?.*)?"
+    return re.compile("^" + pat + extra + "$")
 
 
 def strip_back(url: str) -> str:

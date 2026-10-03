@@ -1,6 +1,6 @@
 # Defect register: exhaustive validation round
 
-Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 050 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
+Branch `claude/guided-workspace-exhaustive-validation`. The round started on evidence commit `55bfb9a4` on top of candidate H (`8b1592f4`). VAL-DEF-001 to 031 were found and fixed in candidates I to K. VAL-DEF-032 to 052 were found by the interaction-coverage closure, which executed every UI control, route, handoff and chart contract in the browser (`GW-CTL-*` journeys), on top of evidence commit `510f5c83` (candidate K). VAL-DEF-035 is not used.
 
 **Severity:**
 - CRITICAL: wrong data, security, tenant leakage, wrong ECL or cohort, silent method execution, corruption.
@@ -68,7 +68,9 @@ Branch `claude/guided-workspace-exhaustive-validation`. The round started on evi
 | VAL-DEF-048 | MEDIUM | Lens charts | Clear removed the selection but the chart kept the box and highlighted bars; selecting the same bars again deselected them | FIXED |
 | VAL-DEF-049 | MEDIUM | What-If / Lenses | Adopting a conversation's cohort again (a second click, a re-made Lens proposal) minted another cohort object for the same population | FIXED |
 | VAL-DEF-050 | HIGH | Sharing (recipient actions) | An administrator recipient changed the sender's object: opening a shared definition on their cohort revised the sender's scenario; Save on a shared Lens renamed the sender's Lens | FIXED |
-Found: 49 (1 CRITICAL, 12 HIGH, 24 MEDIUM, 12 LOW). Fixed: 48. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
+| VAL-DEF-051 | MEDIUM | What-If / Scenario Library | A link labelled with a scenario version (a result's scenario, What-If's applied scenario, a lineage ancestor) opened the latest version instead | FIXED |
+| VAL-DEF-052 | MEDIUM | Lenses | A library Lens customised as my copy opened without its origin: the copy's in-product Back went to the Lens Library, not the Lens it came from | FIXED |
+Found: 51 (1 CRITICAL, 12 HIGH, 26 MEDIUM, 12 LOW). Fixed: 50. Every CRITICAL, HIGH and MEDIUM defect is fixed, as are 11 of the 12 LOW. Open: 1 LOW, VAL-DEF-027, accepted by design (below).
 
 ## Details
 
@@ -702,5 +704,31 @@ A run's stored contract holds the engine predicate that defines its population, 
 | Root cause | Recipient-side use actions decided "edit in place" with `can_edit`, which grants administrators edit rights on any object |
 | Files | `backend/workspace/scenarios.py` (`bind`: in place only for the owner or a named editor), `lenses.py` (`revise(copy=True)`), `messages.py` (Save always copies) |
 | Test | `test_gw_messages.py::test_val_def_050_an_administrator_recipient_never_changes_the_senders_object`; two mutation gates; `GW-CTL-MSG` (the sender's version unchanged across "run on my cohort") |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-051: A version-labelled scenario link opened the latest version (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | Run a scenario, revise it, open the result → "Scenario … v1" |
+| Expected | The scenario at v1, the version that ran |
+| Actual | v2 (the link had no version) |
+| Evidence | `prefix_evidence/VAL-DEF-051_probe.txt` (label v1, detail version 2) |
+| Files | `components/whatif/result-page.tsx`, `components/whatif/scenario-application.tsx`, `components/scenarios/scenario-detail.tsx` (`?version=N`, which the detail page already honours for shared definitions) |
+| Test | `GW-CTL-METHODS` (a scenario revised after its run: the result's link opens the version that ran); `whatif-bound-scenario` (the version shown) |
+| Retest | PASS |
+| Disposition | FIXED |
+
+### VAL-DEF-052: A Lens copy opened without its origin (MEDIUM)
+
+| Field | Detail |
+|---|---|
+| Reproduction | LENS-01 → Edit → rename → "Save as a new version" (a library Lens becomes my copy) → in-product Back |
+| Expected | Back to LENS-01 |
+| Actual | The Lens Library |
+| Evidence | `prefix_evidence/VAL-DEF-052_lens_copy_origin.json` |
+| Files | `components/lenses/lens-view.tsx` (the copy opens with `withBack`, as every other navigation from the Lens view) |
+| Test | `GW-CTL-LENS` (`lens-edit-form` as a Back trip with the copy's identity) |
 | Retest | PASS |
 | Disposition | FIXED |

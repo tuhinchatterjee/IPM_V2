@@ -49,8 +49,9 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
 
   React.useEffect(() => {
     let live = true;
-    // A shared definition is opened at the version that was shared
-    // (Messages links ?version=N); without one, the latest.
+    // A link that names a version opens that version (?version=N: a shared
+    // definition, the scenario a result ran, a lineage ancestor, What-If's
+    // bound scenario; VAL-DEF-051); without one, the latest.
     const v = Number(new URLSearchParams(window.location.search).get("version") || "") || undefined;
     Promise.all([readScenario(scenarioId, v), previewScenario(scenarioId, v)])
       .then(([d, p]) => {
@@ -270,7 +271,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             <p>
               From:{" "}
               {detail.lineage.ancestors.map((a) => (
-                <Link data-testid="scenario-lineage-ancestor" key={`${a.object_id}-${a.version}`} href={withBack(`/scenarios/${a.object_id}`)} className="mr-2 text-accent underline">
+                <Link data-testid="scenario-lineage-ancestor" key={`${a.object_id}-${a.version}`} href={withBack(`/scenarios/${a.object_id}?version=${a.version}`)} className="mr-2 text-accent underline">
                   {a.title} v{a.version}
                 </Link>
               ))}

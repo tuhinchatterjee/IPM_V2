@@ -963,6 +963,18 @@ async function methodsJourney() {
     const page = await open();
     const corp02 = (await api("/scenarios?domain=corporate&q=CORP-02")).body.scenarios[0].object_id;
     await openWhatIf(page, `?domain=corporate&scenario=${corp02}`);
+    await page.waitForSelector(sel("whatif-bound-scenario"), { timeout: 120_000 });
+    const boundState = () => ({ scenario: document.querySelector('[data-testid="whatif-strip-scenario"]')?.getAttribute("data-scenario-id") || "", domain: new URLSearchParams(location.search).get("domain") });
+    await navTrip(page, record, {
+      id: "whatif-bound-scenario", prereq: "CORP-02 applied in What-If (no cohort)", expected: "opens the applied scenario at the version shown", state: boundState,
+      arrived: (p) => p.waitForSelector(sel("scenario-detail"), { timeout: 120_000 }), inApp: sel("scenario-back"),
+      handoff: {
+        source: async (p) => { const t = (await p.textContent(sel("whatif-bound-scenario"))).trim(); const m = /^(\S+) v(\d+)$/.exec(t); return { scenario: m?.[1] ?? "", version: Number(m?.[2] ?? 0) }; },
+        destination: async (p) => ({ scenario: await p.getAttribute(sel("scenario-detail"), "data-object-id"), version: Number(await p.getAttribute(sel("scenario-detail"), "data-version")) }),
+        identity: (s, d) => { assert.equal(d.scenario, s.scenario); assert.equal(d.version, s.version, "the version shown"); return `applied ${s.scenario} v${s.version} → detail ${d.scenario} v${d.version}`; },
+        describe,
+      },
+    });
     await page.waitForSelector(sel("whatif-run-start"), { timeout: 120_000 });
     await page.click(sel("whatif-run-start"));
     await waitRunState(page, "SCENARIO_PREVIEW");
@@ -1161,6 +1173,33 @@ async function methodsJourney() {
     await navTrip(page, record, {
       id: "whatif-result-open-scenario", prereq: `result ${firstResult}`, expected: "opens the scenario version it ran", state: H.resultState,
       arrived: (p) => p.waitForSelector(`[data-testid="scenario-detail"][data-object-id="${res.body.scenario_id}"]`, { timeout: 120_000 }), inApp: sel("scenario-back"),
+      handoff: {
+        source: async () => ({ scenario: res.body.scenario_id, version: res.body.scenario_version }),
+        destination: async (p) => ({ scenario: await p.getAttribute(sel("scenario-detail"), "data-object-id"), version: Number(await p.getAttribute(sel("scenario-detail"), "data-version")) }),
+        identity: (s, d) => { assert.equal(d.scenario, s.scenario); assert.equal(d.version, s.version, "the version it ran"); return `result ${firstResult} → ${d.scenario} v${d.version}`; },
+        describe,
+      },
+    });
+    // A result whose scenario was revised after it ran: the link opens the
+    // version that ran, not the latest (VAL-DEF-051).
+    const own = (await H.post("/scenarios", { definition: { name: "GW-CTL revised after its run", domain_id: "corporate", description: "version link", risk_thesis: "t",
+      scope: { type: "filters", label: "Construction", filters: [{ column: "sector", op: "in", values: ["Construction"] }] },
+      components: [{ kind: "parameter", field: "pd_pit_12m", operation: "multiply", value: "1.10", label: "PD x1.10" }],
+      stage_policy: "frozen", severity: "moderate", tags: ["gw-ctl"] } })).body;
+    const ran = (await H.apiRun(own.object_id, `gw-ctl-ver-${Date.now()}`, ["delta"])).result;
+    await H.post(`/scenarios/${own.object_id}/revise`, { changes: { name: "GW-CTL revised after its run (v2)" }, reason: "GW-CTL version link" });
+    assert.equal((await objectOf(own.object_id)).version, ran.body.scenario_version + 1, "the scenario moved on after the run");
+    await page.goto(`${H.UI}/what-if/result/${ran.object_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(sel("whatif-result"), { timeout: 120_000 });
+    await navTrip(page, record, {
+      id: "whatif-result-open-scenario", prereq: `result ${ran.object_id}; its scenario revised since`, expected: "opens the scenario version that ran, not the latest", state: H.resultState,
+      arrived: (p) => p.waitForSelector(`[data-testid="scenario-detail"][data-object-id="${own.object_id}"]`, { timeout: 120_000 }), inApp: sel("scenario-back"),
+      handoff: {
+        source: async () => ({ scenario: own.object_id, version: ran.body.scenario_version }),
+        destination: async (p) => ({ scenario: await p.getAttribute(sel("scenario-detail"), "data-object-id"), version: Number(await p.getAttribute(sel("scenario-detail"), "data-version")) }),
+        identity: (s, d) => { assert.equal(d.scenario, s.scenario); assert.equal(d.version, s.version, "the version that ran"); return `result ${ran.object_id} → ${d.scenario} v${d.version} (latest is v${s.version + 1})`; },
+        describe,
+      },
     });
     // Comparison page controls.
     const cmp = (await H.post("/whatif/compare", { result_ids: chosen })).body;
@@ -1484,46 +1523,64 @@ async function scenarioJourney() {
       await page.waitForSelector(sel("scenario-selection"), { state: "detached", timeout: 30_000 });
       return "cleared";
     } });
+    // The library's filters and combine selection (not the total, which a
+    // combine raises by one).
+    const libFilters = () => ({
+      q: document.querySelector('[data-testid="scenario-search"]')?.value ?? null,
+      owner: document.querySelector('[data-testid="scenario-owner"]')?.getAttribute("data-value") ?? null,
+      domain: document.querySelector('[data-testid="scenario-domain"]')?.getAttribute("data-value") ?? null,
+      severity: document.querySelector('[data-testid="scenario-severity"]')?.value ?? null,
+    });
     const combine = async (codes, name) => {
+      const ids = [];
+      for (const c of codes) ids.push((await tpl(c)).object_id);
       for (const c of codes) await page.check(`${cardSel(c)} ${sel("scenario-select")}`);
-      await page.click(sel("scenario-combine"));
-      await page.waitForSelector(sel("scenario-combine-panel"), { timeout: 60_000 });
-      await page.fill(sel("scenario-combine-name"), name);
-      await page.waitForSelector(`${sel("scenario-combine-preview")}, ${sel("scenario-combine-save")}`, { timeout: 120_000 });
+      await ctl(page, record, { id: "scenario-combine", prereq: `${codes.join(" + ")} selected`, expected: "the combine panel opens on the selection", run: async () => {
+        await page.click(sel("scenario-combine"));
+        await page.waitForSelector(sel("scenario-combine-panel"), { timeout: 60_000 });
+        return `panel for ${codes.length}`;
+      } });
+      await ctl(page, record, { id: "scenario-combine-name", prereq: "combine panel", action: `name it "${name}"`, expected: "the name is held; the overlap matrix or Save is offered", run: async () => {
+        await page.fill(sel("scenario-combine-name"), name);
+        await page.waitForSelector(`${sel("scenario-combine-preview")}, ${sel("scenario-combine-save")}`, { timeout: 120_000 });
+        return "named";
+      } });
       const selects = page.locator(`${sel("scenario-combine-panel")} ${sel("overlap-policy-select")}`);
       const n = await selects.count();
       for (let i = 0; i < n; i += 1) {
-        const opts = await selects.nth(i).locator("option").evaluateAll((o) => o.map((x) => x.value).filter(Boolean));
-        await selects.nth(i).selectOption(opts[0]);
+        await ctl(page, record, { id: "overlap-policy-select", prereq: `overlap ${i + 1} of ${n}`, expected: "the overlap's policy is chosen from its allowed list", run: async () => {
+          const opts = await selects.nth(i).locator("option").evaluateAll((o) => o.map((x) => x.value).filter(Boolean));
+          await selects.nth(i).selectOption(opts[0]);
+          return `policy ${opts[0]} (of ${opts.length})`;
+        } });
       }
-      if (n) await page.click(`${sel("scenario-combine-panel")} ${sel("overlap-resolve")}`);
-      else await page.click(sel("scenario-combine-save"));
-      await page.waitForURL(/\/scenarios\/scn-/, { timeout: 120_000 });
-      await page.waitForSelector(sel("scenario-detail"), { timeout: 120_000 });
-      const id = await page.getAttribute(sel("scenario-detail"), "data-object-id");
-      return { id, overlaps: n };
+      let out = null;
+      await navTrip(page, record, {
+        id: n ? "overlap-resolve" : "scenario-combine-save", prereq: `${codes.join(" + ")} named${n ? `, ${n} overlap(s) resolved` : ""}`, expected: "a NEW scenario with every selected scenario as a parent; the templates unchanged", state: libFilters,
+        go: (p) => p.click(n ? `${sel("scenario-combine-panel")} ${sel("overlap-resolve")}` : sel("scenario-combine-save")),
+        arrived: async (p) => { await waitPath(p, /^\/scenarios\/scn-/); await p.waitForSelector(sel("scenario-detail"), { timeout: 120_000 }); },
+        inApp: sel("scenario-back"),
+        handoff: {
+          source: async () => ({ parents: [...ids].sort(), hashes: await Promise.all(ids.map(async (i) => (await objectOf(i)).content_hash)) }),
+          destination: async (p) => { const id = await p.getAttribute(sel("scenario-detail"), "data-object-id"); const lin = (await api(`/objects/${id}/lineage`)).body; return { id, parents: lin.ancestors.map((a) => a.object_id).sort() }; },
+          identity: async (s, d) => {
+            assert.deepEqual(d.parents, s.parents, "every selected scenario is a parent");
+            for (const [k, i] of ids.entries()) assert.equal((await objectOf(i)).content_hash, s.hashes[k], "the template did not change");
+            out = { id: d.id, overlaps: n };
+            return `${codes.join(" + ")} → ${d.id} (parents ${d.parents.length}, ${n} overlap(s) resolved); templates unchanged`;
+          },
+          writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/scenarios\/combine /,
+          describe,
+        },
+      });
+      return out;
     };
-    let two = null;
-    await ctl(page, record, { id: "scenario-combine-name", prereq: "two corporate templates selected", action: "Combine CORP-01 + CORP-02, name it, resolve overlaps, save", expected: "a new scenario whose lineage has both parents; the originals unchanged", run: async () => {
-      two = await combine(["CORP-01", "CORP-02"], "GW-CTL combined 2");
-      const lin = (await api(`/objects/${two.id}/lineage`)).body;
-      assert.equal(lin.ancestors.length, 2, "two parents");
-      assert.equal((await objectOf(t1.object_id)).content_hash, tplHash, "the template did not change");
-      return `${two.id}: 2 parents, ${two.overlaps} overlap(s) resolved`;
-    } });
-    await page.goBack();
-    await page.waitForSelector(sel("scenario-library"), { timeout: 120_000 });
-    let three = null;
-    await ctl(page, record, { id: "scenario-combine", prereq: "three corporate templates selected", action: "Combine CORP-01 + CORP-02 + CORP-03", expected: "combine of three: three parents, overlaps resolved", run: async () => {
-      three = await combine(["CORP-01", "CORP-02", "CORP-03"], "GW-CTL combined 3");
-      const lin = (await api(`/objects/${three.id}/lineage`)).body;
-      assert.equal(lin.ancestors.length, 3, "three parents");
-      return `${three.id}: 3 parents, ${three.overlaps} overlap(s) resolved`;
-    } });
-    await ctl(page, record, { id: "overlap-policy-select", prereq: "combine panel with overlaps", expected: "each overlap's policy is chosen from its allowed list", run: async () => {
-      assert.ok((two.overlaps + three.overlaps) > 0, "the combinations had overlaps to resolve");
-      return `${two.overlaps + three.overlaps} policies chosen`;
-    } });
+    const two = await combine(["CORP-01", "CORP-02"], "GW-CTL combined 2");
+    assert.ok(two, "two combined");
+    await page.click(sel("scenario-selection-clear")).catch(() => undefined);
+    const three = await combine(["CORP-01", "CORP-02", "CORP-03"], "GW-CTL combined 3");
+    assert.ok(three, "three combined");
+    assert.ok((two.overlaps + three.overlaps) > 0, "the combinations had overlaps to resolve");
     await openLibrary(page);
     const lib = libraryState;
     await navTrip(page, record, {
@@ -1648,6 +1705,23 @@ async function scenarioJourney() {
         destination: async (p) => ({ branch: await p.getAttribute(sel("scenario-detail"), "data-object-id") }),
         identity: async (s, d) => { const o = await objectOf(d.branch); assert.equal(o.lineage.origin, "branch"); return `${s.copy} → branch ${d.branch} (origin ${o.lineage.origin})`; },
         writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/scenarios\/[^/]+\/(clone|branch) /,
+        describe,
+      },
+    });
+    await navTrip(page, record, {
+      id: "scenario-action-clone", prereq: preC, expected: "a clone (lineage: clone of this copy) opens; Back returns to the copy", state: detailState,
+      arrived: async (p) => { await p.waitForFunction((c) => { const d = document.querySelector('[data-testid="scenario-detail"]')?.getAttribute("data-object-id"); return d && d !== c; }, copy, { timeout: 120_000 }); },
+      inApp: sel("scenario-back"),
+      handoff: {
+        source: async () => ({ copy, hash: (await objectOf(copy)).content_hash }),
+        destination: async (p) => ({ clone: await p.getAttribute(sel("scenario-detail"), "data-object-id") }),
+        identity: async (s, d) => {
+          const lin = (await api(`/objects/${d.clone}/lineage`)).body;
+          assert.deepEqual(lin.ancestors.map((a) => a.object_id), [s.copy], "the clone's parent is the copy");
+          assert.equal((await objectOf(s.copy)).content_hash, s.hash, "the copy did not change");
+          return `${s.copy} → clone ${d.clone} (parent ${lin.ancestors[0].object_id}); the copy unchanged`;
+        },
+        writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/scenarios\/[^/]+\/clone /,
         describe,
       },
     });
@@ -1928,7 +2002,10 @@ async function monitoringJourney() {
       return `lens-01: ${want}`;
     } });
     await ctl(page, record, { id: "monitoring-by-severity", prereq: "active view", action: "click the first severity bar", expected: "the list is filtered to that severity", run: async () => {
-      const sev = await page.evaluate(() => String(document.querySelector('[data-testid="monitoring-by-severity"]')?.data?.[0]?.x?.[0] ?? ""));
+      // The previous step reset a filter; the chart redraws on the new list.
+      await waitCount(await apiCount("view=active"));
+      await page.waitForSelector(`${sel("monitoring-by-severity")}[data-rendered="true"]`, { timeout: 60_000 });
+      const sev = String(await (await page.waitForFunction(() => document.querySelector('[data-testid="monitoring-by-severity"]')?.data?.[0]?.x?.[0], null, { timeout: 30_000 })).jsonValue());
       await clickPlotPoint(page, "monitoring-by-severity", { point: 0 });
       await page.waitForFunction((x) => document.querySelector('[data-testid="monitoring-severity"]')?.value === x, sev, { timeout: 30_000 });
       await waitCount(await apiCount(`view=active&severity=${sev}`));
@@ -2128,13 +2205,27 @@ async function lensJourney() {
     } });
     await page.click(sel("lens-propose"));
     await page.waitForSelector(sel("lens-preview"), { timeout: 120_000 });
-    await ctl(page, record, { id: "lens-save", prereq: "a preview", expected: "the Lens is saved and opens (one new Lens)", run: async () => {
-      const before = (await api("/lenses")).body.total;
-      await page.click(sel("lens-save"));
-      await page.waitForSelector(sel("lens-view"), { timeout: 120_000 });
-      assert.equal((await api("/lenses")).body.total, before + 1);
-      return `saved ${await page.getAttribute(sel("lens-view"), "data-object-id")}`;
-    } });
+    // The library's search only: a save adds a card, and after it Back shows
+    // the library without the proposal (VAL-DEF-019).
+    const libQuery = () => ({ q: document.querySelector('[data-testid="lens-search"]')?.value ?? null });
+    const proposedName = async () => (await page.textContent(sel("lens-preview-summary")).catch(() => "")).trim();
+    await navTrip(page, record, {
+      id: "lens-save", prereq: "a preview", expected: "the Lens is saved and opens (one new Lens); Back shows the library, not the proposal", state: libQuery,
+      arrived: (p) => p.waitForSelector(sel("lens-view"), { timeout: 120_000 }), inApp: sel("lens-back"),
+      handoff: {
+        source: async () => ({ total: (await api("/lenses")).body.total, preview: await proposedName() }),
+        destination: async (p) => ({ lens: await p.getAttribute(sel("lens-view"), "data-object-id"), total: (await api("/lenses")).body.total }),
+        identity: async (s, d) => {
+          assert.equal(d.total, s.total + 1, "one new Lens");
+          const o = await objectOf(d.lens);
+          assert.equal(o.owner_id, "v4-local-demo");
+          return `preview → saved ${d.lens} "${o.body.name}" (${s.total} → ${d.total} Lenses)`;
+        },
+        writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/lenses /,
+        describe,
+      },
+    });
+    assert.equal(await page.locator(sel("lens-preview")).count(), 0, "Back after a save does not propose again");
     // The CRO Lens.
     await openLens(page, "lens-01");
     const pre = "Lens LENS-01 (CRO), latest, unfiltered";
@@ -2305,17 +2396,27 @@ async function lensJourney() {
     } });
     await ctl(page, record, { id: "lens-edit-name", prereq: "edit form", action: "rename", expected: "held", run: async () => { await page.fill(sel("lens-edit-name"), "GW-CTL CRO copy"); return "typed"; } });
     await ctl(page, record, { id: "lens-edit-cadence", prereq: "edit form", action: "refresh schedule = weekly", expected: "held", run: async () => { await page.selectOption(sel("lens-edit-cadence"), "weekly"); return "weekly"; } });
-    await ctl(page, record, { id: "lens-edit-form", prereq: "name and schedule changed", action: "Save as a new version", expected: "my copy is saved with that name and weekly schedule; LENS-01 is unchanged", run: async () => {
-      const before = (await objectOf("lens-01")).content_hash;
-      await page.click(sel("lens-edit-save"));
-      await page.waitForFunction(() => /\/lenses\//.test(location.pathname) && document.querySelector("h1")?.textContent?.includes("GW-CTL CRO copy"), null, { timeout: 120_000 });
-      const id = await page.getAttribute(sel("lens-view"), "data-object-id");
-      const o = await objectOf(id);
-      assert.equal(o.body.name, "GW-CTL CRO copy");
-      assert.equal(o.body.refresh.cadence, "weekly");
-      assert.equal((await objectOf("lens-01")).content_hash, before, "the library Lens did not change");
-      return `${id}: ${o.body.name}, ${o.body.refresh.cadence}`;
-    } });
+    await navTrip(page, record, {
+      id: "lens-edit-form", prereq: "name and schedule changed", action: "Save as a new version", expected: "my copy is saved with that name and weekly schedule and opens; LENS-01 is unchanged; Back returns to LENS-01", state: lensState,
+      go: (p) => p.click(sel("lens-edit-save")),
+      arrived: (p) => p.waitForFunction(() => /\/lenses\//.test(location.pathname) && document.querySelector("h1")?.textContent?.includes("GW-CTL CRO copy"), null, { timeout: 120_000 }),
+      inApp: sel("lens-back"),
+      handoff: {
+        source: async () => ({ lens: "lens-01", hash: (await objectOf("lens-01")).content_hash }),
+        destination: async (p) => ({ copy: await p.getAttribute(sel("lens-view"), "data-object-id") }),
+        identity: async (s, d) => {
+          const o = await objectOf(d.copy);
+          assert.notEqual(d.copy, s.lens, "a copy, not the library Lens");
+          assert.equal(o.body.name, "GW-CTL CRO copy");
+          assert.equal(o.body.refresh.cadence, "weekly");
+          assert.equal(o.body.source?.object_id, s.lens, "copied from LENS-01");
+          assert.equal((await objectOf(s.lens)).content_hash, s.hash, "the library Lens did not change");
+          return `${s.lens} → my copy ${d.copy} (${o.body.name}, ${o.body.refresh.cadence}); ${s.lens} unchanged`;
+        },
+        writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/lenses\/[^/]+\/revise /,
+        describe,
+      },
+    });
     // Group clicks: alerts → Monitoring; scenario results → the result.
     await openLens(page, "lens-18");
     const alertsV = await lensVisual("lens-18", "alerts");
@@ -2323,7 +2424,13 @@ async function lensJourney() {
       await navTrip(page, record, {
         id: "lens-chart-groups", prereq: "LENS-18 alerts visual", action: "click an alert group", expected: "opens the Monitoring Centre", state: lensState,
         go: (p) => clickPlotPoint(p, `lens-visual-${alertsV.visual_id}`, { point: 0 }),
-        arrived: (p) => p.waitForSelector(sel("monitoring-centre"), { timeout: 120_000 }), inApp: sel("monitoring-back"),
+        arrived: (p) => p.waitForSelector(`${sel("monitoring-list")}[data-state]:not([data-state=""])`, { timeout: 120_000 }), inApp: sel("monitoring-back"),
+        handoff: {
+          source: async () => ({ lens: "lens-18", alerts: (alertsV.groups ?? []).reduce((n, g) => n + (Number(g.value) || 0), 0) }),
+          destination: async (p) => ({ path: new URL(p.url()).pathname, listed: Number(await p.getAttribute(sel("monitoring-list"), "data-count")) }),
+          identity: (s, d) => { assert.equal(d.path, "/monitoring"); assert.ok(d.listed > 0, "the Monitoring Centre lists alerts"); return `LENS-18 alerts visual (${s.alerts} alerts) → Monitoring Centre listing ${d.listed}`; },
+          describe,
+        },
       });
     }
     await openLens(page, "lens-14");
@@ -2334,6 +2441,12 @@ async function lensJourney() {
         id: "lens-chart-groups", prereq: "LENS-14 scenario-results visual with an executed result", action: "click a result", expected: "opens that scenario result", state: lensState,
         go: (p) => clickPlotPoint(p, `lens-visual-${resV.visual_id}`, { point: resIdx }),
         arrived: (p) => p.waitForSelector(sel("whatif-result"), { timeout: 120_000 }), inApp: sel("whatif-result-back"),
+        handoff: {
+          source: async (p) => ({ result: await p.evaluate(([c, i]) => { const cd = document.querySelector(c)?.data?.[0]?.customdata?.[i]; return String(Array.isArray(cd) ? cd[0] : cd ?? ""); }, [sel(`lens-visual-${resV.visual_id}`), resIdx]) }),
+          destination: async (p) => ({ result: /\/what-if\/result\/([^/?]+)/.exec(p.url())?.[1] ?? "" }),
+          identity: (s, d) => { assert.ok(d.result.startsWith("res-"), "a scenario result opened"); if (s.result.startsWith("res-")) assert.equal(d.result, s.result, "the clicked result"); return `LENS-14 result bar ${s.result || "(no id on the bar)"} → result ${d.result}`; },
+          describe,
+        },
       });
     }
     // A table row → an investigation on that one exposure.
@@ -2693,6 +2806,15 @@ async function traceJourney() {
       arrived: (p) => p.waitForSelector(sel("llm-exchange"), { timeout: 120_000 }), inApp: sel("llm-exchange-back"),
       handoff: { source: async (p) => ({ run: /llm-exchange\/([^?]+)/.exec(await p.locator(sel("trace-llm-call-link")).first().getAttribute("href"))[1] }), destination: async (p) => ({ run: /llm-exchange\/([^?]+)/.exec(new URL(p.url()).pathname)[1] }), identity: (s, d) => { assert.equal(d.run, s.run); return `run ${s.run} → exchange of ${d.run}`; }, describe },
     });
+    // The run's governance record → its LLM Exchange; Back returns to the
+    // record (the Exchange page's own fallback when no origin is carried).
+    await page.goto(`${H.UI}/cockpit/trace/${runId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(sel("trace-llm-exchange-link"), { timeout: 120_000 });
+    await navTrip(page, record, {
+      id: "trace-llm-exchange-link", prereq: `governance record of ${runId}`, expected: "opens that run's LLM Exchange", state: () => ({ at: location.pathname }),
+      arrived: (p) => p.waitForSelector(sel("llm-exchange"), { timeout: 120_000 }), inApp: sel("llm-exchange-back"),
+      handoff: { source: async () => ({ run: runId }), destination: async (p) => ({ run: decodeURIComponent(/llm-exchange\/([^?/]+)/.exec(new URL(p.url()).pathname)[1]) }), identity: (s, d) => { assert.equal(d.run, s.run); return `record ${s.run} → exchange of ${d.run}`; }, describe },
+    });
     // The LLM Exchange of that run.
     await page.goto(`${H.UI}/trace/llm-exchange/${runId}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(sel("llm-exchange"), { timeout: 120_000 });
@@ -2882,7 +3004,9 @@ async function threadJourney() {
     } });
     // Advance until the navigating chip types are offered.
     const chip = (type) => page.locator(`[data-testid="nbq-chip"][data-suggestion-type="${type}"]`);
-    for (let i = 0; i < 3 && !(await chip("run_whatif").count() && await chip("save_share_monitor").count()); i += 1) {
+    // "Monitor in a Lens" ranks last; it reaches the five shown once the
+    // questions above it are answered.
+    for (let i = 0; i < 6 && !(await chip("run_whatif").count() && await chip("save_share_monitor").count()); i += 1) {
       const asking = page.locator('[data-testid="nbq-chip"]:not([data-suggestion-type="run_whatif"]):not([data-suggestion-type="freeze_cohort"]):not([data-suggestion-type="save_share_monitor"])');
       if (!(await asking.count())) break;
       const before = await turns(page);
@@ -2944,6 +3068,21 @@ async function threadJourney() {
       id: "thread-whatif-open-result", prereq: `thread ${t2} with a Delta result`, expected: "opens the decomposition of exactly that result", state: threadState,
       arrived: (p) => p.waitForSelector(sel("whatif-result"), { timeout: 120_000 }), inApp: sel("whatif-result-back"),
       handoff: { source: async () => ({ thread: t2 }), destination: async (p) => ({ result: await p.getAttribute(sel("whatif-result"), "data-result-id") }), identity: async (s, d) => { const r = await objectOf(d.result); assert.equal(r.body.thread_id, s.thread); return `thread ${s.thread} → result ${d.result} (thread_id ${r.body.thread_id})`; }, writes: /^POST \/api\/v1\/cockpit-v4\/workspace\/whatif\/threads\/[^/]+\/adopt-result /, describe },
+    });
+    // From that result, back to the conversation that executed it.
+    const adopted = (await H.post(`/whatif/threads/${t2}/adopt-result`, {})).body;
+    await page.goto(`${H.UI}/what-if/result/${adopted.object_id}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(sel("whatif-result-open-thread"), { timeout: 120_000 });
+    await navTrip(page, record, {
+      id: "whatif-result-open-thread", prereq: `result ${adopted.object_id} executed in conversation ${t2}`, expected: "opens the conversation that executed it", state: H.resultState,
+      arrived: async (p) => { await waitPath(p, /^\/cockpit\/thread\//, 120_000); await p.waitForSelector(sel("cockpit-v4-thread"), { timeout: 120_000 }); },
+      inApp: sel("thread-origin-back"),
+      handoff: {
+        source: async () => ({ result: adopted.object_id, thread: adopted.body.thread_id }),
+        destination: async (p) => ({ thread: /\/cockpit\/thread\/([^/?]+)/.exec(p.url())[1] }),
+        identity: (s, d) => { assert.equal(s.thread, t2, "the result records its conversation"); assert.equal(d.thread, s.thread); return `result ${s.result} → conversation ${d.thread}`; },
+        describe,
+      },
     });
   });
 }

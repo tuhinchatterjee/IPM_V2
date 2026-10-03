@@ -355,7 +355,9 @@ export function LensView({ lensId }: { lensId: string }) {
             void go(async () => {
               const obj = await reviseLens(lens.object_id, { name, refresh: { ...spec.refresh, cadence } }, "edited in the Lens view");
               setEditing(false);
-              if (obj.object_id !== lens.object_id) leave(`/lenses/${obj.object_id}`);
+              // A library Lens is customised as my copy: it opens carrying
+              // this Lens as its origin (VAL-DEF-052).
+              if (obj.object_id !== lens.object_id) leave(withBack(`/lenses/${obj.object_id}`));
               else setData(await renderLens(lens.object_id, { periods, cross_filters: cross }));
             });
           }}

@@ -2025,7 +2025,11 @@ async function p12Journeys() {
     record.lab_rows = labIds.size;
     assert.ok(ids.every((id) => labIds.has(id)), "the Lab lists the very records the Trace shows");
     const hrefs = await page.$$eval('a[href^="/trace/llm-exchange/"]', (els) => els.map((e) => e.getAttribute("href")));
-    assert.ok(hrefs.includes(`/trace/llm-exchange/${record.run_id}`), "and links back to the same Trace");
+    // The link carries the Lab as its origin (VAL-DEF-033); its path is the
+    // same Trace.
+    const same = hrefs.find((h) => h.split("?")[0] === `/trace/llm-exchange/${record.run_id}`);
+    assert.ok(same, "and links back to the same Trace");
+    assert.equal(new URL(same, UI).searchParams.get("back"), "/ai-model-lab", "carrying the Lab as its origin");
     await shot(page, record, "lab");
   });
 }
@@ -2270,7 +2274,9 @@ async function p16Journeys() {
     await openHome(page, "corporate");
     const again = page.locator(`[data-testid="issue-card"][data-issue-id="${issueId}"]`);
     await again.locator('[data-testid="issue-title"] button').click();
-    await page.waitForURL(new RegExp(`/issues/${issueId}$`), { timeout: 60_000 });
+    // The title opens the evidence carrying the Cockpit as its origin.
+    await page.waitForURL(new RegExp(`/issues/${issueId}(\\?back=%2F)?$`), { timeout: 60_000 });
+    assert.equal(new URL(page.url()).searchParams.get("back"), "/", "the origin is the Cockpit");
     await openHome(page, "corporate");
     await page.locator(`[data-testid="issue-card"][data-issue-id="${issueId}"] [data-testid="issue-whatif"]`).click();
     await page.waitForURL(/\/what-if\?cohort=coh-[0-9a-f]+&from=issue/, { timeout: 60_000 });
@@ -2628,7 +2634,7 @@ const threadState = () => ({
 const exchangeState = () => ({
   call: new URLSearchParams(location.search).get("call") || "",
   stage: new URLSearchParams(location.search).get("stage") || "",
-  calls: document.querySelectorAll('[data-testid^="llm-call-"]').length,
+  calls: [...document.querySelectorAll('[data-testid^="llm-call-"]')].filter((e) => /^llm-call-\d+$/.test(e.getAttribute("data-testid"))).length,
 });
 
 async function waitWhatIfObjects(page, { cohort = "", scenario = "" }) {
@@ -3044,7 +3050,8 @@ async function backJourneys() {
     const runId = await exchangeRun(page, record);
     await page.goto(`${UI}/trace/llm-exchange/${runId}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector('[data-testid="llm-call-1"]', { timeout: 120_000 });
-    const last = await page.$$eval('[data-testid^="llm-call-"]', (a) => a.at(-1).getAttribute("data-testid"));
+    // The call articles (`llm-call-<n>`), not the controls inside them.
+    const last = await page.$$eval('[data-testid^="llm-call-"]', (a) => a.map((e) => e.getAttribute("data-testid")).filter((t) => /^llm-call-\d+$/.test(t)).at(-1));
     await backTrip(page, record, {
       path: "Trace → request/response view → Back",
       state: exchangeState,

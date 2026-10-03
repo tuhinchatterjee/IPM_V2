@@ -48,7 +48,7 @@ export function ResultPage({ resultId }: { resultId: string }) {
             <Link href={withBack(`/what-if?run=${result.body.run_id}`)} className="text-accent underline" data-testid="whatif-result-open-run">
               Open the run in What-If
             </Link>
-            <Link href={withBack(`/scenarios/${result.body.scenario_id}`)} className="text-accent underline" data-testid="whatif-result-open-scenario">
+            <Link href={withBack(`/scenarios/${result.body.scenario_id}?version=${result.body.scenario_version}`)} className="text-accent underline" data-testid="whatif-result-open-scenario">
               Scenario {result.body.scenario_id} v{result.body.scenario_version}
             </Link>
           </>
