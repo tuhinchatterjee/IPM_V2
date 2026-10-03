@@ -11,8 +11,9 @@ from pydantic import BaseModel, Field
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import access, grid, metric_registry, metrics, service
 from backend.workspace import metric_catalog as mc
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-metrics"])
+router = APIRouter(tags=["workspace-metrics"], route_class=GovernedRoute)
 
 
 @router.get("/metrics")

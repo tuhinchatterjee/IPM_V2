@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -9,8 +10,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import comparisons, runs, service
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-whatif-runs"])
+router = APIRouter(tags=["workspace-whatif-runs"], route_class=GovernedRoute)
 
 
 class Baseline(BaseModel):
@@ -146,18 +148,30 @@ async def choose_method(run_id: str, body: ChooseMethod,
                               body.user_assumption)
 
 
+# Execution is long, CPU-bound work (a Compare with the ML emulator takes
+# tens of seconds). A plain `def` handler runs in the server's threadpool,
+# so every other request -- the health poll included -- is answered
+# meanwhile (VAL-DEF-036). The book's DuckDB session is serialized by
+# `access._SESSION_LOCK` and the object store by its own lock.
+# Executions still run one at a time, as they did on the event loop: the
+# engine paths they share with the V4 runtime use the book's connection.
+_EXECUTION_LOCK = threading.Lock()
+
+
 @router.post("/whatif/runs/{run_id}/execute")
-async def execute_run(run_id: str,
-                      who: dict[str, Any] = Depends(v4routes.principal)
-                      ) -> dict[str, Any]:
-    return runs.execute(service.objects(), who, run_id)
+def execute_run(run_id: str,
+                who: dict[str, Any] = Depends(v4routes.principal)
+                ) -> dict[str, Any]:
+    with _EXECUTION_LOCK:
+        return runs.execute(service.objects(), who, run_id)
 
 
 @router.post("/whatif/runs/{run_id}/rerun", status_code=201)
-async def rerun(run_id: str,
-                who: dict[str, Any] = Depends(v4routes.principal)
-                ) -> dict[str, Any]:
-    return runs.rerun(service.objects(), who, run_id)
+def rerun(run_id: str,
+          who: dict[str, Any] = Depends(v4routes.principal)
+          ) -> dict[str, Any]:
+    with _EXECUTION_LOCK:
+        return runs.rerun(service.objects(), who, run_id)
 
 
 __all__ = ["router"]

@@ -11,26 +11,33 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { ChartCard } from "@/components/viz/chart-card";
 import { breakdownBars, formatValue, gridDimension, metricTrend } from "@/lib/workspace/metric-figures";
 import { evaluateMetric, listMetrics, metricRows, readMetric, readMetricLineage, type MetricDefinition, type MetricLineage, type MetricValue } from "@/lib/workspace/metrics";
 import type { Filter } from "@/lib/workspace/objects";
 import { OriginBackLink } from "@/components/workspace/origin-back";
-import { urlWith, withBack } from "@/lib/workspace/nav";
+import { withBack } from "@/lib/workspace/nav";
+import { useAddress } from "@/lib/workspace/address";
+import { readGridSchema } from "@/lib/workspace/guided";
 
 const BOOKS = ["corporate", "retail"] as const;
 const DIRECTION: Record<string, string> = { lower_is_better: "Lower is better", higher_is_better: "Higher is better", context: "Context (no preferred direction)" };
 
 export function MetricCatalogue() {
   const params = useSearchParams();
-  const router = useRouter();
   const [all, setAll] = React.useState<MetricDefinition[] | null>(null);
   const [version, setVersion] = React.useState("");
-  const [q, setQ] = React.useState("");
-  const [domain, setDomain] = React.useState("");
-  const [family, setFamily] = React.useState("");
+  // The search and both filters live in the address, so Back from a Lens or
+  // the Cockpit returns to the same filtered catalogue (VAL-DEF-040).
+  const [q, setQ] = React.useState(() => params.get("q") ?? "");
+  const [domain, setDomain] = React.useState(() => (["corporate", "retail"].includes(params.get("domain") ?? "") ? (params.get("domain") as string) : ""));
+  const [family, setFamily] = React.useState(() => params.get("family") ?? "");
+  const address = useAddress();
+  React.useEffect(() => {
+    address.replace({ q: q.trim() || null, domain: domain || null, family: family || null });
+  }, [q, domain, family, address]);
   const [error, setError] = React.useState("");
   const selected = params.get("m") ?? "M001";
 
@@ -91,7 +98,7 @@ export function MetricCatalogue() {
             <li key={m.metric_id}>
               <button
                 type="button"
-                onClick={() => router.replace(urlWith({ m: m.metric_id }))}
+                onClick={() => address.replace({ m: m.metric_id })}
                 className={`w-full rounded-lg border p-2 text-left text-xs ${selected === m.metric_id ? "border-accent bg-accent/5" : "border-border bg-surface"}`}
                 data-testid="metric-item"
                 data-metric-id={m.metric_id}
@@ -135,6 +142,26 @@ function MetricDetail({ metricId }: { metricId: string }) {
   const [breakdown, setBreakdown] = React.useState<MetricValue | null>(null);
   const [drill, setDrill] = React.useState<{ label: string; rows: Record<string, unknown>[]; total: number } | null>(null);
   const [error, setError] = React.useState("");
+  // A metric's drill-down list names both books' dimensions; a breakdown is
+  // offered only on the columns the chosen book's governed grid has (the
+  // engine refuses any other with INVALID_DIMENSION) (VAL-DEF-041).
+  const [columns, setColumns] = React.useState<Record<string, Set<string>>>({});
+  React.useEffect(() => {
+    let live = true;
+    Promise.all(BOOKS.map((b) => readGridSchema(b).then((s) => [b, new Set(s.columns.map((c) => c.key))] as const).catch(() => [b, new Set<string>()] as const)))
+      .then((pairs) => live && setColumns(Object.fromEntries(pairs)))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  const dimsFor = React.useCallback(
+    (b: string) => [...new Set((m?.drilldown_dimensions ?? []).map((d) => gridDimension(d, b)).filter((d): d is string => Boolean(d) && Boolean(columns[b]?.has(d as string))))],
+    [m, columns],
+  );
+  // The reader's dimension where this book has it, else the book's first.
+  const bookDims = dimsFor(book);
+  const activeDim = bookDims.includes(dim) ? dim : (bookDims[0] ?? "");
 
   React.useEffect(() => {
     let live = true;
@@ -145,8 +172,7 @@ function MetricDetail({ metricId }: { metricId: string }) {
         setLineage(lin);
         const books = BOOKS.filter((b) => def.domain === "both" || def.domain === b);
         setBook(books[0]);
-        const first = def.drilldown_dimensions.map((d) => gridDimension(d, books[0])).find(Boolean);
-        setDim(first ?? "");
+        setDim("");
         const out: Record<string, MetricValue | string> = {};
         for (const b of books) {
           try {
@@ -164,15 +190,15 @@ function MetricDetail({ metricId }: { metricId: string }) {
   }, [metricId]);
 
   React.useEffect(() => {
-    if (!m || !dim) return;
+    if (!m || !activeDim) return;
     let live = true;
-    evaluateMetric(book, metricId, { group_by: dim })
+    evaluateMetric(book, metricId, { group_by: activeDim })
       .then((r) => live && setBreakdown(r))
       .catch(() => live && setBreakdown(null));
     return () => {
       live = false;
     };
-  }, [m, dim, book, metricId]);
+  }, [m, activeDim, book, metricId]);
 
   if (error)
     return (
@@ -186,13 +212,13 @@ function MetricDetail({ metricId }: { metricId: string }) {
     .map((b) => ({ b, v: values[b] }))
     .filter((x): x is { b: (typeof BOOKS)[number]; v: MetricValue } => typeof x.v === "object" && Boolean(x.v?.series?.length))
     .map((x) => ({ name: x.b === "corporate" ? "Corporate" : "Retail", points: x.v.series! }));
-  const dims = [...new Set(m.drilldown_dimensions.map((d) => gridDimension(d, book)).filter((d): d is string => Boolean(d)))];
-  const bars = breakdown?.groups ? breakdownBars(breakdown.groups, m.unit, dim) : null;
+  const dims = dimsFor(book);
+  const bars = breakdown?.groups ? breakdownBars(breakdown.groups, m.unit, activeDim) : null;
 
   async function drillTo(value: string) {
-    const filters: Filter[] = [{ column: dim, op: "in", values: [value] }];
+    const filters: Filter[] = [{ column: activeDim, op: "in", values: [value] }];
     const r = await metricRows(metricId, book, filters, 100);
-    setDrill({ label: `${dim} = ${value}`, rows: r.rows, total: r.total });
+    setDrill({ label: `${activeDim} = ${value}`, rows: r.rows, total: r.total });
   }
 
   return (
@@ -265,13 +291,23 @@ function MetricDetail({ metricId }: { metricId: string }) {
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="font-semibold">Breakdown</span>
             {books.length > 1 && (
-              <select value={book} onChange={(e) => setBook(e.target.value)} className="rounded border border-border bg-surface px-2 py-1" data-testid="metric-breakdown-book">
+              <select
+                value={book}
+                onChange={(e) => {
+                  // A dimension is named per book (sector / product): keep
+                  // the reader's choice where the new book has it, otherwise
+                  // that book's first governed dimension (VAL-DEF-041).
+                  setBook(e.target.value);
+                }}
+                className="rounded border border-border bg-surface px-2 py-1"
+                data-testid="metric-breakdown-book"
+              >
                 {books.map((b) => (
                   <option key={b}>{b}</option>
                 ))}
               </select>
             )}
-            <select value={dim} onChange={(e) => setDim(e.target.value)} className="rounded border border-border bg-surface px-2 py-1" data-testid="metric-breakdown-dim">
+            <select value={activeDim} onChange={(e) => setDim(e.target.value)} className="rounded border border-border bg-surface px-2 py-1" data-testid="metric-breakdown-dim">
               {dims.map((d) => (
                 <option key={d}>{d}</option>
               ))}
@@ -280,7 +316,7 @@ function MetricDetail({ metricId }: { metricId: string }) {
           </div>
           {bars && breakdown?.groups && (
             <ChartCard
-              title={`${m.name} by ${dim}`}
+              title={`${m.name} by ${activeDim}`}
               subtitle={`${book} · ${breakdown.period}`}
               testId="metric-breakdown"
               {...bars}
@@ -291,7 +327,7 @@ function MetricDetail({ metricId }: { metricId: string }) {
               }}
               table={{
                 columns: [
-                  { key: "dimension", label: dim },
+                  { key: "dimension", label: activeDim },
                   { key: "value", label: "Value (raw)", align: "right" },
                   { key: "numerator", label: "Numerator", align: "right" },
                   { key: "denominator", label: "Denominator", align: "right" },
@@ -392,7 +428,7 @@ function MetricDetail({ metricId }: { metricId: string }) {
               Lenses:{" "}
               {lineage.used_by.lenses.length
                 ? lineage.used_by.lenses.map((l) => (
-                    <Link key={l.object_id} href={withBack(`/lenses/${l.object_id}`)} className="mr-2 text-accent underline">
+                    <Link data-testid="metric-used-by-lens" key={l.object_id} href={withBack(`/lenses/${l.object_id}`)} className="mr-2 text-accent underline">
                       {l.title} v{l.version}
                     </Link>
                   ))
@@ -402,7 +438,7 @@ function MetricDetail({ metricId }: { metricId: string }) {
             <div>
               Requires Attention detectors:{" "}
               {lineage.used_by.issue_detectors.length ? (
-                <Link href="/" className="text-accent underline">
+                <Link data-testid="metric-cockpit-link" href="/" className="text-accent underline">
                   {lineage.used_by.issue_detectors.join(", ")}
                 </Link>
               ) : (

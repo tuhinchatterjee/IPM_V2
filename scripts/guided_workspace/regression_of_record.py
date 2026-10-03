@@ -127,22 +127,32 @@ def tail_has(text: str):
     return judge
 
 
+#: The only statuses an inventory row may end in: executed and passed,
+#: blocked by a governed rule (reason shown), or not applicable with a
+#: runtime proof. FAILED, NOT_EXERCISED, PARTIAL or NOT_RUN fail the step.
+CLOSED = {"PASS", "BLOCKED_WITH_GOVERNED_REASON", "NOT_APPLICABLE_WITH_PROOF"}
+
+
 def inventory_has_no_failure(folder: Path):
-    """The runtime inventory of the browser run: every control a journey
-    clicked, every route it visited, every Back path and every Plotly chart
-    it audited must have passed; untouched controls are PARTIAL, not FAIL."""
+    """The runtime inventory of the browser run: every control, route,
+    handoff, Back path and Plotly interaction contract is closed (CLOSED)
+    with runtime evidence; anything failed or not exercised fails."""
     def judge(log: Path, rc: int) -> tuple[str, str]:
         if rc != 0 or not (folder / "inventory_summary.json").exists():
             return "FAIL", "the inventory did not run"
         s = json.loads((folder / "inventory_summary.json").read_text())
-        failed = {k: v.get("FAILED", 0) for k, v in s.items()
-                  if k.endswith("_by_status") and isinstance(v, dict)}
-        bad = {k: v for k, v in failed.items() if v}
-        return ("PASS" if not bad and s.get("back_paths", 0) >= 22 else
-                "FAIL", json.dumps({k: s[k] for k in (
-                    "controls", "controls_exercised", "routes", "back_paths",
-                    "handoffs", "plotly_rows", "journeys") if k in s}
-                    | {"failed": bad}))
+        open_rows = {k: {st: n for st, n in v.items() if st not in CLOSED}
+                     for k, v in s.items()
+                     if k.endswith("_by_status") and isinstance(v, dict)
+                     and k != "journeys_by_status"}
+        bad = {k: v for k, v in open_rows.items() if v}
+        jfail = s.get("journeys_by_status", {}).get("FAILED", 0)
+        ok = not bad and not jfail and s.get("back_paths", 0) >= 22
+        return ("PASS" if ok else "FAIL", json.dumps({k: s[k] for k in (
+            "controls", "controls_by_status", "routes", "routes_by_status",
+            "handoffs", "handoffs_by_status", "back_paths",
+            "plotly_contracts_by_status", "journeys") if k in s}
+            | {"open": bad, "journeys_failed": jfail}))
     return judge
 
 

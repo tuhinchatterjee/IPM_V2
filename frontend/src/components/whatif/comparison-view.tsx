@@ -13,6 +13,8 @@ import { comparisonBars, type Comparison } from "@/lib/viz/decomposition";
 import { moneyCol, sar, sarDelta } from "@/lib/viz/format";
 import { driverColor, driverLabel } from "@/lib/viz/palette";
 import { readObject, type GovernedObject } from "@/lib/workspace/objects";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { withBack } from "@/lib/workspace/nav";
 
 export function ComparisonPage({ comparisonId }: { comparisonId: string }) {
   const [obj, setObj] = React.useState<GovernedObject<Comparison> | null>(null);
@@ -39,6 +41,9 @@ export function ComparisonPage({ comparisonId }: { comparisonId: string }) {
   const context = { period: c.period, source: `comparison ${obj.object_id} v${obj.version} · ${c.method}` };
   return (
     <section className="space-y-4" data-testid="comparison" data-comparison-id={obj.object_id} data-items={c.items.length}>
+      <React.Suspense fallback={null}>
+        <OriginBackLink testId="comparison-back" />
+      </React.Suspense>
       <header className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-semibold">{obj.title}</h1>
         <span className="text-xs text-text-muted">
@@ -68,7 +73,7 @@ export function ComparisonPage({ comparisonId }: { comparisonId: string }) {
               return (
                 <tr key={i.result_id} className="border-t border-border" data-result-id={i.result_id}>
                   <td className="px-2 py-1">
-                    <Link href={`/what-if/result/${i.result_id}`} className="text-accent underline">
+                    <Link data-testid="comparison-result-link" href={withBack(`/what-if/result/${i.result_id}`)} className="text-accent underline">
                       {i.scenario_name}
                     </Link>{" "}
                     <span className="text-text-muted">{i.cohort}</span>

@@ -14,9 +14,10 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import access, cohorts, grid, service
+from backend.workspace.errors import GovernedRoute
 from backend.workspace.objects import KINDS
 
-router = APIRouter(tags=["workspace-objects"])
+router = APIRouter(tags=["workspace-objects"], route_class=GovernedRoute)
 
 
 class FreezeCohort(BaseModel):

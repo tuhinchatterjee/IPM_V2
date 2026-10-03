@@ -21,8 +21,9 @@ from pydantic import BaseModel, Field
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import access, cohorts, issues, metrics, nbq, service
 from backend.workspace import metric_catalog as mc
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-guided"])
+router = APIRouter(tags=["workspace-guided"], route_class=GovernedRoute)
 
 PATH_STEPS = ("Issue", "Evidence", "Driver", "Cohort", "Finding",
               "Scenario/Decision")

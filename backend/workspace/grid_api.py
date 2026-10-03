@@ -19,8 +19,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import access, grid, predicates, service
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-grid"])
+router = APIRouter(tags=["workspace-grid"], route_class=GovernedRoute)
 
 
 @router.get("/grid/schema")

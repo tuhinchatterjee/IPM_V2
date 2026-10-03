@@ -14,7 +14,7 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Download, Loader2, Save, Search } from "lucide-react";
 
 import { DomainSwitchPlain } from "@/components/guided/domain-toggle";
@@ -26,7 +26,7 @@ import { SEVERITY_COLORS, SEMANTIC } from "@/lib/viz/palette";
 import { workspaceUrl, wsGet, wsSend } from "@/lib/workspace/client";
 import type { DomainId, Filter } from "@/lib/workspace/objects";
 import { moneyCol } from "@/lib/viz/format";
-import { withBack } from "@/lib/workspace/nav";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 interface EwFeed {
   domain_id: DomainId;
@@ -49,8 +49,11 @@ const BANDS = ["critical", "high", "moderate", "low"] as const;
 
 export function EarlyWarningV4() {
   const router = useRouter();
-  const [domain, setDomain] = React.useState<DomainId>("retail");
-  const [reason, setReason] = React.useState("");
+  // The book and the rule filter live in the address, so Back from any
+  // handoff (What-If, an investigation) restores exactly this view.
+  const params = useSearchParams();
+  const domain: DomainId = params.get("domain") === "corporate" ? "corporate" : "retail";
+  const reason = params.get("reason") ?? "";
   const [loaded, setLoaded] = React.useState<{ key: string; feed: EwFeed | null }>({ key: "", feed: null });
   const key = `${domain}|${reason}`;
   const feed = loaded.key === key ? loaded.feed : null;
@@ -73,11 +76,12 @@ export function EarlyWarningV4() {
   }, [domain, reason, key]);
 
   function changeDomain(next: DomainId) {
-    setReason("");
-    setDomain(next);
+    router.replace(urlWith({ domain: next === "retail" ? null : next, reason: null }), { scroll: false });
   }
 
-  const toggleReason = (r: string) => setReason((current) => (current === r ? "" : r));
+  // A rule filter is a drill: it adds a history entry, so browser Back undoes it.
+  const toggleReason = (r: string) => router.push(urlWith({ reason: reason === r ? null : r }), { scroll: false });
+  const clearReason = () => router.push(urlWith({ reason: null }), { scroll: false });
 
   // The cohort frozen for one population (book, segment, bands, rule) is
   // reused: Save, Export and What-If on the same population never mint a
@@ -162,7 +166,7 @@ export function EarlyWarningV4() {
             <p className="flex flex-wrap items-center gap-2 rounded-md border border-accent bg-accent-muted px-3 py-2 text-xs" data-testid="ew-reason-filter" data-reason={reason}>
               Showing exposures that trip <span className="font-semibold">{reason}</span> — bands, segments, the grid and every
               Save / Investigate / What-If below use this filter.
-              <button type="button" onClick={() => setReason("")} className="text-accent underline" data-testid="ew-reason-clear">
+              <button type="button" onClick={clearReason} className="text-accent underline" data-testid="ew-reason-clear">
                 Clear
               </button>
             </p>

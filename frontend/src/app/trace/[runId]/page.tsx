@@ -1,5 +1,7 @@
 "use client";
 
+import { LegacyRedirect, legacyRedirectActive } from "@/components/workspace/legacy-redirect";
+
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Clock, GitBranch, Layers, Sparkles } from "lucide-react";
@@ -62,7 +64,7 @@ function readBy(mode: RunMode | undefined): string {
   return `Question ${read} · ${built}`;
 }
 
-export default function TraceDetailPage({ params }: { params: Promise<{ runId: string }> }) {
+function TraceDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = React.use(params);
   return (
     <React.Suspense fallback={<Skeleton className="h-[32rem] w-full" />}>
@@ -384,4 +386,20 @@ function TraceDetail({ runId }: { runId: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * In a V4 runtime with the Guided Workspace on, a run's trace is the
+ * governance record at `/cockpit/trace/<run id>`; this legacy V3 map has no
+ * backend there (VAL-DEF-026), so the address hands over, keeping `back=`.
+ */
+export default function TraceRoute({ params }: { params: Promise<{ runId: string }> }) {
+  const { runId } = React.use(params);
+  if (legacyRedirectActive())
+    return (
+      <LegacyRedirect to={`/cockpit/trace/${encodeURIComponent(runId)}`} keepQuery testId="legacy-trace-redirect">
+        This run&apos;s trace is its governance record — opening it…
+      </LegacyRedirect>
+    );
+  return <TraceDetailPage params={params} />;
 }

@@ -74,7 +74,7 @@ export function PortfolioExplorer({
             </option>
           ))}
         </select>
-        <select value={measure} onChange={(e) => setMeasure(e.target.value as typeof measure)} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Measure">
+        <select data-testid="whatif-explorer-measure" value={measure} onChange={(e) => setMeasure(e.target.value as typeof measure)} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Measure">
           <option value="ecl_sar_mn">Booked ECL</option>
           <option value="ead_sar_mn">EAD</option>
         </select>
@@ -216,7 +216,7 @@ function ExplorerMatrices({
         height={340}
         testId="whatif-chart-heatmap"
         actions={
-          <select value={measure} onChange={(e) => setMeasure(e.target.value as typeof measure)} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Heatmap measure">
+          <select data-testid="whatif-heatmap-measure" value={measure} onChange={(e) => setMeasure(e.target.value as typeof measure)} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Heatmap measure">
             <option value="ead_sar_mn">EAD</option>
             <option value="ecl_sar_mn">Booked ECL</option>
           </select>

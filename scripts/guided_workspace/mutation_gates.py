@@ -144,6 +144,53 @@ GATES: list[tuple] = [
      "    except ZeroDivisionError as exc:\n",
      ["tests/cockpit_v4/test_gw_validation_defects.py::"
       "test_a_wrong_type_filter_value_is_422_in_plain_words"]),
+    # Interaction-coverage closure round.
+    ("a malformed request is the governed envelope (VAL-DEF-024)",
+     "backend/workspace/errors.py",
+     "            except RequestValidationError as exc:\n",
+     "            except ZeroDivisionError as exc:\n",
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_024_a_malformed_request_is_the_governed_envelope"]),
+    ("a Lens reads directly by id (VAL-DEF-025)",
+     "backend/workspace/lenses_api.py",
+     '@router.get("/lenses/{object_id}")\n',
+     '@router.get("/lenses-removed/{object_id}")\n',
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_025_a_lens_reads_directly_by_id"]),
+    ("a long execution does not stall other requests (VAL-DEF-036)",
+     "backend/workspace/runs_api.py",
+     '@router.post("/whatif/runs/{run_id}/execute")\ndef execute_run(',
+     '@router.post("/whatif/runs/{run_id}/execute")\nasync def execute_run(',
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_036_a_long_execution_does_not_stall_other_requests"]),
+    ("workspace reads use their own connection (VAL-DEF-037)",
+     "backend/workspace/access.py",
+     "            cursor = self.session.connection.cursor()\n"
+     "            try:\n"
+     "                cursor.execute(sql, params or [])\n"
+     "                names = [d[0] for d in cursor.description]\n"
+     "                return [dict(zip(names, row, strict=True))\n"
+     "                        for row in cursor.fetchall()]\n"
+     "            finally:\n"
+     "                cursor.close()\n",
+     # The exact pre-fix read: the shared connection itself.
+     "            cursor = self.session.connection.execute(sql, params or [])\n"
+     "            names = [d[0] for d in cursor.description]\n"
+     "            return [dict(zip(names, row, strict=True))\n"
+     "                    for row in cursor.fetchall()]\n",
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query"]),
+    ("an empty population is a tornado state (VAL-DEF-043)",
+     "backend/workspace/macro_sensitivity.py",
+     '    empty = population["entities"] == 0\n',
+     # The pre-fix refusal.
+     '    empty = population["entities"] == 0\n'
+     '    if empty:\n'
+     '        raise HTTPException(422, {"error_code": "EMPTY_POPULATION",\n'
+     '                                  "message": "No exposures match the '
+     'filter."})\n',
+     ["tests/cockpit_v4/test_gw_validation_defects.py::"
+      "test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal"]),
 ]
 
 
@@ -164,9 +211,13 @@ def run_tests(tests: list[str], python: str = PY) -> tuple[int, str]:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--out", required=True)
+    p.add_argument("--only", default="",
+                   help="run only the gates whose name contains this text")
     args = p.parse_args()
     results, ok = [], True
     for gate, rel, find, replace, tests, *opt in GATES:
+        if args.only and args.only not in gate:
+            continue
         python = WHATIF if opt and opt[0] == "whatif" else PY
         path = ROOT / rel
         original = path.read_bytes()

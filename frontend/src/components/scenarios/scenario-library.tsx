@@ -28,8 +28,9 @@ import {
   type ScenarioCard,
 } from "@/lib/workspace/scenarios";
 import { cn } from "@/lib/utils";
-import { urlWith, withBack } from "@/lib/workspace/nav";
+import { withBack } from "@/lib/workspace/nav";
 import { OriginBackLink } from "@/components/workspace/origin-back";
+import { useAddress } from "@/lib/workspace/address";
 
 const OWNERS = [
   ["", "All"],
@@ -66,6 +67,7 @@ function writeSelection(cards: ScenarioCard[]) {
 
 export function ScenarioLibrary() {
   const router = useRouter();
+  const address = useAddress();
   // The filters live in the URL (`/scenarios?domain=retail&owner=mine&q=..`):
   // a link can open the library on a book, and browser Back from a scenario
   // returns to the same filtered list. The combine selection survives the
@@ -99,9 +101,8 @@ export function ScenarioLibrary() {
   }, [domain, owner, severity, tag, query, key]);
   const listing = loaded.key === key ? loaded.listing : null;
   React.useEffect(() => {
-    const next = urlWith({ domain, owner, severity, tag, q: query });
-    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
-  }, [domain, owner, severity, tag, query, router]);
+    address.replace({ domain, owner, severity, tag, q: query });
+  }, [domain, owner, severity, tag, query, address]);
   // This page's own address, its origin (`back=`) included, so a chain of
   // Backs never loses a level.
   const here = `/scenarios?${new URLSearchParams(Object.entries({ domain, owner, severity, tag, q: query, back: params.get("back") ?? "" }).filter(([, v]) => v)).toString()}`;
@@ -173,7 +174,7 @@ export function ScenarioLibrary() {
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
-        <form
+        <form data-testid="scenario-search-form"
           onSubmit={(e) => {
             e.preventDefault();
             setQuery(q);
@@ -233,7 +234,7 @@ export function ScenarioLibrary() {
             <GitMerge className="h-3 w-3" /> Combine into a new scenario
           </button>
           {!sameBook && <span className="text-xs text-negative">Scenarios from different books do not combine.</span>}
-          <button type="button" onClick={() => setSelected([])} className="text-xs underline">
+          <button data-testid="scenario-selection-clear" type="button" onClick={() => setSelected([])} className="text-xs underline">
             Clear
           </button>
         </div>
@@ -354,7 +355,7 @@ function ScenarioCardView({ card, selected, onToggle, onClone, back }: { card: S
         </div>
       </dl>
       <div className="mt-auto flex gap-2 pt-2 text-xs">
-        <Link href={withBack(`/scenarios/${card.object_id}`, back)} className="rounded border border-border px-2 py-0.5">
+        <Link data-testid="scenario-open-preview" href={withBack(`/scenarios/${card.object_id}`, back)} className="rounded border border-border px-2 py-0.5">
           Open preview
         </Link>
         <button type="button" onClick={onClone} className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5" data-testid="scenario-clone">

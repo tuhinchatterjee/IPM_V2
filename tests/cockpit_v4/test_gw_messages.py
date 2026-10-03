@@ -380,3 +380,68 @@ def test_a_result_of_a_private_scenario_carries_what_a_rerun_needs(
                     json={"latest": True})
     assert r.status_code == 201, r.text
     assert r.json()["body"]["scenario_id"] == scn["object_id"]
+
+
+def test_every_shareable_kind_offers_its_recipient_actions_and_each_works(
+        client, svc, who):
+    """Recipient side, every shareable kind the browser runtime cannot put
+    in its single principal's inbox (Lens, alert, run, investigation): the
+    actions offered are the kind's own, an `open` link resolves to an object
+    the recipient may read, and every server-side action works for the
+    recipient (save, investigate, What-If, comment)."""
+    from backend.workspace import monitoring
+
+    scenarios.ensure_seeded(svc, SENDER)
+    # The sender's objects of each kind.
+    lens = client.post(f"{P}/lenses", json={"spec": client.post(
+        f"{P}/lenses/propose", json={"prompt": "construction risk weekly"}
+    ).json()["spec"]}).json()
+    run = client.post(f"{P}/whatif/runs", json={
+        "scenario_id": scenarios.template_object_id("CORP-01"),
+        "session_id": "share"}).json()
+    issue = client.get(f"{P}/issues?domain=corporate").json()["issues"][0]
+    inv = client.post(f"{P}/issues/{issue['issue_id']}/investigate",
+                      json={"domain": "corporate"}).json()
+    monitoring.ensure_seeded(svc, SENDER)
+    client.get(f"{P}/monitoring")
+    alert = next(a for a in svc.store.latest_of_kind(
+        "alert", tenant_id="demo-tenant")
+        if a["body"].get("alert_type") == "breach"
+        and not a["body"].get("demo_historical"))
+    shared = {"lens": lens["object_id"], "run": run["object_id"],
+              "investigation": inv["investigation_id"],
+              "alert": alert["object_id"]}
+    for oid in shared.values():
+        send(client, oid)
+    as_(who, RECIPIENT)
+    expected = {"lens": {"open", "save", "comment"},
+                "run": {"open", "comment"},
+                "investigation": {"open", "comment"},
+                "alert": {"open", "open_monitoring", "investigate", "whatif",
+                          "comment"}}
+    for kind, oid in shared.items():
+        msg = received(client, oid)
+        d = client.get(f"{P}/messages/{msg['share_id']}").json()
+        assert d["accessible"] is True, (kind, d.get("reason"))
+        acts = {a["action"]: a for a in d["actions"]}
+        assert set(acts) == expected[kind], (kind, sorted(acts))
+        # `open` names a page of this product for this very object.
+        assert oid in acts["open"]["href"] or kind == "investigation", \
+            (kind, acts["open"]["href"])
+        if "save" in acts:
+            saved = client.post(f"{P}/messages/{msg['share_id']}/save")
+            assert saved.status_code == 201, (kind, saved.text)
+            assert saved.json()["owner_id"] == "colleague"
+        if "investigate" in acts:
+            t = client.post(f"{P}/messages/{msg['share_id']}/investigate")
+            assert t.status_code == 201, (kind, t.text)
+            assert t.json()["thread_id"].startswith("th-")
+        if "whatif" in acts:
+            c = client.post(f"{P}/messages/{msg['share_id']}/whatif")
+            assert c.status_code == 201, (kind, c.text)
+            assert c.json()["kind"] == "cohort"
+        com = client.post(f"{P}/messages/{msg['share_id']}/comments",
+                          json={"body": f"recipient note on {kind}"})
+        assert com.status_code == 201, (kind, com.text)
+        again = client.get(f"{P}/messages/{msg['share_id']}").json()
+        assert f"recipient note on {kind}" in str(again), kind

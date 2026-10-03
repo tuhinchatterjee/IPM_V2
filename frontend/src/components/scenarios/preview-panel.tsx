@@ -153,7 +153,7 @@ export function PreviewPanel({
                   <React.Fragment key={r.component_id}>
                     <tr className="border-t border-border" data-testid="scenario-component-row" data-status={r.status}>
                       <td className="p-2">
-                        <button type="button" aria-label="Show translation" onClick={() => setOpen(expanded ? "" : r.component_id)}>
+                        <button data-testid="preview-show-translation" type="button" aria-label="Show translation" onClick={() => setOpen(expanded ? "" : r.component_id)}>
                           {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                         </button>
                       </td>

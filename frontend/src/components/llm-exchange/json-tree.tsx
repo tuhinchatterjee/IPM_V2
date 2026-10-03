@@ -60,7 +60,7 @@ function Node({
     : Object.entries(value as Record<string, unknown>);
   return (
     <div className="pl-2">
-      <button
+      <button data-testid="json-node-toggle"
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-0.5 text-text-secondary hover:text-text-primary"
@@ -100,20 +100,20 @@ export function JsonTree({
   return (
     <div className="rounded-md border border-border bg-surface-sunken" data-testid={testId}>
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-2 text-xs">
-        <input
+        <input data-testid="json-search"
           value={needle}
           onChange={(e) => setNeedle(e.target.value)}
           placeholder="Search this payload"
           aria-label="Search this payload"
           className="min-w-[12rem] flex-1 rounded border border-border bg-surface px-2 py-1"
         />
-        <button type="button" onClick={() => setRaw((v) => !v)} className="rounded border border-border px-2 py-1">
+        <button data-testid="json-raw-toggle" type="button" onClick={() => setRaw((v) => !v)} className="rounded border border-border px-2 py-1">
           {raw ? "Tree" : "Raw JSON"}
         </button>
-        <button type="button" onClick={() => setExpandAll((v) => !v)} className="rounded border border-border px-2 py-1">
+        <button data-testid="json-expand-all" type="button" onClick={() => setExpandAll((v) => !v)} className="rounded border border-border px-2 py-1">
           {expandAll ? "Collapse" : "Expand all"}
         </button>
-        <button
+        <button data-testid="json-wrap"
           type="button"
           onClick={() => setWrap((v) => !v)}
           className="inline-flex items-center gap-1 rounded border border-border px-2 py-1"
@@ -121,14 +121,14 @@ export function JsonTree({
         >
           <WrapText className="h-3 w-3" /> Wrap
         </button>
-        <button
+        <button data-testid="json-copy"
           type="button"
           onClick={() => void navigator.clipboard?.writeText(text)}
           className="inline-flex items-center gap-1 rounded border border-border px-2 py-1"
         >
           <Copy className="h-3 w-3" /> Copy
         </button>
-        <button
+        <button data-testid="json-download"
           type="button"
           onClick={() => downloadText(text, filename, "application/json")}
           className="inline-flex items-center gap-1 rounded border border-border px-2 py-1"

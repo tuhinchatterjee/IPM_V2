@@ -38,8 +38,17 @@ async function journey(id, what, fn) {
     await fn(record);
     // Validation journeys fail on any console error or uncaught page error
     // (§32: console errors are never ignored).
-    if (/^GW-(BACK|GOLD|VAL)/.test(id)) {
-      const errors = live.flatMap((p) => p.consoleLog ?? []).filter((l) => /^(error|pageerror):/.test(l));
+    const failedControls = (record.controls ?? []).filter((c) => c.result === "FAILED");
+    assert.deepEqual(failedControls.map((c) => `${c.id}: ${c.observed}`.slice(0, 300)), [], "every exercised control passed");
+    if (/^GW-(BACK|GOLD|VAL|CTL)/.test(id)) {
+      // Lines a control excused for a refusal it expected (exact text, once each).
+      const excused = (record.controls ?? []).flatMap((c) => c.excused_console ?? []);
+      const errors = live.flatMap((p) => p.consoleLog ?? []).filter((l) => /^(error|pageerror):/.test(l)).filter((l) => {
+        const i = excused.indexOf(l);
+        if (i < 0) return true;
+        excused.splice(i, 1);
+        return false;
+      });
       record.console_errors = errors;
       assert.deepEqual(errors, [], "no console error and no uncaught page error");
     }
@@ -80,31 +89,78 @@ async function open() {
   const clicked = new Set();
   const consoleLog = [];
   const http = [];
-  await page.exposeFunction("__gwClicked", (id) => clicked.add(String(id)));
+  // Per-click execution log: every click on an element carrying a test id
+  // (and the nearest `data-control`), with a timestamped stream of what
+  // followed (API responses, failures, console lines, navigations,
+  // downloads), cut into one window per click at the end of the journey.
+  const clicks = [];
+  const timeline = [];
+  await page.exposeFunction("__gwClicked", (info) => {
+    const c = typeof info === "string" ? { id: info } : info;
+    clicked.add(String(c.id));
+    if (c.control) clicked.add(String(c.control));
+    clicks.push({ id: String(c.id), control: c.control ?? "", url: c.url ?? "", t: Date.now() });
+  });
   await page.addInitScript(() => {
     window.addEventListener(
       "click",
       (e) => {
         const el = e.target instanceof Element ? e.target.closest("[data-testid]") : null;
-        if (el) window.__gwClicked?.(el.getAttribute("data-testid"));
+        const ctl = e.target instanceof Element ? e.target.closest("[data-control]") : null;
+        if (el || ctl)
+          window.__gwClicked?.({
+            id: el?.getAttribute("data-testid") ?? ctl.getAttribute("data-control"),
+            control: ctl?.getAttribute("data-control") ?? "",
+            url: location.pathname + location.search,
+          });
       },
       true,
     );
   });
   page.on("console", (m) => {
-    if (m.type() === "error" || m.type() === "warning") consoleLog.push(`${m.type()}: ${m.text().slice(0, 300)}`);
+    if (m.type() === "error" || m.type() === "warning") {
+      const line = `${m.type()}: ${m.text().slice(0, 300)}`;
+      consoleLog.push(line);
+      timeline.push({ t: Date.now(), kind: "console", line });
+    }
   });
-  page.on("pageerror", (e) => consoleLog.push(`pageerror: ${String(e?.message ?? e).slice(0, 300)}`));
+  page.on("pageerror", (e) => {
+    const line = `pageerror: ${String(e?.message ?? e).slice(0, 300)}`;
+    consoleLog.push(line);
+    timeline.push({ t: Date.now(), kind: "console", line });
+  });
   page.on("requestfailed", (r) => {
-    if (r.url().startsWith(API)) http.push(`FAILED ${r.method()} ${r.url().replace(API, "")} ${r.failure()?.errorText ?? ""}`);
+    if (r.url().startsWith(API)) {
+      const line = `FAILED ${r.method()} ${r.url().replace(API, "")} ${r.failure()?.errorText ?? ""}`;
+      http.push(line);
+      timeline.push({ t: Date.now(), kind: "failed", line });
+    }
   });
   page.on("response", (r) => {
-    if (r.url().startsWith(API) && r.status() >= 400) http.push(`${r.status()} ${r.request().method()} ${r.url().replace(API, "")}`);
+    if (!r.url().startsWith(API)) return;
+    const line = `${r.request().method()} ${r.url().replace(API, "")} ${r.status()}`;
+    timeline.push({ t: Date.now(), kind: "api", line, status: r.status(), method: r.request().method() });
+    if (r.status() >= 400) http.push(`${r.status()} ${r.request().method()} ${r.url().replace(API, "")}`);
   });
+  page.on("download", (d) => timeline.push({ t: Date.now(), kind: "download", line: d.suggestedFilename() }));
   const urls = new Set();
   page.on("framenavigated", (f) => {
-    if (f === page.mainFrame() && f.url().startsWith(UI)) urls.add(new URL(f.url()).pathname);
+    if (f === page.mainFrame() && f.url().startsWith(UI)) {
+      urls.add(new URL(f.url()).pathname);
+      const u = new URL(f.url());
+      timeline.push({ t: Date.now(), kind: "nav", line: u.pathname + u.search });
+    }
   });
+  page.clicks = clicks;
+  page.timeline = timeline;
+  // A navigation the harness itself makes ends the previous click's window.
+  for (const verb of ["goto", "reload", "goBack", "goForward"]) {
+    const original = page[verb].bind(page);
+    page[verb] = (...args) => {
+      timeline.push({ t: Date.now(), kind: "harness", line: verb });
+      return original(...args);
+    };
+  }
   page.calls = calls;
   page.crashes = crashes;
   page.urls = urls;
@@ -115,7 +171,71 @@ async function open() {
   return page;
 }
 
+/** Requests the browser aborts because the page navigated away (a fetch in
+ * flight when the address changed) are the one benign failure, matched
+ * exactly and only in a window that navigated. Every other failure, 4xx or
+ * 5xx counts against the control clicked. */
+const ABORTED_BY_NAVIGATION = /^FAILED (GET|POST) \S+ net::ERR_ABORTED$/;
+
+/** The grid cancels its own in-flight page query (AbortController in
+ * data-grid.tsx) when its filters, sort or book change: a superseded read,
+ * matched exactly. */
+const SUPERSEDED_GRID_QUERY = /^FAILED POST \/api\/v1\/cockpit-v4\/workspace\/grid\/query net::ERR_ABORTED$/;
+
+/** POST endpoints that compute and return, persisting nothing (a query, a
+ * preview, a render, a summary, a verification). Every other non-GET call
+ * is a write. */
+const READ_ONLY_POST = /^POST \/api\/v1\/cockpit-v4\/workspace\/(grid\/(query|group|group2|export)|exports\/verify|lenses\/[^/]+\/render|metrics\/evaluate|scenarios\/(preview|combine-preview|[^/]+\/preview)|whatif\/(ask-context|selection\/summary|sensitivity\/tornado))(\?\S*)? /;
+const isWrite = (e) => e.method !== "GET" && e.status < 400 && !READ_ONLY_POST.test(e.line);
+/** A link to an attachment (Content-Disposition) becomes a download: the
+ * browser reports the navigation request itself as aborted. Matched only
+ * for an `/export` GET in a window that produced a download. */
+const ABORTED_INTO_DOWNLOAD = /^FAILED GET \/api\/v1\/cockpit-v4\/workspace\/\S+\/export(\?\S*)? net::ERR_ABORTED$/;
+const benignFailure = (e, navigated, downloaded = false) =>
+  (navigated && ABORTED_BY_NAVIGATION.test(e.line)) || SUPERSEDED_GRID_QUERY.test(e.line) || (downloaded && ABORTED_INTO_DOWNLOAD.test(e.line));
+
+/** One execution record per click: what the click was followed by until the
+ * next click on the same page (at most 30 s). */
+function clickWindows(page, journeyId) {
+  const out = [];
+  const clicks = page.clicks ?? [];
+  for (let i = 0; i < clicks.length; i += 1) {
+    const c = clicks[i];
+    const harness = (page.timeline ?? []).find((e) => e.kind === "harness" && e.t > c.t)?.t ?? Infinity;
+    const end = Math.min(clicks[i + 1]?.t ?? Infinity, harness, c.t + 30_000);
+    const win = (page.timeline ?? []).filter((e) => e.t >= c.t - 5 && e.t < end);
+    const navs = win.filter((e) => e.kind === "nav");
+    const api = win.filter((e) => e.kind === "api");
+    const expected4xx = page.expected4xx ?? [];
+    const failed = [
+      ...api
+        .filter((e) => e.status >= 400 && !expected4xx.some((rx) => rx.test(e.line)))
+        .map((e) => e.line),
+      ...win
+        .filter((e) => e.kind === "failed" && !benignFailure(e, navs.length > 0, win.some((x) => x.kind === "download")))
+        .map((e) => e.line),
+    ];
+    out.push({
+      id: c.id,
+      control: c.control,
+      url: c.url,
+      url_after: navs.at(-1)?.line ?? c.url,
+      api: [...new Set(api.map((e) => e.line))].slice(0, 20),
+      writes: [...new Set(api.filter(isWrite).map((e) => e.line))].slice(0, 10),
+      failed: [...new Set(failed)].slice(0, 6),
+      console: [...new Set(win.filter((e) => e.kind === "console" && /^(error|pageerror):/.test(e.line)).map((e) => e.line))].slice(0, 6),
+      download: win.find((e) => e.kind === "download")?.line ?? "",
+      journey: journeyId,
+    });
+  }
+  return out;
+}
+
 function collectInstrumentation(record) {
+  record.hovers = [...(record.hovers ?? []), ...live.flatMap((p) => p.hovers ?? [])];
+  record.exec = [...(record.exec ?? [])];
+  for (const page of live) record.exec.push(...clickWindows(page, record.journey));
+  record.exec = record.exec.slice(0, 600);
   const clicked = new Set(record.controls_clicked ?? []);
   const consoleLog = [...(record.console ?? [])];
   const http = [...(record.http_errors ?? [])];
@@ -2256,6 +2376,148 @@ async function backTrip(page, record, { path, state, go, arrived, inApp, inAppTa
   return row;
 }
 
+/** The address-held state of a page: what a Back must restore at least. */
+const urlState = () => ({ at: location.pathname + location.search });
+
+function windowSince(page, mark, expect4xx = null) {
+  const win = (page.timeline ?? []).slice(mark);
+  const navigated = win.some((e) => e.kind === "nav");
+  const api = win.filter((e) => e.kind === "api");
+  return {
+    api: [...new Set(api.map((e) => e.line))].slice(0, 20),
+    writes: [...new Set(api.filter(isWrite).map((e) => e.line))].slice(0, 10),
+    failed: [
+      ...api.filter((e) => e.status >= 400 && !(expect4xx && expect4xx.test(e.line))).map((e) => e.line),
+      ...win.filter((e) => e.kind === "failed" && !benignFailure(e, navigated, win.some((x) => x.kind === "download"))).map((e) => e.line),
+    ],
+    refused: api.filter((e) => e.status >= 400 && expect4xx && expect4xx.test(e.line)).map((e) => e.line),
+    // The browser logs its own "Failed to load resource" line for every 4xx;
+    // for a refusal the control EXPECTS, that exact line is excused, once
+    // per expected refusal. Nothing else is.
+    ...(() => {
+      let excuse = expect4xx ? api.filter((e) => e.status >= 400 && e.status < 500 && expect4xx.test(e.line)).length : 0;
+      const excused = [];
+      const consoleLines = win
+        .filter((e) => e.kind === "console" && /^(error|pageerror):/.test(e.line))
+        .filter((e) => {
+          if (excuse > 0 && /^error: Failed to load resource: the server responded with a status of 4\d\d /.test(e.line)) {
+            excuse -= 1;
+            excused.push(e.line);
+            return false;
+          }
+          return true;
+        })
+        .map((e) => e.line);
+      return { console: consoleLines, excused_console: excused };
+    })(),
+    download: win.find((e) => e.kind === "download")?.line ?? "",
+  };
+}
+
+/**
+ * Exercise one control deliberately and record it (UI_CONTROL_EXECUTION_
+ * MATRIX): `run` performs the action and asserts the expected transition,
+ * returning what was observed. A thrown assertion, an unexpected 4xx/5xx,
+ * a failed request or a console error in the action's window is FAILED.
+ * `result` other than PASS is for a control whose governed state is the
+ * point (BLOCKED_WITH_GOVERNED_REASON with the reason the UI shows).
+ */
+async function ctl(page, record, { id, prereq = "", action = "click", expected, run, result = "PASS", reason = "", expect4xx = null }) {
+  const mark = page.timeline.length;
+  const from = here(page);
+  let observed = "";
+  let status = result;
+  try {
+    observed = String((await run()) ?? "");
+  } catch (e) {
+    status = "FAILED";
+    observed = `FAILED: ${String(e?.message ?? e).split("\n")[0].slice(0, 240)}`;
+  }
+  const w = windowSince(page, mark, expect4xx);
+  if (status !== "FAILED" && (w.failed.length || w.console.length)) {
+    status = "FAILED";
+    observed = `${observed} · unexpected: ${[...w.failed, ...w.console].join(" | ").slice(0, 300)}`;
+  }
+  const entry = { id, url: from, prereq, action, expected, observed, result: status, reason, ...w, url_after: here(page) };
+  (record.controls ??= []).push(entry);
+  return entry;
+}
+
+/**
+ * A navigating control: click → destination; browser Back → the origin's
+ * exact state; browser Forward → the destination; in-product Back → the
+ * origin's exact state; nothing written by any return step (backTrip).
+ * With `handoff`, the business object is read at the source and at the
+ * destination and its identity (id, hash) compared, and the writes the
+ * click made are checked against the ones the handoff declares.
+ */
+async function navTrip(page, record, { id, prereq = "", expected, state = urlState, go = null, arrived, inApp = null, inAppTarget, inAppWrites = null, handoff = null, sel = null }) {
+  const mark = page.timeline.length;
+  const from = here(page);
+  const source = handoff ? await handoff.source(page) : null;
+  let destination = null;
+  let clickWin = null;
+  let err = null;
+  let row = null;
+  const rowsBefore = (record.back ?? []).length;
+  try {
+    row = await backTrip(page, record, {
+      path: `${id}: ${expected}`,
+      state,
+      go: async (p) => {
+        if (go) await go(p);
+        else await p.click(sel ?? `[data-testid="${id}"]`);
+      },
+      arrived: async (p) => {
+        await arrived(p);
+        if (!clickWin) {
+          clickWin = windowSince(p, mark);
+          if (handoff) destination = await handoff.destination(p);
+        }
+      },
+      inApp,
+      inAppTarget,
+      inAppWrites,
+    });
+  } catch (e) {
+    err = e;
+    // backTrip records its row before asserting; a failure before that
+    // leaves no row of this trip.
+    row = (record.back ?? []).length > rowsBefore ? record.back.at(-1) : null;
+  }
+  const w = clickWin ?? windowSince(page, mark);
+  const back = row
+    ? { ok: row.status === "PASS" && !err, in_app: row.in_app_back, browser_back: row.browser_back, browser_forward: row.browser_forward, writes_on_return: row.writes_on_return }
+    : { ok: false, error: String(err?.message ?? err).slice(0, 200) };
+  let status = !err && back.ok && !w.failed.length && !w.console.length ? "PASS" : "FAILED";
+  let observed = row ? `${row.origin} → ${row.destination}` : "";
+  if (err) observed += `${observed ? " · " : ""}FAILED: ${String(err?.message ?? err).split("\n")[0].slice(0, 200)}`;
+  if (w.failed.length || w.console.length) observed += ` · unexpected: ${[...w.failed, ...w.console].join(" | ").slice(0, 300)}`;
+  if (handoff) {
+    let identityOk = false;
+    let identity = "";
+    try {
+      identity = await handoff.identity(source, destination);
+      identityOk = true;
+    } catch (e) {
+      identity = `FAILED: ${String(e?.message ?? e).split("\n")[0].slice(0, 240)}`;
+    }
+    const declared = handoff.writes ?? null;
+    const unintended = w.writes.filter((c) => !(declared && declared.test(c)));
+    const ok = status === "PASS" && identityOk && !unintended.length;
+    (record.handoffs ??= []).push({
+      control: id, from_url: from, to_url: row?.destination ?? here(page), source: handoff.describe(source), destination: handoff.describe(destination),
+      identity, writes: w.writes, unintended_writes: unintended, back, status: ok ? "PASS" : "FAILED",
+    });
+    if (!ok) {
+      status = "FAILED";
+      observed += ` · handoff: ${identity}${unintended.length ? ` · unintended writes ${unintended.join(", ")}` : ""}`;
+    }
+  }
+  (record.controls ??= []).push({ id, url: from, prereq, action: "click; browser Back; browser Forward; in-product Back", expected, observed, result: status, ...w, url_after: row?.destination ?? "", back });
+  return { row, source, destination };
+}
+
 const post = (pathname, body) => api(pathname, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
 
 async function anIssue(domain = "corporate") {
@@ -3360,6 +3622,74 @@ async function routeSweep() {
   });
 }
 
+/** The helpers the control-execution journeys (gw.controls.mjs) use. */
+const H = {
+  assert,
+  browser: () => browser,
+  UI,
+  API,
+  WS,
+  SHOTS,
+  journey,
+  open,
+  shot,
+  api,
+  v4,
+  pickBook,
+  askFromHome,
+  settle,
+  latestRun,
+  openHome,
+  turns,
+  libraryCards,
+  openLibrary,
+  waitPreview,
+  build,
+  openWhatIf,
+  gridTotal,
+  clickBar,
+  waitSelectionEntities,
+  waitRunState,
+  startScenarioRun,
+  confirmAndChoose,
+  resultRendered,
+  openMessage,
+  apiRun,
+  openLens,
+  lensCrossCount,
+  gridIs,
+  readZip,
+  gridApi,
+  here,
+  WRITE_ON_BACK,
+  storeCounts,
+  backAt,
+  backTrip,
+  urlState,
+  windowSince,
+  ctl,
+  navTrip,
+  post,
+  anIssue,
+  openIssue,
+  issueState,
+  whatifState,
+  libraryState,
+  detailState,
+  resultState,
+  messagesState,
+  lensLibraryState,
+  lensState,
+  monitoringState,
+  threadState,
+  exchangeState,
+  waitWhatIfObjects,
+  threadFromIssue,
+  runHere,
+  reconciles,
+  chipToWhatIf,
+};
+
 async function main() {
   browser = await chromium.launch({ executablePath: CHROME });
   try {
@@ -3381,6 +3711,7 @@ async function main() {
     await goldJourneys();
     await plotlyAudit();
     await routeSweep();
+    await (await import("./gw.controls.mjs")).controlJourneys(H);
     for (const extra of globalThis.GW_EXTRA_JOURNEYS ?? []) await extra();
   } finally {
     await browser.close();

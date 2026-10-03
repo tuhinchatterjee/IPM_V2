@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import messages, service, sharing
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-messages"])
+router = APIRouter(tags=["workspace-messages"], route_class=GovernedRoute)
 
 
 class Send(BaseModel):

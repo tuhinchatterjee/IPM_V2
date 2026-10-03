@@ -1,5 +1,7 @@
 "use client";
 
+import { LegacyRedirect, legacyRedirectActive } from "@/components/workspace/legacy-redirect";
+
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -50,7 +52,7 @@ import { cn } from "@/lib/utils";
  * omits a family because a column was never loaded is worse than one that
  * says which family it is missing.
  */
-export default function SignalsPage() {
+function SignalsPage() {
   return (
     <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
       <Signals />
@@ -577,4 +579,19 @@ function Line({
       <dd className="text-text-secondary">{children}</dd>
     </div>
   );
+}
+
+/**
+ * In a V4 runtime with the Guided Workspace on, the governed signals are
+ * the EWS rule set at `/early-warning`; the V3 signal list has no backend
+ * there, so the address hands over.
+ */
+export default function SignalsRoute() {
+  if (legacyRedirectActive())
+    return (
+      <LegacyRedirect to="/early-warning" testId="legacy-ew-signals-redirect">
+        The governed Early Warning signals are the rule set — opening it…
+      </LegacyRedirect>
+    );
+  return <SignalsPage />;
 }

@@ -111,10 +111,21 @@ class Book:
 
     def rows(self, sql: str, params: list[Any] | None = None
              ) -> list[dict[str, Any]]:
+        # The V4 runtime queries `session.connection` from its run worker
+        # threads, and one DuckDB connection is not safe to use from two
+        # threads at once: a workspace read made during a Cockpit question
+        # could receive another query's result (VAL-DEF-037). A duplicate
+        # connection (`cursor()`) shares the same in-memory database -- the
+        # same tables, the same release -- with its own query state.
         with _SESSION_LOCK:
-            cursor = self.session.connection.execute(sql, params or [])
-            names = [d[0] for d in cursor.description]
-            return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
+            cursor = self.session.connection.cursor()
+            try:
+                cursor.execute(sql, params or [])
+                names = [d[0] for d in cursor.description]
+                return [dict(zip(names, row, strict=True))
+                        for row in cursor.fetchall()]
+            finally:
+                cursor.close()
 
 
 _SESSION_LOCK = threading.RLock()

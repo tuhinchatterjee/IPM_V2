@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import access, service, sharing, whatif
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-whatif"])
+router = APIRouter(tags=["workspace-whatif"], route_class=GovernedRoute)
 
 
 class Selection(BaseModel):

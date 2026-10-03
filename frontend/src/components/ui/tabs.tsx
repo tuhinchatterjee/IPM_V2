@@ -16,11 +16,13 @@ interface TabsProps {
   active: string;
   onChange: (id: string) => void;
   className?: string;
+  /** Test id of the tab list; each tab is `<testId>-<tab id>`. */
+  testId?: string;
 }
 
-export function Tabs({ tabs, active, onChange, className }: TabsProps) {
+export function Tabs({ tabs, active, onChange, className, testId }: TabsProps) {
   return (
-    <div className={cn("flex gap-1 overflow-x-auto border-b border-border", className)} role="tablist">
+    <div className={cn("flex gap-1 overflow-x-auto border-b border-border", className)} role="tablist" data-testid={testId}>
       {tabs.map((tab) => {
         const isActive = tab.id === active;
         return (
@@ -29,6 +31,7 @@ export function Tabs({ tabs, active, onChange, className }: TabsProps) {
             type="button"
             role="tab"
             aria-selected={isActive}
+            data-testid={testId ? `${testId}-${tab.id}` : undefined}
             onClick={() => onChange(tab.id)}
             className={cn(
               "relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors",

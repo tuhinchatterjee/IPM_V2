@@ -31,7 +31,7 @@ import {
 import { count } from "@/lib/viz/format";
 import { counts, segments, type SegmentKind } from "@/lib/workspace/exchange-segments";
 import { cn } from "@/lib/utils";
-import { urlWith } from "@/lib/workspace/nav";
+import { urlWith, withBack } from "@/lib/workspace/nav";
 
 const STAGES = [
   { id: "readable", label: "Readable" },
@@ -131,13 +131,13 @@ function CallCard({
   return (
     <article className="rounded-lg border border-border bg-surface" data-testid={`llm-call-${call.seq}`}>
       <header className="flex flex-wrap items-center gap-2 p-3">
-        <input
+        <input data-testid="llm-call-select"
           type="checkbox"
           checked={selected}
           onChange={(e) => onSelect(e.target.checked)}
           aria-label={`Select call ${call.seq} for comparison`}
         />
-        <button type="button" onClick={() => setOpen((v) => !v)} className="text-left" aria-expanded={open}>
+        <button data-testid="llm-call-toggle" type="button" onClick={() => setOpen((v) => !v)} className="text-left" aria-expanded={open}>
           <span className="text-sm font-semibold text-text-primary">
             Call {call.seq} · {call.purpose || "generation"}
           </span>
@@ -160,7 +160,7 @@ function CallCard({
       </header>
       {open && (
         <div className="border-t border-border p-3">
-          <Tabs tabs={STAGES} active={stage} onChange={setStage} className="mb-3" />
+          <Tabs tabs={STAGES} active={stage} onChange={setStage} className="mb-3" testId="llm-stage-tabs" />
           {stage === "readable" ? (
             <Readable call={call} />
           ) : (
@@ -298,7 +298,15 @@ export function LlmExchangeView({ runId }: { runId: string }) {
           >
             <Download className="h-3.5 w-3.5" /> Export llm_exchange package
           </button>
-          <Link href="/ai-model-lab" className="text-xs text-accent underline">
+          <Link
+            data-testid="llm-model-lab-link"
+            href="/ai-model-lab"
+            onClick={(e) => {
+              e.preventDefault();
+              router.push(withBack("/ai-model-lab"));
+            }}
+            className="text-xs text-accent underline"
+          >
             Compare in AI Model Lab
           </Link>
         </div>
@@ -316,6 +324,7 @@ export function LlmExchangeView({ runId }: { runId: string }) {
         )}
       </section>
       <Tabs
+        testId="llm-tabs"
         tabs={[
           { id: "calls", label: "Calls", count: data.calls.length },
           { id: "timeline", label: "Timeline", count: data.timeline.length },
@@ -443,7 +452,7 @@ export function LlmExchangeView({ runId }: { runId: string }) {
               <dt>Bytes of tool results</dt>
               <dd className="tabular">{count(vis.actually_transmitted_to_model.bytes)}</dd>
             </dl>
-            <button
+            <button data-testid="llm-visibility-download"
               type="button"
               className="mt-2 text-xs text-accent underline"
               onClick={() => downloadText(JSON.stringify(vis, null, 2), `data_visibility_${runId}.json`, "application/json")}

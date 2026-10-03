@@ -270,7 +270,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             <p>
               From:{" "}
               {detail.lineage.ancestors.map((a) => (
-                <Link key={`${a.object_id}-${a.version}`} href={`/scenarios/${a.object_id}`} className="mr-2 text-accent underline">
+                <Link data-testid="scenario-lineage-ancestor" key={`${a.object_id}-${a.version}`} href={withBack(`/scenarios/${a.object_id}`)} className="mr-2 text-accent underline">
                   {a.title} v{a.version}
                 </Link>
               ))}
@@ -280,7 +280,7 @@ export function ScenarioDetail({ scenarioId }: { scenarioId: string }) {
             <p>
               Used by:{" "}
               {detail.lineage.descendants.map((d) => (
-                <Link key={`${d.object_id}-${d.version}`} href={`/scenarios/${d.object_id}`} className="mr-2 text-accent underline">
+                <Link data-testid="scenario-lineage-descendant" key={`${d.object_id}-${d.version}`} href={withBack(`/scenarios/${d.object_id}`)} className="mr-2 text-accent underline">
                   {d.title} ({d.operation})
                 </Link>
               ))}

@@ -81,12 +81,14 @@ def tornado(book: Any, *, filters: Any = None, parameter: str = "all",
     where, params, checked = grid._where(v, filters)
     cond = where[len("WHERE "):] if where else "1=1"
     population = sl._pop(book, v, cond, params)
-    if population["entities"] == 0:
-        raise HTTPException(422, {"error_code": "EMPTY_POPULATION",
-                                  "message": "No exposures match the filter."})
+    # An empty population is a state, as it is in the grid and the explorer
+    # (EMPTY_BY_FILTER), not a refused request: a filter that matches
+    # nothing answers with no bars and says why (VAL-DEF-043).
+    empty = population["entities"] == 0
     published = metrics.sensitivity_rows(book)
     by_key = {(r["factor_id"], r["parameter"]): r for r in published}
-    factors = list(dict.fromkeys(r["factor_id"] for r in published))
+    factors = [] if empty else list(dict.fromkeys(
+        r["factor_id"] for r in published))
     series = {r["factor_id"]: r["series_id"] for r in book.rows(
         f"SELECT factor_id, series_id FROM "
         f"whatif_{sl._b(book.domain_id)}_mev_registry")}
@@ -162,6 +164,9 @@ def tornado(book: Any, *, filters: Any = None, parameter: str = "all",
                             for k, (o, s) in STANDARD_SHOCK.items()},
         "rows": rows[:top], "material_rows": len(rows),
         "excluded": excluded, "model_calls": 0,
+        "empty": ({"error_code": "EMPTY_BY_FILTER",
+                   "message": "No exposures match the filter, so there is "
+                              "nothing to rank."} if empty else None),
         "evidence": "Governed sensitivity library translated by the "
                     "Scenario Library's own macro translation; no model "
                     "call; signs as fitted.",

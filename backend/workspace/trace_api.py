@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import exports, trace
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-trace"])
+router = APIRouter(tags=["workspace-trace"], route_class=GovernedRoute)
 
 #: Largest package `verify` accepts.
 VERIFY_MAX_BYTES = 64_000_000

@@ -433,3 +433,177 @@ def test_a_restart_reopens_lens_rule_share_alert_and_investigation(
         "investigation_id"] == state["investigation_id"]
     assert fresh.get(f"{P}/monitoring/alerts/{alert['object_id']}"
                      ).status_code == 200
+
+
+def test_val_def_024_a_malformed_request_is_the_governed_envelope(
+        client, svc, model):
+    """Body, query and path validation failures on the workspace API are
+    `{"detail": {"error_code": "INVALID_REQUEST", "message", "fields"}}`,
+    the same shape as every other governed refusal the UI reads."""
+    cases = (
+        client.post(f"{P}/scenarios/preview", json={}),
+        client.post(f"{P}/grid/query", json={"limit": "many"}),
+        client.get(f"{P}/lenses?domain=xyz"),
+        client.post(f"{P}/lenses/lens-01/revise", json={"changes": {}}),
+    )
+    for r in cases:
+        assert r.status_code == 422, r.text
+        detail = r.json()["detail"]
+        assert isinstance(detail, dict), r.text
+        assert detail["error_code"] == "INVALID_REQUEST"
+        assert detail["message"].startswith("The request is not valid.")
+        assert detail["fields"] and all(
+            {"field", "message", "type"} <= set(f) for f in detail["fields"])
+        _no_leak(r)
+    named = cases[0].json()["detail"]
+    assert "definition" in named["message"], "the message names the field"
+    # A governed refusal raised by the handler keeps its own code.
+    assert _code(client.get(f"{P}/grid/values?domain=corporate&column=nope")
+                 ) != "INVALID_REQUEST"
+    # The protected V4 application's own routes are unchanged.
+    v4 = client.post("/api/v1/cockpit-v4/saved-analyses", json={})
+    assert v4.status_code == 422 and isinstance(v4.json()["detail"], list)
+
+
+def test_val_def_025_a_lens_reads_directly_by_id(client, svc, model, who):
+    r = client.get(f"{P}/lenses/lens-01")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["lens"]["kind"] == "lens"
+    assert body["lens"]["object_id"] == "lens-01"
+    assert body["card"]["lens_id"] == "LENS-01"
+    assert body["card"]["content_hash"] == body["lens"]["content_hash"]
+    rendered = client.post(f"{P}/lenses/lens-01/render", json={}).json()
+    assert rendered["lens"]["version"] == body["lens"]["version"], \
+        "the read and the render describe the same version"
+    v1 = client.get(f"{P}/lenses/lens-01?version=1")
+    assert v1.status_code == 200 and v1.json()["lens"]["version"] == 1
+    scenarios.ensure_seeded(svc, WHO)
+    tpl = scenarios.template_object_id("CORP-01")
+    assert _code(client.get(f"{P}/lenses/{tpl}")) == "NOT_A_LENS"
+    assert client.get(f"{P}/lenses/lens-doesnotexist").status_code == 404
+    name = body["card"]["name"]
+    who.update({"tenant": "other-bank"})
+    other = client.get(f"{P}/lenses/lens-01")
+    # Refused at the release (SECURITY_DENIED) before the object is read,
+    # exactly as render is: nothing of the Lens reaches the other tenant.
+    assert other.status_code in (403, 404), other.text
+    assert _code(other) in ("SECURITY_DENIED", "NOT_FOUND")
+    assert name not in other.text and "LENS-01" not in other.text
+
+
+def test_val_def_036_a_long_execution_does_not_stall_other_requests(
+        client, svc, model, monkeypatch):
+    """A What-If execution (Compare/ML can take tens of seconds) must not
+    hold the server: a request arriving meanwhile is answered before the
+    execution finishes. Before the fix the handler ran its CPU-bound work on
+    the event loop, so every other request (the header's health poll
+    included) waited for it."""
+    import asyncio
+    import time
+
+    import httpx
+
+    from backend.workspace import runs
+
+    obj, cohort = uat_scenario(svc)
+    run = start(client, obj["object_id"], cohort_id=cohort["object_id"],
+                session_id="val-036")
+    run = confirm(client, run)
+    run = method(client, run, ["delta"])
+    real = runs.execute
+
+    def slow(*a, **k):
+        time.sleep(1.5)  # stands in for a long ML/Compare execution
+        return real(*a, **k)
+
+    monkeypatch.setattr(runs, "execute", slow)
+    app = client.app
+    done: list[str] = []
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport,
+                                     base_url="http://t") as ac:
+            async def execute():
+                r = await ac.post(f"{P}/whatif/runs/{run['object_id']}/"
+                                  f"execute")
+                done.append(f"execute {r.status_code}")
+
+            async def other():
+                await asyncio.sleep(0.3)
+                r = await ac.get(f"{P}/kinds")
+                done.append(f"other {r.status_code}")
+
+            await asyncio.gather(execute(), other())
+
+    asyncio.run(scenario())
+    assert done == ["other 200", "execute 200"], \
+        f"a request made during the execution waited for it: {done}"
+
+
+def test_val_def_037_workspace_reads_survive_a_concurrent_cockpit_query(
+        client, svc, model):
+    """The V4 runtime queries the book's DuckDB connection directly from its
+    run worker threads; the workspace reads the same book. One DuckDB
+    connection is not safe to use from two threads at once: a workspace
+    read made while a Cockpit question was running returned another
+    query's columns (HTTP 500, KeyError 'entities'). Workspace reads now
+    use their own duplicate connection to the same database."""
+    import threading
+
+    from backend.workspace import access
+
+    book = access.book(WHO, "corporate")
+    want = client.post(f"{P}/grid/query", json={"domain": "corporate",
+                                               "limit": 1}).json()["total"]
+    stop = threading.Event()
+    errors: list[str] = []
+
+    def cockpit_like():
+        # What execute_tool / sql do from a run's worker thread.
+        while not stop.is_set():
+            try:
+                book.session.connection.execute(
+                    "SELECT x AS a, x * 2 AS b, x * 3 AS c FROM "
+                    "range(20000) t(x)").fetchall()
+            except Exception as exc:  # noqa: BLE001 - recorded
+                errors.append(f"cockpit: {exc}")
+
+    worker = threading.Thread(target=cockpit_like, daemon=True)
+    worker.start()
+    try:
+        bad = []
+        for _ in range(60):
+            r = client.post(f"{P}/grid/query", json={"domain": "corporate",
+                                                    "limit": 1})
+            if r.status_code != 200 or r.json().get("total") != want:
+                bad.append(f"{r.status_code} {r.text[:120]}")
+    finally:
+        stop.set()
+        worker.join(timeout=30)
+    assert not bad, f"{len(bad)} of 60 workspace reads were corrupted: {bad[:2]}"
+
+
+def test_val_def_043_an_empty_population_is_a_tornado_state_not_a_refusal(
+        client):
+    """A What-If filter that matches nothing made the macro-sensitivity panel
+    send a request that was refused (HTTP 422 EMPTY_POPULATION, a red error
+    and a browser console error) while the grid and the explorer show the
+    same filter as an empty state. It now answers 200 with no bars and the
+    reason; invalid parameters are still refused."""
+    r = client.post(f"{P}/whatif/sensitivity/tornado", json={
+        "domain": "corporate", "filters": [
+            {"column": "sector", "op": "in", "values": ["No such sector"]}]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["rows"] == [] and body["population"]["entities"] == 0
+    assert body["empty"]["error_code"] == "EMPTY_BY_FILTER"
+    assert body["model_calls"] == 0
+    grid = client.post(f"{P}/grid/query", json={
+        "domain": "corporate", "filters": [
+            {"column": "sector", "op": "in", "values": ["No such sector"]}],
+        "limit": 1}).json()
+    assert grid["total"] == 0, "the grid shows the same filter as empty"
+    assert client.post(f"{P}/whatif/sensitivity/tornado", json={
+        "domain": "corporate", "parameter": "ccf"}).status_code == 422

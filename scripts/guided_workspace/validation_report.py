@@ -48,7 +48,20 @@ BAR = [
     ("tenant isolation passes", "VAL-23"),
     ("Guided Workspace regression passes", "REG-WI"),
     ("flags-OFF accepted regression passes", "REG-BR"),
+    ("every UI control executed at runtime (PASS, governed BLOCKED or N/A "
+     "with proof)", "inv:controls_by_status"),
+    ("every route checked: direct, refresh, Back/Forward, in-product Back, "
+     "invalid and stale ids", "inv:routes_by_status"),
+    ("every integration handoff keeps its object identity, writes only what "
+     "it should and Back restores the source", "inv:handoffs_by_status"),
+    ("every navigating control has a passing Back record",
+     "inv:back_by_status"),
+    ("every interactive chart meets its interaction contract",
+     "inv:plotly_contracts_by_status"),
 ]
+
+#: The closed states of an executed inventory row.
+CLOSED = {"PASS", "BLOCKED_WITH_GOVERNED_REASON", "NOT_APPLICABLE_WITH_PROOF"}
 
 
 def defects(register: Path) -> list[dict[str, str]]:
@@ -101,6 +114,11 @@ def main() -> int:
         if key.startswith("defects:"):
             ok = open_by.get(key.split(":")[1], 0) == 0
             bar.append((text, "PASS" if ok else "FAILED", key))
+        elif key.startswith("inv:"):
+            counts = inv.get(key[4:]) or {}
+            ok = bool(counts) and set(counts) <= CLOSED
+            bar.append((text, "PASS" if ok else "FAILED",
+                        f"{key[4:]} {json.dumps(counts)}"))
         else:
             st = areas.get(key, {}).get("status", "MISSING")
             bar.append((text, st, key))
@@ -161,19 +179,34 @@ def main() -> int:
     w("|---|---|---|")
     w(f"| Routes | {inv['routes']} | {json.dumps(inv['routes_by_status'])} |")
     w(f"| Interactive controls | {inv['controls']} (with test id "
-      f"{inv['controls_with_testid']}; exercised {inv['controls_exercised']})"
-      f" | {json.dumps(inv['controls_by_status'])} |")
+      f"{inv['controls_with_testid']}; clicked at runtime "
+      f"{inv['controls_exercised']}) | {json.dumps(inv['controls_by_status'])}"
+      f" |")
     w(f"| API functions | {inv['functions']} | "
       f"{json.dumps(inv['functions_by_status'])} |")
     w(f"| Integration handoffs | {inv['handoffs']} (carrying their origin "
       f"{inv['handoffs_carrying_origin']}) | "
       f"{json.dumps(inv['handoffs_by_status'])} |")
-    w(f"| Plotly chart audit rows | {inv['plotly_rows']} | "
+    w(f"| Back paths (one per navigating control) | {inv['back_paths']} | "
+      f"{json.dumps(inv['back_by_status'])} |")
+    w(f"| Plotly chart render audit | {inv['plotly_rows']} | "
       f"{json.dumps(inv['plotly_by_status'])} |")
+    w(f"| Plotly interaction contracts | {inv.get('plotly_contracts', 0)} | "
+      f"{json.dumps(inv.get('plotly_contracts_by_status', {}))} |")
     w("")
-    w("A control is EXERCISED only when a browser journey clicked an element "
-      "carrying its test id (recorded at runtime); a PARTIAL control is "
-      "present and wired in source but was not clicked in the run.")
+    w("Control applicability under the enabled configuration (V4 and the "
+      "guided workspace on): "
+      f"{json.dumps(inv.get('controls_by_applicability', {}))}.")
+    w("")
+    w("A control is PASS only when a browser journey executed it (an element "
+      "carrying its test id was clicked, typed into or hovered) and the "
+      "journey asserted its result: the API calls in its window, the writes "
+      "it made, the console, the resulting route and its Back. "
+      "BLOCKED_WITH_GOVERNED_REASON means the control was clicked and the "
+      "product refused with its governed reason. NOT_APPLICABLE_WITH_PROOF "
+      "means a journey proved the control's surface is not rendered under "
+      "the enabled configuration. Each row's evidence is in "
+      "`UI_CONTROL_EXECUTION_MATRIX.csv`.")
     w("")
     w("## Validation matrix")
     w("")

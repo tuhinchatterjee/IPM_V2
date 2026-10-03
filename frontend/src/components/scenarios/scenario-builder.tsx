@@ -138,7 +138,7 @@ export function ScenarioBuilder() {
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Severity">
-            <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full rounded border border-border bg-surface px-2 py-1 text-sm">
+            <select data-testid="builder-severity" value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full rounded border border-border bg-surface px-2 py-1 text-sm">
               {["upside", "mild", "moderate", "severe"].map((s) => (
                 <option key={s}>{s}</option>
               ))}
@@ -153,10 +153,10 @@ export function ScenarioBuilder() {
           </Field>
         </div>
         <Field label="Description">
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface px-2 py-1 text-sm" />
+          <textarea data-testid="builder-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface px-2 py-1 text-sm" />
         </Field>
         <Field label="Risk thesis">
-          <textarea value={thesis} onChange={(e) => setThesis(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface px-2 py-1 text-sm" />
+          <textarea data-testid="builder-thesis" value={thesis} onChange={(e) => setThesis(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface px-2 py-1 text-sm" />
         </Field>
       </div>
 
@@ -186,7 +186,7 @@ export function ScenarioBuilder() {
                     </option>
                   ))}
                 </select>
-                <select value={f.op} onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)))} className="rounded border border-border bg-surface px-1 py-0.5">
+                <select data-testid="builder-filter-op" value={f.op} onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)))} className="rounded border border-border bg-surface px-1 py-0.5">
                   {FILTER_OPS.map((o) => (
                     <option key={o}>{o}</option>
                   ))}
@@ -208,12 +208,12 @@ export function ScenarioBuilder() {
                   className="min-w-[16rem] flex-1 rounded border border-border bg-surface px-2 py-0.5"
                   data-testid="builder-filter-value"
                 />
-                <button type="button" onClick={() => setFilters(filters.filter((_, j) => j !== i))} aria-label="Remove filter">
+                <button data-testid="builder-filter-remove" type="button" onClick={() => setFilters(filters.filter((_, j) => j !== i))} aria-label="Remove filter">
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
             ))}
-            <button type="button" onClick={() => setFilters([...filters, { column: "stage", op: "in", values: [] }])} className="text-xs text-accent">
+            <button data-testid="builder-filter-add" type="button" onClick={() => setFilters([...filters, { column: "stage", op: "in", values: [] }])} className="text-xs text-accent">
               + filter (all filters must hold)
             </button>
           </div>
@@ -321,7 +321,7 @@ function ComponentRow({
       {c.kind === "macro" && (
         <>
           <input value={c.factor_id} onChange={(e) => set({ factor_id: e.target.value.toUpperCase() })} className={`${input} w-20`} aria-label="Factor id" data-testid="builder-component-factor" />
-          <select value={c.operation} onChange={(e) => set({ operation: e.target.value })} className={input}>
+          <select data-testid="builder-component-macro-op" value={c.operation} onChange={(e) => set({ operation: e.target.value })} className={input}>
             {MACRO_OPS.map((o) => (
               <option key={o}>{o}</option>
             ))}
@@ -330,18 +330,18 @@ function ComponentRow({
       )}
       {c.kind === "score" && (
         <>
-          <select value={c.score_type} onChange={(e) => set({ score_type: e.target.value })} className={input}>
+          <select data-testid="builder-component-score-type" value={c.score_type} onChange={(e) => set({ score_type: e.target.value })} className={input}>
             <option>BEHAVIOURAL</option>
             <option>APPLICATION</option>
           </select>
-          <select value={c.operation} onChange={(e) => set({ operation: e.target.value })} className={input}>
+          <select data-testid="builder-component-score-op" value={c.operation} onChange={(e) => set({ operation: e.target.value })} className={input}>
             <option>points</option>
             <option>bands</option>
           </select>
         </>
       )}
       {c.kind === "collateral" && (
-        <select value={c.asset} onChange={(e) => set({ asset: e.target.value })} className={input}>
+        <select data-testid="builder-component-asset" value={c.asset} onChange={(e) => set({ asset: e.target.value })} className={input}>
           <option value="commercial_property">commercial property</option>
           <option value="residential_property">residential property</option>
           <option value="vehicle">vehicle</option>
@@ -349,7 +349,7 @@ function ComponentRow({
       )}
       {(c.kind === "rating" || c.kind === "delinquency" || c.kind === "utilisation" || c.kind === "overlay") && <span className="text-text-muted">{c.operation}</span>}
       <input value={c.value} onChange={(e) => set({ value: e.target.value })} className={`${input} w-20`} aria-label="Value" data-testid="builder-component-value" />
-      <button type="button" onClick={onRemove} aria-label="Remove component">
+      <button data-testid="builder-component-remove" type="button" onClick={onRemove} aria-label="Remove component">
         <Trash2 className="h-3 w-3" />
       </button>
     </div>

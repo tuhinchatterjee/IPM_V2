@@ -26,8 +26,9 @@ from pydantic import BaseModel, Field
 from backend.cockpit_v4 import routes as v4routes
 from backend.llm import exchange
 from backend.workspace import access
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-llm-exchange"])
+router = APIRouter(tags=["workspace-llm-exchange"], route_class=GovernedRoute)
 
 
 def exchange_store() -> exchange.ExchangeStore:

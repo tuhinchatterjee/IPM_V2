@@ -26,8 +26,9 @@ import { followLens, refreshLens, renderLens, reviseLens, type RenderedLens, typ
 import { readAlert } from "@/lib/workspace/monitoring";
 import type { Filter } from "@/lib/workspace/objects";
 import { investigateCohort, saveSelection } from "@/lib/workspace/whatif";
-import { safeBack, urlWith, withBack } from "@/lib/workspace/nav";
+import { safeBack, withBack } from "@/lib/workspace/nav";
 import { moneyCol } from "@/lib/viz/format";
+import { useAddress } from "@/lib/workspace/address";
 
 type Cross = Filter & { domain?: string };
 
@@ -59,6 +60,7 @@ const ALERT_GROUPS = new Set(["M070", "M071", "M072"]);
 
 export function LensView({ lensId }: { lensId: string }) {
   const router = useRouter();
+  const address = useAddress();
   const params = useSearchParams();
   // Periods, cross-filters, the chart selection and the cohort frozen from it
   // live in the URL: Back from a destination reopens the Lens as it was, and
@@ -91,14 +93,13 @@ export function LensView({ lensId }: { lensId: string }) {
   React.useEffect(() => {
     if (leaving.current) return;
     const enc = (v: unknown, empty: boolean) => (empty ? null : JSON.stringify(v));
-    const next = urlWith({
+    address.replace({
       p: enc(periods, !Object.keys(periods).length),
       x: enc(cross, !cross.length),
       sel: enc(selection, !selection),
       cohort: savedCohort || null,
     });
-    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
-  }, [periods, cross, selection, savedCohort, router]);
+  }, [periods, cross, selection, savedCohort, address]);
 
   // Opened from an alert: restore the Lens at the triggering period and
   // population, and say so.
@@ -217,6 +218,7 @@ export function LensView({ lensId }: { lensId: string }) {
         <ChartCard
           key={v.visual_id}
 {...common}
+          control="lens-chart-trend"
           data={fig.data}
           layout={fig.layout}
           onPointClick={(p) => {
@@ -233,6 +235,7 @@ export function LensView({ lensId }: { lensId: string }) {
         <ChartCard
           key={v.visual_id}
 {...common}
+          control="lens-chart-breakdown"
           data={fig.data}
           layout={fig.layout}
           selectable
@@ -248,6 +251,7 @@ export function LensView({ lensId }: { lensId: string }) {
         <ChartCard
           key={v.visual_id}
 {...common}
+          control="lens-chart-top-owners"
           data={fig.data}
           layout={fig.layout}
           onPointClick={(p) => {
@@ -263,6 +267,7 @@ export function LensView({ lensId }: { lensId: string }) {
       <ChartCard
         key={v.visual_id}
 {...common}
+          control="lens-chart-groups"
         data={fig.data}
         layout={fig.layout}
         onPointClick={(p) => {
@@ -374,7 +379,7 @@ export function LensView({ lensId }: { lensId: string }) {
         {cross.map((f, i) => (
           <span key={i} className="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5" data-testid="lens-cross-chip">
             {describe(f)}
-            <button type="button" aria-label="remove filter" onClick={() => setCross((prev) => prev.filter((_, j) => j !== i))}>
+            <button data-testid="lens-cross-remove" type="button" aria-label="remove filter" onClick={() => setCross((prev) => prev.filter((_, j) => j !== i))}>
               <X className="h-3 w-3" />
             </button>
           </span>
@@ -423,7 +428,7 @@ export function LensView({ lensId }: { lensId: string }) {
             What-If
           </button>
           {savedCohort && <ShareButton objectId={savedCohort} testId="lens-selection-share" />}
-          <button type="button" onClick={() => setSelection(null)} className="ml-auto text-accent underline">
+          <button data-testid="lens-selection-clear" type="button" onClick={() => setSelection(null)} className="ml-auto text-accent underline">
             clear
           </button>
         </section>
@@ -538,7 +543,7 @@ export function LensView({ lensId }: { lensId: string }) {
           <p className="mt-2 text-text-muted">
             Metrics:{" "}
             {spec.metrics.map((m) => (
-              <Link key={`${m.metric_id}${m.domain}`} href={withBack(`/metrics?m=${m.metric_id}`)} className="mr-1 text-accent underline">
+              <Link data-testid="lens-governance-metric" key={`${m.metric_id}${m.domain}`} href={withBack(`/metrics?m=${m.metric_id}`)} className="mr-1 text-accent underline">
                 {m.metric_id}v{m.version}
               </Link>
             ))}

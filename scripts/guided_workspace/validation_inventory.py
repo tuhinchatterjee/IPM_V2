@@ -43,6 +43,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+import control_execution
+
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "frontend" / "src"
 APP = SRC / "app"
@@ -170,16 +172,124 @@ def scan_controls() -> list[dict[str, str]]:
             if tagname in ("svg", "path", "g", "rect", "Fragment"):
                 continue
             kind, target = _kind(tagname, tag)
-            testid = _prop(tag, "data-testid") or _prop(tag, "testId")
+            # A component's own id is its `testId` prop; a `data-testid`
+            # in its tag text may belong to JSX passed in another prop.
+            testid = ((_prop(tag, "testId") or _prop(tag, "data-testid"))
+                      if tagname[:1].isupper() else
+                      (_prop(tag, "data-testid") or _prop(tag, "testId")))
+            testid = testid or _prop(tag, "control")
+            tmpl = re.search(r"data-testid=\{testId \? `([^`]*)`", tag)
+            if tmpl:
+                testid = tmpl.group(1)
             line = text.count("\n", 0, m.start()) + 1
             rel = path.relative_to(ROOT).as_posix()
+            fn = list(FUNC.finditer(text, 0, m.start()))
             rows.append({
                 "module": _module_of(rel), "file": rel, "line": line,
                 "element": tagname, "testid": testid,
                 "label": _label(text, end, tagname, tag), "kind": kind,
                 "target": target[:120],
-                "disabled_rule": _prop(tag, "disabled")[:80]})
+                "disabled_rule": _prop(tag, "disabled")[:80],
+                "component": fn[-1].group(1) if fn else "",
+                "end_line": line + tag.count("\n"), "tag": tag})
+    _resolve_matches(rows, files)
     return rows
+
+
+FUNC = re.compile(r"^(?:export\s+(?:default\s+)?)?function\s+([A-Za-z]\w*)",
+                  re.M)
+
+#: Components rendered without a test id whose clickable children carry
+#: their own (the ids are in the component's source).
+INSTANCE_IDS = {"DomainSwitchPlain": "ws-domain-${d}",
+                "ComponentRow": "builder-component-${x}"}
+
+
+def _template_regex(t: str) -> str:
+    pat = re.escape(t)
+    return re.sub(r"\\\$\\\{[^}]*\\\}", ".+", pat)
+
+
+def _resolve_matches(rows: list[dict[str, str]], files: list[Path]) -> None:
+    """The runtime test ids each control row answers to (`match`, a regex).
+
+    * a literal or template id: itself (template parts are wildcards);
+    * an id that IS the `testId` prop of a shared helper (`Action`,
+      `InlineForm`, `OriginBackLink`, `ChartCard`'s buttons...): the ids
+      every instance of that helper passes in this source, with the
+      helper's own suffix (`${testId}-input`), plus the prop's default;
+    * a component instance with a test id: that id, or that id followed by
+      a suffix when its clickable children carry one (`Segmented`), except
+      chart click targets, which are the chart's own id exactly;
+    * a component instance without one: its children's ids (INSTANCE_IDS).
+    """
+    # (helper name, file or "" for an exported helper) -> the ids passed in
+    instances: dict[tuple[str, str], list[str]] = defaultdict(list)
+    nested: list[tuple[str, str, str, str]] = []  # helper, file, tmpl, outer
+    defaults: dict[str, str] = {}
+    exported: set[str] = set()
+    for path in files:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(ROOT).as_posix()
+        exported |= set(re.findall(r"^export\s+function\s+([A-Z]\w*)", text,
+                                   re.M))
+        for m in TAG.finditer(text):
+            name = m.group(1)
+            if not name[:1].isupper():
+                continue
+            tag = text[m.start():_tag_span(text, m.start())]
+            inner = re.search(r"\btestId=\{testId \? `([^`]*)`", tag)
+            tid = inner.group(1) if inner else _prop(tag, "testId")
+            if not tid:
+                continue
+            if "${testId}" in tid:
+                fn = list(FUNC.finditer(text, 0, m.start()))
+                nested.append((name, rel, tid, fn[-1].group(1) if fn else ""))
+            else:
+                instances[(name, rel)].append(tid)
+        for m in re.finditer(r"function\s+([A-Z]\w*)\s*\(\{[^)]*?testId\s*="
+                             r"\s*\"([^\"]+)\"", text):
+            defaults[m.group(1)] = m.group(2)
+
+    def ids_of(helper: str, rel: str) -> list[str]:
+        """Every id passed to `helper` (an exported helper: anywhere; a
+        local one: in its own file), nested helpers expanded once."""
+        out = []
+        for (name, f), vals in instances.items():
+            if name == helper and (helper in exported or f == rel):
+                out += vals
+        for name, f, tmpl, outer in nested:
+            if name == helper and (helper in exported or f == rel):
+                out += [tmpl.replace("${testId}", o)
+                        for o in ids_of(outer, f)] if outer != helper else []
+        if helper in defaults:
+            out.append(defaults[helper])
+        return out
+    for r in rows:
+        tid = r["testid"]
+        if not tid:
+            alias = INSTANCE_IDS.get(r["element"])
+            r["match"] = f"^{_template_regex(alias)}$" if alias else ""
+            continue
+        if tid == "testId" or "${testId}" in tid:
+            ids = ids_of(r["component"], r["file"])
+            alts = sorted({_template_regex(tid.replace("${testId}", i)
+                                           if tid != "testId" else i)
+                           for i in ids})
+            r["match"] = f"^(?:{'|'.join(alts)})$" if alts else ""
+            continue
+        bare = re.sub(r"\$\{[^}]*\}", "", tid)
+        if bare.startswith("{") or "?" in bare or "(" in bare:
+            r["match"] = ""
+            continue
+        base = _template_regex(tid)
+        if r["element"][:1].isupper() and r["element"] not in ("Link",) \
+                and r["kind"] != "chart click/selection":
+            r["match"] = f"^{base}(?:-.+)?$"
+        else:
+            r["match"] = f"^{base}$"
 
 
 def _module_of(rel: str) -> str:
@@ -307,7 +417,8 @@ def scan_handoffs(visits: dict[str, set[str]]) -> list[dict[str, str]]:
                     hits = sorted(visits.get(stat, set()))
                     rows.append({
                         "source_module": source, "file": rel, "line": n,
-                        "target": target[:160], "destination_module": dest,
+                        "target": target[:160], "target_full": target,
+                        "destination_module": dest,
                         "carries_origin": "yes" if "withBack(" in line
                         or "leave(" in line else "no",
                         "route_exists": "yes" if exists else "NO",
@@ -362,31 +473,36 @@ def main() -> int:
 
     controls = scan_controls()
     for c in controls:
-        rx = _testid_regex(c["testid"])
-        hits = sorted({h for t, hs in clicked.items() if rx and rx.match(t)
-                       for h in hs})
-        referenced = bool(c["testid"]) and (
-            c["testid"].split("${")[0] in browser_src)
-        c["journeys_clicked"] = ";".join(hits)[:300]
-        c["referenced_by_browser_test"] = "yes" if referenced else ""
-        if hits:
-            c["status"] = ("FAILED" if any(h.endswith(":FAILED") for h in hits)
-                           else "PASS")
-            c["evidence"] = "clicked in a browser journey (runtime record)"
-        elif not runs:
+        c["referenced_by_browser_test"] = "yes" if c["testid"] and (
+            c["testid"].split("${")[0] in browser_src) else ""
+        rx = re.compile(c["match"]) if c.get("match") else None
+        c["journeys_clicked"] = ";".join(sorted(
+            {h for t, hs in clicked.items() if rx and rx.match(t)
+             for h in hs}))[:300]
+    if runs:
+        control_execution.join(controls, runs)
+    else:
+        for c in controls:
             c["status"] = "NOT_RUN"
-            c["evidence"] = ""
-        else:
-            c["status"] = "PARTIAL"
-            c["evidence"] = ("present in source; not clicked by any browser "
-                             "journey in this run" + (
-                                 " (no stable test id)" if not c["testid"]
-                                 else ""))
-    cols = ["module", "file", "line", "element", "testid", "label", "kind",
-            "target", "disabled_rule", "referenced_by_browser_test",
+    cols = ["module", "file", "line", "element", "component", "testid",
+            "match", "label", "kind", "target", "disabled_rule", "routes",
+            "applicability", "referenced_by_browser_test",
             "journeys_clicked", "status", "evidence"]
     with (out / "UI_CONTROL_INVENTORY.csv").open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=cols)
+        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(controls)
+    for c in controls:
+        c["control_id"] = f"{c['file'].replace('frontend/src/', '')}:" \
+                          f"{c['line']}"
+        c["control_type"] = f"{c['element']} ({c['kind']})"
+    mcols = ["control_id", "testid", "routes", "component", "label",
+             "control_type", "applicability", "prerequisite", "action",
+             "expected", "observed", "api_calls", "persistence",
+             "model_call", "console", "route_after", "back", "status",
+             "results_seen", "evidence"]
+    with (out / "UI_CONTROL_EXECUTION_MATRIX.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=mcols, extrasaction="ignore")
         w.writeheader()
         w.writerows(controls)
 
@@ -397,15 +513,28 @@ def main() -> int:
             visited[url].append(f"{j['journey']}:{j['status']}")
     rcols = ["route", "module", "flag", "source", "components",
              "query_params", "back_controls", "deep_link", "api_paths",
-             "journey_mentions", "status"]
+             "journey_mentions", "direct", "refresh",
+             "browser_back_forward", "in_app_back", "invalid", "stale",
+             "deleted", "permission", "route_check", "status"]
+    checks = {c["route"]: {**c, "journey": j["journey"]} for j in runs
+              for c in j.get("route_checks", [])}
     for r in routes:
         rx = re.compile("^" + r["_static"] + "$")
         hits = sorted({h for u, hs in visited.items() if rx.match(u)
                        for h in hs})
-        r["status"] = ("FAILED" if any(h.endswith(":FAILED") for h in hits)
-                       else "PASS" if hits else
-                       ("PARTIAL" if runs else "NOT_RUN"))
         r["journeys_visiting"] = ";".join(hits)[:300]
+        c = checks.get(r["route"])
+        for k in ("direct", "refresh", "browser_back_forward", "in_app_back",
+                  "invalid", "stale", "deleted", "permission"):
+            r[k] = (c or {}).get(k, "") or ("N/A (not a dynamic route)" if k
+                                             in ("invalid", "stale") and
+                                             "[" not in r["route"] and c
+                                             else (c or {}).get(k, ""))
+        # A route is closed by its full route check (direct, refresh, Back
+        # and Forward, in-product Back, invalid and stale ids), not by a visit.
+        r["status"] = ("NOT_RUN" if not runs else
+                       c["status"] if c else "NOT_EXERCISED")
+        r["route_check"] = (c or {}).get("journey", "")
     with (out / "ROUTE_INVENTORY.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=rcols + ["journeys_visiting"],
                            extrasaction="ignore")
@@ -421,11 +550,17 @@ def main() -> int:
     handoffs = scan_handoffs(
         {re.sub(r"\[[^\]]+\]", "[^/]+", r["route"]): v
          for r in routes for k, v in visits.items() if k == r["_static"]})
+    if runs:
+        control_execution.join_handoffs(handoffs, controls)
     with (out / "INTEGRATION_HANDOFF_INVENTORY.csv").open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["source_module", "file", "line",
                                           "target", "destination_module",
                                           "carries_origin", "route_exists",
-                                          "journeys", "status"])
+                                          "controls", "source_object",
+                                          "destination_object", "identity",
+                                          "writes_on_handoff", "back",
+                                          "journeys", "status"],
+                           extrasaction="ignore")
         w.writeheader()
         w.writerows(handoffs)
 
@@ -444,9 +579,12 @@ def main() -> int:
         w.writeheader()
         w.writerows(back)
 
-    plotly = [{"journey": j["journey"], **r} for j in runs
-              for r in j.get("plotly", [])]
-    pcols = ["journey", "page", "url", "viewport", "testid", "rendered",
+    plotly = [{"row_type": "render audit", "journey": j["journey"], **r}
+              for j in runs for r in j.get("plotly", [])]
+    contracts = control_execution.plotly_contracts(runs) if runs else []
+    plotly += contracts
+    pcols = ["row_type", "journey", "page", "url", "viewport", "testid",
+             "interaction", "evidence_controls", "results", "rendered",
              "plotly", "label", "width", "fits", "page_horizontal_scroll_px",
              "console_errors", "status"]
     with (out / "PLOTLY_AUDIT.csv").open("w", newline="") as f:
@@ -476,7 +614,12 @@ def main() -> int:
         "handoffs_carrying_origin": sum(1 for h in handoffs
                                         if h["carries_origin"] == "yes"),
         "back_paths": len(back), "back_by_status": count(back),
-        "plotly_rows": len(plotly), "plotly_by_status": count(plotly),
+        "plotly_rows": len(plotly) - len(contracts),
+        "plotly_by_status": count([p for p in plotly
+                                   if p["row_type"] == "render audit"]),
+        "plotly_contracts": len(contracts),
+        "plotly_contracts_by_status": count(contracts),
+        "controls_by_applicability": count(controls, "applicability"),
         "journeys": len(runs),
         "journeys_by_status": count(runs) if runs else {}}
     (out / "inventory_summary.json").write_text(json.dumps(summary, indent=2))

@@ -58,14 +58,14 @@ export function MacroTornado({ domain, filters }: { domain: DomainId; filters: F
           <option value="pd">PD only</option>
           <option value="lgd">LGD only</option>
         </select>
-        <select value={top} onChange={(e) => setTop(Number(e.target.value))} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="How many">
+        <select data-testid="tornado-top" value={top} onChange={(e) => setTop(Number(e.target.value))} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="How many">
           {[8, 12, 20, 40].map((n) => (
             <option key={n} value={n}>
               Top {n}
             </option>
           ))}
         </select>
-        <select value={scale} onChange={(e) => setScale(Number(e.target.value))} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Shock size">
+        <select data-testid="tornado-scale" value={scale} onChange={(e) => setScale(Number(e.target.value))} className="rounded border border-border bg-surface px-2 py-1 text-xs" aria-label="Shock size">
           {[0.5, 1, 2].map((n) => (
             <option key={n} value={n}>
               {n}× standard shock

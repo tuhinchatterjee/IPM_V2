@@ -112,9 +112,14 @@ def test_hover_fields_are_all_present(corp):
 def test_the_population_follows_the_filter(svc):
     t = ms.tornado(_book(), filters=CONSTRUCTION["filters"], top=8)
     assert t["population"]["entities"] == 248
-    with pytest.raises(HTTPException):
-        ms.tornado(_book(), filters=[{"column": "sector", "op": "in",
+    # A filter that matches nothing is an empty state, not a refusal
+    # (VAL-DEF-043): no bars, and it says why.
+    e = ms.tornado(_book(), filters=[{"column": "sector", "op": "in",
                                       "values": ["No such sector"]}])
+    assert e["population"]["entities"] == 0
+    assert e["rows"] == [] and e["material_rows"] == 0
+    assert e["empty"]["error_code"] == "EMPTY_BY_FILTER"
+    assert t["empty"] is None
     for bad in ({"parameter": "ccf"}, {"scale": 0}, {"scale": 9}):
         with pytest.raises(HTTPException):
             ms.tornado(_book(), **bad)

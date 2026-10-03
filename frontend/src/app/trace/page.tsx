@@ -1,5 +1,7 @@
 "use client";
 
+import { LegacyRedirect, legacyRedirectActive } from "@/components/workspace/legacy-redirect";
+
 import Link from "next/link";
 import { Clock, GitBranch, Search, Sparkles } from "lucide-react";
 
@@ -17,7 +19,7 @@ import { useAsync } from "@/lib/hooks";
  * that have one — every question asked of CreditProbe — and explains the model beneath
  * them.
  */
-export default function TracePage() {
+function TracePage() {
   const recent = useAsync(() => api.recentInvestigations(12), []);
   const mode = useAsync(() => api.askMode(), []);
 
@@ -130,4 +132,20 @@ export default function TracePage() {
       </section>
     </div>
   );
+}
+
+/**
+ * In a V4 runtime with the Guided Workspace on, a trace belongs to an
+ * answer and opens from its conversation; the V3 run list has no backend
+ * there, so the address hands over to the Cockpit home and its
+ * conversations.
+ */
+export default function TraceRoute() {
+  if (legacyRedirectActive())
+    return (
+      <LegacyRedirect to="/" testId="legacy-trace-list-redirect">
+        Each answer&apos;s trace opens from its conversation — opening the Cockpit…
+      </LegacyRedirect>
+    );
+  return <TracePage />;
 }

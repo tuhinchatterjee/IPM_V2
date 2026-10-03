@@ -465,7 +465,19 @@ const ALL_NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter((item) => GUIDED || !GUIDED_ONLY.has(item.href));
+/** A V4 runtime serves the Cockpit and the Guided Workspace, not the V3 APIs. */
+const V4 = Boolean(process.env.NEXT_PUBLIC_COCKPIT_V4_API?.trim());
+
+/**
+ * Legacy pages that, in a V4 runtime with the Guided Workspace on, hand over
+ * to their governed equivalent (components/workspace/legacy-redirect.tsx):
+ * a menu entry would only redirect, so it is not offered.
+ */
+const HANDED_OVER = new Set(["/trace", "/early-warning/signals"]);
+
+export const NAV_ITEMS: NavItem[] = ALL_NAV_ITEMS.filter(
+  (item) => (GUIDED || !GUIDED_ONLY.has(item.href)) && !(GUIDED && V4 && HANDED_OVER.has(item.href)),
+);
 
 export const STATUS_LABEL: Record<CapabilityStatus, string> = {
   live: "Live",

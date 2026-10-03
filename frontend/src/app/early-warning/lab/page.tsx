@@ -1,5 +1,7 @@
 "use client";
 
+import { LegacyRedirect, legacyRedirectActive } from "@/components/workspace/legacy-redirect";
+
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -50,7 +52,7 @@ import { PrototypeNotice } from "../page";
  * A fit is never silently adopted, and every stored version is a PROTOTYPE
  * whatever its numbers look like.
  */
-export default function ModelLabPage() {
+function ModelLabPage() {
   const { role } = useRole();
   const overview = useAsync(() => api.earlyWarning(), []);
   const [refresh, setRefresh] = React.useState(0);
@@ -771,4 +773,19 @@ function ModelSelect({
       </select>
     </div>
   );
+}
+
+/**
+ * In a V4 runtime with the Guided Workspace on, Early Warning is the
+ * governed EWS rule set at `/early-warning`; the V3 transition-model lab
+ * has no backend there, so the address hands over.
+ */
+export default function ModelLabRoute() {
+  if (legacyRedirectActive())
+    return (
+      <LegacyRedirect to="/early-warning" testId="legacy-ew-lab-redirect">
+        Early Warning here is the governed rule set — opening it…
+      </LegacyRedirect>
+    );
+  return <ModelLabPage />;
 }

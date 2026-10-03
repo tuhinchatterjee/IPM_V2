@@ -15,6 +15,7 @@ import { sarDelta } from "@/lib/viz/format";
 import { wsGet, wsSend } from "@/lib/workspace/client";
 import type { GovernedObject } from "@/lib/workspace/objects";
 import { newWhatIfSession, whatIfSession } from "@/lib/workspace/runs";
+import { withBack } from "@/lib/workspace/nav";
 
 interface TreeNode {
   id: string;
@@ -70,7 +71,7 @@ export function SessionTree({ domain, refreshKey }: { domain: string; refreshKey
     setError("");
     try {
       const c = await wsSend<GovernedObject>("/whatif/compare", { result_ids: [...chosen] });
-      router.push(`/what-if/compare/${c.object_id}`);
+      router.push(withBack(`/what-if/compare/${c.object_id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -148,11 +149,11 @@ const children = (id: string, kind?: string) =>
             </span>
           ))}
           {n.result_id ? (
-            <Link href={`/what-if/result/${n.result_id}`} className="text-accent underline">
+            <Link data-testid="tree-result-link" href={withBack(`/what-if/result/${n.result_id}`)} className="text-accent underline">
               result
             </Link>
           ) : (
-            <Link href={`/what-if?run=${n.id}`} className="text-accent underline">
+            <Link data-testid="tree-open-run" href={withBack(`/what-if?run=${n.id}`)} className="text-accent underline">
               open run
             </Link>
           )}

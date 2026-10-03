@@ -17,6 +17,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { listLenses, proposeLens, saveLens, type LensCard, type Proposal } from "@/lib/workspace/lenses";
 import { OriginBackLink } from "@/components/workspace/origin-back";
 import { urlWith, withBack } from "@/lib/workspace/nav";
+import { useAddress } from "@/lib/workspace/address";
 
 const CADENCE: Record<string, string> = {
   daily: "Daily",
@@ -31,6 +32,7 @@ const CADENCE: Record<string, string> = {
 export function LensLibrary() {
   const params = useSearchParams();
   const router = useRouter();
+  const address = useAddress();
   const [lib, setLib] = React.useState<{ lenses: LensCard[]; total: number } | null>(null);
   const [q, setQ] = React.useState(params.get("q") ?? "");
   const [prompt, setPrompt] = React.useState("");
@@ -58,19 +60,18 @@ export function LensLibrary() {
         setProposal(p);
         // The origin has been consumed: Back to this page shows the library,
         // it does not propose (and invite saving) the same Lens again.
-        router.replace(urlWith({ from_investigation: null, from_thread: null }), { scroll: false });
+        address.replace({ from_investigation: null, from_thread: null });
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [params, router]);
+  }, [params, address]);
 
   // The filter text is part of the address, so Back from a Lens restores it.
   React.useEffect(() => {
     const t = setTimeout(() => {
-      const next = urlWith({ q: q.trim() || null });
-      if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
+      address.replace({ q: q.trim() || null });
     }, 250);
     return () => clearTimeout(t);
-  }, [q, router]);
+  }, [q, address]);
 
   async function propose(base?: Proposal) {
     setBusy(true);

@@ -362,7 +362,7 @@ function MessageView({ shareId, onChanged }: { shareId: string; onChanged: () =>
           </div>
         ))}
         {d.accessible && (
-          <form
+          <form data-testid="message-comment-form"
             className="flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();

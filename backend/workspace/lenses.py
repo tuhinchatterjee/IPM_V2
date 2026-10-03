@@ -583,6 +583,19 @@ def _record(svc, principal, lens, spec, books, prev, values, errors, *,
     return row
 
 
+def read(svc: ObjectService, who: dict[str, Any], oid: str, *,
+         version: int | None = None) -> dict[str, Any]:
+    """One Lens as its reader may see it: the governed object (spec, version,
+    lineage, permissions) and its library card (last refresh, counts).
+    Tenant-scoped through the object service: another tenant's id is 404.
+    """
+    ensure_seeded(svc, who)
+    lens = svc.get(oid, Principal.of(who), version=version)
+    if lens["kind"] != "lens":
+        _refuse(422, "NOT_A_LENS", f"{oid} is not a Lens.")
+    return {"lens": lens, "card": card(svc, lens)}
+
+
 def history(svc: ObjectService, who: dict[str, Any], oid: str
             ) -> list[dict[str, Any]]:
     ensure_seeded(svc, who)

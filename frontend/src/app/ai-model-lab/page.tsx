@@ -20,6 +20,8 @@ import {
   type Comparison,
   type LabRow,
 } from "@/lib/workspace/llm-exchange";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { withBack } from "@/lib/workspace/nav";
 
 export default function AiModelLabPage() {
   const [rows, setRows] = React.useState<LabRow[] | null>(null);
@@ -74,6 +76,9 @@ export default function AiModelLabPage() {
   return (
     <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-8" data-testid="ai-model-lab">
       <header>
+        <React.Suspense fallback={null}>
+          <OriginBackLink testId="lab-back" />
+        </React.Suspense>
         <h1 className="flex items-center gap-2 text-lg font-semibold text-text-primary">
           <FlaskConical className="h-5 w-5 text-accent" /> AI Model Lab
         </h1>
@@ -91,7 +96,7 @@ export default function AiModelLabPage() {
         <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
           <label>
             Model{" "}
-            <select value={model} onChange={(e) => setModel(e.target.value)} className="rounded border border-border bg-surface px-2 py-1">
+            <select data-testid="lab-model-filter" value={model} onChange={(e) => setModel(e.target.value)} className="rounded border border-border bg-surface px-2 py-1">
               <option value="">all</option>
               {models.map((m) => (
                 <option key={m}>{m}</option>
@@ -129,10 +134,10 @@ export default function AiModelLabPage() {
                 {rows.map((r) => (
                   <tr key={r.exchange_id} className="border-t border-border">
                     <td className="px-2 py-1">
-                      <input type="radio" name="a" checked={a === r.exchange_id} onChange={() => setA(r.exchange_id)} aria-label="Choose as A" />
+                      <input data-testid="lab-choose-a" type="radio" name="a" checked={a === r.exchange_id} onChange={() => setA(r.exchange_id)} aria-label="Choose as A" />
                     </td>
                     <td className="px-2 py-1">
-                      <input type="radio" name="b" checked={b === r.exchange_id} onChange={() => setB(r.exchange_id)} aria-label="Choose as B" />
+                      <input data-testid="lab-choose-b" type="radio" name="b" checked={b === r.exchange_id} onChange={() => setB(r.exchange_id)} aria-label="Choose as B" />
                     </td>
                     <td className="px-2 py-1">{new Date(r.started_at * 1000).toLocaleString()}</td>
                     <td className="px-2 py-1">{r.surface}</td>
@@ -144,7 +149,7 @@ export default function AiModelLabPage() {
                     <td className="px-2 py-1 text-right tabular">{r.provider_ms}</td>
                     <td className="px-2 py-1">
                       {r.run_id.startsWith("run-") ? (
-                        <Link className="text-accent underline" href={`/trace/llm-exchange/${r.run_id}`}>
+                        <Link data-testid="lab-trace-link" className="text-accent underline" href={withBack(`/trace/llm-exchange/${r.run_id}`)}>
                           trace
                         </Link>
                       ) : (
@@ -158,7 +163,7 @@ export default function AiModelLabPage() {
           </div>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
+          <button data-testid="lab-compare"
             type="button"
             disabled={!a || !b}
             onClick={() => compareExchanges(a, b).then(setComparison).catch((e) => setError(String(e)))}
@@ -167,7 +172,7 @@ export default function AiModelLabPage() {
             <GitCompare className="h-3.5 w-3.5" /> Compare A and B
           </button>
           {targets.map((t) => (
-            <button
+            <button data-testid="lab-provider-test"
               key={t.target}
               type="button"
               disabled={!a || !t.configured || busy}

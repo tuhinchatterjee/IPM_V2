@@ -64,7 +64,9 @@ export default function EarlyWarningPage() {
   if (cockpitV4Enabled() && guidedEnabled()) {
     return (
       <main className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-10">
-        <EarlyWarningV4 />
+        <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
+          <EarlyWarningV4 />
+        </React.Suspense>
       </main>
     );
   }

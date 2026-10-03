@@ -112,9 +112,9 @@ function IssueCard({
         </span>
       </header>
       <h3 className="mt-2 text-sm font-semibold leading-snug text-text-primary" data-testid="issue-title">
-        <button
+        <button data-testid="issue-title-open"
           type="button"
-          onClick={() => router.push(`/issues/${issue.issue_id}`)}
+          onClick={() => router.push(withBack(`/issues/${issue.issue_id}`))}
           className="text-left hover:underline"
           title="Open the evidence and the affected population"
         >
@@ -168,7 +168,7 @@ function IssueCard({
           Largest contributor:{" "}
           <button
             type="button"
-            onClick={() => router.push(`/issues/${issue.issue_id}?driver=${encodeURIComponent(String(top.label))}`)}
+            onClick={() => router.push(withBack(`/issues/${issue.issue_id}?driver=${encodeURIComponent(String(top.label))}`))}
             className="font-medium text-accent hover:underline"
             data-testid="issue-driver"
             title="Open the population behind this contributor"
@@ -193,7 +193,7 @@ function IssueCard({
         </button>
         <button
           type="button"
-          onClick={() => router.push(`/issues/${issue.issue_id}`)}
+          onClick={() => router.push(withBack(`/issues/${issue.issue_id}`))}
           className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"
           data-testid="issue-open"
         >

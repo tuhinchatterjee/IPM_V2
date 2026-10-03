@@ -20,8 +20,10 @@ import { ChartCard } from "@/components/viz/chart-card";
 import { ExportPackage } from "@/components/workspace/export-package";
 import { SEMANTIC, SEVERITY_COLORS, categorical } from "@/lib/viz/palette";
 import { formatValue } from "@/lib/workspace/metric-figures";
-import { urlWith, withBack } from "@/lib/workspace/nav";
+import { withBack } from "@/lib/workspace/nav";
 import { actOnAlert, alertCohort, investigateAlert, readAlert, readMonitoring, runDueRefreshes, type AlertDetail, type AlertSummary, type MonitoringView } from "@/lib/workspace/monitoring";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { useAddress } from "@/lib/workspace/address";
 
 const VIEWS: { id: string; label: string; count?: keyof MonitoringView["counts"] }[] = [
   { id: "new_today", label: "New today", count: "new" },
@@ -73,7 +75,7 @@ function oneOf(raw: string | null, allowed: string[], fallback: string): string 
 
 export function MonitoringCentre() {
   const params = useSearchParams();
-  const router = useRouter();
+  const address = useAddress();
   // The view and every filter live in the URL, so Back from a Lens, the
   // Cockpit or What-If returns to the same list; an unknown value is ignored.
   const [view, setView] = React.useState(() => oneOf(params.get("view"), VIEW_IDS, "active"));
@@ -98,13 +100,12 @@ export function MonitoringCentre() {
   }, [view, severity, lens, domain, reload]);
 
   React.useEffect(() => {
-    const next = urlWith({ view, severity, lens, domain });
-    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
-  }, [view, severity, lens, domain, router]);
+    address.replace({ view, severity, lens, domain });
+  }, [view, severity, lens, domain, address]);
 
   function open(id: string) {
     // Pushed: browser Back closes the alert and keeps the list as it was.
-    router.push(urlWith({ alert: id }), { scroll: false });
+    address.push({ alert: id });
   }
 
   const alerts = data?.alerts ?? [];
@@ -118,6 +119,9 @@ export function MonitoringCentre() {
     <div className="space-y-4" data-testid="monitoring-centre" data-total={data?.total ?? 0}>
       <header className="flex flex-wrap items-end gap-3">
         <div>
+          <React.Suspense fallback={null}>
+            <OriginBackLink testId="monitoring-back" />
+          </React.Suspense>
           <h1 className="text-lg font-semibold">Monitoring Centre</h1>
           <p className="text-xs text-text-muted">Breaches and material changes from saved Lenses and their governed rules. Acting on an alert never changes source data.</p>
         </div>
@@ -259,7 +263,7 @@ export function MonitoringCentre() {
               {data.lens_health.map((l) => (
                 <tr key={l.lens_id} className="border-t border-border" data-testid="monitoring-health-row" data-lens-id={l.lens_id} data-stale={String(l.stale)}>
                   <td className="px-2 py-1">
-                    <Link href={withBack(`/lenses/${l.lens_id}`)} className="text-accent underline">
+                    <Link data-testid="monitoring-lens-link" href={withBack(`/lenses/${l.lens_id}`)} className="text-accent underline">
                       {l.name}
                     </Link>
                   </td>
@@ -335,7 +339,7 @@ function AlertPanel({ alertId, onChanged }: { alertId: string; onChanged: () => 
         <dt className="text-text-muted">Metric</dt>
         <dd>
           {b.metric_id ? (
-            <Link href={withBack(`/metrics?m=${String(b.metric_id)}`)} className="text-accent underline">
+            <Link data-testid="alert-metric-link" href={withBack(`/metrics?m=${String(b.metric_id)}`)} className="text-accent underline">
               {String(b.metric_id)} v{String(b.metric_version)} {d.metric}
             </Link>
           ) : (

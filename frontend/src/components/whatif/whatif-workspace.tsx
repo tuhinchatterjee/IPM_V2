@@ -45,7 +45,8 @@ import {
   type WorkspaceSelection,
 } from "@/lib/workspace/whatif";
 import { methodLabel } from "@/lib/workspace/method-labels";
-import { urlWith, withBack } from "@/lib/workspace/nav";
+import { withBack } from "@/lib/workspace/nav";
+import { useAddress } from "@/lib/workspace/address";
 
 function toSelection(sel: GridSelection): WorkspaceSelection | null {
   if (sel.mode === "rows" && sel.ids.length) return { mode: "rows", ids: sel.ids };
@@ -73,6 +74,7 @@ function currentPath(params: URLSearchParams | ReturnType<typeof useSearchParams
 
 export function WhatIfWorkspace() {
   const router = useRouter();
+  const address = useAddress();
   const params = useSearchParams();
   // An unknown book in the URL is ignored (the Corporate book opens), never
   // forwarded to the server.
@@ -129,6 +131,9 @@ export function WhatIfWorkspace() {
             setCohort((await readObject<Cohort["body"]>(r.body.cohort.object.cohort_id, r.body.cohort.object.version ?? undefined)) as Cohort);
           }
           setScenario(sc as ScenarioObject);
+          // The reopened run is the active run from here on: the address
+          // keeps `?run=` while its panel loads (VAL-DEF-042).
+          setActiveRun(r);
         })
         .catch((e: unknown) => {
           setInitialRunId("");
@@ -161,20 +166,45 @@ export function WhatIfWorkspace() {
   // returns here with the same state, and a remount reopens the same run
   // instead of starting another (binding is idempotent server-side).
   const runId = activeRun?.object_id ?? (pending ? initialRunId : "");
+  // A link to another run on this same page (the session tree's "open
+  // run") changes only the address: the page stays mounted and the
+  // deep-link effect above has run once. Load the run `?run=` names here,
+  // as a deep link would (VAL-DEF-038).
+  const urlRun = params.get("run") ?? "";
+  const handledRun = React.useRef(urlRun);
+  React.useEffect(() => {
+    if (!urlRun || urlRun === handledRun.current || urlRun === runId) return;
+    handledRun.current = urlRun;
+    setPending((n) => n + 1);
+    readRun(urlRun)
+      .then(async (r) => {
+        const sc = await readObject<ScenarioObject["body"]>(r.body.scenario_id, r.body.scenario_version);
+        const co = r.body.cohort.object.cohort_id
+          ? await readObject<Cohort["body"]>(r.body.cohort.object.cohort_id, r.body.cohort.object.version ?? undefined)
+          : null;
+        setDomain(r.body.domain_id as DomainId);
+        setCohort((co as Cohort | null) ?? null);
+        setScenario(sc as ScenarioObject);
+        setActiveRun(r);
+        setInitialRunId(urlRun);
+        setApplyKey((k) => k + 1);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(settle);
+  }, [urlRun, runId, settle]);
   // Set when this page navigates away, so a replace never overtakes the push.
   const leaving = React.useRef(false);
   React.useEffect(() => {
     if (pending || leaving.current) return;
     const f = filters.length ? JSON.stringify(filters) : "";
-    const next = urlWith({
+    address.replace({
       domain,
       f: f.length <= 1200 ? f : null,
       cohort: cohort?.object_id ?? null,
       scenario: scenario?.object_id ?? null,
       run: runId || null,
     });
-    if (next && next !== `${window.location.pathname}${window.location.search}`) router.replace(next, { scroll: false });
-  }, [pending, domain, filters, cohort, scenario, runId, router]);
+  }, [pending, domain, filters, cohort, scenario, runId, address]);
 
   const selection = toSelection(gridSel);
   const selKey = JSON.stringify({ domain, selection });
@@ -377,7 +407,7 @@ export function WhatIfWorkspace() {
             >
               Use this conversation&apos;s cohort
             </button>
-            <button type="button" className="ml-auto" aria-label="Close conversation" onClick={() => setThreadId("")}>
+            <button data-testid="whatif-close-thread" type="button" className="ml-auto" aria-label="Close conversation" onClick={() => setThreadId("")}>
               <X className="h-3 w-3" />
             </button>
           </div>
@@ -571,7 +601,7 @@ function ActiveStrip({
           <div>
             <span className="font-semibold">{cohort.body.name}</span> · {count(cohort.body.counts.entities)} exposures · {cohort.object_id} v{cohort.version}
             <div className="font-mono text-[10px] text-text-muted">membership {cohort.body.membership_hash.slice(0, 16)}</div>
-            <button type="button" onClick={onClearCohort} className="text-accent underline">
+            <button data-testid="whatif-strip-clear-cohort" type="button" onClick={onClearCohort} className="text-accent underline">
               clear
             </button>
           </div>
@@ -588,7 +618,7 @@ function ActiveStrip({
           <div>
             <span className="font-semibold">{scenario.body.name}</span> · v{scenario.version}
             <div className="text-text-muted">{scenario.body.components.map((c) => c.label).join(" · ")}</div>
-            <button type="button" onClick={onClearScenario} className="text-accent underline">
+            <button data-testid="whatif-strip-clear-scenario" type="button" onClick={onClearScenario} className="text-accent underline">
               clear
             </button>
           </div>

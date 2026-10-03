@@ -149,7 +149,7 @@ function InvestigationPath({
               {s.is_stress_test && <FlaskConical className="mr-1 inline h-3 w-3" />}
               {s.text}
             </button>
-            <button
+            <button data-testid="nbq-why"
               type="button"
               aria-label="Why is this suggested?"
               onClick={() => setShowWhy(showWhy === s.suggestion_id ? "" : s.suggestion_id)}

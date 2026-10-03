@@ -179,7 +179,7 @@ function FilterEditor({
       <p className="mb-2 font-medium text-text-primary">{col.label}</p>
       <p className="mb-2 text-text-muted">{col.description}</p>
       {col.filter === "text" && (
-        <input
+        <input data-testid="grid-filter-text"
           autoFocus
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -191,7 +191,7 @@ function FilterEditor({
       )}
       {col.filter === "category" && (
         <div>
-          <input
+          <input data-testid="grid-filter-value-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="search values"
@@ -203,7 +203,7 @@ function FilterEditor({
               const key = String(v.value);
               return (
                 <label key={key} className="flex items-center gap-2">
-                  <input
+                  <input data-testid="grid-filter-value"
                     type="checkbox"
                     checked={picked.includes(key)}
                     onChange={(e) =>
@@ -220,7 +220,7 @@ function FilterEditor({
       )}
       {col.filter === "range" && (
         <div className="flex items-center gap-2">
-          <input
+          <input data-testid="grid-filter-min"
             value={low}
             onChange={(e) => setLow(e.target.value)}
             placeholder={col.unit === "fraction" ? "min %" : "min"}
@@ -229,7 +229,7 @@ function FilterEditor({
             inputMode="decimal"
           />
           <span>–</span>
-          <input
+          <input data-testid="grid-filter-max"
             value={high}
             onChange={(e) => setHigh(e.target.value)}
             placeholder={col.unit === "fraction" ? "max %" : "max"}
@@ -240,7 +240,7 @@ function FilterEditor({
         </div>
       )}
       {col.filter === "boolean" && (
-        <select
+        <select data-testid="grid-filter-boolean"
           value={bool}
           onChange={(e) => setBool(e.target.value as "any" | "yes" | "no")}
           aria-label={`${col.label} value`}
@@ -253,7 +253,7 @@ function FilterEditor({
       )}
       <label className="mt-2 flex items-center gap-2 text-text-muted">
         Empty values
-        <select
+        <select data-testid="grid-filter-nulls"
           value={nulls}
           onChange={(e) => setNulls(e.target.value as "any" | "empty" | "not_empty")}
           aria-label={`${col.label} empty values`}
@@ -265,10 +265,10 @@ function FilterEditor({
         </select>
       </label>
       <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={() => onApply(null)} className="rounded border border-border px-2 py-1">
+        <button data-testid="grid-filter-clear" type="button" onClick={() => onApply(null)} className="rounded border border-border px-2 py-1">
           Clear
         </button>
-        <button type="button" onClick={onClose} className="rounded border border-border px-2 py-1">
+        <button data-testid="grid-filter-cancel" type="button" onClick={onClose} className="rounded border border-border px-2 py-1">
           Cancel
         </button>
         <button
@@ -470,13 +470,13 @@ export function DataGrid({
         {filters.map((f) => (
           <span key={f.column} className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-sunken px-2 py-0.5" data-testid="grid-filter-chip">
             {describeFilter(f, schema?.columns ?? [])}
-            <button type="button" aria-label={`Remove filter on ${f.column}`} onClick={() => setFilter(f.column, null)}>
+            <button data-testid="grid-filter-chip-remove" type="button" aria-label={`Remove filter on ${f.column}`} onClick={() => setFilter(f.column, null)}>
               <X className="h-3 w-3" />
             </button>
           </span>
         ))}
         {filters.length > 0 && (
-          <button type="button" onClick={() => setFilters([])} className="text-accent underline">
+          <button data-testid="grid-clear-filters" type="button" onClick={() => setFilters([])} className="text-accent underline">
             Clear all filters
           </button>
         )}
@@ -488,7 +488,7 @@ export function DataGrid({
           <div className="absolute right-0 z-30 mt-1 max-h-72 w-56 overflow-auto rounded-md border border-border bg-surface-raised p-2 shadow-lg">
             {(schema?.columns ?? []).map((c) => (
               <label key={c.key} className="flex items-center gap-2">
-                <input
+                <input data-testid="grid-column-toggle"
                   type="checkbox"
                   checked={!hidden.has(c.key)}
                   onChange={() =>
@@ -602,7 +602,7 @@ export function DataGrid({
                 <tr key={id} className={cn("border-t border-border", checked && "bg-accent-muted")} data-testid="grid-row" data-row-id={id}>
                   {selectable && (
                     <td className="px-2 py-1">
-                      <input
+                      <input data-testid="grid-row-select"
                         type="checkbox"
                         aria-label={`Select ${id}`}
                         checked={checked}

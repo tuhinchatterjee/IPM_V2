@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import lenses, monitoring, service
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-monitoring"])
+router = APIRouter(tags=["workspace-monitoring"], route_class=GovernedRoute)
 
 
 class ActBody(BaseModel):

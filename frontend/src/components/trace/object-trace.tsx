@@ -14,6 +14,8 @@ import { CheckCircle2, Loader2, ShieldAlert, ShieldCheck, Upload } from "lucide-
 
 import { ExportPackage } from "@/components/workspace/export-package";
 import { readTrace, shortHash, verifyLedger, verifyPackage, type LedgerLink, type LedgerReport, type ObjectTrace, type PackageReport } from "@/lib/workspace/trace";
+import { OriginBackLink } from "@/components/workspace/origin-back";
+import { withBack } from "@/lib/workspace/nav";
 
 const OPEN_HREF: Record<string, (id: string) => string> = {
   scenario_result: (id) => `/what-if/result/${id}`,
@@ -67,6 +69,9 @@ export function ObjectTraceView({ objectId }: { objectId: string }) {
   const ok = trace.integrity.ok;
   return (
     <div className="space-y-5" data-testid="object-trace" data-kind={trace.kind} data-integrity={String(ok)}>
+      <React.Suspense fallback={null}>
+        <OriginBackLink testId="trace-object-back" />
+      </React.Suspense>
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-wide text-text-muted">Trace · {trace.kind.replace(/_/g, " ")}</p>
         <h1 className="text-xl font-semibold text-text-primary">{trace.title || trace.object_id}</h1>
@@ -76,7 +81,7 @@ export function ObjectTraceView({ objectId }: { objectId: string }) {
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {open && (
-            <Link href={open} className="rounded-md bg-accent px-2 py-1 text-xs text-accent-contrast" data-testid="trace-open-object">
+            <Link href={withBack(open)} className="rounded-md bg-accent px-2 py-1 text-xs text-accent-contrast" data-testid="trace-open-object">
               Open
             </Link>
           )}
@@ -202,7 +207,7 @@ export function ObjectTraceView({ objectId }: { objectId: string }) {
               {trace.lineage.ancestors.map((a) => (
                 <li key={`${a.object_id}@${a.version}`} style={{ paddingLeft: `${(a.depth - 1) * 12}px` }}>
                   {a.readable ? (
-                    <Link href={`/trace/object/${encodeURIComponent(a.object_id)}`} className="text-accent underline" data-testid="trace-ancestor">
+                    <Link href={withBack(`/trace/object/${encodeURIComponent(a.object_id)}`)} className="text-accent underline" data-testid="trace-ancestor">
                       {a.kind} · {a.title}
                     </Link>
                   ) : (
@@ -225,7 +230,7 @@ export function ObjectTraceView({ objectId }: { objectId: string }) {
             <ul className="space-y-1 text-xs" data-testid="trace-descendants">
               {trace.lineage.descendants.map((d) => (
                 <li key={`${d.object_id}@${d.version}`}>
-                  <Link href={`/trace/object/${encodeURIComponent(d.object_id)}`} className="text-accent underline">
+                  <Link data-testid="trace-descendant-link" href={withBack(`/trace/object/${encodeURIComponent(d.object_id)}`)} className="text-accent underline">
                     {d.kind} · {d.title}
                   </Link>{" "}
                   <span className="text-text-muted">
@@ -282,7 +287,7 @@ export function ObjectTraceView({ objectId }: { objectId: string }) {
               {trace.llm_exchange.calls.map((c) => (
                 <tr key={c.exchange_id} className="border-t border-border">
                   <td className="py-1">
-                    <Link href={`/trace/llm-exchange/${c.run_id}`} className="text-accent underline">
+                    <Link data-testid="trace-llm-call-link" href={withBack(`/trace/llm-exchange/${c.run_id}`)} className="text-accent underline">
                       {c.run_id.slice(0, 12)} · #{c.seq}
                     </Link>
                   </td>

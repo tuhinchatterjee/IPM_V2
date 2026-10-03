@@ -84,6 +84,9 @@ export function downloadText(text: string, filename: string, mime = "text/csv") 
 export interface ChartCardProps extends Omit<PlotlyChartProps, "ariaLabel"> {
   title: string;
   subtitle?: string;
+  /** Stable name of the app-owned chart interaction this card carries
+   *  (rendered as `data-control`), for cards whose test id is per instance. */
+  control?: string;
   table: ChartData;
   context?: ChartContext;
   actions?: React.ReactNode;
@@ -100,6 +103,7 @@ export function ChartCard({
   footer,
   defaultShowData = false,
   testId,
+  control,
   filename,
   className,
   ...plot
@@ -111,6 +115,7 @@ export function ChartCard({
     <section
       className={cn("rounded-lg border border-border bg-surface p-4", className)}
       data-testid={testId ? `${testId}-card` : undefined}
+      data-control={control}
       aria-label={title}
     >
       <header className="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -137,14 +142,14 @@ export function ChartCard({
           >
             <Download className="h-3.5 w-3.5" /> CSV
           </button>
-          <button
+          <button data-testid={testId ? `${testId}-png` : undefined}
             type="button"
             onClick={() => chart.current?.download("png")}
             className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-hover"
           >
             PNG
           </button>
-          <button
+          <button data-testid={testId ? `${testId}-svg` : undefined}
             type="button"
             onClick={() => chart.current?.download("svg")}
             className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-hover"
@@ -178,7 +183,7 @@ export function DataTable({ table, testId, maxRows = 200 }: { table: ChartData; 
         </thead>
         <tbody>
           {table.rows.slice(0, maxRows).map((row, i) => (
-            <tr
+            <tr data-testid={testId ? `${testId}-row` : undefined}
               key={i}
               className={cn("border-t border-border", table.onRowActivate && "cursor-pointer hover:bg-surface-hover focus:bg-accent-muted focus:outline-none")}
               tabIndex={table.onRowActivate ? 0 : undefined}

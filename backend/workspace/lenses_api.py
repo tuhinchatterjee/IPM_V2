@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import routes as v4routes
 from backend.workspace import lenses, service
+from backend.workspace.errors import GovernedRoute
 
-router = APIRouter(tags=["workspace-lenses"])
+router = APIRouter(tags=["workspace-lenses"], route_class=GovernedRoute)
 
 
 class RenderBody(BaseModel):
@@ -66,6 +67,15 @@ async def save(body: SaveBody,
                who: dict[str, Any] = Depends(v4routes.principal)
                ) -> dict[str, Any]:
     return lenses.save(service.objects(), who, body.spec, source=body.source)
+
+
+@router.get("/lenses/{object_id}")
+async def read(object_id: str, version: int | None = Query(None, ge=1),
+               who: dict[str, Any] = Depends(v4routes.principal)
+               ) -> dict[str, Any]:
+    """A Lens by id (VAL-DEF-025): the object and its card, for deep links
+    and reopening; 404 when absent or not visible, 422 when not a Lens."""
+    return lenses.read(service.objects(), who, object_id, version=version)
 
 
 @router.post("/lenses/{object_id}/render")

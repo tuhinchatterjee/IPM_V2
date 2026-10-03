@@ -22,6 +22,7 @@ import { componentTable, identities, kpis, methodComparison, plotted, scopeEquiv
 import { count, moneyCol, sarDelta } from "@/lib/viz/format";
 import { METHOD_LABEL } from "@/lib/workspace/method-labels";
 import type { ScenarioResult } from "@/lib/workspace/runs";
+import { withBack } from "@/lib/workspace/nav";
 
 
 export function ResultView({ result, actions, initialMethod, onMethod }: { result: ScenarioResult; actions?: React.ReactNode; initialMethod?: string; onMethod?: (method: string) => void }) {
@@ -369,7 +370,7 @@ export function DecompositionPanel({
           </thead>
           <tbody>
             {table.map((r) => (
-              <tr
+              <tr data-testid="whatif-decomp-row"
                 key={r.id}
                 data-component={r.id}
                 data-selected={r.selected}
@@ -407,7 +408,7 @@ export function DecompositionPanel({
 
 export function ResultLink({ resultId }: { resultId: string }) {
   return (
-    <Link href={`/what-if/result/${resultId}`} className="text-accent underline" data-testid="whatif-result-link">
+    <Link href={withBack(`/what-if/result/${resultId}`)} className="text-accent underline" data-testid="whatif-result-link">
       Open result {resultId}
     </Link>
   );
