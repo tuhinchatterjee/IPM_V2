@@ -2625,10 +2625,11 @@ async function traceJourney() {
       arrived: (p) => p.waitForFunction(() => /\/trace\/object\/scn-tpl-corp-05$/.test(location.pathname) && document.querySelector('[data-testid="object-trace"]'), null, { timeout: 120_000 }), inApp: sel("trace-object-back"),
     });
     await goTrace("scn-tpl-corp-05");
+    const firstDescendant = (await api("/trace/objects/scn-tpl-corp-05")).body.lineage.descendants[0].object_id;
     await navTrip(page, record, {
-      id: "trace-descendant-link", prereq: "Trace of template CORP-05 (has copies)", expected: "opens the Trace of a derived object", state: traceState,
+      id: "trace-descendant-link", prereq: `Trace of template CORP-05 (first descendant ${firstDescendant})`, expected: "opens the Trace of the first derived object the lineage lists", state: traceState,
       go: (p) => p.locator(sel("trace-descendant-link")).first().click(),
-      arrived: (p) => p.waitForFunction(() => /\/trace\/object\/scn-(?!tpl)/.test(location.pathname) && document.querySelector('[data-testid="object-trace"]'), null, { timeout: 120_000 }), inApp: sel("trace-object-back"),
+      arrived: (p) => p.waitForFunction((id) => location.pathname === `/trace/object/${id}` && document.querySelector('[data-testid="object-trace"]'), firstDescendant, { timeout: 120_000 }), inApp: sel("trace-object-back"),
     });
     await goTrace(copy);
     await ctl(page, record, { id: "trace-verify-ledger", prereq: pre, expected: "the whole tenant ledger verifies (no problems)", run: async () => {
