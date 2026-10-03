@@ -89,7 +89,9 @@ def from_host(host: dict[str, Any]) -> dict[str, Any]:
         "usable_budget_gb": round(vram_gb * USABLE_FRACTION, 2)
         if vram_gb else None,
         "driver_version": host.get("driver_version"),
-        "host_cuda": host.get("host_cuda"), "fit_method": FIT_METHOD,
+        "host_cuda": host.get("host_cuda"),
+        "compute_capability": host.get("compute_capability"),
+        "fit_method": FIT_METHOD,
         "source": "detected (nvidia-smi)",
         "detected_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
@@ -183,7 +185,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"vram: {rec['memory_total_mib']} MiB = {rec['vram_gb_for_fit']} GB;"
           f" usable budget {rec['usable_budget_gb']} GB "
           f"({USABLE_FRACTION:.0%})")
-    print(f"driver: {rec['driver_version']}  cuda: {rec['host_cuda']}")
+    print(f"driver: {rec['driver_version']}  cuda: {rec['host_cuda']}  "
+          f"compute capability: {rec.get('compute_capability') or 'unknown'}")
     print(f"fit_method: {rec['fit_method']}")
     return 0
 

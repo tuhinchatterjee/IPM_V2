@@ -51,6 +51,21 @@ print(a["repository"], a["revision"], p["context_tokens"],
 EOF
 )
 [ "$EXTRA" = "-" ] && EXTRA=""
+# Hardware-specific server environment recorded by the runtime preflight
+# (e.g. VLLM_USE_FLASHINFER_SAMPLER=0 on Blackwell SM120); printed, then
+# exported for vLLM. Nothing is applied that the manifest does not record.
+SERVER_ENV="$("$PY" - <<'EOF'
+import json, os, pathlib, shlex
+man = pathlib.Path(os.environ["MODEL_LAB_RUNTIME_DIR"]) / "vllm_runtime" / "RUNTIME_MANIFEST.json"
+se = (json.loads(man.read_text()).get("server_env") or {}) if man.exists() else {}
+for k, v in (se.get("env") or {}).items():
+    print(f"export {k}={shlex.quote(str(v))}")
+sb = se.get("sampling_backend") or {}
+if sb.get("flashinfer_sampler") == "disabled":
+    print(f"echo {shlex.quote('workaround: FlashInfer sampler disabled (' + str(sb.get('reason')) + '; fallback ' + str(sb.get('fallback')) + ')')}")
+EOF
+)"
+eval "$SERVER_ENV"
 mkdir -p "$MODEL_CACHE_DIR" "$MODEL_LAB_RUNTIME_DIR/logs"
 echo "serving $REPO@$REV (max_model_len=$CTX, tool parser=$PARSER) on 127.0.0.1:8000"
 # shellcheck disable=SC2086

@@ -35,7 +35,8 @@
 #   --storage-check  stop after the storage verdict
 #   --prepare-only   stop after deployment + app rebuild (before installs)
 #   --smoke-only     deployment + app rebuild + offline smoke gate + gated
-#                    pin restore, then stop (uses the existing .venv)
+#                    pin restore, then stop; on a fresh Pod it first builds
+#                    the Pod-local offline Python env (no GPU, no Node)
 #
 # OFFLINE SMOKE GATE. The offline tests run against the PRISTINE committed
 # bundle (verified file by file against DEPLOYMENT_MANIFEST.json before and
@@ -148,6 +149,19 @@ if [ "$PREPARE_ONLY" = 1 ]; then
   exit 0
 fi
 
+# Pod-local Python environment for the lab and its offline tests (app root
+# only; never the persistent volume). Idempotent.
+install_python_env() {
+  if ! command -v uv >/dev/null; then python3 -m pip install -q uv || true; fi
+  if command -v uv >/dev/null; then
+    [ -x .venv/bin/python ] || uv venv -q -p 3.12 .venv
+    uv pip install -q -p .venv/bin/python -r requirements.txt pytest ruff
+  else
+    [ -x .venv/bin/python ] || python3 -m venv .venv
+    .venv/bin/pip install -q -r requirements.txt pytest ruff
+  fi
+}
+
 # ---- offline smoke gate: pristine source, isolated environment ----------------
 # The smoke tests must see exactly the committed bundle: no persistent pins,
 # approvals, probes, reference sets, runtime state or operator variables.
@@ -181,9 +195,15 @@ smoke_gate() {
 }
 
 if [ "$SMOKE_ONLY" = 1 ]; then
-  echo "== 7. Offline smoke gate (--smoke-only: no GPU or installs)"
+  echo "== 7. Offline smoke gate (--smoke-only: no GPU, no Node; Pod-local Python env built if missing)"
   SMOKE_PY="${CREDITPROBE_SMOKE_PYTHON:-$APP/.venv/bin/python}"
-  [ -x "$SMOKE_PY" ] || die "--smoke-only needs the Pod-local .venv (run the full bootstrap once)"
+  if [ ! -x "$SMOKE_PY" ]; then
+    # a fresh Pod: build the minimum offline environment (Pod-local only;
+    # it reads nothing from the volume, so the gate stays first)
+    echo "  fresh Pod: installing the Pod-local offline Python environment"
+    install_python_env || die "offline Python environment install failed"
+  fi
+  [ -x "$SMOKE_PY" ] || die "no Python for the offline tests at $SMOKE_PY"
   if [ -f scripts/cockpit_v4/seed_domains.py ]; then
     # the tests need the deterministic synthetic data (never persistent state)
     (export COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4
@@ -203,14 +223,7 @@ python3 scripts/model_lab/runpod/hardware.py detect --runtime-dir "$RUNTIME" \
 ok "hardware recorded in $RUNTIME/hardware/CURRENT_HOST.json"
 
 echo "== 4. Python and Node dependencies (app root only)"
-if ! command -v uv >/dev/null; then python3 -m pip install -q uv || true; fi
-if command -v uv >/dev/null; then
-  [ -x .venv/bin/python ] || uv venv -q -p 3.12 .venv
-  uv pip install -q -p .venv/bin/python -r requirements.txt pytest ruff
-else
-  [ -x .venv/bin/python ] || python3 -m venv .venv
-  .venv/bin/pip install -q -r requirements.txt pytest ruff
-fi
+install_python_env
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
   curl -fsSL https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
 fi
@@ -368,4 +381,6 @@ $HEAD_LINE
        model, smallest first, checkpointed, resumable):
              .venv/bin/python scripts/model_lab/benchmark_suite.py --runtime-dir $RUNTIME --run --confirm-model-calls --serve
   report:    .venv/bin/python scripts/model_lab/suite_report.py --runtime-dir $RUNTIME
+  failures:  .venv/bin/python scripts/model_lab/runpod/pin_and_probe_models.py --runtime-dir $RUNTIME --summary
+             (class, repository@revision, server log path, return code, root cause, workaround)
 EOF

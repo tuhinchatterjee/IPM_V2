@@ -355,8 +355,9 @@ def test_server_log_taxonomy_and_geesefs_chmod_noise(tmp_path):
     assert vr.classify_server_log("huggingface_hub.errors."
                                   "RepositoryNotFoundError: 404 Client Error"
                                   ) == "MODEL_DOWNLOAD_FAILED"
+    # an OOM while starting is CUDA_OOM; RESOURCE_BLOCKED is the fit skip
     assert vr.classify_server_log("torch.OutOfMemoryError: CUDA out of "
-                                  "memory") == "RESOURCE_BLOCKED"
+                                  "memory") == "CUDA_OOM"
     # the download itself is judged by the files, not by permission bits
     snap = tmp_path / "models--Qwen--Qwen3.5-4B" / "snapshots" / ("a" * 40)
     snap.mkdir(parents=True)

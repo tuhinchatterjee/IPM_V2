@@ -137,6 +137,90 @@ source /workspace-global/creditprobe-model-lab/env.sh && cd "$CREDITPROBE_SOURCE
 - The scripts check presence only.
 - The Model I/O Trace, the reference set, the store and the export packs never contain it; the secret-scrubbing tests cover this.
 
+## Blackwell (RTX PRO 6000, SM 12.0) server startup repair (live evidence)
+
+The live host was an RTX PRO 6000 Blackwell Server Edition (97 887 MiB, driver 595.91.07, CUDA 13.2), running vLLM 0.30.0 built for CUDA 13.0. The runtime gate reported `COMPATIBLE`, and the smoke gate and current-host fit were correct. Two problems stopped the servers.
+
+### 1. FlashInfer sampler on SM 12.x
+
+**What failed.** During warmup, vLLM's GPU sampler calls `flashinfer.sampling.top_k_top_p_sampling_from_logits`, and FlashInfer's JIT `check_cuda_arch()` raised `RuntimeError: FlashInfer requires GPUs with sm75 or higher`.
+
+**How it is controlled.** vLLM 0.30.0 provides a switch for this: `VLLM_USE_FLASHINFER_SAMPLER=0` (`vllm/envs.py`). With it set, `vllm/v1/sample/ops/topk_topp_sampler.flashinfer_sampler_supported()` returns False, and sampling uses vLLM's native top-k/top-p path.
+
+**When it applies.** The runtime preflight records:
+- the GPU and its compute capability (`torch.cuda.get_device_capability`, falling back to `nvidia-smi compute_cap`);
+- the driver, CUDA and torch CUDA;
+- the vLLM and FlashInfer versions (`flashinfer-python 0.6.18.post1`, pinned by vLLM).
+
+The workaround is applied **only for compute capability 12.x**. The decision is written to the manifest as follows:
+
+```
+server_env.env: {VLLM_USE_FLASHINFER_SAMPLER: "0"}
+sampling_backend: {flashinfer_sampler: disabled,
+                   reason: BLACKWELL_SM120_FLASHINFER_ARCH_CHECK_WORKAROUND,
+                   fallback: vllm_native}
+```
+
+`start_server` passes this environment to `serve.sh`, and `serve.sh` applies it for manual runs too. The server log starts with the override and its reason. The probe result and the roster carry `sampling_backend`. The A40 (8.6) and other capabilities keep vLLM's defaults.
+
+**What is not changed:**
+- FlashInfer is not patched;
+- the driver is not changed;
+- vLLM is not downgraded;
+- no other kernel is disabled.
+
+### 2. Invalid persistent config metadata
+
+**What failed.** The snapshots of Ministral-3-8B@`5b26027e`, Qwen3.5-4B@`851bf6e8` and Qwen3.5-9B@`c2022362` held a `config.json` that did not parse (`JSONDecodeError: Expecting value: line 1 column 1`).
+
+**What is checked.** Before any server start, `hf_metadata.ensure` checks every critical small metadata file in the exact `snapshots/<pinned revision>/`, in both `HF_HUB_CACHE` and `MODEL_CACHE_DIR`. The files are:
+- `config.json`, `generation_config.json`, `tokenizer_config.json`;
+- `special_tokens_map.json`, `preprocessor_config.json`, `processor_config.json`;
+- `params.json`, `tokenizer.json`, `chat_template.jinja`.
+
+Each must:
+- exist, with no dangling symlink;
+- be non-empty and UTF-8;
+- for JSON files, parse to a JSON object.
+
+When the pinned Hub listing provides a git blob id, the content must also hash to it.
+
+**What happens on failure:**
+1. A `CACHE_METADATA_CORRUPT` event records the repository, revision, path, byte size and the failure.
+2. **Only that file** is downloaded again, at **the same revision**, with `hf_hub_download(..., revision=<sha>, force_download=True)` inside the Pod-local vLLM environment. A branch name, another revision or another repository is refused.
+3. The file is validated again.
+4. Success is recorded as `CACHE_METADATA_REPAIRED`, with the old and new status and the revision unchanged. Otherwise the model stops with `MODEL_METADATA_CORRUPT` and the roster continues.
+
+Weight blobs are never deleted or re-downloaded by this check. The history is kept in `runtime/cache_integrity/<profile>.json`.
+
+### Server failures are specific
+
+**Failure classes:**
+
+| Class | Meaning |
+|---|---|
+| `BLACKWELL_FLASHINFER_SAMPLER_INCOMPATIBLE` | The FlashInfer sampler failed its architecture check on SM 12.x. |
+| `MODEL_METADATA_CORRUPT` | Pinned metadata is invalid and could not be repaired. |
+| `MODEL_DOWNLOAD_FAILED` | The download failed and the pinned files are incomplete. |
+| `MODEL_SERVER_START_FAILED` | vLLM exited during startup for another reason. |
+| `MODEL_SERVER_START_TIMEOUT` | vLLM did not become ready in time. |
+| `CUDA_OOM` | The GPU ran out of memory while starting; a fit-based skip stays `RESOURCE_BLOCKED`. |
+| `TOOL_PARSER_MISSING` | No registered tool-call parser is assigned. |
+| `LICENSE_REVIEW_REQUIRED` | The licence needs human review first. |
+| `PIN_BLOCKED` | The model could not be pinned to an exact revision. |
+
+**What each failed model's roster entry records:**
+- the profile, repository and revision;
+- the server log path, which stays the full log;
+- the process return code;
+- a concise root cause taken from the log;
+- the class;
+- the sampling-backend workaround, if one was applied.
+
+`pin_and_probe_models.py --summary` prints these entries again.
+
+`--smoke-only` also works on a fresh Pod. It builds the Pod-local offline Python environment first, with no GPU and no Node; the smoke gate still runs before any persistent state is restored.
+
 ## Offline smoke gate and resume isolation (live finding, fixed)
 
 **What happened on the live Pod.** On an existing volume, the bootstrap restored the persistent pinned identities into the freshly unpacked source *before* the offline tests ran. The tests then saw real run state instead of the committed fixtures:

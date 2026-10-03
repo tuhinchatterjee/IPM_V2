@@ -67,7 +67,8 @@ WHEEL = {
 }
 PYTHON = "3.12"
 #: Expected installed versions (vLLM v0.30.0 requirements/test/cuda.txt).
-LOCK = {"vllm": "0.30.0", "torch": "2.13.0", "transformers": "5.16.1",
+LOCK = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1",
+        "torch": "2.13.0", "transformers": "5.16.1",
         "tokenizers": "0.23.1", "huggingface-hub": "1.31.0",
         "mistral-common": "1.11.6", "xgrammar": "0.2.3",
         "safetensors": "0.8.0", "torchvision": "0.28.0",
@@ -135,7 +136,14 @@ MODEL_TOOL_ROUNDTRIP_FAILED = "MODEL_TOOL_ROUNDTRIP_FAILED"
 RESOURCE_BLOCKED = "RESOURCE_BLOCKED"
 LICENSE_REVIEW_REQUIRED = "LICENSE_REVIEW_REQUIRED"
 PIN_BLOCKED = "PIN_BLOCKED"
-TAXONOMY = (HOST_DRIVER_INCOMPATIBLE, VLLM_RUNTIME_INCOMPATIBLE,
+BLACKWELL_FLASHINFER_SAMPLER_INCOMPATIBLE = \
+    "BLACKWELL_FLASHINFER_SAMPLER_INCOMPATIBLE"
+MODEL_METADATA_CORRUPT = "MODEL_METADATA_CORRUPT"
+MODEL_SERVER_START_TIMEOUT = "MODEL_SERVER_START_TIMEOUT"
+CUDA_OOM = "CUDA_OOM"
+TAXONOMY = (BLACKWELL_FLASHINFER_SAMPLER_INCOMPATIBLE, MODEL_METADATA_CORRUPT,
+            MODEL_SERVER_START_TIMEOUT, CUDA_OOM,
+            HOST_DRIVER_INCOMPATIBLE, VLLM_RUNTIME_INCOMPATIBLE,
             TRANSFORMERS_INCOMPATIBLE, TOOL_PARSER_MISSING,
             MODEL_SERVER_START_FAILED, MODEL_DOWNLOAD_FAILED,
             MODEL_TOOL_ROUNDTRIP_FAILED, RESOURCE_BLOCKED,
@@ -150,9 +158,10 @@ def _vt(v: str | None) -> tuple[int, ...] | None:
     return tuple(int(x) for x in nums[:3]) if nums else None
 
 
-def parse_nvidia_smi(header: str, query_csv: str) -> dict[str, Any]:
+def parse_nvidia_smi(header: str, query_csv: str,
+                     compute_csv: str = "") -> dict[str, Any]:
     """`nvidia-smi` (header) + `nvidia-smi --query-gpu=name,driver_version,
-    memory.total --format=csv,noheader`."""
+    memory.total --format=csv,noheader` (+ `--query-gpu=compute_cap`)."""
     host_cuda = (re.search(r"CUDA Version:\s*([\d.]+)", header or "") or
                  [None, None])[1]
     rows = [r.strip() for r in (query_csv or "").splitlines() if r.strip()]
@@ -165,8 +174,14 @@ def parse_nvidia_smi(header: str, query_csv: str) -> dict[str, Any]:
     if driver is None:
         driver = (re.search(r"Driver Version:\s*([\d.]+)", header or "") or
                   [None, None])[1]
-    return {"gpu": gpu, "gpu_count": len(rows), "driver_version": driver,
-            "host_cuda": host_cuda, "gpu_memory": mem}
+    cap = (compute_csv or "").strip().splitlines()
+    cap = cap[0].strip() if cap and re.match(r"^\d+\.\d+$",
+                                              cap[0].strip()) else None
+    out = {"gpu": gpu, "gpu_count": len(rows), "driver_version": driver,
+           "host_cuda": host_cuda, "gpu_memory": mem}
+    if cap:
+        out["compute_capability"] = cap
+    return out
 
 
 def read_host() -> dict[str, Any]:
@@ -178,7 +193,8 @@ def read_host() -> dict[str, Any]:
             return ""
     return parse_nvidia_smi(run(), run(
         "--query-gpu=name,driver_version,memory.total",
-        "--format=csv,noheader"))
+        "--format=csv,noheader"), run("--query-gpu=compute_cap",
+                                      "--format=csv,noheader"))
 
 
 def host_verdict(host: dict[str, Any], vllm_cuda: str = VLLM_CUDA
@@ -273,6 +289,11 @@ try:
         torch.cuda.init()
         out["cuda_init"] = {"ok": True, "devices": torch.cuda.device_count(),
                             "device": torch.cuda.get_device_name(0)}
+        try:
+            out["cuda_capability"] = ".".join(
+                map(str, torch.cuda.get_device_capability(0)))
+        except Exception as e:
+            out["cuda_capability_error"] = f"{type(e).__name__}: {e}"
     except Exception as e:
         out["cuda_init"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
 except Exception as e:
@@ -542,6 +563,8 @@ def build_manifest(host: dict[str, Any], intro: dict[str, Any] | None,
                                          "detail": ci.get("error")}
                                    for pid in profiles}
                 return man
+    man["gpu_compute"] = gpu_compute(host, intro)
+    man["server_env"] = server_env(man["gpu_compute"])
     for pid, raw in profiles.items():
         r = profile_preflight(raw, intro)
         if man["lock_mismatches"] and r["status"] == "RUNTIME_READY":
@@ -550,6 +573,67 @@ def build_manifest(host: dict[str, Any], intro: dict[str, Any] | None,
                             + "; ".join(man["lock_mismatches"])}
         man["profiles"][pid] = r
     return man
+
+
+# ---- model-server environment (controlled, recorded workarounds) ---------------
+
+SAMPLER_WORKAROUND = "BLACKWELL_SM120_FLASHINFER_ARCH_CHECK_WORKAROUND"
+#: vLLM 0.30.0 envs.VLLM_USE_FLASHINFER_SAMPLER (default True): when 0,
+#: vllm/v1/sample/ops/topk_topp_sampler.flashinfer_sampler_supported()
+#: returns False and the GPU sampler uses vLLM's native top-k/top-p path.
+#: Nothing else changes: attention and other kernels keep their defaults.
+SAMPLER_ENV = "VLLM_USE_FLASHINFER_SAMPLER"
+LIVE_FLASHINFER_ERROR = "FlashInfer requires GPUs with sm75 or higher"
+
+
+def gpu_compute(host: dict[str, Any], intro: dict[str, Any] | None
+                ) -> dict[str, Any]:
+    """GPU name, compute capability (torch on the host, else nvidia-smi),
+    driver, CUDA, torch CUDA, vLLM and FlashInfer versions."""
+    intro = intro or {}
+    v = intro.get("versions") or {}
+    return {"gpu": host.get("gpu"),
+            "compute_capability": intro.get("cuda_capability") or
+            host.get("compute_capability"),
+            "compute_capability_source": (
+                "torch.cuda.get_device_capability" if intro.get(
+                    "cuda_capability") else "nvidia-smi compute_cap" if
+                host.get("compute_capability") else "unknown"),
+            "driver_version": host.get("driver_version"),
+            "host_cuda": host.get("host_cuda"),
+            "torch_cuda": intro.get("torch_cuda"),
+            "vllm": v.get("vllm") or VLLM_VERSION,
+            "flashinfer": v.get("flashinfer-python")}
+
+
+def server_env(gc: dict[str, Any]) -> dict[str, Any]:
+    """Environment for the vLLM model server on THIS hardware, with the
+    reason for every override. SM 12.x (RTX PRO 6000 Blackwell and the rest
+    of the SM120 class) fails FlashInfer's JIT architecture check in the
+    top-k/top-p sampler ("FlashInfer requires GPUs with sm75 or higher"),
+    so only that sampler is disabled there. Other hardware (A40 SM 8.6,
+    Hopper, ...) keeps vLLM's defaults."""
+    cap = _vt(gc.get("compute_capability"))
+    if cap and cap[0] == 12:
+        return {"env": {SAMPLER_ENV: "0"},
+                "sampling_backend": {
+                    "flashinfer_sampler": "disabled",
+                    "reason": SAMPLER_WORKAROUND,
+                    "fallback": "vllm_native",
+                    "evidence": f"compute capability {gc['compute_capability']}"
+                                f" ({gc.get('compute_capability_source')}); "
+                                f"live vLLM {gc.get('vllm')} / FlashInfer "
+                                f"{gc.get('flashinfer')} warmup failed with "
+                                f"{LIVE_FLASHINFER_ERROR!r} in "
+                                f"flashinfer.jit.core.check_cuda_arch",
+                    "control": f"{SAMPLER_ENV}=0 (vllm.envs, v0.30.0)"}}
+    return {"env": {},
+            "sampling_backend": {
+                "flashinfer_sampler": "vllm default",
+                "reason": ("no compatibility reason on this hardware"
+                           if cap else "compute capability unknown: vLLM "
+                                       "defaults kept"),
+                "fallback": None}}
 
 
 def profile_gate(man: dict[str, Any] | None, pid: str
@@ -583,10 +667,27 @@ CHMOD_NOISE = re.compile(r"(Could not set the permissions on the file|"
                          r"\[Errno 1\] Operation not permitted)", re.I)
 
 
+FLASHINFER_ARCH = re.compile(r"FlashInfer requires GPUs with sm\d+ or "
+                             r"higher|flashinfer[/.]jit[/.]core[^\n]*"
+                             r"check_cuda_arch", re.I)
+METADATA_CORRUPT = re.compile(
+    r"(config|tokenizer_config|generation_config|tokenizer|params|"
+    r"preprocessor_config|processor_config|special_tokens_map)\.json[^\n]*"
+    r"is not a valid JSON file|is not a valid JSON file[^\n]*\.json|"
+    r"JSONDecodeError: Expecting value: line 1 column 1", re.I)
+
+
+def _clean(text: str) -> str:
+    return "\n".join(ln for ln in (text or "").splitlines()
+                     if not CHMOD_NOISE.search(ln))
+
+
 def classify_server_log(text: str) -> str:
-    lines = [ln for ln in (text or "").splitlines()
-             if not CHMOD_NOISE.search(ln)]
-    t = "\n".join(lines)
+    t = _clean(text)
+    if FLASHINFER_ARCH.search(t):
+        return BLACKWELL_FLASHINFER_SAMPLER_INCOMPATIBLE
+    if METADATA_CORRUPT.search(t):
+        return MODEL_METADATA_CORRUPT
     cls = classify_error(t)
     if cls != VLLM_RUNTIME_INCOMPATIBLE:
         return cls
@@ -597,7 +698,7 @@ def classify_server_log(text: str) -> str:
     if re.search(r"CUDA out of memory|OutOfMemoryError|"
                  r"not enough (GPU )?memory|No available memory for the "
                  r"cache blocks|exceeds (the )?available", t, re.I):
-        return RESOURCE_BLOCKED
+        return CUDA_OOM
     if re.search(r"RepositoryNotFoundError|RevisionNotFoundError|"
                  r"GatedRepoError|LocalEntryNotFoundError|EntryNotFoundError|"
                  r"HfHubHTTPError|401 Client Error|403 Client Error|"
@@ -606,6 +707,26 @@ def classify_server_log(text: str) -> str:
                  r"Consistency check failed|IncompleteRead", t, re.I):
         return MODEL_DOWNLOAD_FAILED
     return MODEL_SERVER_START_FAILED
+
+
+def concise_cause(text: str, limit: int = 300) -> str:
+    """One line from the server log that names the root cause: a known
+    signature if present, else the last exception line. The full log is
+    never replaced by this."""
+    t = _clean(text)
+    for rx in (FLASHINFER_ARCH, re.compile(r"is not a valid JSON file"),
+               METADATA_CORRUPT):
+        hits = list(rx.finditer(t))
+        if hits:
+            m = hits[-1]
+            line = t[t.rfind("\n", 0, m.start()) + 1:].split("\n", 1)[0]
+            return line.strip()[:limit]
+    exc = re.findall(r"^\s*(?:[\w.]+\.)?\w*(?:Error|Exception|Exit)\b[^\n]*",
+                     t, re.M)
+    if exc:
+        return exc[-1].strip()[:limit]
+    tail = [ln for ln in t.splitlines() if ln.strip()]
+    return (tail[-1].strip()[:limit] if tail else "empty server log")
 
 
 def verify_download(pin: dict[str, Any], cache_dir: Path) -> dict[str, Any]:
@@ -699,6 +820,16 @@ def main(argv: list[str] | None = None) -> int:
           + ", ".join(f"{k} {(inst.get('versions') or {}).get(k)}"
                       for k in ("vllm", "torch", "transformers", "tokenizers"))
           + f", torch CUDA {inst.get('torch_cuda')}")
+    gc, se = man.get("gpu_compute") or {}, man.get("server_env") or {}
+    print(f"gpu_compute: {gc.get('gpu')} compute capability "
+          f"{gc.get('compute_capability')} ({gc.get('compute_capability_source')})"
+          f", driver {gc.get('driver_version')}, CUDA {gc.get('host_cuda')}, "
+          f"torch CUDA {gc.get('torch_cuda')}, vLLM {gc.get('vllm')}, "
+          f"FlashInfer {gc.get('flashinfer')}")
+    sb = se.get("sampling_backend") or {}
+    print(f"sampling_backend: flashinfer_sampler={sb.get('flashinfer_sampler')}"
+          f" reason={sb.get('reason')} fallback={sb.get('fallback')}"
+          + (f" env={se.get('env')}" if se.get("env") else ""))
     if man["lock_mismatches"]:
         print(f"{VLLM_RUNTIME_INCOMPATIBLE}: " + "; ".join(
             man["lock_mismatches"]))

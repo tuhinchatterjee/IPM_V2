@@ -55,6 +55,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hardware  # noqa: E402
+import hf_metadata  # noqa: E402
 import vllm_runtime as vr  # noqa: E402
 
 PROFILES = ROOT / "profiles"
@@ -229,6 +230,7 @@ def pin(repo: str, fetch: Fetch, revision: str | None = None
         "tokenizer_revision": sha,
         "tokenizer_files": [f["rfilename"] for f in files
                             if "tokenizer" in f["rfilename"]],
+        "metadata_blobs": hf_metadata.expected_blob_ids(info),
         "chat_template_present": bool(template_text),
         "chat_template_mentions_tools": "tool" in template_text.lower(),
         "chat_template_source": template_source,
@@ -498,29 +500,59 @@ def qualify(pid: str, fetch: Fetch, *, override: str | None = None,
 
 # ---- 5. probe ----------------------------------------------------------------------
 
-def start_server(pid: str, runtime: Path) -> subprocess.Popen:
+def server_environment(runtime: Path) -> dict[str, Any]:
+    """The recorded, hardware-specific vLLM server environment (e.g. the
+    Blackwell SM120 FlashInfer-sampler workaround), from the persisted
+    runtime manifest; recomputed from CURRENT_HOST when an older manifest
+    predates it."""
+    man = vr.load_manifest(runtime) or {}
+    if man.get("server_env"):
+        return man["server_env"]
+    hw = hardware.current(runtime)
+    return vr.server_env(vr.gpu_compute(
+        {"gpu": hw.get("gpu"), "compute_capability": hw.get(
+            "compute_capability"), "driver_version": hw.get(
+            "driver_version"), "host_cuda": hw.get("host_cuda")}, None))
+
+
+def start_server(pid: str, runtime: Path,
+                 server_env: dict[str, Any] | None = None) -> subprocess.Popen:
+    """Launch serve.sh with the recorded environment overrides. The log
+    starts with a header naming every override and its reason; vLLM's own
+    output follows unchanged (the full log is always kept)."""
+    server_env = server_env or {"env": {}, "sampling_backend": {}}
     log = runtime / "logs" / f"vllm_{pid}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
+    fh = log.open("wb")
+    fh.write(("# creditprobe launch " + time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()) + f" profile={pid}\n"
+        + "".join(f"# env {k}={v}\n" for k, v in server_env["env"].items())
+        + f"# sampling_backend {json.dumps(server_env['sampling_backend'])}"
+          "\n").encode())
+    fh.flush()
     srv = subprocess.Popen([str(ROOT / "scripts/model_lab/runpod/serve.sh"),
-                            pid], stdout=log.open("wb"),
-                           stderr=subprocess.STDOUT, cwd=ROOT,
-                           start_new_session=True)
+                            pid], stdout=fh, stderr=subprocess.STDOUT,
+                           cwd=ROOT, start_new_session=True,
+                           env=os.environ | server_env["env"])
     srv.log_path = str(log)  # type: ignore[attr-defined]
     return srv
 
 
-def wait_ready(srv: subprocess.Popen, wait_s: int = 1800) -> str:
+def wait_ready(srv: subprocess.Popen, wait_s: int = 1800
+               ) -> tuple[str, str]:
+    """("", "") when serving; else (message, "exited" | "timeout")."""
     base = "http://127.0.0.1:8000/v1"
     t0 = time.time()
     while time.time() - t0 < wait_s:
         if srv.poll() is not None:
-            return f"vLLM exited rc={srv.returncode}; see {srv.log_path}"
+            return (f"vLLM exited rc={srv.returncode}; see {srv.log_path}",
+                    "exited")
         try:
             urllib.request.urlopen(base + "/models", timeout=5)  # noqa: S310
-            return ""
+            return "", ""
         except Exception:  # noqa: BLE001
             time.sleep(5)
-    return f"vLLM not ready after {wait_s}s; see {srv.log_path}"
+    return f"vLLM not ready after {wait_s}s; see {srv.log_path}", "timeout"
 
 
 def stop_server(srv: subprocess.Popen) -> None:
@@ -570,37 +602,102 @@ def assign_parsers(pid: str, runtime: Path, fetch: Fetch | None = None
     return plan
 
 
+#: Injection points (tests): who downloads repaired metadata, who reads the
+#: Hub listing at the pinned revision.
+METADATA_DOWNLOADER: hf_metadata.Downloader | None = None
+METADATA_FETCH: Fetch | None = None
+
+
+def _metadata_caches() -> list[Path]:
+    out = []
+    for k in ("HF_HUB_CACHE", "MODEL_CACHE_DIR"):
+        if os.environ.get(k):
+            out.append(Path(os.environ[k]))
+    if not os.environ.get("HF_HUB_CACHE") and os.environ.get("HF_HOME"):
+        out.append(Path(os.environ["HF_HOME"]) / "hub")
+    return list(dict.fromkeys(out))
+
+
+def _vllm_python() -> str:
+    vb = os.environ.get("VLLM_BIN")
+    if vb:
+        return str(Path(vb).parent / "python")
+    return str(Path(os.environ.get("CREDITPROBE_VENV_DIR", "")) / "vllm" /
+               "bin" / "python")
+
+
+def check_metadata(pid: str, raw: dict, runtime: Path) -> dict[str, Any]:
+    art = raw.get("artifact") or {}
+    prev = _previous_pin(runtime, pid) or {}
+    expected = prev.get("metadata_blobs")
+    if expected is None:
+        fetch = METADATA_FETCH or http_fetch
+        try:
+            expected = hf_metadata.expected_blob_ids(fetch(
+                f"{HF}/api/models/{art.get('repository')}/revision/"
+                f"{art.get('revision')}?blobs=true"))
+        except Exception:  # noqa: BLE001
+            expected = None             # path-only check
+    return hf_metadata.ensure(
+        pid, art.get("repository"), art.get("revision"), _metadata_caches(),
+        downloader=METADATA_DOWNLOADER or hf_metadata.hub_downloader(
+            _vllm_python()), expected=expected, runtime=runtime)
+
+
+def _failure(pid: str, raw: dict, cls: str, why: str, **extra: Any
+             ) -> dict[str, Any]:
+    art = raw.get("artifact") or {}
+    return {"probe_status": cls, "failure": why,
+            "repository": art.get("repository"),
+            "revision": art.get("revision")} | extra
+
+
 def serve_and_probe(pid: str, runtime: Path, *, keep: bool = False
                     ) -> dict[str, Any]:
     """Serve, probe with the dummy tool, and stop (or keep, for the
     runner). No benchmark question is ever sent here. Every failure carries
-    its own class (vllm_runtime.TAXONOMY); nothing is a generic failure."""
+    its own class (vllm_runtime.TAXONOMY) plus the repository, revision,
+    server log path, return code and a concise root cause."""
     from backend.model_lab import probe, registry
 
     raw = json.loads((PROFILES / f"{pid}.json").read_text())
     man = vr.load_manifest(runtime)
     if man and man["verdict"]["status"] != "COMPATIBLE":
-        return {"probe_status": vr.HOST_DRIVER_INCOMPATIBLE,
-                "failure": "; ".join(man["verdict"]["reasons"]) + " -- "
-                           + man["verdict"]["remediation"]}
+        return _failure(pid, raw, vr.HOST_DRIVER_INCOMPATIBLE,
+                        "; ".join(man["verdict"]["reasons"]) + " -- "
+                        + man["verdict"]["remediation"])
     if not (raw.get("runpod") or {}).get("suggested_tool_call_parser"):
-        return {"probe_status": vr.TOOL_PARSER_MISSING,
-                "failure": "no tool-call parser is assigned for this model: "
-                           + str((raw.get("runpod") or {}).get(
-                               "parser_evidence") or "no registered parser "
-                               "for this family and no known tool-call "
-                               "marker in its chat template")}
+        return _failure(pid, raw, vr.TOOL_PARSER_MISSING,
+                        "no tool-call parser is assigned for this model: "
+                        + str((raw.get("runpod") or {}).get(
+                            "parser_evidence") or "no registered parser "
+                            "for this family and no known tool-call "
+                            "marker in its chat template"))
     gate = vr.profile_gate(man, pid)
     if gate:
-        return gate
-    srv = start_server(pid, runtime)
+        return _failure(pid, raw, gate["probe_status"], gate["failure"])
+    meta = check_metadata(pid, raw, runtime)
+    meta_brief = {k: meta.get(k) for k in ("status", "detail")} | {
+        "events": [e.get("event") for e in meta.get("events") or []]}
+    if meta["status"] == hf_metadata.MODEL_METADATA_CORRUPT:
+        return _failure(pid, raw, vr.MODEL_METADATA_CORRUPT,
+                        meta.get("detail") or "pinned metadata invalid",
+                        root_cause=meta.get("detail"), metadata=meta_brief,
+                        integrity_record=str(runtime / "cache_integrity" /
+                                             f"{pid}.json"))
+    senv = server_environment(runtime)
+    srv = start_server(pid, runtime, senv)
     kept = False
+    common = {"log_path": srv.log_path, "server_env": senv["env"],
+              "sampling_backend": senv["sampling_backend"],
+              "metadata": meta_brief}
     try:
-        why = wait_ready(srv)
+        why, kind = wait_ready(srv)
         if why:
-            log = Path(srv.log_path).read_text(errors="replace")[-20000:] \
+            log = Path(srv.log_path).read_text(errors="replace")[-40000:] \
                 if Path(srv.log_path).exists() else ""
-            cls = vr.classify_server_log(log)
+            cls = (vr.MODEL_SERVER_START_TIMEOUT if kind == "timeout" else
+                   vr.classify_server_log(log))
             dl = vr.verify_download(
                 (raw.get("artifact") or {}) | {"weights": _pinned_weights(
                     runtime, pid)},
@@ -608,7 +705,10 @@ def serve_and_probe(pid: str, runtime: Path, *, keep: bool = False
                 os.environ.get("MODEL_CACHE_DIR") else Path("/nonexistent"))
             if cls == vr.MODEL_DOWNLOAD_FAILED and dl["ok"]:
                 cls = vr.MODEL_SERVER_START_FAILED   # the files are complete
-            return {"probe_status": cls, "failure": why, "download": dl}
+            return _failure(pid, raw, cls, why,
+                            returncode=srv.returncode,
+                            root_cause=vr.concise_cause(log), download=dl,
+                            **common)
         prof = registry.load_profiles()[pid]
         res = probe.probe_profile(prof, base_url="http://127.0.0.1:8000/v1")
         probe.save(runtime, res)
@@ -621,7 +721,9 @@ def serve_and_probe(pid: str, runtime: Path, *, keep: bool = False
                "; ".join(st.reasons) + (f" | {res.get('error')}"
                                         if res.get("error") else ""),
                "controls": res.get("controls"), "vram_after_load_mib":
-               _gpu_mem()}
+               _gpu_mem(), "repository": (raw.get("artifact") or {}).get(
+                   "repository"), "revision": (raw.get("artifact") or {}
+                                              ).get("revision")} | common
         if ok and keep:
             out["_server"] = srv
             kept = True
@@ -629,6 +731,31 @@ def serve_and_probe(pid: str, runtime: Path, *, keep: bool = False
     finally:
         if not kept:
             stop_server(srv)
+
+
+def failure_summary(roster: list[dict[str, Any]]) -> list[str]:
+    """One block per model that did not reach READY_E2E (never replaces the
+    server log, which the block points to)."""
+    lines = []
+    for r in roster:
+        st = r.get("probe_status")
+        if not st or st == "READY_E2E":
+            continue
+        lines.append(f"  {r.get('profile_id')}: {st}")
+        lines.append(f"      {r.get('repository') or '-'}@"
+                     f"{r.get('revision') or '-'}")
+        if r.get("log_path"):
+            lines.append(f"      log {r['log_path']} (rc "
+                         f"{r.get('returncode')})")
+        cause = r.get("root_cause") or r.get("failure") or \
+            r.get("probe_skipped_because") or r.get("reason")
+        if cause:
+            lines.append(f"      cause: {str(cause)[:300]}")
+        sb = (r.get("sampling_backend") or {})
+        if sb.get("flashinfer_sampler") == "disabled":
+            lines.append(f"      workaround applied: {sb.get('reason')} "
+                         f"(fallback {sb.get('fallback')})")
+    return lines
 
 
 def _pinned_weights(runtime: Path, pid: str) -> list[dict]:
@@ -718,6 +845,12 @@ def run(ids: list[str], fetch: Fetch, runtime: Path, *, do_probe: bool,
     (out_dir / "ROSTER.json").write_text(json.dumps(
         {"generated_at": time.time(), "roster": roster}, indent=1,
         default=str))
+    if do_probe:
+        detail = failure_summary(roster)
+        if detail:
+            print("models not READY_E2E (full server logs kept at the paths "
+                  "shown):")
+            print("\n".join(detail))
     return roster
 
 
@@ -728,6 +861,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="PROFILE=OWNER/REPO: operator names the official "
                          "repository for a profile that cannot be resolved")
     ap.add_argument("--probe", action="store_true")
+    ap.add_argument("--summary", action="store_true",
+                    help="print the failure detail of the last roster")
     ap.add_argument("--repin", action="store_true",
                     help="re-resolve revisions even for already pinned "
                          "profiles (operator decision; changes identities)")
@@ -735,6 +870,13 @@ def main(argv: list[str] | None = None) -> int:
         "MODEL_LAB_RUNTIME_DIR", str(DEFAULT_RUNTIME)))
     args = ap.parse_args(argv)
     os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
+    if args.summary:
+        ros = Path(args.runtime_dir).expanduser() / "pins" / "ROSTER.json"
+        roster = json.loads(ros.read_text())["roster"] if ros.exists() \
+            else []
+        print("\n".join(failure_summary(roster)) or "every probed model is "
+              "READY_E2E (or nothing has been probed yet)")
+        return 0
     overrides = dict(x.split("=", 1) for x in args.repo)
     ids = args.profile or suite_profiles()
     run(ids, http_fetch, Path(args.runtime_dir).expanduser().resolve(),
